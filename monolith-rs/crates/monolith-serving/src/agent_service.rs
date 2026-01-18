@@ -6,6 +6,7 @@
 use crate::error::{ServingError, ServingResult};
 use crate::model_loader::{LoadedModel, ModelLoader};
 use crate::parameter_sync::ParameterSyncClient;
+use candle_core::{DType, Tensor as CandleTensor};
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -391,28 +392,57 @@ impl AgentServiceImpl {
 
     /// Run model inference on the embeddings.
     fn run_inference(&self, embeddings: &[(i32, String, Vec<f32>)]) -> ServingResult<Vec<f32>> {
-        // In a real implementation, this would run the actual model
-        // For now, return a simple aggregation
+        // If the loaded model contains a Candle inference graph (via model_spec.json),
+        // use it. Otherwise, fall back to a deterministic baseline score.
+        let model = self
+            .model_loader
+            .current_model()
+            .ok_or(ServingError::ModelNotLoaded)?;
 
-        if embeddings.is_empty() {
-            return Ok(vec![0.5]); // Default score
-        }
-
-        // Concatenate all embeddings and compute a simple score
-        let mut concat: Vec<f32> = embeddings
-            .iter()
-            .flat_map(|(_, _, emb)| emb.iter().cloned())
-            .collect();
-
-        // Simple sigmoid-like scoring
-        let score = if concat.is_empty() {
-            0.5
-        } else {
-            let mean: f32 = concat.iter().sum::<f32>() / concat.len() as f32;
-            1.0 / (1.0 + (-mean).exp())
+        let Some(infer) = model.inference_model.as_ref() else {
+            // Baseline: same as previous behavior (for compatibility).
+            if embeddings.is_empty() {
+                return Ok(vec![0.5]);
+            }
+            let concat: Vec<f32> = embeddings
+                .iter()
+                .flat_map(|(_, _, emb)| emb.iter().cloned())
+                .collect();
+            let score = if concat.is_empty() {
+                0.5
+            } else {
+                let mean: f32 = concat.iter().sum::<f32>() / concat.len() as f32;
+                1.0 / (1.0 + (-mean).exp())
+            };
+            return Ok(vec![score]);
         };
 
-        Ok(vec![score])
+        // Build input vector from pooled embeddings: concat slot embeddings in request order.
+        let mut x: Vec<f32> = Vec::new();
+        for (_, _, emb) in embeddings {
+            x.extend_from_slice(emb);
+        }
+
+        if x.len() != infer.input_dim() {
+            return Err(ServingError::PredictionError(format!(
+                "Inference input dim mismatch: got {}, expected {}",
+                x.len(),
+                infer.input_dim()
+            )));
+        }
+
+        let device = monolith_tensor::CandleTensor::best_device();
+        let input = CandleTensor::from_slice(&x, (1, x.len()), &device).map_err(|e| {
+            ServingError::PredictionError(format!("Candle input tensor failed: {e}"))
+        })?;
+
+        let out = infer.predict(&input)?;
+        let vec = out.to_vec2::<f32>().map_err(|e| {
+            ServingError::PredictionError(format!("Candle output decode failed: {e}"))
+        })?;
+
+        // Primary head: first row. If multi-dim, return all.
+        Ok(vec.into_iter().next().unwrap_or_default())
     }
 
     /// Get service statistics.

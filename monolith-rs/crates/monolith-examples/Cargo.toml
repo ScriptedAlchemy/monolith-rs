@@ -16,6 +16,17 @@ monolith-training = { workspace = true }
 monolith-optimizer = { workspace = true }
 prost = { workspace = true }
 
+# Technical analysis indicators
+ta = "0.5"
+
+# Parallel processing
+rayon = { workspace = true }
+num_cpus = "1.16"
+
+[[bin]]
+name = "stock_prediction"
+path = "src/bin/stock_prediction.rs"
+
 [[bin]]
 name = "stream_training"
 path = "src/bin/stream_training.rs"

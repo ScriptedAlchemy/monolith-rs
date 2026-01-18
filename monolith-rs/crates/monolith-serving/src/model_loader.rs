@@ -5,6 +5,7 @@
 
 use crate::config::ModelLoaderConfig;
 use crate::error::{ServingError, ServingResult};
+use crate::inference::{build_model, InferenceModel, ModelSpec};
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -15,7 +16,6 @@ use tracing::{debug, info, warn};
 ///
 /// This struct holds the model configuration, embeddings, and any other
 /// resources needed for inference.
-#[derive(Debug)]
 pub struct LoadedModel {
     /// Path where the model was loaded from
     pub path: PathBuf,
@@ -29,11 +29,32 @@ pub struct LoadedModel {
     /// Model metadata
     pub metadata: ModelMetadata,
 
+    /// Optional Candle model spec used by Rust-native serving.
+    pub model_spec: Option<ModelSpec>,
+
+    /// Optional Candle inference model.
+    pub inference_model: Option<Arc<dyn InferenceModel>>,
+
     /// Slot configurations for embeddings
     slot_configs: HashMap<i32, SlotConfig>,
 
     /// Whether the model is ready for serving
     ready: bool,
+}
+
+impl std::fmt::Debug for LoadedModel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LoadedModel")
+            .field("path", &self.path)
+            .field("version", &self.version)
+            .field("loaded_at", &self.loaded_at)
+            .field("metadata", &self.metadata)
+            .field("slot_configs_len", &self.slot_configs.len())
+            .field("ready", &self.ready)
+            .field("model_spec", &self.model_spec)
+            .field("has_inference_model", &self.inference_model.is_some())
+            .finish()
+    }
 }
 
 impl LoadedModel {
@@ -165,6 +186,12 @@ impl ModelLoader {
         let slot_configs = self.load_slot_configs(&path).await?;
         debug!("Loaded {} slot configurations", slot_configs.len());
 
+        // Optional: load Candle model spec + weights for real inference.
+        let (model_spec, inference_model) = self
+            .try_load_candle_model(&path)
+            .await
+            .unwrap_or((None, None));
+
         // Determine version
         let version = self.determine_version(&path, &metadata)?;
         info!("Model version: {}", version);
@@ -175,6 +202,8 @@ impl ModelLoader {
             version: version.clone(),
             loaded_at: std::time::Instant::now(),
             metadata,
+            model_spec,
+            inference_model,
             slot_configs,
             ready: true,
         };
@@ -312,6 +341,50 @@ impl ModelLoader {
 
         Ok(version)
     }
+
+    async fn try_load_candle_model(
+        &self,
+        path: &Path,
+    ) -> ServingResult<(Option<ModelSpec>, Option<Arc<dyn InferenceModel>>)> {
+        // We treat model_spec.json as an opt-in for Rust-native serving.
+        let spec_path = path.join("model_spec.json");
+        let dense_path = path.join("dense").join("params.json");
+
+        if !spec_path.exists() || !dense_path.exists() {
+            return Ok((None, None));
+        }
+
+        let spec_json = std::fs::read_to_string(&spec_path).map_err(|e| {
+            ServingError::ModelLoadError(format!(
+                "Failed to read model_spec.json at {:?}: {}",
+                spec_path, e
+            ))
+        })?;
+        let spec: ModelSpec = serde_json::from_str(&spec_json).map_err(|e| {
+            ServingError::ModelLoadError(format!(
+                "Failed to parse model_spec.json at {:?}: {}",
+                spec_path, e
+            ))
+        })?;
+
+        let dense_json = std::fs::read_to_string(&dense_path).map_err(|e| {
+            ServingError::ModelLoadError(format!(
+                "Failed to read dense params at {:?}: {}",
+                dense_path, e
+            ))
+        })?;
+        let dense_params: HashMap<String, Vec<f32>> =
+            serde_json::from_str(&dense_json).map_err(|e| {
+                ServingError::ModelLoadError(format!(
+                    "Failed to parse dense params at {:?}: {}",
+                    dense_path, e
+                ))
+            })?;
+
+        let device = monolith_tensor::CandleTensor::best_device();
+        let model = build_model(&spec, &dense_params, &device)?;
+        Ok((Some(spec), Some(Arc::from(model))))
+    }
 }
 
 impl std::fmt::Debug for ModelLoader {
@@ -429,6 +502,8 @@ mod tests {
             version: "v1".to_string(),
             loaded_at: std::time::Instant::now(),
             metadata: ModelMetadata::default(),
+            model_spec: None,
+            inference_model: None,
             slot_configs,
             ready: true,
         };

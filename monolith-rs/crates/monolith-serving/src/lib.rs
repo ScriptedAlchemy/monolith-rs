@@ -219,6 +219,7 @@ pub mod embedding_store;
 pub mod error;
 pub mod grpc;
 pub mod grpc_agent;
+pub mod inference;
 pub mod model_loader;
 pub mod parameter_sync;
 pub mod parameter_sync_rpc;
@@ -234,6 +235,7 @@ pub use grpc::{
     AgentService, AgentServiceGrpcImpl, GrpcServerConfig, GrpcServerConfigBuilder, GrpcServerState,
     GrpcServiceStats, ServerType, ServingServer,
 };
+pub use inference::{Activation, ModelSpec};
 pub use model_loader::{LoadedModel, ModelLoader};
 pub use parameter_sync::{EmbeddingData, ParameterSyncClient, SyncRequest, SyncResponse};
 pub use parameter_sync_rpc::{ParameterSyncGrpcServer, ParameterSyncRpcClient};

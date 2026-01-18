@@ -23,3 +23,9 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[features]
+default = []
+# Enable Consul/ZooKeeper discovery variants in `monolith train`.
+consul = ["monolith-training/consul"]
+zookeeper = ["monolith-training/zookeeper"]

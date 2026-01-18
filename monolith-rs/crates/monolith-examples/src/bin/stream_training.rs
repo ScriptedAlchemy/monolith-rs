@@ -43,6 +43,7 @@ use std::time::{Duration, Instant};
 // Monolith crates
 use monolith_data::{
     example::{add_feature, create_example, get_feature},
+    get_feature_data,
     kafka::{KafkaConfig, KafkaConsumer, KafkaDataSource, KafkaMessage, MockKafkaConsumer},
 };
 use monolith_layers::{
@@ -485,13 +486,13 @@ impl<C: KafkaConsumer> KafkaStreamTrainer<C> {
     /// Extract features from an Example protobuf.
     fn extract_features(&self, example: &Example) -> Option<(Tensor, f32)> {
         // Extract movie and user features
-        let mov_feature = get_feature(example, "mov")?;
-        let uid_feature = get_feature(example, "uid")?;
-        let label_feature = get_feature(example, "label")?;
+        let mov_feature = get_feature_data(example, "mov")?;
+        let uid_feature = get_feature_data(example, "uid")?;
+        let label_feature = get_feature_data(example, "label")?;
 
         // Create input tensor (simplified: just use the first fid as feature)
-        let mov_id = *mov_feature.fid.first().unwrap_or(&0) as f32;
-        let uid_id = *uid_feature.fid.first().unwrap_or(&0) as f32;
+        let mov_id = mov_feature.fid.first().copied().unwrap_or(0) as f32;
+        let uid_id = uid_feature.fid.first().copied().unwrap_or(0) as f32;
 
         // Normalize features (simple scaling for demonstration)
         let input = Tensor::from_data(
@@ -502,7 +503,7 @@ impl<C: KafkaConsumer> KafkaStreamTrainer<C> {
             ],
         );
 
-        let label = *label_feature.value.first().unwrap_or(&0.0);
+        let label = label_feature.value.first().copied().unwrap_or(0.0);
 
         Some((input, label))
     }
@@ -724,7 +725,9 @@ mod tests {
         let mut example = create_example();
         add_feature(&mut example, "mov", vec![100], vec![1.0]);
         add_feature(&mut example, "uid", vec![5000], vec![1.0]);
-        add_feature(&mut example, "label", vec![0], vec![1.0]);
+        // `add_feature` stores sparse data as fids and ignores `values` when fids are present,
+        // so use float_list encoding for labels.
+        add_feature(&mut example, "label", vec![], vec![1.0]);
 
         let (input, label) = trainer.extract_features(&example).unwrap();
 

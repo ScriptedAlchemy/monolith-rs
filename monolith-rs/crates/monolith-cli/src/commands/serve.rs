@@ -5,7 +5,11 @@
 
 use anyhow::{Context, Result};
 use clap::Args;
+use monolith_serving::embedding_store::EmbeddingStore;
+use monolith_serving::parameter_sync_rpc::{ParameterSyncGrpcServer, PushSink};
+use monolith_serving::parameter_sync_sink::EmbeddingStorePushSink;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tracing::{info, warn};
 
 /// Serve a model for inference via gRPC
@@ -63,6 +67,13 @@ pub struct ServeCommand {
     /// Model version to serve (defaults to latest)
     #[arg(long)]
     pub model_version: Option<String>,
+
+    /// Bind address for ParameterSync gRPC service (training PS push target).
+    ///
+    /// If set, the server will also host `ParameterSyncService/Push` to receive
+    /// embedding deltas from training parameter servers.
+    #[arg(long)]
+    pub parameter_sync_bind_addr: Option<String>,
 }
 
 impl ServeCommand {
@@ -101,23 +112,32 @@ impl ServeCommand {
             info!("Health check enabled on port {}", health_port);
         }
 
-        // TODO: Load model
-        // let model = Model::load(&self.model_dir)?;
+        // Start ParameterSync gRPC server (optional).
+        //
+        // This is the "online" receiver for training PS delta pushes.
+        // We expose it as a separate bind addr for flexibility in deployments.
+        let _psync_server_handle = if let Some(bind) = &self.parameter_sync_bind_addr {
+            let addr: std::net::SocketAddr = bind
+                .parse()
+                .context("Invalid --parameter-sync-bind-addr (expected host:port)")?;
 
-        // TODO: Create serving context
-        // let context = ServingContext::new(model, self.max_batch_size)?;
+            let store = Arc::new(EmbeddingStore::default());
+            let sink: Arc<dyn PushSink> = Arc::new(EmbeddingStorePushSink::new(Arc::clone(&store)));
+            let server = ParameterSyncGrpcServer::new(sink);
 
-        // TODO: Start gRPC server
-        // let addr = format!("{}:{}", self.host, self.port).parse()?;
-        // Server::builder()
-        //     .add_service(PredictionServiceServer::new(context))
-        //     .serve(addr)
-        //     .await?;
+            info!("Starting ParameterSync gRPC server on {}", addr);
+            Some(tokio::spawn(async move {
+                if let Err(e) = server.serve(addr).await {
+                    tracing::error!("ParameterSync gRPC server failed: {}", e);
+                }
+            }))
+        } else {
+            None
+        };
 
-        info!("Server started successfully");
+        info!("Server started successfully (serve command is still a stub for AgentService/model inference)");
 
-        // Keep the server running
-        // In a real implementation, this would block on the server future
+        // Keep the process running.
         tokio::signal::ctrl_c()
             .await
             .context("Failed to listen for shutdown signal")?;
@@ -149,6 +169,7 @@ mod tests {
             batch_timeout_ms: 10,
             enable_logging: false,
             model_version: None,
+            parameter_sync_bind_addr: None,
         };
 
         assert_eq!(cmd.port, 8500);
@@ -169,6 +190,7 @@ mod tests {
             batch_timeout_ms: 5,
             enable_logging: true,
             model_version: Some("v1".to_string()),
+            parameter_sync_bind_addr: None,
         };
 
         assert_eq!(cmd.bind_address(), "127.0.0.1:9000");

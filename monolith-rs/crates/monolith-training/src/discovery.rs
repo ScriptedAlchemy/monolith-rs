@@ -39,6 +39,11 @@ use std::sync::{Arc, Mutex, RwLock};
 use thiserror::Error;
 use tokio::sync::broadcast::{self, Receiver, Sender};
 
+#[cfg(feature = "consul")]
+use rs_consul as consul;
+#[cfg(feature = "zookeeper")]
+use zookeeper_client as zk;
+
 /// Errors that can occur during service discovery operations.
 #[derive(Debug, Error)]
 pub enum DiscoveryError {
@@ -457,6 +462,10 @@ pub struct ZkDiscovery {
     base_path: String,
     /// Session timeout in milliseconds.
     session_timeout_ms: u64,
+    /// Connected ZooKeeper client (set on `connect()`).
+    client: tokio::sync::Mutex<Option<zk::Client>>,
+    /// Paths for ephemerals registered by this process (keyed by service_id).
+    registered_paths: tokio::sync::Mutex<HashMap<String, String>>,
     /// In-memory cache of services.
     services: RwLock<HashMap<String, ServiceInfo>>,
     /// Event senders for watchers.
@@ -476,6 +485,8 @@ impl ZkDiscovery {
             hosts: hosts.into(),
             base_path: base_path.into(),
             session_timeout_ms: 30000,
+            client: tokio::sync::Mutex::new(None),
+            registered_paths: tokio::sync::Mutex::new(HashMap::new()),
             services: RwLock::new(HashMap::new()),
             watchers: Mutex::new(HashMap::new()),
         }
@@ -491,19 +502,35 @@ impl ZkDiscovery {
     ///
     /// This is a placeholder that would establish a connection to ZooKeeper.
     pub async fn connect(&self) -> Result<()> {
-        tracing::info!(
-            hosts = %self.hosts,
-            base_path = %self.base_path,
-            "Connecting to ZooKeeper (stub)"
-        );
-        // TODO: Implement actual ZooKeeper connection
+        tracing::info!(hosts = %self.hosts, base_path = %self.base_path, "Connecting to ZooKeeper");
+
+        let mut guard = self.client.lock().await;
+        if guard.is_some() {
+            return Ok(());
+        }
+
+        let client = zk::Client::connector()
+            .with_session_timeout(std::time::Duration::from_millis(self.session_timeout_ms))
+            .connect(&self.hosts)
+            .await
+            .map_err(|e| DiscoveryError::ConnectionFailed(format!("ZK connect failed: {e}")))?;
+
+        // Ensure base_path exists.
+        // ZK has no "mkdir -p" primitive; create parents best-effort.
+        ensure_zk_path(&client, &self.base_path).await?;
+
+        *guard = Some(client);
         Ok(())
     }
 
     /// Disconnects from ZooKeeper.
     pub async fn disconnect(&self) -> Result<()> {
-        tracing::info!("Disconnecting from ZooKeeper (stub)");
-        // TODO: Implement actual ZooKeeper disconnection
+        tracing::info!("Disconnecting from ZooKeeper");
+
+        // Drop the client, which closes the session and cleans ephemerals.
+        let mut guard = self.client.lock().await;
+        *guard = None;
+        self.registered_paths.lock().await.clear();
         Ok(())
     }
 
@@ -523,62 +550,242 @@ impl ServiceDiscovery for ZkDiscovery {
         tracing::info!(
             service_id = %service.id,
             service_type = %service.service_type,
-            "Registering service with ZooKeeper (stub)"
+            "Registering service with ZooKeeper"
         );
 
-        // Stub: Store in local cache
+        // Keep sync API best-effort: update local cache only. The distributed runner uses
+        // `ServiceDiscoveryAsync` for real ZK I/O.
         let mut services = self.services.write().unwrap();
         if services.contains_key(&service.id) {
             return Err(DiscoveryError::AlreadyRegistered(service.id.clone()));
         }
-        services.insert(service.id.clone(), service);
+        services.insert(service.id.clone(), service.clone());
 
-        // TODO: Create ephemeral node in ZooKeeper
+        if let Some(sender) = self.watchers.lock().unwrap().get(&service.service_type) {
+            let _ = sender.send(DiscoveryEvent::ServiceAdded(service));
+        }
         Ok(())
     }
 
     fn discover(&self, service_type: &str) -> Result<Vec<ServiceInfo>> {
         tracing::debug!(
             service_type = %service_type,
-            "Discovering services from ZooKeeper (stub)"
+            "Discovering services from ZooKeeper"
         );
 
-        // Stub: Return from local cache
+        // Sync API returns from cache only; see `discover_async` for real ZK query.
         let services = self.services.read().unwrap();
-        let matching: Vec<ServiceInfo> = services
+        Ok(services
             .values()
             .filter(|s| s.service_type == service_type)
             .cloned()
-            .collect();
-
-        // TODO: Query ZooKeeper for actual services
-        Ok(matching)
+            .collect())
     }
 
     fn watch(&self, service_type: &str) -> Result<Receiver<DiscoveryEvent>> {
         tracing::debug!(
             service_type = %service_type,
-            "Setting up ZooKeeper watch (stub)"
+            "Setting up ZooKeeper watch"
         );
 
         let sender = self.get_or_create_sender(service_type);
-        // TODO: Set up actual ZooKeeper watch
         Ok(sender.subscribe())
     }
 
     fn deregister(&self, service_id: &str) -> Result<()> {
         tracing::info!(
             service_id = %service_id,
-            "Deregistering service from ZooKeeper (stub)"
+            "Deregistering service from ZooKeeper"
         );
 
-        // Stub: Remove from local cache
+        // Cache-only removal for sync API.
         let mut services = self.services.write().unwrap();
         services
             .remove(service_id)
             .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
+        Ok(())
+    }
+}
 
-        // TODO: Delete node from ZooKeeper
+#[cfg(feature = "zookeeper")]
+#[async_trait::async_trait]
+impl ServiceDiscoveryAsync for ZkDiscovery {
+    async fn connect(&self) -> Result<()> {
+        ZkDiscovery::connect(self).await
+    }
+
+    async fn disconnect(&self) -> Result<()> {
+        ZkDiscovery::disconnect(self).await
+    }
+
+    async fn register_async(&self, service: ServiceInfo) -> Result<()> {
+        self.connect().await?;
+
+        let client =
+            self.client.lock().await.as_ref().cloned().ok_or_else(|| {
+                DiscoveryError::ConnectionFailed("ZK client not connected".into())
+            })?;
+
+        let idx = service
+            .metadata
+            .get("index")
+            .and_then(|s| s.parse::<i32>().ok())
+            .or_else(|| {
+                service
+                    .id
+                    .rsplit_once('-')
+                    .and_then(|(_, n)| n.parse::<i32>().ok())
+            })
+            .unwrap_or(0);
+
+        // Match Python: /monolith/<job>/<service_type>.<index> with payload "host:port".
+        let path = format!(
+            "{}/{}.{}",
+            self.base_path.trim_end_matches('/'),
+            service.service_type,
+            idx
+        );
+        let data = service.address().into_bytes();
+
+        // Create ephemeral node with payload "host:port". If exists, set_data.
+        let create_opts = zk::CreateMode::Ephemeral.with_acls(zk::Acls::anyone_all());
+        match client.create(&path, &data, &create_opts).await {
+            Ok(_) => {}
+            Err(zk::Error::NodeExists) => {
+                client
+                    .set_data(&path, &data, None)
+                    .await
+                    .map_err(|e| DiscoveryError::Internal(format!("ZK set_data failed: {e}")))?;
+            }
+            Err(e) => {
+                return Err(DiscoveryError::Internal(format!("ZK create failed: {e}")));
+            }
+        };
+
+        self.registered_paths
+            .lock()
+            .await
+            .insert(service.id.clone(), path.clone());
+
+        // Update local cache (for quick discover + tests).
+        self.services
+            .write()
+            .unwrap()
+            .insert(service.id.clone(), service.clone());
+        if let Some(sender) = self.watchers.lock().unwrap().get(&service.service_type) {
+            let _ = sender.send(DiscoveryEvent::ServiceAdded(service.clone()));
+        }
+        Ok(())
+    }
+
+    async fn discover_async(&self, service_type: &str) -> Result<Vec<ServiceInfo>> {
+        self.connect().await?;
+        let client =
+            self.client.lock().await.as_ref().cloned().ok_or_else(|| {
+                DiscoveryError::ConnectionFailed("ZK client not connected".into())
+            })?;
+
+        let base = self.base_path.trim_end_matches('/');
+        let children = client
+            .list_children(base)
+            .await
+            .map_err(|e| DiscoveryError::Internal(format!("ZK list_children failed: {e}")))?;
+
+        let mut out = Vec::new();
+        for child in children {
+            let name = child;
+            if !name.starts_with(&format!("{}.", service_type)) {
+                continue;
+            }
+            let path = format!("{}/{}", base, name);
+            if let Ok((data, _stat)) = client.get_data(&path).await {
+                if let Ok(addr) = String::from_utf8(data) {
+                    if let Some((host, port_str)) = addr.split_once(':') {
+                        if let Ok(port) = port_str.parse::<u16>() {
+                            let idx = name
+                                .trim_start_matches(&format!("{}.", service_type))
+                                .to_string();
+                            let id = format!("{}-{}", service_type, idx);
+                            let mut svc =
+                                ServiceInfo::new(id.clone(), id.clone(), service_type, host, port);
+                            svc.metadata.insert("addr".into(), addr.clone());
+                            svc.metadata.insert("index".into(), idx);
+                            out.push(svc);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Keep cache in sync.
+        {
+            let mut cache = self.services.write().unwrap();
+            cache.retain(|_, v| v.service_type != service_type);
+            for svc in &out {
+                cache.insert(svc.id.clone(), svc.clone());
+            }
+        }
+
+        Ok(out)
+    }
+
+    async fn watch_async(&self, service_type: &str) -> Result<Receiver<DiscoveryEvent>> {
+        // Poll-based watcher: keeps parity with Python's callback-based watchers without
+        // relying on ZK persistent watch semantics (which can be lossy during reconnect).
+        let sender = self.get_or_create_sender(service_type);
+        let rx = sender.subscribe();
+
+        let svc_type = service_type.to_string();
+        let this = Arc::new(self.clone_for_watch());
+        tokio::spawn(async move {
+            let mut prev: HashMap<String, ServiceInfo> = HashMap::new();
+            loop {
+                let next_list = match this.discover_async(&svc_type).await {
+                    Ok(v) => v,
+                    Err(e) => {
+                        tracing::debug!(error = %e, "ZK watch poll discover failed");
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        continue;
+                    }
+                };
+
+                let mut next: HashMap<String, ServiceInfo> = HashMap::new();
+                for s in next_list {
+                    next.insert(s.id.clone(), s);
+                }
+
+                for (id, s) in next.iter() {
+                    if !prev.contains_key(id) {
+                        let _ = sender.send(DiscoveryEvent::ServiceAdded(s.clone()));
+                    }
+                }
+                for id in prev.keys() {
+                    if !next.contains_key(id) {
+                        let _ = sender.send(DiscoveryEvent::ServiceRemoved(id.clone()));
+                    }
+                }
+
+                prev = next;
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+        });
+
+        Ok(rx)
+    }
+
+    async fn deregister_async(&self, service_id: &str) -> Result<()> {
+        self.connect().await?;
+        let client =
+            self.client.lock().await.as_ref().cloned().ok_or_else(|| {
+                DiscoveryError::ConnectionFailed("ZK client not connected".into())
+            })?;
+
+        let path_opt = self.registered_paths.lock().await.remove(service_id);
+        if let Some(path) = path_opt {
+            let _ = client.delete(&path, None).await;
+        }
+
+        self.services.write().unwrap().remove(service_id);
         Ok(())
     }
 }
@@ -602,6 +809,10 @@ pub struct ConsulDiscovery {
     datacenter: Option<String>,
     /// ACL token for authentication.
     token: Option<String>,
+    /// Connected Consul client.
+    client: tokio::sync::Mutex<Option<Arc<consul::Consul>>>,
+    /// Consul "service name" used for discovery.
+    service_name: String,
     /// In-memory cache of services.
     services: RwLock<HashMap<String, ServiceInfo>>,
     /// Event senders for watchers.
@@ -620,6 +831,8 @@ impl ConsulDiscovery {
             address: address.into(),
             datacenter: None,
             token: None,
+            client: tokio::sync::Mutex::new(None),
+            service_name: "monolith".to_string(),
             services: RwLock::new(HashMap::new()),
             watchers: Mutex::new(HashMap::new()),
         }
@@ -637,6 +850,12 @@ impl ConsulDiscovery {
         self
     }
 
+    /// Sets the Consul service name used for registration/discovery.
+    pub fn with_service_name(mut self, service_name: impl Into<String>) -> Self {
+        self.service_name = service_name.into();
+        self
+    }
+
     /// Connects to Consul.
     ///
     /// This is a placeholder that would establish a connection to Consul.
@@ -644,9 +863,22 @@ impl ConsulDiscovery {
         tracing::info!(
             address = %self.address,
             datacenter = ?self.datacenter,
-            "Connecting to Consul (stub)"
+            "Connecting to Consul"
         );
-        // TODO: Implement actual Consul connection
+        let mut guard = self.client.lock().await;
+        if guard.is_some() {
+            return Ok(());
+        }
+        let mut cfg = consul::Config {
+            address: self.address.clone(),
+            token: self.token.clone(),
+            ..Default::default()
+        };
+        // `rs-consul` uses QueryOptions for datacenter; keep here for parity.
+        if cfg.address.is_empty() {
+            cfg.address = "http://127.0.0.1:8500".to_string();
+        }
+        *guard = Some(Arc::new(consul::Consul::new(cfg)));
         Ok(())
     }
 
@@ -666,63 +898,284 @@ impl ServiceDiscovery for ConsulDiscovery {
         tracing::info!(
             service_id = %service.id,
             service_type = %service.service_type,
-            "Registering service with Consul (stub)"
+            "Registering service with Consul"
         );
 
-        // Stub: Store in local cache
+        // Cache-only for sync API.
         let mut services = self.services.write().unwrap();
         if services.contains_key(&service.id) {
             return Err(DiscoveryError::AlreadyRegistered(service.id.clone()));
         }
-        services.insert(service.id.clone(), service);
-
-        // TODO: Register with Consul API
+        services.insert(service.id.clone(), service.clone());
+        if let Some(sender) = self.watchers.lock().unwrap().get(&service.service_type) {
+            let _ = sender.send(DiscoveryEvent::ServiceAdded(service));
+        }
         Ok(())
     }
 
     fn discover(&self, service_type: &str) -> Result<Vec<ServiceInfo>> {
         tracing::debug!(
             service_type = %service_type,
-            "Discovering services from Consul (stub)"
+            "Discovering services from Consul"
         );
 
-        // Stub: Return from local cache
+        // Cache-only for sync API.
         let services = self.services.read().unwrap();
-        let matching: Vec<ServiceInfo> = services
+        Ok(services
             .values()
             .filter(|s| s.service_type == service_type)
             .cloned()
-            .collect();
-
-        // TODO: Query Consul for actual services
-        Ok(matching)
+            .collect())
     }
 
     fn watch(&self, service_type: &str) -> Result<Receiver<DiscoveryEvent>> {
         tracing::debug!(
             service_type = %service_type,
-            "Setting up Consul watch (stub)"
+            "Setting up Consul watch"
         );
 
         let sender = self.get_or_create_sender(service_type);
-        // TODO: Set up actual Consul blocking query
         Ok(sender.subscribe())
     }
 
     fn deregister(&self, service_id: &str) -> Result<()> {
         tracing::info!(
             service_id = %service_id,
-            "Deregistering service from Consul (stub)"
+            "Deregistering service from Consul"
         );
 
-        // Stub: Remove from local cache
         let mut services = self.services.write().unwrap();
         services
             .remove(service_id)
             .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
-
-        // TODO: Deregister from Consul API
         Ok(())
+    }
+}
+
+#[cfg(feature = "consul")]
+#[async_trait::async_trait]
+impl ServiceDiscoveryAsync for ConsulDiscovery {
+    async fn connect(&self) -> Result<()> {
+        ConsulDiscovery::connect(self).await
+    }
+
+    async fn disconnect(&self) -> Result<()> {
+        let mut guard = self.client.lock().await;
+        *guard = None;
+        Ok(())
+    }
+
+    async fn register_async(&self, service: ServiceInfo) -> Result<()> {
+        self.connect().await?;
+        let client = self.client.lock().await.as_ref().cloned().ok_or_else(|| {
+            DiscoveryError::ConnectionFailed("Consul client not connected".into())
+        })?;
+
+        // Use the global catalog register endpoint (HashiCorp Consul).
+        //
+        // NOTE: Python's `monolith/native_training/consul.py` uses a ByteDance-specific
+        // lookup API. This Rust implementation targets stock Consul deployments.
+        let tags = vec![
+            format!("name:{}", service.service_type),
+            format!(
+                "index:{}",
+                service.metadata.get("index").cloned().unwrap_or_default()
+            ),
+            format!("ip:{}", service.host),
+        ];
+
+        let svc = consul::types::RegisterEntityService {
+            ID: Some(service.id.clone()),
+            Service: self.service_name.clone(),
+            Tags: tags,
+            TaggedAddresses: HashMap::new(),
+            Meta: HashMap::new(),
+            Port: Some(service.port),
+            Namespace: None,
+        };
+
+        let payload = consul::types::RegisterEntityPayload {
+            ID: None,
+            Node: service.id.clone(),
+            Address: service.host.clone(),
+            Datacenter: self.datacenter.clone(),
+            TaggedAddresses: HashMap::new(),
+            NodeMeta: HashMap::new(),
+            Service: Some(svc),
+            Checks: Vec::new(),
+            SkipNodeUpdate: Some(true),
+        };
+
+        client.register_entity(&payload).await.map_err(|e| {
+            DiscoveryError::Internal(format!("Consul register_entity failed: {e:?}"))
+        })?;
+
+        self.services
+            .write()
+            .unwrap()
+            .insert(service.id.clone(), service.clone());
+        if let Some(sender) = self.watchers.lock().unwrap().get(&service.service_type) {
+            let _ = sender.send(DiscoveryEvent::ServiceAdded(service.clone()));
+        }
+        Ok(())
+    }
+
+    async fn discover_async(&self, service_type: &str) -> Result<Vec<ServiceInfo>> {
+        self.connect().await?;
+        let client = self.client.lock().await.as_ref().cloned().ok_or_else(|| {
+            DiscoveryError::ConnectionFailed("Consul client not connected".into())
+        })?;
+
+        let consul_service = self.service_name.as_str();
+        let nodes = client
+            .get_service_nodes(
+                consul::types::GetServiceNodesRequest {
+                    service: consul_service,
+                    passing: true,
+                    ..Default::default()
+                },
+                None,
+            )
+            .await
+            .map_err(|e| {
+                DiscoveryError::Internal(format!("Consul get_service_nodes failed: {e:?}"))
+            })?;
+
+        let mut out = Vec::new();
+        for sn in nodes.response {
+            // Filter by tags for this service_type (we stored as "name:<type>").
+            if !sn
+                .service
+                .tags
+                .iter()
+                .any(|t| t == &format!("name:{}", service_type))
+            {
+                continue;
+            }
+
+            let host = if sn.service.address.is_empty() {
+                sn.node.address
+            } else {
+                sn.service.address
+            };
+            let port = sn.service.port;
+            let id = sn.service.id;
+
+            let mut svc = ServiceInfo::new(id.clone(), id.clone(), service_type, host, port);
+            svc.metadata.insert("addr".into(), svc.address());
+            out.push(svc);
+        }
+
+        Ok(out)
+    }
+
+    async fn watch_async(&self, service_type: &str) -> Result<Receiver<DiscoveryEvent>> {
+        // Poll-based watcher to avoid depending on Consul long-poll semantics here.
+        let sender = self.get_or_create_sender(service_type);
+        let rx = sender.subscribe();
+
+        let svc_type = service_type.to_string();
+        let this = Arc::new(self.clone_for_watch());
+        tokio::spawn(async move {
+            let mut prev: HashMap<String, ServiceInfo> = HashMap::new();
+            loop {
+                let next_list = match this.discover_async(&svc_type).await {
+                    Ok(v) => v,
+                    Err(e) => {
+                        tracing::debug!(error = %e, "Consul watch poll discover failed");
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        continue;
+                    }
+                };
+
+                let mut next: HashMap<String, ServiceInfo> = HashMap::new();
+                for s in next_list {
+                    next.insert(s.id.clone(), s);
+                }
+
+                for (id, s) in next.iter() {
+                    if !prev.contains_key(id) {
+                        let _ = sender.send(DiscoveryEvent::ServiceAdded(s.clone()));
+                    }
+                }
+                for id in prev.keys() {
+                    if !next.contains_key(id) {
+                        let _ = sender.send(DiscoveryEvent::ServiceRemoved(id.clone()));
+                    }
+                }
+
+                prev = next;
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+        });
+
+        Ok(rx)
+    }
+
+    async fn deregister_async(&self, service_id: &str) -> Result<()> {
+        self.connect().await?;
+        let client = self.client.lock().await.as_ref().cloned().ok_or_else(|| {
+            DiscoveryError::ConnectionFailed("Consul client not connected".into())
+        })?;
+
+        let payload = consul::types::DeregisterEntityPayload {
+            Node: None,
+            Datacenter: self.datacenter.clone(),
+            CheckID: None,
+            ServiceID: Some(service_id.to_string()),
+            Namespace: None,
+        };
+
+        let _ = client.deregister_entity(&payload).await;
+        self.services.write().unwrap().remove(service_id);
+        Ok(())
+    }
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+#[cfg(feature = "zookeeper")]
+async fn ensure_zk_path(client: &zk::Client, path: &str) -> Result<()> {
+    let mut cur = String::new();
+    for part in path.split('/').filter(|p| !p.is_empty()) {
+        cur.push('/');
+        cur.push_str(part);
+        let opts = zk::CreateMode::Persistent.with_acls(zk::Acls::anyone_all());
+        let _ = client.create(&cur, b"", &opts).await;
+    }
+    Ok(())
+}
+
+#[cfg(feature = "zookeeper")]
+impl ZkDiscovery {
+    // Small helper so we can spawn watch tasks without requiring `ZkDiscovery: Clone`.
+    fn clone_for_watch(&self) -> Self {
+        Self {
+            hosts: self.hosts.clone(),
+            base_path: self.base_path.clone(),
+            session_timeout_ms: self.session_timeout_ms,
+            client: tokio::sync::Mutex::new(None),
+            registered_paths: tokio::sync::Mutex::new(HashMap::new()),
+            services: RwLock::new(HashMap::new()),
+            watchers: Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+#[cfg(feature = "consul")]
+impl ConsulDiscovery {
+    fn clone_for_watch(&self) -> Self {
+        Self {
+            address: self.address.clone(),
+            datacenter: self.datacenter.clone(),
+            token: self.token.clone(),
+            client: tokio::sync::Mutex::new(None),
+            service_name: self.service_name.clone(),
+            services: RwLock::new(HashMap::new()),
+            watchers: Mutex::new(HashMap::new()),
+        }
     }
 }
 
@@ -744,6 +1197,17 @@ pub fn new_zk_discovery(hosts: impl Into<String>, base_path: impl Into<String>) 
 #[cfg(feature = "consul")]
 pub fn new_consul_discovery(address: impl Into<String>) -> SharedDiscovery {
     Arc::new(ConsulDiscovery::new(address))
+}
+
+/// Creates a new shared Consul discovery instance with a custom service name.
+///
+/// In practice, `service_name` should be a stable job identifier (e.g. `"monolith-job"`).
+#[cfg(feature = "consul")]
+pub fn new_consul_discovery_with_service_name(
+    address: impl Into<String>,
+    service_name: impl Into<String>,
+) -> SharedDiscovery {
+    Arc::new(ConsulDiscovery::new(address).with_service_name(service_name))
 }
 
 #[cfg(test)]
@@ -1015,7 +1479,7 @@ mod tests {
     #[cfg(feature = "zookeeper")]
     #[test]
     fn test_zk_discovery_creation() {
-        let zk = ZkDiscovery::new("localhost:2181", "/services").with_session_timeout(60000);
+        let _zk = ZkDiscovery::new("localhost:2181", "/services").with_session_timeout(60000);
 
         // Just test that it can be created
         assert!(true);
@@ -1024,7 +1488,7 @@ mod tests {
     #[cfg(feature = "consul")]
     #[test]
     fn test_consul_discovery_creation() {
-        let consul = ConsulDiscovery::new("http://localhost:8500")
+        let _consul = ConsulDiscovery::new("http://localhost:8500")
             .with_datacenter("dc1")
             .with_token("secret-token");
 

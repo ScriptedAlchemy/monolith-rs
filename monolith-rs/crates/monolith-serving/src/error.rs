@@ -141,6 +141,12 @@ impl From<tonic::Status> for ServingError {
     }
 }
 
+impl From<candle_core::Error> for ServingError {
+    fn from(err: candle_core::Error) -> Self {
+        ServingError::PredictionError(err.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -30,6 +30,10 @@ use crate::agent_service::AgentServiceImpl as EmbeddingService;
 use crate::error::{ServingError, ServingResult};
 use crate::model_loader::ModelLoader;
 use crate::parameter_sync::ParameterSyncClient;
+use monolith_proto::monolith::serving::agent_service as agent_proto;
+use monolith_proto::monolith::serving::agent_service::agent_service_server::{
+    AgentService as AgentServiceProto, AgentServiceServer,
+};
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -37,6 +41,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
+use tonic::transport::Server as TonicServer;
 use tonic::{Request, Response, Status};
 use tracing::{debug, error, info, warn};
 
@@ -912,6 +917,110 @@ impl AgentService for AgentServiceGrpcImpl {
 }
 
 // ============================================================================
+// Real tonic gRPC boundary (compatible with Python agent_service.proto)
+// ============================================================================
+
+/// Adapter that exposes [`AgentServiceGrpcImpl`] over the real `AgentService` proto.
+///
+/// The bulk of this module is a “hand-written proto surface” used by examples/tests.
+/// For real network compatibility with the Python monolith, we serve the generated
+/// `monolith.serving.agent_service.AgentService` here and map messages in/out.
+#[derive(Clone)]
+struct AgentServiceTonicAdapter {
+    inner: Arc<AgentServiceGrpcImpl>,
+}
+
+impl AgentServiceTonicAdapter {
+    fn new(inner: Arc<AgentServiceGrpcImpl>) -> Self {
+        Self { inner }
+    }
+
+    fn to_local_server_type(st: i32) -> ServerType {
+        // `ServerType` here is the local enum defined at the top of this module.
+        ServerType::from(st)
+    }
+
+    fn to_proto_server_type(st: ServerType) -> i32 {
+        // Generated proto enum is encoded as i32 in messages.
+        i32::from(st)
+    }
+}
+
+#[tonic::async_trait]
+impl AgentServiceProto for AgentServiceTonicAdapter {
+    async fn get_replicas(
+        &self,
+        request: Request<agent_proto::GetReplicasRequest>,
+    ) -> Result<Response<agent_proto::GetReplicasResponse>, Status> {
+        let req = request.into_inner();
+        let local_req = GetReplicasRequest {
+            server_type: Self::to_local_server_type(req.server_type),
+            task: req.task,
+            model_name: req.model_name,
+        };
+
+        let local_resp = self
+            .inner
+            .get_replicas(local_req)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let address = local_resp
+            .address_list
+            .map(|l| agent_proto::AddressList { address: l.address });
+
+        Ok(Response::new(agent_proto::GetReplicasResponse {
+            address_list: address,
+        }))
+    }
+
+    async fn get_resource(
+        &self,
+        _request: Request<agent_proto::GetResourceRequest>,
+    ) -> Result<Response<agent_proto::GetResourceResponse>, Status> {
+        let local_resp = self
+            .inner
+            .get_resource(GetResourceRequest {})
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(agent_proto::GetResourceResponse {
+            address: local_resp.address,
+            shard_id: local_resp.shard_id,
+            replica_id: local_resp.replica_id,
+            memory: local_resp.memory,
+            cpu: local_resp.cpu,
+            network: local_resp.network,
+            work_load: local_resp.work_load,
+        }))
+    }
+
+    async fn heart_beat(
+        &self,
+        request: Request<agent_proto::HeartBeatRequest>,
+    ) -> Result<Response<agent_proto::HeartBeatResponse>, Status> {
+        let req = request.into_inner();
+        let local_req = HeartBeatRequest {
+            server_type: Self::to_local_server_type(req.server_type),
+        };
+
+        let local_resp = self
+            .inner
+            .heartbeat(local_req)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let addresses = local_resp
+            .addresses
+            .into_iter()
+            .map(|(k, v)| (k, agent_proto::AddressList { address: v.address }))
+            .collect();
+
+        Ok(Response::new(agent_proto::HeartBeatResponse { addresses }))
+    }
+}
+
+// ============================================================================
 // ServingServer - High-level Server Management
 // ============================================================================
 
@@ -1061,25 +1170,25 @@ impl ServingServer {
 
         info!("gRPC server started on {}", socket_addr);
 
-        // In a real implementation, we would use tonic::transport::Server here
-        // For now, we simulate the server by waiting for shutdown signal
-        //
-        // Example of real tonic server:
-        // ```
-        // tonic::transport::Server::builder()
-        //     .add_service(AgentServiceServer::new(self.service.clone()))
-        //     .serve_with_shutdown(socket_addr, async {
-        //         shutdown_rx.await.ok();
-        //     })
-        //     .await?;
-        // ```
+        let adapter = AgentServiceTonicAdapter::new(Arc::clone(&self.service));
 
-        // Wait for shutdown signal
-        tokio::select! {
-            _ = shutdown_rx => {
+        // Serve the real proto-compatible AgentService.
+        //
+        // This is the network boundary used by the Python monolith. The local
+        // `AgentServiceGrpcImpl` still backs the behavior, but messages are
+        // mapped to the generated protobuf types.
+        TonicServer::builder()
+            .add_service(AgentServiceServer::new(adapter))
+            .serve_with_shutdown(socket_addr, async move {
+                let _ = shutdown_rx.await;
                 info!("Received shutdown signal");
-            }
-        }
+            })
+            .await
+            .map_err(|e| {
+                *self.state.write() = GrpcServerState::Error;
+                self.running.store(false, Ordering::SeqCst);
+                ServingError::server(format!("gRPC server error: {}", e))
+            })?;
 
         *self.state.write() = GrpcServerState::Stopped;
         self.running.store(false, Ordering::SeqCst);

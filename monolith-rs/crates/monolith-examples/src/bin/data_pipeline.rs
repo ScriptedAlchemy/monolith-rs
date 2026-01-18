@@ -42,10 +42,10 @@ use monolith_data::{
     create_example,
     decompress,
     extract_feature,
-    get_feature_data,
     extract_slot,
     feature_names,
     get_feature,
+    get_feature_data,
     has_feature,
     make_fid,
     total_fid_count,
@@ -588,9 +588,10 @@ fn demo_negative_sampling(_config: &Config) {
     println!("  Generated {} negative samples", negatives.len());
 
     for (i, neg) in negatives.iter().enumerate() {
-        if let (Some(item), Some(label)) =
-            (get_feature_data(neg, "item_id"), get_feature_data(neg, "label"))
-        {
+        if let (Some(item), Some(label)) = (
+            get_feature_data(neg, "item_id"),
+            get_feature_data(neg, "label"),
+        ) {
             println!(
                 "    Negative {}: item_id={:?}, label={:?}",
                 i,
@@ -919,7 +920,11 @@ fn demo_fid_utilities() {
         .named_feature
         .iter()
         .filter_map(|nf| nf.feature.as_ref())
-        .flat_map(|f| monolith_data::example::extract_feature_data(f).fid.into_iter())
+        .flat_map(|f| {
+            monolith_data::example::extract_feature_data(f)
+                .fid
+                .into_iter()
+        })
         .collect();
 
     println!("  Total FIDs in example: {}", all_fids.len());
@@ -957,8 +962,8 @@ fn demo_pipeline_composition(config: &Config) {
     let pipeline = VecDataset::new(examples.clone())
         // Filter: keep positive examples
         .filter(|ex| {
-            get_feature(ex, "label")
-                .map(|f| f.value.first().copied().unwrap_or(0.0) > 0.5)
+            get_feature_data(ex, "label")
+                .map(|d| d.value.first().copied().unwrap_or(0.0) > 0.5)
                 .unwrap_or(false)
         })
         // Map: add processing timestamp
@@ -1023,8 +1028,8 @@ fn demo_pipeline_composition(config: &Config) {
 
     let dataset = VecDataset::new(examples.clone())
         .filter(|ex| {
-            get_feature(ex, "label")
-                .map(|f| f.value.first().copied().unwrap_or(0.0) > 0.5)
+            get_feature_data(ex, "label")
+                .map(|d| d.value.first().copied().unwrap_or(0.0) > 0.5)
                 .unwrap_or(false)
         })
         .map(|mut ex| {
@@ -1070,8 +1075,8 @@ fn demo_pipeline_composition(config: &Config) {
     let mut total_fids = 0;
 
     for example in VecDataset::new(examples.clone()).iter() {
-        let label = get_feature(&example, "label")
-            .and_then(|f| f.value.first().copied())
+        let label = get_feature_data(&example, "label")
+            .and_then(|d| d.value.first().copied())
             .unwrap_or(0.0);
 
         if label > 0.5 {
@@ -1132,11 +1137,11 @@ fn demo_full_pipeline(config: &Config) {
         .add(
             MapTransform::new(|mut ex| {
                 // Add cross feature (user_id x item_id)
-                let user_fid = get_feature(&ex, "user_id")
-                    .and_then(|f| f.fid.first().copied())
+                let user_fid = get_feature_data(&ex, "user_id")
+                    .and_then(|d| d.fid.first().copied())
                     .unwrap_or(0);
-                let item_fid = get_feature(&ex, "item_id")
-                    .and_then(|f| f.fid.first().copied())
+                let item_fid = get_feature_data(&ex, "item_id")
+                    .and_then(|d| d.fid.first().copied())
                     .unwrap_or(0);
 
                 // Simple cross: combine slot 1 and slot 2 features into slot 5
@@ -1207,8 +1212,8 @@ fn demo_full_pipeline(config: &Config) {
         total_examples += batch.len();
 
         for example in batch.iter() {
-            let label = get_feature(example, "label")
-                .and_then(|f| f.value.first().copied())
+            let label = get_feature_data(example, "label")
+                .and_then(|d| d.value.first().copied())
                 .unwrap_or(0.0);
 
             if label > 0.5 {
