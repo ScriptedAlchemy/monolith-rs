@@ -99,20 +99,23 @@ pub mod tensor;
 
 // Re-export main types at crate level
 pub use activation::{
-    ELU, GELU, HardSigmoid, LeakyReLU, Mish, PReLU, ReLU, SELU, Sigmoid, Softmax, Softplus, Swish,
-    Tanh,
+    HardSigmoid, LeakyReLU, Mish, PReLU, ReLU, Sigmoid, Softmax, Softplus, Swish, Tanh, ELU, GELU,
+    SELU,
 };
 pub use agru::{AGRUConfig, AGRU};
 pub use dcn::{CrossLayer, CrossNetwork, DCNConfig, DCNMode};
 pub use dense::Dense;
 pub use dien::{AUGRUCell, DIENConfig, DIENLayer, GRUCell, GRUType};
 pub use din::{DINAttention, DINConfig};
+pub use embedding::{
+    EmbeddingHashTable, EmbeddingLookup, PooledEmbeddingLookup, PoolingMode,
+    SequenceEmbeddingLookup,
+};
+pub use error::{LayerError, LayerResult};
 pub use ffm::{FFMConfig, FFMLayer};
 pub use group_interaction::{
     GroupInteractionConfig, GroupInteractionLayer, GroupInteractionWithProjection, InteractionType,
 };
-pub use embedding::{EmbeddingHashTable, EmbeddingLookup, PooledEmbeddingLookup, PoolingMode};
-pub use error::{LayerError, LayerResult};
 pub use layer::Layer;
 pub use mlp::{ActivationType, MLPConfig, MLP};
 pub use mmoe::{Expert, Gate, MMoE, MMoEConfig};
@@ -128,21 +131,23 @@ pub use tensor::Tensor;
 /// ```
 pub mod prelude {
     pub use crate::activation::{
-        ELU, GELU, HardSigmoid, LeakyReLU, Mish, PReLU, ReLU, SELU, Sigmoid, Softmax, Softplus,
-        Swish, Tanh,
+        HardSigmoid, LeakyReLU, Mish, PReLU, ReLU, Sigmoid, Softmax, Softplus, Swish, Tanh, ELU,
+        GELU, SELU,
     };
     pub use crate::agru::{AGRUConfig, AGRU};
     pub use crate::dcn::{CrossLayer, CrossNetwork, DCNConfig, DCNMode};
     pub use crate::dense::Dense;
     pub use crate::dien::{AUGRUCell, DIENConfig, DIENLayer, GRUCell, GRUType};
     pub use crate::din::{DINAttention, DINConfig};
+    pub use crate::embedding::{
+        EmbeddingHashTable, EmbeddingLookup, PooledEmbeddingLookup, PoolingMode,
+    };
+    pub use crate::error::{LayerError, LayerResult};
     pub use crate::ffm::{FFMConfig, FFMLayer};
     pub use crate::group_interaction::{
         GroupInteractionConfig, GroupInteractionLayer, GroupInteractionWithProjection,
         InteractionType,
     };
-    pub use crate::embedding::{EmbeddingHashTable, EmbeddingLookup, PooledEmbeddingLookup, PoolingMode};
-    pub use crate::error::{LayerError, LayerResult};
     pub use crate::layer::Layer;
     pub use crate::mlp::{ActivationType, MLPConfig, MLP};
     pub use crate::mmoe::{Expert, Gate, MMoE, MMoEConfig};
@@ -250,7 +255,9 @@ mod tests {
         let behavior_seq = Tensor::rand(&[2, 5, 8]);
         let target_item = Tensor::rand(&[2, 8]);
 
-        let output = dien.forward_dien(&behavior_seq, &target_item, None).unwrap();
+        let output = dien
+            .forward_dien(&behavior_seq, &target_item, None)
+            .unwrap();
         assert_eq!(output.shape(), &[2, 16]);
     }
 
@@ -260,11 +267,12 @@ mod tests {
         let ffm = FFMLayer::new(3, 4);
 
         // Batch of 2 samples, 3 features each
-        let field_indices =
-            Tensor::from_data(&[2, 3], vec![0.0, 1.0, 2.0, 0.0, 1.0, 2.0]);
+        let field_indices = Tensor::from_data(&[2, 3], vec![0.0, 1.0, 2.0, 0.0, 1.0, 2.0]);
         let field_values = Tensor::ones(&[2, 3]);
 
-        let output = ffm.forward_with_fields(&field_indices, &field_values).unwrap();
+        let output = ffm
+            .forward_with_fields(&field_indices, &field_values)
+            .unwrap();
         assert_eq!(output.shape(), &[2, 1]);
     }
 

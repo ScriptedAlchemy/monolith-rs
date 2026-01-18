@@ -329,11 +329,7 @@ impl Layer for EmbeddingLookup {
 
         // For embeddings, we don't propagate gradients to the input (IDs)
         // Return a zero tensor with the same shape as cached_ids
-        let num_ids = self
-            .cached_ids
-            .as_ref()
-            .map(|ids| ids.len())
-            .unwrap_or(0);
+        let num_ids = self.cached_ids.as_ref().map(|ids| ids.len()).unwrap_or(0);
         Ok(Tensor::zeros(&[num_ids]))
     }
 
@@ -469,6 +465,172 @@ impl PooledEmbeddingLookup {
     /// Returns a mutable reference to the underlying hash table.
     pub fn hash_table_mut(&mut self) -> &mut EmbeddingHashTable {
         self.lookup.hash_table_mut()
+    }
+}
+
+/// Sequence embedding lookup that outputs first N embeddings with zero-padding.
+///
+/// This is equivalent to Python's `FirstN` combiner. It extracts the first
+/// `max_seq_length` embeddings from each sample's feature list and zero-pads
+/// shorter sequences.
+///
+/// # Example
+///
+/// ```
+/// use monolith_layers::embedding::{SequenceEmbeddingLookup, EmbeddingHashTable};
+///
+/// let mut table = EmbeddingHashTable::new(4);
+/// table.insert(1, vec![1.0; 4]);
+/// table.insert(2, vec![2.0; 4]);
+///
+/// let seq_lookup = SequenceEmbeddingLookup::new(table, 3); // max 3 items
+///
+/// // Batch of 2 samples with variable-length sequences
+/// let id_lists = vec![vec![1, 2], vec![1]];
+/// let result = seq_lookup.lookup_sequence(&id_lists);
+/// // Shape: [2, 3, 4] - second sample is zero-padded
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequenceEmbeddingLookup {
+    /// The underlying embedding lookup
+    lookup: EmbeddingLookup,
+    /// Maximum sequence length (first N items)
+    max_seq_length: usize,
+}
+
+impl SequenceEmbeddingLookup {
+    /// Creates a new sequence embedding lookup (FirstN combiner).
+    ///
+    /// # Arguments
+    ///
+    /// * `hash_table` - The hash table containing embeddings
+    /// * `max_seq_length` - Maximum sequence length (must be > 0)
+    ///
+    /// # Panics
+    ///
+    /// Panics if `max_seq_length` is 0.
+    pub fn new(hash_table: EmbeddingHashTable, max_seq_length: usize) -> Self {
+        assert!(max_seq_length > 0, "max_seq_length must be greater than 0");
+        Self {
+            lookup: EmbeddingLookup::new(hash_table),
+            max_seq_length,
+        }
+    }
+
+    /// Returns the maximum sequence length.
+    pub fn max_seq_length(&self) -> usize {
+        self.max_seq_length
+    }
+
+    /// Returns the embedding dimension.
+    pub fn dim(&self) -> usize {
+        self.lookup.dim()
+    }
+
+    /// Returns a reference to the underlying hash table.
+    pub fn hash_table(&self) -> &EmbeddingHashTable {
+        self.lookup.hash_table()
+    }
+
+    /// Returns a mutable reference to the underlying hash table.
+    pub fn hash_table_mut(&mut self) -> &mut EmbeddingHashTable {
+        self.lookup.hash_table_mut()
+    }
+
+    /// Looks up embeddings as sequences with zero-padding.
+    ///
+    /// Takes the first `max_seq_length` embeddings from each sample.
+    /// Shorter sequences are zero-padded at the end.
+    ///
+    /// # Arguments
+    ///
+    /// * `id_lists` - List of feature ID lists (one per sample in batch)
+    ///
+    /// # Returns
+    ///
+    /// A tensor of shape [batch_size, max_seq_length, embedding_dim]
+    pub fn lookup_sequence(&self, id_lists: &[Vec<u64>]) -> Tensor {
+        let dim = self.lookup.dim();
+        let batch_size = id_lists.len();
+        let seq_len = self.max_seq_length;
+
+        // Initialize with zeros (handles padding automatically)
+        let mut output = vec![0.0; batch_size * seq_len * dim];
+
+        for (batch_idx, ids) in id_lists.iter().enumerate() {
+            // Take at most max_seq_length items
+            let num_items = ids.len().min(seq_len);
+
+            for (seq_idx, &id) in ids.iter().take(num_items).enumerate() {
+                let emb = self.lookup.hash_table().get(id);
+                let offset = batch_idx * seq_len * dim + seq_idx * dim;
+                output[offset..offset + dim].copy_from_slice(emb);
+            }
+        }
+
+        Tensor::from_data(&[batch_size, seq_len, dim], output)
+    }
+
+    /// Looks up embeddings as sequences for training (caches IDs).
+    ///
+    /// # Arguments
+    ///
+    /// * `id_lists` - List of feature ID lists (one per sample in batch)
+    pub fn lookup_sequence_train(&mut self, id_lists: &[Vec<u64>]) -> Tensor {
+        // Cache all IDs for backward pass
+        let all_ids: Vec<u64> = id_lists
+            .iter()
+            .flat_map(|ids| ids.iter().take(self.max_seq_length).copied())
+            .collect();
+        self.lookup.cached_ids = Some(all_ids);
+
+        self.lookup_sequence(id_lists)
+    }
+
+    /// Accumulates gradients for sequence embeddings.
+    ///
+    /// # Arguments
+    ///
+    /// * `grad` - Gradient tensor of shape [batch_size, max_seq_length, embedding_dim]
+    /// * `id_lists` - The original ID lists used for lookup
+    pub fn accumulate_grad(
+        &mut self,
+        grad: &Tensor,
+        id_lists: &[Vec<u64>],
+    ) -> Result<(), LayerError> {
+        let dim = self.dim();
+        let seq_len = self.max_seq_length;
+
+        for (batch_idx, ids) in id_lists.iter().enumerate() {
+            let num_items = ids.len().min(seq_len);
+
+            for (seq_idx, &id) in ids.iter().take(num_items).enumerate() {
+                let offset = batch_idx * seq_len * dim + seq_idx * dim;
+                let grad_slice = &grad.data()[offset..offset + dim];
+
+                self.lookup
+                    .grad_accumulator
+                    .entry(id)
+                    .and_modify(|acc| {
+                        for (a, &g) in acc.iter_mut().zip(grad_slice) {
+                            *a += g;
+                        }
+                    })
+                    .or_insert_with(|| grad_slice.to_vec());
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Returns and clears the accumulated gradients.
+    pub fn take_gradients(&mut self) -> HashMap<u64, Vec<f32>> {
+        self.lookup.take_gradients()
+    }
+
+    /// Applies gradients to the embeddings.
+    pub fn apply_gradients(&mut self, learning_rate: f32) {
+        self.lookup.apply_gradients(learning_rate)
     }
 }
 
@@ -611,5 +773,84 @@ mod tests {
         let new_emb = lookup.hash_table().get(1);
         assert!((new_emb[0] - 0.9).abs() < 1e-6);
         assert!((new_emb[1] - 0.8).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_sequence_embedding_lookup() {
+        let mut table = EmbeddingHashTable::new(2);
+        table.insert(1, vec![1.0, 1.0]);
+        table.insert(2, vec![2.0, 2.0]);
+        table.insert(3, vec![3.0, 3.0]);
+
+        let seq_lookup = SequenceEmbeddingLookup::new(table, 3);
+        assert_eq!(seq_lookup.max_seq_length(), 3);
+        assert_eq!(seq_lookup.dim(), 2);
+
+        // Batch of 2: first has 2 items, second has 1 item
+        let id_lists = vec![vec![1, 2], vec![3]];
+        let result = seq_lookup.lookup_sequence(&id_lists);
+
+        // Shape: [2, 3, 2]
+        assert_eq!(result.shape(), &[2, 3, 2]);
+
+        // First sample: [1,1], [2,2], [0,0] (zero-padded)
+        assert_eq!(&result.data()[0..2], &[1.0, 1.0]);
+        assert_eq!(&result.data()[2..4], &[2.0, 2.0]);
+        assert_eq!(&result.data()[4..6], &[0.0, 0.0]);
+
+        // Second sample: [3,3], [0,0], [0,0] (zero-padded)
+        assert_eq!(&result.data()[6..8], &[3.0, 3.0]);
+        assert_eq!(&result.data()[8..10], &[0.0, 0.0]);
+        assert_eq!(&result.data()[10..12], &[0.0, 0.0]);
+    }
+
+    #[test]
+    fn test_sequence_embedding_truncation() {
+        let mut table = EmbeddingHashTable::new(2);
+        table.insert(1, vec![1.0, 1.0]);
+        table.insert(2, vec![2.0, 2.0]);
+        table.insert(3, vec![3.0, 3.0]);
+        table.insert(4, vec![4.0, 4.0]);
+
+        // max_seq_length = 2, so should truncate longer sequences
+        let seq_lookup = SequenceEmbeddingLookup::new(table, 2);
+
+        let id_lists = vec![vec![1, 2, 3, 4]]; // 4 items, but max is 2
+        let result = seq_lookup.lookup_sequence(&id_lists);
+
+        // Shape: [1, 2, 2] - only first 2 items
+        assert_eq!(result.shape(), &[1, 2, 2]);
+        assert_eq!(&result.data()[0..2], &[1.0, 1.0]);
+        assert_eq!(&result.data()[2..4], &[2.0, 2.0]);
+    }
+
+    #[test]
+    fn test_sequence_embedding_gradient() {
+        let mut table = EmbeddingHashTable::new(2);
+        table.insert(1, vec![1.0, 1.0]);
+        table.insert(2, vec![2.0, 2.0]);
+
+        let mut seq_lookup = SequenceEmbeddingLookup::new(table, 2);
+
+        let id_lists = vec![vec![1, 2], vec![1]];
+        let _output = seq_lookup.lookup_sequence_train(&id_lists);
+
+        // Gradient shape: [2, 2, 2] = [batch=2, seq=2, dim=2]
+        let grad = Tensor::from_data(
+            &[2, 2, 2],
+            vec![
+                0.1, 0.1, // batch 0, seq 0 (id=1)
+                0.2, 0.2, // batch 0, seq 1 (id=2)
+                0.3, 0.3, // batch 1, seq 0 (id=1)
+                0.0, 0.0, // batch 1, seq 1 (padding, no grad)
+            ],
+        );
+        seq_lookup.accumulate_grad(&grad, &id_lists).unwrap();
+
+        let grads = seq_lookup.take_gradients();
+        // id=1 appears at batch0/seq0 and batch1/seq0: 0.1 + 0.3 = 0.4
+        assert_eq!(grads.get(&1).unwrap(), &[0.4, 0.4]);
+        // id=2 appears at batch0/seq1 only: 0.2
+        assert_eq!(grads.get(&2).unwrap(), &[0.2, 0.2]);
     }
 }
