@@ -24,6 +24,7 @@
 //! ```
 
 use monolith_proto::Example;
+use monolith_proto::monolith::io::proto::feature;
 
 /// A transform that can be applied to examples.
 ///
@@ -435,7 +436,12 @@ mod tests {
         let chain = TransformChain::new()
             .add(FilterTransform::new(|ex| {
                 get_feature(ex, "value")
-                    .map(|f| f.fid.first().copied().unwrap_or(0) > 5)
+                    .and_then(|f| match &f.r#type {
+                        Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
+                        Some(feature::Type::FidV1List(l)) => l.value.first().copied().map(|v| v as i64),
+                        _ => None,
+                    })
+                    .map(|v| v > 5)
                     .unwrap_or(false)
             }))
             .add(MapTransform::new(|mut ex| {
@@ -468,7 +474,12 @@ mod tests {
 
         let filter = FilterTransform::new(|ex| {
             get_feature(ex, "value")
-                .map(|f| f.fid.first().copied().unwrap_or(0) % 2 == 0)
+                .and_then(|f| match &f.r#type {
+                    Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
+                    Some(feature::Type::FidV1List(l)) => l.value.first().copied().map(|v| v as i64),
+                    _ => None,
+                })
+                .map(|v| v % 2 == 0)
                 .unwrap_or(false)
         });
 
