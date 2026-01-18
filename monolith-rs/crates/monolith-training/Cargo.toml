@@ -1,0 +1,22 @@
+[package]
+name = "monolith-training"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Training orchestration and distributed PS for Monolith"
+
+[features]
+default = []
+zookeeper = []
+consul = []
+
+[dependencies]
+monolith-proto = { workspace = true }
+monolith-core = { workspace = true }
+monolith-data = { workspace = true }
+monolith-layers = { workspace = true }
+monolith-checkpoint = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }

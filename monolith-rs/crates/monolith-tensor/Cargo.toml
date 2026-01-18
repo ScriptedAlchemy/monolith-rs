@@ -1,0 +1,24 @@
+[package]
+name = "monolith-tensor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Backend-agnostic tensor abstractions for Monolith with GPU support"
+
+[dependencies]
+monolith-core = { workspace = true }
+thiserror = { workspace = true }
+ndarray = { workspace = true }
+candle-core = { workspace = true }
+candle-nn = { workspace = true }
+
+[features]
+default = ["cpu", "candle"]
+cpu = []
+candle = []
+metal = ["candle-core/metal"]
+cuda = ["candle-core/cuda"]
+
+# Auto-enable Metal on macOS
+[target.'cfg(target_os = "macos")'.dependencies]
+candle-core = { workspace = true, features = ["metal"] }

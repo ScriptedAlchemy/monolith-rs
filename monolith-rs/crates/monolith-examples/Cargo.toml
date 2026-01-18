@@ -1,0 +1,29 @@
+[package]
+name = "monolith-examples"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Example applications for Monolith-RS"
+publish = false
+
+[dependencies]
+monolith-proto = { workspace = true }
+monolith-core = { workspace = true }
+monolith-data = { workspace = true, features = ["compression"] }
+monolith-hash-table = { workspace = true }
+monolith-layers = { workspace = true }
+monolith-training = { workspace = true }
+monolith-optimizer = { workspace = true }
+prost = { workspace = true }
+
+[[bin]]
+name = "stream_training"
+path = "src/bin/stream_training.rs"
+
+[[bin]]
+name = "embedding_table"
+path = "src/bin/embedding_table.rs"
+
+[[bin]]
+name = "data_pipeline"
+path = "src/bin/data_pipeline.rs"

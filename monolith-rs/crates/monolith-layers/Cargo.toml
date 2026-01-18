@@ -1,0 +1,16 @@
+[package]
+name = "monolith-layers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Neural network layers for Monolith"
+
+[dependencies]
+# Internal crates (commented out until they are fully implemented)
+# monolith-core = { workspace = true }
+# monolith-tensor = { workspace = true }
+# monolith-hash-table = { workspace = true }
+
+# External dependencies
+thiserror = { workspace = true }
+serde = { workspace = true }

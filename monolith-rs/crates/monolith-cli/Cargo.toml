@@ -1,0 +1,25 @@
+[package]
+name = "monolith-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Command-line tools for Monolith"
+
+[[bin]]
+name = "monolith"
+path = "src/main.rs"
+
+[dependencies]
+monolith-core = { workspace = true }
+monolith-data = { workspace = true }
+monolith-training = { workspace = true }
+monolith-checkpoint = { workspace = true }
+monolith-serving = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
