@@ -1505,7 +1505,12 @@ mod tests {
         assert!(instance.has_sparse_feature("test"));
         let feature = instance.get_sparse_feature("test").unwrap();
         assert_eq!(feature.fids, vec![1, 2, 3]);
-        assert_eq!(feature.values, vec![1.0, 2.0, 3.0]);
+        // Sparse id lists don't carry per-fid weights in the upstream proto.
+        // We represent that as an empty `values` vector (implicit weight 1.0).
+        assert!(feature.values.is_empty());
+        assert_eq!(feature.get_value(0), 1.0);
+        assert_eq!(feature.get_value(1), 1.0);
+        assert_eq!(feature.get_value(2), 1.0);
     }
 
     #[test]
