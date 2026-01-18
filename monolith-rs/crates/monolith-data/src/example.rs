@@ -7,18 +7,101 @@
 //!
 //! ```
 //! use monolith_data::example::{create_example, add_feature, get_feature};
+//! use monolith_proto::monolith::io::proto::feature;
 //!
 //! let mut example = create_example();
 //! add_feature(&mut example, "user_id", vec![12345], vec![1.0]);
 //!
 //! if let Some(feature) = get_feature(&example, "user_id") {
-//!     assert_eq!(feature.fid, vec![12345]);
+//!     match &feature.r#type {
+//!         Some(feature::Type::FidV2List(l)) => assert_eq!(l.value, vec![12345]),
+//!         other => panic!("unexpected feature type: {:?}", other),
+//!     }
 //! }
 //! ```
 
 use monolith_proto::idl::matrix::proto::LineId;
-use monolith_proto::monolith::io::proto::{feature, FidList};
+use monolith_proto::monolith::io::proto::{feature, FidList, FloatList};
 use monolith_proto::{Example, Feature, NamedFeature};
+
+/// Simple struct for accessing feature data with direct `fid` and `value` fields.
+///
+/// This provides a simpler interface than the raw proto `Feature` type.
+#[derive(Debug, Clone, Default)]
+pub struct FeatureData {
+    /// Feature IDs (FIDs) for sparse features.
+    pub fid: Vec<i64>,
+    /// Float values associated with features.
+    pub value: Vec<f32>,
+}
+
+impl FeatureData {
+    /// Creates a new FeatureData from FIDs and values.
+    pub fn new(fid: Vec<i64>, value: Vec<f32>) -> Self {
+        Self { fid, value }
+    }
+}
+
+/// Extracts [`FeatureData`] from a proto [`Feature`].
+///
+/// This helper function extracts FIDs and float values from the Feature's
+/// oneof type into a simple struct with `fid` and `value` fields.
+///
+/// # Arguments
+///
+/// * `feature` - The Feature to extract data from
+///
+/// # Returns
+///
+/// A [`FeatureData`] struct with the extracted fids and values.
+pub fn extract_feature_data(feature: &Feature) -> FeatureData {
+    let mut fid = Vec::new();
+    let mut value = Vec::new();
+
+    if let Some(ref t) = feature.r#type {
+        match t {
+            feature::Type::FidV1List(l) | feature::Type::FidV2List(l) => {
+                fid = l.value.iter().map(|&v| v as i64).collect();
+            }
+            feature::Type::FloatList(l) => {
+                value = l.value.clone();
+            }
+            feature::Type::Int64List(l) => {
+                fid = l.value.clone();
+            }
+            feature::Type::FidV1Lists(ls) | feature::Type::FidV2Lists(ls) => {
+                for list in &ls.list {
+                    fid.extend(list.value.iter().map(|&v| v as i64));
+                }
+            }
+            feature::Type::FloatLists(ls) => {
+                for list in &ls.list {
+                    value.extend(&list.value);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    FeatureData { fid, value }
+}
+
+/// Gets feature data by name from an [`Example`].
+///
+/// This is a convenience function that combines [`get_feature`] and
+/// [`extract_feature_data`] into a single call.
+///
+/// # Arguments
+///
+/// * `example` - The example to search
+/// * `name` - The name of the feature to find
+///
+/// # Returns
+///
+/// An `Option` containing a [`FeatureData`] if the feature is found.
+pub fn get_feature_data(example: &Example, name: &str) -> Option<FeatureData> {
+    get_feature(example, name).map(extract_feature_data)
+}
 
 /// Creates a new empty [`Example`].
 ///
@@ -62,18 +145,29 @@ pub fn create_example_with_line_id(line_id: LineId) -> Example {
 ///
 /// * `example` - The example to add the feature to
 /// * `name` - The name of the feature
-/// * `fids_v2` - The fid_v2 list values (slot encoded in top bits)
+/// * `fids` - Sparse IDs (written as `fid_v2_list` when non-empty)
+/// * `values` - Dense float values (written as `float_list` when `fids` is empty)
 ///
-/// Note: The upstream proto supports many feature encodings; this helper
-/// writes into `Feature.type = FidV2List` which is what most Monolith pipelines
-/// use for sparse IDs.
+/// The upstream proto supports many feature encodings. For the Rust port we
+/// keep this helper intentionally simple:
+///
+/// - If `fids` is non-empty, we store a sparse feature as `fid_v2_list` and
+///   ignore `values`.
+/// - Otherwise, if `values` is non-empty, we store a dense feature as
+///   `float_list`.
 pub fn add_feature(example: &mut Example, name: &str, fids: Vec<i64>, values: Vec<f32>) {
-    let _ = values; // Values are not stored for fid_v2_list in this helper.
-    let fid_list = FidList {
-        value: fids.into_iter().map(|v| v as u64).collect(),
-    };
-    let feature = Feature {
-        r#type: Some(feature::Type::FidV2List(fid_list)),
+    let feature = if !fids.is_empty() {
+        let fid_list = FidList {
+            value: fids.into_iter().map(|v| v as u64).collect(),
+        };
+        Feature {
+            r#type: Some(feature::Type::FidV2List(fid_list)),
+        }
+    } else {
+        let float_list = FloatList { value: values };
+        Feature {
+            r#type: Some(feature::Type::FloatList(float_list)),
+        }
     };
     let named_feature = NamedFeature {
         id: 0,
@@ -235,6 +329,7 @@ mod tests {
     use super::*;
     use monolith_proto::monolith::io::proto::feature;
     use monolith_proto::monolith::io::proto::FidList;
+    use monolith_proto::monolith::io::proto::FloatList;
 
     #[test]
     fn test_create_example() {
@@ -261,6 +356,20 @@ mod tests {
                 assert_eq!(value, &vec![100u64, 200u64]);
             }
             other => panic!("Expected FidV2List, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_add_and_get_dense_feature_float_list() {
+        let mut example = create_example();
+        add_feature(&mut example, "embedding", vec![], vec![0.1, 0.2, 0.3]);
+
+        let feature = get_feature(&example, "embedding").unwrap();
+        match &feature.r#type {
+            Some(feature::Type::FloatList(FloatList { value })) => {
+                assert_eq!(value, &vec![0.1, 0.2, 0.3]);
+            }
+            other => panic!("Expected FloatList, got {:?}", other),
         }
     }
 
