@@ -28,7 +28,9 @@ use monolith_layers::{
     dien::{DIENLayer, DIENConfig, GRUType},
 
     // Embedding
-    embedding::{EmbeddingHashTable, EmbeddingLookup, PooledEmbeddingLookup, PoolingMode},
+    // Note: PooledEmbeddingLookup and PoolingMode are available but require
+    // ragged tensor support (not yet implemented). See Python embedding_combiners.py
+    embedding::{EmbeddingHashTable, EmbeddingLookup},
 
     // Core traits and types
     layer::Layer,
@@ -211,7 +213,7 @@ fn layer_norm_demo() {
     println!("Output sample mean (after norm): {:.4} (should be ~0)", row_mean);
 
     // Training mode forward + backward
-    let output_train = layer_norm.forward_train(&input).expect("Forward train failed");
+    let _output_train = layer_norm.forward_train(&input).expect("Forward train failed");
     let grad = Tensor::ones(&[4, 64]);
     let input_grad = layer_norm.backward(&grad).expect("Backward failed");
     println!("Input gradient shape: {:?}", input_grad.shape());
@@ -657,7 +659,7 @@ fn agru_demo() {
     println!("--- AGRU (Attention GRU) ---\n");
 
     // Create AGRU: 32 input dim, 64 hidden dim
-    let mut agru = AGRU::new(32, 64);
+    let agru = AGRU::new(32, 64);
     println!("Created AGRU:");
     println!("  Input dim: {}", agru.input_dim());
     println!("  Hidden dim: {}", agru.hidden_dim());
@@ -717,7 +719,7 @@ fn dien_demo() {
         .with_use_auxiliary_loss(true)
         .with_use_softmax(false);
 
-    let mut dien = DIENLayer::from_config(config).expect("DIEN creation failed");
+    let dien = DIENLayer::from_config(config).expect("DIEN creation failed");
     println!("Created DIENLayer:");
     println!("  Embedding dim: {}", dien.embedding_dim());
     println!("  Hidden size: {}", dien.hidden_size());
@@ -904,9 +906,9 @@ fn complete_model_demo() {
     // ========================================
     println!("\nStep 6: Output Layers");
 
-    // CTR tower
-    let ctr_hidden = Dense::new(32, 16);
-    let ctr_output = Dense::new(16, 1);
+    // CTR tower - use hidden_dim for MLP layers
+    let ctr_hidden = Dense::new(32, hidden_dim);
+    let ctr_output = Dense::new(hidden_dim, 1);
 
     let ctr_h = ctr_hidden.forward(&task_outputs[0]).expect("CTR hidden failed");
     let ctr_h = ctr_h.map(|x| x.max(0.0));  // ReLU
@@ -914,9 +916,9 @@ fn complete_model_demo() {
     let ctr_probs = ctr_logits.map(|x| 1.0 / (1.0 + (-x).exp()));  // Sigmoid
     println!("  CTR predictions shape: {:?}", ctr_probs.shape());
 
-    // CVR tower
-    let cvr_hidden = Dense::new(32, 16);
-    let cvr_output = Dense::new(16, 1);
+    // CVR tower - use hidden_dim for MLP layers
+    let cvr_hidden = Dense::new(32, hidden_dim);
+    let cvr_output = Dense::new(hidden_dim, 1);
 
     let cvr_h = cvr_hidden.forward(&task_outputs[1]).expect("CVR hidden failed");
     let cvr_h = cvr_h.map(|x| x.max(0.0));  // ReLU
