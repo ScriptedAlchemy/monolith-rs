@@ -6,7 +6,7 @@
 use crate::error::{ServingError, ServingResult};
 use crate::model_loader::{LoadedModel, ModelLoader};
 use crate::parameter_sync::ParameterSyncClient;
-use candle_core::{DType, Tensor as CandleTensor};
+use candle_core::Tensor as CandleTensor;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -231,7 +231,7 @@ impl AgentServiceImpl {
         let embeddings = self.lookup_embeddings(&request.features, &model).await?;
 
         // Run inference (simplified - in reality this would run the model)
-        let scores = self.run_inference(&embeddings)?;
+        let scores = self.run_inference(&model, &embeddings)?;
 
         let latency_ms = start.elapsed().as_secs_f64() * 1000.0;
 
@@ -391,14 +391,13 @@ impl AgentServiceImpl {
     }
 
     /// Run model inference on the embeddings.
-    fn run_inference(&self, embeddings: &[(i32, String, Vec<f32>)]) -> ServingResult<Vec<f32>> {
+    fn run_inference(
+        &self,
+        model: &LoadedModel,
+        embeddings: &[(i32, String, Vec<f32>)],
+    ) -> ServingResult<Vec<f32>> {
         // If the loaded model contains a Candle inference graph (via model_spec.json),
         // use it. Otherwise, fall back to a deterministic baseline score.
-        let model = self
-            .model_loader
-            .current_model()
-            .ok_or(ServingError::ModelNotLoaded)?;
-
         let Some(infer) = model.inference_model.as_ref() else {
             // Baseline: same as previous behavior (for compatibility).
             if embeddings.is_empty() {

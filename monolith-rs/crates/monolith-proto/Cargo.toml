@@ -14,6 +14,7 @@ prost-types = { workspace = true }
 tonic = { workspace = true }
 bytes = { workspace = true }
 serde = { workspace = true, optional = true }
+prost-reflect = { version = "0.16", features = ["text-format"] }
 
 [build-dependencies]
 prost-build = { workspace = true }

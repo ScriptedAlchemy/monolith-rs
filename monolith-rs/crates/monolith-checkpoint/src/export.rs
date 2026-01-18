@@ -9,6 +9,225 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+/// Model spec file name used by the Candle-backed serving stack.
+pub const MODEL_SPEC_FILENAME: &str = "model_spec.json";
+
+/// Minimal model specification for serving.
+///
+/// This is intentionally decoupled from Python/TensorFlow graph export: the Rust
+/// serving path uses Candle and needs a small JSON schema to reconstruct the
+/// inference graph.
+///
+/// The naming convention for dense params must match monolith-serving's Candle
+/// loader (`monolith-serving/src/inference.rs`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ModelSpec {
+    /// Simple feed-forward network.
+    Mlp {
+        input_dim: usize,
+        hidden_dims: Vec<usize>,
+        output_dim: usize,
+        #[serde(default)]
+        activation: String,
+    },
+    /// Deep & Cross Network.
+    Dcn {
+        input_dim: usize,
+        cross_layers: usize,
+        #[serde(default)]
+        deep_hidden_dims: Vec<usize>,
+        output_dim: usize,
+        #[serde(default)]
+        activation: String,
+    },
+    /// Multi-gate Mixture-of-Experts.
+    Mmoe {
+        input_dim: usize,
+        num_experts: usize,
+        expert_hidden_dims: Vec<usize>,
+        num_tasks: usize,
+        gate_hidden_dims: Vec<usize>,
+        task_output_dim: usize,
+        #[serde(default)]
+        activation: String,
+    },
+}
+
+fn normalize_activation(act: &str) -> &'static str {
+    // Keep in sync with monolith-serving Activation serde rename_all = snake_case.
+    match act.trim().to_lowercase().as_str() {
+        "relu" => "relu",
+        "tanh" => "tanh",
+        "sigmoid" => "sigmoid",
+        "none" | "linear" => "none",
+        _ => "relu",
+    }
+}
+
+fn guess_model_spec_from_state(state: &ModelState) -> Option<ModelSpec> {
+    // Heuristic-based: if user provided metadata, prefer it; otherwise try common param keys.
+    let ty = state
+        .metadata
+        .get("model_spec_type")
+        .map(|s| s.trim().to_lowercase());
+
+    let model_type = ty.as_deref().or_else(|| {
+        if state.dense_params.keys().any(|k| k.starts_with("mmoe.")) {
+            Some("mmoe")
+        } else if state.dense_params.keys().any(|k| k.starts_with("dcn.")) {
+            Some("dcn")
+        } else if state.dense_params.keys().any(|k| k.starts_with("mlp.")) {
+            Some("mlp")
+        } else {
+            None
+        }
+    })?;
+
+    match model_type {
+        "mlp" => {
+            let input_dim = state
+                .metadata
+                .get("model_input_dim")
+                .and_then(|v| v.parse::<usize>().ok())?;
+            let output_dim = state
+                .metadata
+                .get("model_output_dim")
+                .and_then(|v| v.parse::<usize>().ok())?;
+            let hidden_dims: Vec<usize> = state
+                .metadata
+                .get("model_hidden_dims")
+                .map(|s| {
+                    s.split(',')
+                        .filter_map(|x| x.trim().parse::<usize>().ok())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let activation = normalize_activation(
+                state
+                    .metadata
+                    .get("model_activation")
+                    .map(|s| s.as_str())
+                    .unwrap_or("relu"),
+            )
+            .to_string();
+            Some(ModelSpec::Mlp {
+                input_dim,
+                hidden_dims,
+                output_dim,
+                activation,
+            })
+        }
+        "dcn" => {
+            let input_dim = state
+                .metadata
+                .get("model_input_dim")
+                .and_then(|v| v.parse::<usize>().ok())?;
+            let output_dim = state
+                .metadata
+                .get("model_output_dim")
+                .and_then(|v| v.parse::<usize>().ok())?;
+            let cross_layers = state
+                .metadata
+                .get("model_cross_layers")
+                .and_then(|v| v.parse::<usize>().ok())
+                .unwrap_or(2);
+            let deep_hidden_dims: Vec<usize> = state
+                .metadata
+                .get("model_deep_hidden_dims")
+                .map(|s| {
+                    s.split(',')
+                        .filter_map(|x| x.trim().parse::<usize>().ok())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let activation = normalize_activation(
+                state
+                    .metadata
+                    .get("model_activation")
+                    .map(|s| s.as_str())
+                    .unwrap_or("relu"),
+            )
+            .to_string();
+            Some(ModelSpec::Dcn {
+                input_dim,
+                cross_layers,
+                deep_hidden_dims,
+                output_dim,
+                activation,
+            })
+        }
+        "mmoe" => {
+            let input_dim = state
+                .metadata
+                .get("model_input_dim")
+                .and_then(|v| v.parse::<usize>().ok())?;
+            let num_experts = state
+                .metadata
+                .get("model_num_experts")
+                .and_then(|v| v.parse::<usize>().ok())
+                .unwrap_or(4);
+            let num_tasks = state
+                .metadata
+                .get("model_num_tasks")
+                .and_then(|v| v.parse::<usize>().ok())
+                .unwrap_or(1);
+            let task_output_dim = state
+                .metadata
+                .get("model_task_output_dim")
+                .and_then(|v| v.parse::<usize>().ok())
+                .unwrap_or(1);
+            let expert_hidden_dims: Vec<usize> = state
+                .metadata
+                .get("model_expert_hidden_dims")
+                .map(|s| {
+                    s.split(',')
+                        .filter_map(|x| x.trim().parse::<usize>().ok())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let gate_hidden_dims: Vec<usize> = state
+                .metadata
+                .get("model_gate_hidden_dims")
+                .map(|s| {
+                    s.split(',')
+                        .filter_map(|x| x.trim().parse::<usize>().ok())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let activation = normalize_activation(
+                state
+                    .metadata
+                    .get("model_activation")
+                    .map(|s| s.as_str())
+                    .unwrap_or("relu"),
+            )
+            .to_string();
+            Some(ModelSpec::Mmoe {
+                input_dim,
+                num_experts,
+                expert_hidden_dims,
+                num_tasks,
+                gate_hidden_dims,
+                task_output_dim,
+                activation,
+            })
+        }
+        _ => None,
+    }
+}
+
+fn write_model_spec_if_present(output_dir: &Path, state: &ModelState) -> Result<()> {
+    let Some(spec) = guess_model_spec_from_state(state) else {
+        // If we can't infer a spec, skip writing it. Serving will fall back to baseline inference.
+        return Ok(());
+    };
+    let path = output_dir.join(MODEL_SPEC_FILENAME);
+    let json = serde_json::to_string_pretty(&spec).map_err(CheckpointError::Serialization)?;
+    std::fs::write(&path, json).map_err(|e| CheckpointError::Io { path, source: e })?;
+    Ok(())
+}
+
 /// Result type for export operations.
 pub type Result<T> = std::result::Result<T, CheckpointError>;
 
@@ -301,6 +520,9 @@ impl ModelExporter {
             })?;
         }
 
+        // Write model spec for Candle-backed serving if available.
+        write_model_spec_if_present(&self.config.output_dir, state)?;
+
         // Write manifest
         self.write_manifest(state)?;
 
@@ -526,6 +748,45 @@ mod tests {
 
         // Optimizer should not be exported by default
         assert!(!dir.path().join("optimizer").exists());
+
+        // Model spec is optional; default tests do not include the required metadata.
+        assert!(!dir.path().join(MODEL_SPEC_FILENAME).exists());
+    }
+
+    #[test]
+    fn test_export_saved_model_writes_model_spec_when_metadata_present() {
+        let dir = tempdir().unwrap();
+        let config = ExportConfig::new(dir.path()).with_format(ExportFormat::SavedModel);
+        let exporter = ModelExporter::new(config);
+
+        let mut state = create_test_state();
+        state.set_metadata("model_spec_type", "mlp");
+        state.set_metadata("model_input_dim", "4");
+        state.set_metadata("model_hidden_dims", "3");
+        state.set_metadata("model_output_dim", "1");
+        state.set_metadata("model_activation", "relu");
+
+        exporter.export(&state).unwrap();
+
+        let spec_path = dir.path().join(MODEL_SPEC_FILENAME);
+        assert!(spec_path.exists());
+
+        let json = std::fs::read_to_string(spec_path).unwrap();
+        let spec: ModelSpec = serde_json::from_str(&json).unwrap();
+        match spec {
+            ModelSpec::Mlp {
+                input_dim,
+                hidden_dims,
+                output_dim,
+                activation,
+            } => {
+                assert_eq!(input_dim, 4);
+                assert_eq!(hidden_dims, vec![3]);
+                assert_eq!(output_dim, 1);
+                assert_eq!(activation, "relu");
+            }
+            _ => panic!("expected mlp spec"),
+        }
     }
 
     #[test]

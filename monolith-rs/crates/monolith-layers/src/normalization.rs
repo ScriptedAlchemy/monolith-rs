@@ -270,6 +270,11 @@ pub struct BatchNorm {
     cached_input: Option<Tensor>,
     cached_mean: Option<Tensor>,
     cached_var: Option<Tensor>,
+    /// Gradient accumulators
+    #[serde(skip)]
+    gamma_grad: Option<Tensor>,
+    #[serde(skip)]
+    beta_grad: Option<Tensor>,
 }
 
 impl BatchNorm {
@@ -291,6 +296,8 @@ impl BatchNorm {
             cached_input: None,
             cached_mean: None,
             cached_var: None,
+            gamma_grad: None,
+            beta_grad: None,
         }
     }
 
@@ -315,8 +322,81 @@ impl BatchNorm {
 
     /// Performs forward pass and caches values for backward pass.
     pub fn forward_train(&mut self, input: &Tensor) -> Result<Tensor, LayerError> {
+        if input.ndim() != 2 {
+            return Err(LayerError::ForwardError {
+                message: format!("BatchNorm expects 2D input, got {}D", input.ndim()),
+            });
+        }
+        if input.shape()[1] != self.num_features {
+            return Err(LayerError::InvalidInputDimension {
+                expected: self.num_features,
+                actual: input.shape()[1],
+            });
+        }
+
+        let batch_size = input.shape()[0];
+        let dim = input.shape()[1];
+
+        // Batch statistics: [C]
+        let mean = input.mean_axis(0);
+        let mut var = input.var_axis(0);
+        // Match TF semantics: variance is non-negative (numerical safety).
+        let var_data: Vec<f32> = var.data().iter().map(|&v| v.max(0.0)).collect();
+        var = Tensor::from_data(&[dim], var_data);
+
+        // Update running stats (momentum matches TF BN: moving = momentum * batch + (1-momentum) * moving).
+        let m = self.momentum;
+        let om = 1.0 - m;
+        let mut new_rm = vec![0.0; dim];
+        let mut new_rv = vec![0.0; dim];
+        for j in 0..dim {
+            new_rm[j] = m * mean.data()[j] + om * self.running_mean.data()[j];
+            new_rv[j] = m * var.data()[j] + om * self.running_var.data()[j];
+        }
+        self.running_mean = Tensor::from_data(&[dim], new_rm);
+        self.running_var = Tensor::from_data(&[dim], new_rv);
+
+        // Cache for backward.
         self.cached_input = Some(input.clone());
-        self.forward(input)
+        self.cached_mean = Some(mean.clone());
+        self.cached_var = Some(var.clone());
+
+        // Normalize and affine.
+        let mut output = vec![0.0; input.numel()];
+        for i in 0..batch_size {
+            for j in 0..dim {
+                let idx = i * dim + j;
+                let x_norm =
+                    (input.data()[idx] - mean.data()[j]) / (var.data()[j] + self.eps).sqrt();
+                output[idx] = self.gamma.data()[j] * x_norm + self.beta.data()[j];
+            }
+        }
+
+        Ok(Tensor::from_data(input.shape(), output))
+    }
+
+    /// Clears cached values and gradients.
+    pub fn clear_cache(&mut self) {
+        self.cached_input = None;
+        self.cached_mean = None;
+        self.cached_var = None;
+        self.gamma_grad = None;
+        self.beta_grad = None;
+    }
+
+    /// Returns gamma gradients if available.
+    pub fn gamma_grad(&self) -> Option<&Tensor> {
+        self.gamma_grad.as_ref()
+    }
+
+    /// Returns beta gradients if available.
+    pub fn beta_grad(&self) -> Option<&Tensor> {
+        self.beta_grad.as_ref()
+    }
+
+    /// Returns references to running mean/var.
+    pub fn running_stats(&self) -> (&Tensor, &Tensor) {
+        (&self.running_mean, &self.running_var)
     }
 }
 
@@ -344,6 +424,13 @@ impl Layer for BatchNorm {
             // Use running statistics during inference
             (self.running_mean.clone(), self.running_var.clone())
         };
+        // Match TF semantics: variance is non-negative (numerical safety).
+        let var = if var.numel() == dim {
+            let var_data: Vec<f32> = var.data().iter().map(|&v| v.max(0.0)).collect();
+            Tensor::from_data(&[dim], var_data)
+        } else {
+            var
+        };
 
         // Normalize and apply affine transformation
         let mut output = vec![0.0; input.numel()];
@@ -360,16 +447,96 @@ impl Layer for BatchNorm {
     }
 
     fn backward(&mut self, _grad: &Tensor) -> Result<Tensor, LayerError> {
-        // Simplified backward pass (stub)
-        // Full implementation would compute gradients for gamma, beta, and input
+        // Compute gradients for gamma, beta, and input.
         let input = self
             .cached_input
             .as_ref()
             .ok_or(LayerError::NotInitialized)?;
+        let mean = self
+            .cached_mean
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
+        let var = self.cached_var.as_ref().ok_or(LayerError::NotInitialized)?;
 
-        // For now, just return a gradient of the same shape
-        // A full implementation would compute the proper gradients
-        Ok(Tensor::zeros(input.shape()))
+        let grad = _grad;
+        if grad.shape() != input.shape() {
+            return Err(LayerError::ShapeMismatch {
+                expected: input.shape().to_vec(),
+                actual: grad.shape().to_vec(),
+            });
+        }
+
+        let batch_size = input.shape()[0];
+        let dim = input.shape()[1];
+        let n = batch_size as f32;
+
+        // Precompute inv std and x_hat for each element.
+        let mut inv_std = vec![0.0f32; dim];
+        for j in 0..dim {
+            inv_std[j] = 1.0 / (var.data()[j].max(0.0) + self.eps).sqrt();
+        }
+        let mut x_hat = vec![0.0f32; input.numel()];
+        for i in 0..batch_size {
+            for j in 0..dim {
+                let idx = i * dim + j;
+                x_hat[idx] = (input.data()[idx] - mean.data()[j]) * inv_std[j];
+            }
+        }
+
+        // dBeta, dGamma over batch.
+        let mut d_beta = vec![0.0f32; dim];
+        let mut d_gamma = vec![0.0f32; dim];
+        for i in 0..batch_size {
+            for j in 0..dim {
+                let idx = i * dim + j;
+                d_beta[j] += grad.data()[idx];
+                d_gamma[j] += grad.data()[idx] * x_hat[idx];
+            }
+        }
+        self.beta_grad = Some(Tensor::from_data(&[dim], d_beta));
+        self.gamma_grad = Some(Tensor::from_data(&[dim], d_gamma));
+
+        // dx_hat = dY * gamma
+        let mut dx_hat = vec![0.0f32; input.numel()];
+        for i in 0..batch_size {
+            for j in 0..dim {
+                let idx = i * dim + j;
+                dx_hat[idx] = grad.data()[idx] * self.gamma.data()[j];
+            }
+        }
+
+        // Compute dvar and dmu per channel.
+        let mut dvar = vec![0.0f32; dim];
+        let mut dmu = vec![0.0f32; dim];
+        for j in 0..dim {
+            let mut sum_dxhat_xmu = 0.0f32;
+            let mut sum_xmu = 0.0f32;
+            let mut sum_dxhat = 0.0f32;
+            for i in 0..batch_size {
+                let idx = i * dim + j;
+                let xmu = input.data()[idx] - mean.data()[j];
+                sum_dxhat_xmu += dx_hat[idx] * xmu;
+                sum_xmu += xmu;
+                sum_dxhat += dx_hat[idx];
+            }
+
+            let inv_std_j = inv_std[j];
+            let inv_std3 = inv_std_j * inv_std_j * inv_std_j;
+            dvar[j] = -0.5 * sum_dxhat_xmu * inv_std3;
+            dmu[j] = -inv_std_j * sum_dxhat + dvar[j] * (-2.0 * sum_xmu / n);
+        }
+
+        // dx
+        let mut dx = vec![0.0f32; input.numel()];
+        for i in 0..batch_size {
+            for j in 0..dim {
+                let idx = i * dim + j;
+                let xmu = input.data()[idx] - mean.data()[j];
+                dx[idx] = dx_hat[idx] * inv_std[j] + dvar[j] * 2.0 * xmu / n + dmu[j] / n;
+            }
+        }
+
+        Ok(Tensor::from_data(input.shape(), dx))
     }
 
     fn parameters(&self) -> Vec<&Tensor> {

@@ -8,6 +8,9 @@ use std::path::PathBuf;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Re-run if any proto changes
     println!("cargo:rerun-if-changed=../../proto");
+    println!("cargo:rerun-if-changed=../../proto/tensorflow_serving");
+    println!("cargo:rerun-if-changed=../../proto/tensorflow");
+    println!("cargo:rerun-if-changed=../../proto/google");
 
     let proto_root = PathBuf::from("../../proto");
 
@@ -58,6 +61,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // currently don't expose a `google` module from `monolith-proto` (and
         // Primus isn't used by the Rust parity work yet), so skip compiling it
         // to keep the crate building cleanly.
+
+        // TensorFlow Serving (tonic/prost)
+        proto_root.join("tensorflow_serving/apis/model_service.proto"),
+        proto_root.join("tensorflow_serving/apis/get_model_status.proto"),
+        proto_root.join("tensorflow_serving/apis/get_model_metadata.proto"),
+        proto_root.join("tensorflow_serving/apis/predict.proto"),
+        proto_root.join("tensorflow_serving/apis/prediction_service.proto"),
+        proto_root.join("tensorflow_serving/apis/model_management.proto"),
+        proto_root.join("tensorflow_serving/config/model_server_config.proto"),
     ];
 
     // Make sure changes to indirectly imported protos trigger rebuilds too.
@@ -81,6 +93,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_build::configure()
         .build_client(true)
         .build_server(true)
+        // Use prost-types for WKTs (Any, wrappers, etc) so we don't generate duplicate types.
+        .compile_well_known_types(true)
+        .extern_path(".google.protobuf", "::prost_types")
         // Keep compilation robust even if proto3 optional appears.
         .protoc_arg("--experimental_allow_proto3_optional")
         .compile(&proto_strs, &include_strs)?;

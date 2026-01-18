@@ -31,34 +31,49 @@ pub enum ModelSpec {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MlpSpec {
+    /// Input feature dimension (flattened embedding concat).
     pub input_dim: usize,
+    /// Hidden layer sizes.
     pub hidden_dims: Vec<usize>,
+    /// Output dimension.
     pub output_dim: usize,
     #[serde(default)]
+    /// Activation for hidden layers.
     pub activation: Activation,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DcnSpec {
+    /// Input feature dimension.
     pub input_dim: usize,
+    /// Number of cross layers.
     pub cross_layers: usize,
     /// Deep tower hidden dims.
     #[serde(default)]
     pub deep_hidden_dims: Vec<usize>,
+    /// Output dimension.
     pub output_dim: usize,
     #[serde(default)]
+    /// Activation for deep tower hidden layers.
     pub activation: Activation,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MmoeSpec {
+    /// Input feature dimension.
     pub input_dim: usize,
+    /// Number of experts.
     pub num_experts: usize,
+    /// Expert hidden layer sizes.
     pub expert_hidden_dims: Vec<usize>,
+    /// Number of tasks.
     pub num_tasks: usize,
+    /// Gate hidden layer sizes.
     pub gate_hidden_dims: Vec<usize>,
+    /// Per-task output dimension.
     pub task_output_dim: usize,
     #[serde(default)]
+    /// Activation for hidden layers in experts/gates.
     pub activation: Activation,
 }
 

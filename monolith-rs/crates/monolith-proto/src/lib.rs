@@ -87,6 +87,16 @@ pub mod tensorflow {
     }
 }
 
+// TensorFlow / TF Serving APIs (gRPC) for compatibility with Python's TF Serving clients.
+pub mod tensorflow_serving {
+    pub mod apis {
+        tonic::include_proto!("tensorflow.serving");
+    }
+    pub mod config {
+        tonic::include_proto!("tensorflow.serving.config");
+    }
+}
+
 // Primus orchestration protos (not required for current Rust parity work).
 // These import google/protobuf wrappers and would require additional module
 // wiring, so keep them disabled for now.
