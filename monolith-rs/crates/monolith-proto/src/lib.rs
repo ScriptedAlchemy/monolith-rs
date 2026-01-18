@@ -87,6 +87,8 @@ pub mod tensorflow {
     }
 }
 
+pub mod descriptor_pool;
+
 // TensorFlow / TF Serving APIs (gRPC) for compatibility with Python's TF Serving clients.
 pub mod tensorflow_serving {
     pub mod apis {

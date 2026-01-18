@@ -93,6 +93,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_build::configure()
         .build_client(true)
         .build_server(true)
+        // Emit a descriptor set so other crates can do reflection-based pbtxt parsing.
+        .file_descriptor_set_path(std::env::var("OUT_DIR")? + "/descriptor.bin")
         // Use prost-types for WKTs (Any, wrappers, etc) so we don't generate duplicate types.
         .compile_well_known_types(true)
         .extern_path(".google.protobuf", "::prost_types")
