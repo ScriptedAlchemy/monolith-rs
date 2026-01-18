@@ -103,8 +103,8 @@ pub use dataset::{
 };
 pub use example::{
     add_feature, clone_example, create_example, create_example_with_line_id, feature_count,
-    feature_names, get_feature, get_feature_mut, has_feature, merge_examples, remove_feature,
-    total_fid_count,
+    feature_names, get_feature, get_feature_data, get_feature_mut, has_feature, merge_examples,
+    remove_feature, total_fid_count,
 };
 pub use instance::{
     extract_feature, extract_slot, make_fid, DenseFeature, Instance, InstanceBatch, InstanceError,

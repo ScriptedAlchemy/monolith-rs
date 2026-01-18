@@ -42,6 +42,7 @@ use monolith_data::{
     create_example,
     decompress,
     extract_feature,
+    get_feature_data,
     extract_slot,
     feature_names,
     get_feature,
