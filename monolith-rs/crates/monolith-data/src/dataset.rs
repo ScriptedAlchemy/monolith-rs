@@ -626,6 +626,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use monolith_proto::monolith::io::proto::feature;
     use crate::example::{add_feature, create_example, get_feature};
 
     fn make_examples(count: usize) -> Vec<Example> {
@@ -702,7 +703,12 @@ mod tests {
         let filtered: Vec<_> = dataset
             .filter(|ex| {
                 get_feature(ex, "id")
-                    .map(|f| f.fid.first().copied().unwrap_or(0) % 2 == 0)
+                    .and_then(|f| match &f.r#type {
+                        Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
+                        Some(feature::Type::FidV1List(l)) => l.value.first().copied().map(|v| v as i64),
+                        _ => None,
+                    })
+                    .map(|v| v % 2 == 0)
                     .unwrap_or(false)
             })
             .iter()
@@ -746,7 +752,12 @@ mod tests {
         let result: Vec<_> = dataset
             .filter(|ex| {
                 get_feature(ex, "id")
-                    .map(|f| f.fid.first().copied().unwrap_or(0) < 50)
+                    .and_then(|f| match &f.r#type {
+                        Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
+                        Some(feature::Type::FidV1List(l)) => l.value.first().copied().map(|v| v as i64),
+                        _ => None,
+                    })
+                    .map(|v| v < 50)
                     .unwrap_or(false)
             })
             .map(|mut ex| {

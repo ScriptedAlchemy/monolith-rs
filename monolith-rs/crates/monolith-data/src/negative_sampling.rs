@@ -42,6 +42,7 @@ use std::sync::RwLock;
 use crate::batch::Batch;
 use crate::dataset::Dataset;
 use crate::example::{add_feature, clone_example, get_feature, remove_feature};
+use monolith_proto::monolith::io::proto::feature;
 
 /// Trait for negative sampling strategies.
 ///
@@ -149,7 +150,11 @@ impl NegativeSampler for UniformNegativeSampler {
 
         // Get the positive item ID to exclude
         let positive_item = get_feature(positive, &self.item_feature_name)
-            .and_then(|f| f.fid.first().copied());
+            .and_then(|f| match &f.r#type {
+                Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
+                Some(feature::Type::FidV1List(l)) => l.value.first().copied().map(|v| v as i64),
+                _ => None,
+            });
 
         let mut negatives = Vec::with_capacity(num_negatives);
         let mut sampled_items = Vec::new();
@@ -322,7 +327,11 @@ impl FrequencyNegativeSampler {
 impl NegativeSampler for FrequencyNegativeSampler {
     fn sample(&self, positive: &Example, num_negatives: usize) -> Vec<Example> {
         let positive_item = get_feature(positive, &self.item_feature_name)
-            .and_then(|f| f.fid.first().copied());
+            .and_then(|f| match &f.r#type {
+                Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
+                Some(feature::Type::FidV1List(l)) => l.value.first().copied().map(|v| v as i64),
+                _ => None,
+            });
 
         let mut negatives = Vec::with_capacity(num_negatives);
 
@@ -427,7 +436,11 @@ impl InBatchNegativeSampler {
 
         let positive = &examples[positive_idx];
         let positive_item = get_feature(positive, &self.item_feature_name)
-            .and_then(|f| f.fid.first().copied());
+            .and_then(|f| match &f.r#type {
+                Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
+                Some(feature::Type::FidV1List(l)) => l.value.first().copied().map(|v| v as i64),
+                _ => None,
+            });
 
         // Collect indices of other examples
         let mut candidate_indices: Vec<usize> = (0..examples.len())
@@ -445,7 +458,11 @@ impl InBatchNegativeSampler {
         for &idx in candidate_indices.iter().take(num_negatives) {
             let other = &examples[idx];
             let other_item = get_feature(other, &self.item_feature_name)
-                .and_then(|f| f.fid.first().copied());
+                .and_then(|f| match &f.r#type {
+                    Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
+                    Some(feature::Type::FidV1List(l)) => l.value.first().copied().map(|v| v as i64),
+                    _ => None,
+                });
 
             // Skip if same item
             if other_item == positive_item {
@@ -694,6 +711,7 @@ mod tests {
     use super::*;
     use crate::dataset::VecDataset;
     use crate::example::create_example;
+    use monolith_proto::monolith::io::proto::feature;
 
     fn make_test_example(user_id: i64, item_id: i64) -> Example {
         let mut ex = create_example();
@@ -714,10 +732,16 @@ mod tests {
         for neg in &negatives {
             // Check that negatives have item_id feature
             let item_feature = get_feature(neg, "item_id").unwrap();
-            assert!(!item_feature.fid.is_empty());
+            match &item_feature.r#type {
+                Some(feature::Type::FidV2List(l)) => assert!(!l.value.is_empty()),
+                other => panic!("Expected FidV2List, got {:?}", other),
+            }
             // Check that negatives have label 0
             let label_feature = get_feature(neg, "label").unwrap();
-            assert_eq!(label_feature.value[0], 0.0);
+            match &label_feature.r#type {
+                Some(feature::Type::FidV2List(l)) => assert_eq!(l.value.get(0).copied(), Some(0)),
+                other => panic!("Expected FidV2List for label, got {:?}", other),
+            }
         }
     }
 
@@ -733,7 +757,10 @@ mod tests {
         let items: Vec<_> = negatives
             .iter()
             .filter_map(|ex| get_feature(ex, "item_id"))
-            .filter_map(|f| f.fid.first().copied())
+            .filter_map(|f| match &f.r#type {
+                Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
+                _ => None,
+            })
             .collect();
 
         let unique_count = {
@@ -757,7 +784,10 @@ mod tests {
         // None of the negatives should have the positive item
         for neg in &negatives {
             let item = get_feature(neg, "item_id")
-                .and_then(|f| f.fid.first().copied())
+                .and_then(|f| match &f.r#type {
+                    Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
+                    _ => None,
+                })
                 .unwrap();
             assert_ne!(item, 1001);
         }
@@ -779,7 +809,10 @@ mod tests {
         assert_eq!(negatives.len(), 10);
         for neg in &negatives {
             let label = get_feature(neg, "label").unwrap();
-            assert_eq!(label.value[0], 0.0);
+            match &label.r#type {
+                Some(feature::Type::FidV2List(l)) => assert_eq!(l.value.get(0).copied(), Some(0)),
+                other => panic!("Expected FidV2List for label, got {:?}", other),
+            }
         }
     }
 
@@ -799,7 +832,10 @@ mod tests {
             .iter()
             .filter(|ex| {
                 get_feature(ex, "item_id")
-                    .and_then(|f| f.fid.first().copied())
+                    .and_then(|f| match &f.r#type {
+                        Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
+                        _ => None,
+                    })
                     == Some(1000)
             })
             .count();
@@ -828,7 +864,11 @@ mod tests {
 
         for neg in &negatives {
             let item = get_feature(neg, "item_id")
-                .and_then(|f| f.fid.first().copied())
+                .and_then(|f| match &f.r#type {
+                    Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
+                    Some(feature::Type::FidV1List(l)) => l.value.first().copied().map(|v| v as i64),
+                    _ => None,
+                })
                 .unwrap();
             // Should not be the positive item
             assert_ne!(item, 1000);
@@ -901,8 +941,12 @@ mod tests {
             .iter()
             .filter(|ex| {
                 get_feature(ex, "label")
-                    .map(|f| f.value[0] == 1.0)
-                    .unwrap_or(false)
+                    .and_then(|f| match &f.r#type {
+                        Some(feature::Type::FidV2List(l)) => l.value.first().copied(),
+                        Some(feature::Type::FidV1List(l)) => l.value.first().copied(),
+                        _ => None,
+                    })
+                    == Some(1)
             })
             .count();
 
@@ -910,8 +954,12 @@ mod tests {
             .iter()
             .filter(|ex| {
                 get_feature(ex, "label")
-                    .map(|f| f.value[0] == 0.0)
-                    .unwrap_or(false)
+                    .and_then(|f| match &f.r#type {
+                        Some(feature::Type::FidV2List(l)) => l.value.first().copied(),
+                        Some(feature::Type::FidV1List(l)) => l.value.first().copied(),
+                        _ => None,
+                    })
+                    == Some(0)
             })
             .count();
 
@@ -964,7 +1012,10 @@ mod tests {
         for neg in &negatives {
             // Should have product_id, not item_id
             let product_feature = get_feature(neg, "product_id").unwrap();
-            assert!(!product_feature.fid.is_empty());
+            match &product_feature.r#type {
+                Some(feature::Type::FidV2List(l)) => assert!(!l.value.is_empty()),
+                other => panic!("Expected FidV2List, got {:?}", other),
+            }
         }
     }
 }

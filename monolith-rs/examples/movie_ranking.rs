@@ -75,7 +75,7 @@ impl Default for Config {
             hidden_layers: vec![64, 32],
             batch_size: 256,
             num_epochs: 10,
-            learning_rate: 0.01,
+            learning_rate: 0.001, // Lower LR to prevent gradient explosion (Python uses Adagrad which adapts)
             seed: 42,
             num_train_samples: 100_000,
             num_test_samples: 10_000,
@@ -178,7 +178,7 @@ OPTIONS:
     --hidden-layers <SIZES>  Hidden layer sizes, comma-separated (default: 64,32)
     --batch-size <N>         Batch size (default: 256)
     --num-epochs <N>         Number of training epochs (default: 10)
-    --learning-rate <F>      Learning rate (default: 0.01)
+    --learning-rate <F>      Learning rate (default: 0.001, lower is safer)
     --seed <N>               Random seed (default: 42)
     --num-train-samples <N>  Number of training samples (default: 100000)
     --num-test-samples <N>   Number of test samples (default: 10000)
@@ -351,16 +351,43 @@ impl DenseLayer {
         grad.matmul(&weights_t)
     }
 
-    /// Updates weights using SGD.
-    fn update(&mut self, learning_rate: f32) {
+    /// Updates weights using SGD with gradient clipping.
+    fn update(&mut self, learning_rate: f32, max_grad_norm: f32) {
         if let Some(ref w_grad) = self.weights_grad {
-            let scaled = w_grad.scale(learning_rate);
+            let clipped = clip_gradient(w_grad, max_grad_norm);
+            let scaled = clipped.scale(learning_rate);
             self.weights = self.weights.sub(&scaled);
         }
         if let Some(ref b_grad) = self.bias_grad {
-            let scaled = b_grad.scale(learning_rate);
+            let clipped = clip_gradient(b_grad, max_grad_norm);
+            let scaled = clipped.scale(learning_rate);
             self.bias = self.bias.sub(&scaled);
         }
+    }
+}
+
+/// Clips gradient to prevent explosion (L2 norm clipping).
+fn clip_gradient(grad: &CandleTensor, max_norm: f32) -> CandleTensor {
+    let grad_data = grad.to_vec();
+    let norm: f32 = grad_data.iter().map(|x| x * x).sum::<f32>().sqrt();
+
+    if norm > max_norm && norm > 0.0 {
+        let scale = max_norm / norm;
+        grad.scale(scale)
+    } else {
+        grad.clone()
+    }
+}
+
+/// Clips embedding gradients (CPU version).
+fn clip_embedding_gradients(grads: &[f32], max_norm: f32) -> Vec<f32> {
+    let norm: f32 = grads.iter().map(|x| x * x).sum::<f32>().sqrt();
+
+    if norm > max_norm && norm > 0.0 {
+        let scale = max_norm / norm;
+        grads.iter().map(|&g| g * scale).collect()
+    } else {
+        grads.to_vec()
     }
 }
 
@@ -484,19 +511,23 @@ impl MovieRankingModel {
         (user_grad, movie_grad)
     }
 
-    /// Updates all model parameters using SGD.
+    /// Updates all model parameters using SGD with gradient clipping.
     fn update(&mut self, user_ids: &[u64], movie_ids: &[u64], user_grad: &[f32], movie_grad: &[f32], learning_rate: f32) {
-        // Update hidden layers (on GPU)
+        let max_grad_norm = 1.0; // Gradient clipping threshold
+
+        // Update hidden layers (on GPU) with gradient clipping
         for layer in &mut self.hidden_layers {
-            layer.update(learning_rate);
+            layer.update(learning_rate, max_grad_norm);
         }
 
-        // Update output layer (on GPU)
-        self.output_layer.update(learning_rate);
+        // Update output layer (on GPU) with gradient clipping
+        self.output_layer.update(learning_rate, max_grad_norm);
 
-        // Update embeddings (on CPU)
-        self.user_embeddings.apply_gradients(user_ids, user_grad, learning_rate);
-        self.movie_embeddings.apply_gradients(movie_ids, movie_grad, learning_rate);
+        // Update embeddings (on CPU) with clipping
+        let user_grad_clipped = clip_embedding_gradients(user_grad, max_grad_norm);
+        let movie_grad_clipped = clip_embedding_gradients(movie_grad, max_grad_norm);
+        self.user_embeddings.apply_gradients(user_ids, &user_grad_clipped, learning_rate);
+        self.movie_embeddings.apply_gradients(movie_ids, &movie_grad_clipped, learning_rate);
     }
 
     /// Returns model statistics.
