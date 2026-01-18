@@ -237,7 +237,10 @@ impl CuckooEmbeddingHashTable {
         self.validate_buffer_size(ids.len(), embeddings.len())?;
 
         // First pass: initialize any missing entries
-        let new_entries_needed = ids.iter().filter(|id| !self.entries.contains_key(*id)).count();
+        let new_entries_needed = ids
+            .iter()
+            .filter(|id| !self.entries.contains_key(*id))
+            .count();
         if self.entries.len() + new_entries_needed > self.capacity {
             return Err(HashTableError::TableFull {
                 capacity: self.capacity,
@@ -420,7 +423,10 @@ impl EmbeddingHashTable for CuckooEmbeddingHashTable {
         self.validate_buffer_size(ids.len(), embeddings.len())?;
 
         // Check if we have capacity for new entries
-        let new_entries = ids.iter().filter(|id| !self.entries.contains_key(*id)).count();
+        let new_entries = ids
+            .iter()
+            .filter(|id| !self.entries.contains_key(*id))
+            .count();
         if self.entries.len() + new_entries > self.capacity {
             return Err(HashTableError::TableFull {
                 capacity: self.capacity,
@@ -512,9 +518,7 @@ mod tests {
 
         let ids = vec![1, 2, 3];
         let embeddings = vec![
-            1.0, 2.0, 3.0, 4.0,
-            5.0, 6.0, 7.0, 8.0,
-            9.0, 10.0, 11.0, 12.0,
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
         ];
 
         table.assign(&ids, &embeddings).unwrap();
@@ -546,13 +550,19 @@ mod tests {
 
         // Wrong embedding size
         let result = table.assign(&[1], &[1.0, 2.0]); // Should be 4 elements
-        assert!(matches!(result, Err(HashTableError::DimensionMismatch { .. })));
+        assert!(matches!(
+            result,
+            Err(HashTableError::DimensionMismatch { .. })
+        ));
 
         // Wrong output buffer size
         table.assign(&[1], &[1.0, 2.0, 3.0, 4.0]).unwrap();
         let mut output = vec![0.0; 2]; // Should be 4 elements
         let result = table.lookup(&[1], &mut output);
-        assert!(matches!(result, Err(HashTableError::DimensionMismatch { .. })));
+        assert!(matches!(
+            result,
+            Err(HashTableError::DimensionMismatch { .. })
+        ));
     }
 
     #[test]
@@ -561,7 +571,10 @@ mod tests {
 
         let mut output = vec![0.0; 2];
         let result = table.lookup(&[999], &mut output);
-        assert!(matches!(result, Err(HashTableError::IdNotFound { id: 999 })));
+        assert!(matches!(
+            result,
+            Err(HashTableError::IdNotFound { id: 999 })
+        ));
     }
 
     #[test]
@@ -571,7 +584,10 @@ mod tests {
         table.assign(&[1, 2], &[1.0, 2.0, 3.0, 4.0]).unwrap();
 
         let result = table.assign(&[3], &[5.0, 6.0]);
-        assert!(matches!(result, Err(HashTableError::TableFull { capacity: 2 })));
+        assert!(matches!(
+            result,
+            Err(HashTableError::TableFull { capacity: 2 })
+        ));
     }
 
     #[test]
@@ -607,7 +623,9 @@ mod tests {
     fn test_cuckoo_clear() {
         let mut table = CuckooEmbeddingHashTable::new(100, 2);
 
-        table.assign(&[1, 2, 3], &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+        table
+            .assign(&[1, 2, 3], &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+            .unwrap();
         assert_eq!(table.size(), 3);
 
         table.clear();
@@ -646,7 +664,9 @@ mod tests {
         );
 
         // Add entries with timestamp 0 (default)
-        table.assign(&[1, 2, 3], &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+        table
+            .assign(&[1, 2, 3], &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+            .unwrap();
         assert_eq!(table.size(), 3);
 
         // At time 50, no entries should be evicted (age = 50 < 100)
@@ -671,7 +691,9 @@ mod tests {
         );
 
         // Add entries
-        table.assign(&[1, 2, 3], &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+        table
+            .assign(&[1, 2, 3], &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+            .unwrap();
 
         // Update timestamps for some entries
         if let Some(entry) = table.get_mut(2) {
@@ -742,11 +764,8 @@ mod tests {
     fn test_cuckoo_eviction_with_lru_policy() {
         use crate::eviction::LRUEviction;
 
-        let mut table = CuckooEmbeddingHashTable::with_eviction_policy(
-            100,
-            2,
-            Box::new(LRUEviction::new(100)),
-        );
+        let mut table =
+            CuckooEmbeddingHashTable::with_eviction_policy(100, 2, Box::new(LRUEviction::new(100)));
 
         table.assign(&[1, 2], &[1.0, 2.0, 3.0, 4.0]).unwrap();
 
@@ -768,11 +787,7 @@ mod tests {
     fn test_cuckoo_with_initializer() {
         use crate::initializer::ZerosInitializer;
 
-        let table = CuckooEmbeddingHashTable::with_initializer(
-            100,
-            4,
-            Arc::new(ZerosInitializer),
-        );
+        let table = CuckooEmbeddingHashTable::with_initializer(100, 4, Arc::new(ZerosInitializer));
 
         assert_eq!(table.dim(), 4);
         assert_eq!(table.initializer_name(), "zeros");
@@ -782,11 +797,8 @@ mod tests {
     fn test_cuckoo_get_or_initialize() {
         use crate::initializer::ZerosInitializer;
 
-        let mut table = CuckooEmbeddingHashTable::with_initializer(
-            100,
-            4,
-            Arc::new(ZerosInitializer),
-        );
+        let mut table =
+            CuckooEmbeddingHashTable::with_initializer(100, 4, Arc::new(ZerosInitializer));
 
         // First call should create a new entry
         let created = table.get_or_initialize(1).unwrap();
@@ -808,11 +820,8 @@ mod tests {
     fn test_cuckoo_get_or_initialize_table_full() {
         use crate::initializer::ZerosInitializer;
 
-        let mut table = CuckooEmbeddingHashTable::with_initializer(
-            2,
-            4,
-            Arc::new(ZerosInitializer),
-        );
+        let mut table =
+            CuckooEmbeddingHashTable::with_initializer(2, 4, Arc::new(ZerosInitializer));
 
         // Fill the table
         table.get_or_initialize(1).unwrap();
@@ -820,18 +829,18 @@ mod tests {
 
         // Table should be full
         let result = table.get_or_initialize(3);
-        assert!(matches!(result, Err(HashTableError::TableFull { capacity: 2 })));
+        assert!(matches!(
+            result,
+            Err(HashTableError::TableFull { capacity: 2 })
+        ));
     }
 
     #[test]
     fn test_cuckoo_lookup_or_initialize() {
         use crate::initializer::OnesInitializer;
 
-        let mut table = CuckooEmbeddingHashTable::with_initializer(
-            100,
-            4,
-            Arc::new(OnesInitializer),
-        );
+        let mut table =
+            CuckooEmbeddingHashTable::with_initializer(100, 4, Arc::new(OnesInitializer));
 
         // First, add an entry with custom values
         table.assign(&[1], &[2.0, 3.0, 4.0, 5.0]).unwrap();
@@ -854,11 +863,8 @@ mod tests {
     fn test_cuckoo_lookup_or_initialize_table_full() {
         use crate::initializer::ZerosInitializer;
 
-        let mut table = CuckooEmbeddingHashTable::with_initializer(
-            2,
-            2,
-            Arc::new(ZerosInitializer),
-        );
+        let mut table =
+            CuckooEmbeddingHashTable::with_initializer(2, 2, Arc::new(ZerosInitializer));
 
         // Fill the table
         table.assign(&[1, 2], &[1.0, 2.0, 3.0, 4.0]).unwrap();
@@ -866,18 +872,18 @@ mod tests {
         // Try to lookup with a new id - should fail
         let mut output = vec![0.0; 4];
         let result = table.lookup_or_initialize(&[1, 3], &mut output);
-        assert!(matches!(result, Err(HashTableError::TableFull { capacity: 2 })));
+        assert!(matches!(
+            result,
+            Err(HashTableError::TableFull { capacity: 2 })
+        ));
     }
 
     #[test]
     fn test_cuckoo_set_initializer() {
         use crate::initializer::{OnesInitializer, ZerosInitializer};
 
-        let mut table = CuckooEmbeddingHashTable::with_initializer(
-            100,
-            2,
-            Arc::new(ZerosInitializer),
-        );
+        let mut table =
+            CuckooEmbeddingHashTable::with_initializer(100, 2, Arc::new(ZerosInitializer));
 
         assert_eq!(table.initializer_name(), "zeros");
 

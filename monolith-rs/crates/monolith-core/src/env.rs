@@ -235,9 +235,9 @@ impl Env {
     /// ```
     pub fn get_or_create_slot(&mut self, slot_id: SlotId) -> &mut FeatureSlot {
         let default_dim = self.default_dim;
-        self.slots.entry(slot_id).or_insert_with(|| {
-            FeatureSlot::new(slot_id, format!("slot_{}", slot_id), default_dim)
-        })
+        self.slots
+            .entry(slot_id)
+            .or_insert_with(|| FeatureSlot::new(slot_id, format!("slot_{}", slot_id), default_dim))
     }
 
     /// Extracts the slot ID from a feature ID.
@@ -638,18 +638,14 @@ mod tests {
 
     #[test]
     fn test_env_builder_with_vocab_size() {
-        let env = EnvBuilder::new()
-            .with_vocab_size(1, 1_000_000)
-            .build();
+        let env = EnvBuilder::new().with_vocab_size(1, 1_000_000).build();
 
         assert_eq!(env.get_vocab_size(1), Some(1_000_000));
     }
 
     #[test]
     fn test_env_builder_with_default_dim() {
-        let env = EnvBuilder::new()
-            .with_default_dim(128)
-            .build();
+        let env = EnvBuilder::new().with_default_dim(128).build();
 
         assert_eq!(env.default_dim(), 128);
     }
@@ -665,9 +661,7 @@ mod tests {
 
     #[test]
     fn test_env_builder_with_default_expire_time() {
-        let env = EnvBuilder::new()
-            .with_default_expire_time(30)
-            .build();
+        let env = EnvBuilder::new().with_default_expire_time(30).build();
 
         assert_eq!(env.default_expire_time(), 30);
     }

@@ -10,30 +10,30 @@
 //! Run with: cargo run --example layers_demo
 
 use monolith_layers::{
+    // Sequence layers
+    agru::AGRU,
+    dcn::{CrossNetwork, DCNConfig, DCNMode},
     // Basic layers
     dense::Dense,
-    mlp::{MLP, MLPConfig, ActivationType},
-    normalization::{LayerNorm, BatchNorm},
+    dien::{DIENConfig, DIENLayer, GRUType},
 
     // Recommendation layers
     din::{DINAttention, DINConfig},
-    dcn::{CrossNetwork, DCNConfig, DCNMode},
-    mmoe::{MMoE, MMoEConfig},
-    ffm::{FFMLayer, FFMConfig},
-    senet::{SENetLayer, SENetConfig},
-    group_interaction::{GroupInteractionLayer, GroupInteractionConfig, InteractionType},
-
-    // Sequence layers
-    agru::AGRU,
-    dien::{DIENLayer, DIENConfig, GRUType},
-
     // Embedding
     // Note: PooledEmbeddingLookup and PoolingMode are available but require
     // ragged tensor support (not yet implemented). See Python embedding_combiners.py
     embedding::{EmbeddingHashTable, EmbeddingLookup},
 
+    ffm::{FFMConfig, FFMLayer},
+    group_interaction::{GroupInteractionConfig, GroupInteractionLayer, InteractionType},
+
     // Core traits and types
     layer::Layer,
+    mlp::{ActivationType, MLPConfig, MLP},
+    mmoe::{MMoE, MMoEConfig},
+    normalization::{BatchNorm, LayerNorm},
+
+    senet::{SENetConfig, SENetLayer},
     tensor::Tensor,
 };
 
@@ -76,7 +76,11 @@ fn dense_layer_demo() {
 
     // Configuration: 64 input features -> 32 output features
     let mut dense = Dense::new(64, 32);
-    println!("Created Dense layer: {} -> {} features", dense.in_features(), dense.out_features());
+    println!(
+        "Created Dense layer: {} -> {} features",
+        dense.in_features(),
+        dense.out_features()
+    );
     println!("  Weights shape: {:?}", dense.weights().shape());
     println!("  Bias shape: {:?}", dense.bias().shape());
 
@@ -86,7 +90,10 @@ fn dense_layer_demo() {
     println!("\nInput shape: {:?}", input.shape());
 
     let output = dense.forward(&input).expect("Forward pass failed");
-    println!("Output shape: {:?}  (batch=4, out_features=32)", output.shape());
+    println!(
+        "Output shape: {:?}  (batch=4, out_features=32)",
+        output.shape()
+    );
 
     // Training forward (caches input for backward)
     let output_train = dense.forward_train(&input).expect("Forward train failed");
@@ -97,20 +104,28 @@ fn dense_layer_demo() {
     let grad = Tensor::ones(&[4, 32]);
     let input_grad = dense.backward(&grad).expect("Backward pass failed");
     println!("Input gradient shape: {:?}", input_grad.shape());
-    println!("Weight gradient available: {}", dense.weights_grad().is_some());
+    println!(
+        "Weight gradient available: {}",
+        dense.weights_grad().is_some()
+    );
     println!("Bias gradient available: {}", dense.bias_grad().is_some());
 
     // Parameter access
     let params = dense.parameters();
     println!("\nTotal parameters: {} tensors", params.len());
     let total_params: usize = params.iter().map(|t| t.numel()).sum();
-    println!("Total parameter count: {} (64*32 weights + 32 bias = {})",
-             total_params, 64*32 + 32);
+    println!(
+        "Total parameter count: {} (64*32 weights + 32 bias = {})",
+        total_params,
+        64 * 32 + 32
+    );
 
     // Dense without bias
     let dense_no_bias = Dense::new_no_bias(64, 32);
-    println!("\nDense without bias: {} parameters",
-             dense_no_bias.parameters().len());
+    println!(
+        "\nDense without bias: {} parameters",
+        dense_no_bias.parameters().len()
+    );
 
     println!();
 }
@@ -124,9 +139,9 @@ fn mlp_demo() {
 
     // Method 1: Using MLPConfig builder pattern
     let config = MLPConfig::new(128)
-        .add_layer(64, ActivationType::ReLU)   // 128 -> 64 with ReLU
-        .add_layer(32, ActivationType::ReLU)   // 64 -> 32 with ReLU
-        .add_layer(10, ActivationType::None);  // 32 -> 10 (no activation for output)
+        .add_layer(64, ActivationType::ReLU) // 128 -> 64 with ReLU
+        .add_layer(32, ActivationType::ReLU) // 64 -> 32 with ReLU
+        .add_layer(10, ActivationType::None); // 32 -> 10 (no activation for output)
 
     let mlp1 = MLP::from_config(config).expect("MLP creation failed");
     println!("Created MLP via config:");
@@ -136,8 +151,7 @@ fn mlp_demo() {
 
     // Method 2: Using MLP::new with uniform hidden layers
     // Creates: input -> hidden1 -> hidden2 -> output
-    let mlp2 = MLP::new(128, &[64, 32], 10, ActivationType::ReLU)
-        .expect("MLP creation failed");
+    let mlp2 = MLP::new(128, &[64, 32], 10, ActivationType::ReLU).expect("MLP creation failed");
     println!("\nCreated MLP via new():");
     println!("  Number of layers: {}", mlp2.num_layers());
 
@@ -147,11 +161,16 @@ fn mlp_demo() {
     println!("\nInput shape: {:?}", input.shape());
 
     let output = mlp1.forward(&input).expect("Forward failed");
-    println!("Output shape: {:?}  (128 -> 64 -> 32 -> 10)", output.shape());
+    println!(
+        "Output shape: {:?}  (128 -> 64 -> 32 -> 10)",
+        output.shape()
+    );
 
     // Training with backward pass
     let mut mlp_train = MLP::new(128, &[64], 10, ActivationType::ReLU).unwrap();
-    let _ = mlp_train.forward_train(&input).expect("Forward train failed");
+    let _ = mlp_train
+        .forward_train(&input)
+        .expect("Forward train failed");
     let grad = Tensor::ones(&[8, 10]);
     let input_grad = mlp_train.backward(&grad).expect("Backward failed");
     println!("Input gradient shape: {:?}", input_grad.shape());
@@ -202,25 +221,34 @@ fn layer_norm_demo() {
     // Input: [batch=4, features=64]
     let input = Tensor::rand(&[4, 64]);
     println!("\nInput shape: {:?}", input.shape());
-    println!("Input sample mean (before norm): {:.4}",
-             input.data()[0..64].iter().sum::<f32>() / 64.0);
+    println!(
+        "Input sample mean (before norm): {:.4}",
+        input.data()[0..64].iter().sum::<f32>() / 64.0
+    );
 
     let output = layer_norm.forward(&input).expect("Forward failed");
     println!("Output shape: {:?}", output.shape());
 
     // Verify normalization - each row should have ~0 mean
     let row_mean: f32 = output.data()[0..64].iter().sum::<f32>() / 64.0;
-    println!("Output sample mean (after norm): {:.4} (should be ~0)", row_mean);
+    println!(
+        "Output sample mean (after norm): {:.4} (should be ~0)",
+        row_mean
+    );
 
     // Training mode forward + backward
-    let _output_train = layer_norm.forward_train(&input).expect("Forward train failed");
+    let _output_train = layer_norm
+        .forward_train(&input)
+        .expect("Forward train failed");
     let grad = Tensor::ones(&[4, 64]);
     let input_grad = layer_norm.backward(&grad).expect("Backward failed");
     println!("Input gradient shape: {:?}", input_grad.shape());
 
     // Parameters
-    println!("\nLayerNorm has {} learnable parameters (gamma, beta)",
-             layer_norm.parameters().len());
+    println!(
+        "\nLayerNorm has {} learnable parameters (gamma, beta)",
+        layer_norm.parameters().len()
+    );
 
     println!();
 }
@@ -253,7 +281,10 @@ fn batch_norm_demo() {
 
     // Switch to eval mode (uses running statistics)
     batch_norm.set_training(false);
-    println!("\nSwitched to eval mode: training={}", batch_norm.is_training());
+    println!(
+        "\nSwitched to eval mode: training={}",
+        batch_norm.is_training()
+    );
 
     let eval_output = batch_norm.forward(&input).expect("Eval forward failed");
     println!("Eval output shape: {:?}", eval_output.shape());
@@ -262,8 +293,10 @@ fn batch_norm_demo() {
     batch_norm.set_training(true);
 
     // Parameters (gamma, beta)
-    println!("\nBatchNorm has {} learnable parameters",
-             batch_norm.parameters().len());
+    println!(
+        "\nBatchNorm has {} learnable parameters",
+        batch_norm.parameters().len()
+    );
 
     println!();
 }
@@ -299,10 +332,10 @@ fn din_attention_demo() {
     println!("--- DIN (Deep Interest Network) Attention ---\n");
 
     // Create DIN attention with config
-    let config = DINConfig::new(32)  // 32-dim embeddings
+    let config = DINConfig::new(32) // 32-dim embeddings
         .with_attention_hidden_units(vec![64, 32])
         .with_activation(ActivationType::Sigmoid)
-        .with_use_softmax(false);  // Raw attention scores
+        .with_use_softmax(false); // Raw attention scores
 
     let mut din = DINAttention::from_config(config).expect("DIN creation failed");
     println!("Created DINAttention:");
@@ -323,28 +356,40 @@ fn din_attention_demo() {
     println!("  Values: {:?}", values.shape());
 
     // Forward pass
-    let output = din.forward_attention(&query, &keys, &values, None)
+    let output = din
+        .forward_attention(&query, &keys, &values, None)
         .expect("Forward failed");
-    println!("\nOutput shape: {:?}  (weighted sum of values)", output.shape());
+    println!(
+        "\nOutput shape: {:?}  (weighted sum of values)",
+        output.shape()
+    );
 
     // Get attention weights for visualization
-    let attention_weights = din.get_attention_weights(&query, &keys, None)
+    let attention_weights = din
+        .get_attention_weights(&query, &keys, None)
         .expect("Get attention weights failed");
     println!("Attention weights shape: {:?}", attention_weights.shape());
-    println!("Sample attention weights: {:?}",
-             &attention_weights.data()[0..5.min(attention_weights.numel())]);
+    println!(
+        "Sample attention weights: {:?}",
+        &attention_weights.data()[0..5.min(attention_weights.numel())]
+    );
 
     // With mask (handle padding in sequences)
-    let mask = Tensor::from_data(&[2, 10], vec![
-        1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0,  // First sample: 7 valid items
-        1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,  // Second sample: 5 valid items
-    ]);
-    let masked_output = din.forward_attention(&query, &keys, &values, Some(&mask))
+    let mask = Tensor::from_data(
+        &[2, 10],
+        vec![
+            1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, // First sample: 7 valid items
+            1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, // Second sample: 5 valid items
+        ],
+    );
+    let masked_output = din
+        .forward_attention(&query, &keys, &values, Some(&mask))
         .expect("Masked forward failed");
     println!("Masked output shape: {:?}", masked_output.shape());
 
     // Training mode with backward
-    let _ = din.forward_attention_train(&query, &keys, &values, None)
+    let _ = din
+        .forward_attention_train(&query, &keys, &values, None)
         .expect("Forward train failed");
     let grad = Tensor::ones(&[2, 32]);
     let input_grad = din.backward(&grad).expect("Backward failed");
@@ -368,7 +413,7 @@ fn dcn_demo() {
     println!("--- DCN (Deep & Cross Network) ---\n");
 
     // Create DCN with vector mode (original)
-    let config_v1 = DCNConfig::new(64, 3);  // 64 features, 3 cross layers
+    let config_v1 = DCNConfig::new(64, 3); // 64 features, 3 cross layers
     let cross_net_v1 = CrossNetwork::from_config(&config_v1);
 
     println!("Created CrossNetwork (Vector mode):");
@@ -395,20 +440,31 @@ fn dcn_demo() {
 
     // Training with backward
     let mut cross_train = CrossNetwork::new(64, 2, DCNMode::Vector);
-    let _ = cross_train.forward_train(&input).expect("Forward train failed");
+    let _ = cross_train
+        .forward_train(&input)
+        .expect("Forward train failed");
     let grad = Tensor::ones(&[8, 64]);
     let input_grad = cross_train.backward(&grad).expect("Backward failed");
-    println!("\nBackward - input gradient shape: {:?}", input_grad.shape());
+    println!(
+        "\nBackward - input gradient shape: {:?}",
+        input_grad.shape()
+    );
 
     // Parameters: each layer has weight + bias
-    println!("\nV1 parameters: {} tensors (3 layers * 2)",
-             cross_net_v1.parameters().len());
+    println!(
+        "\nV1 parameters: {} tensors (3 layers * 2)",
+        cross_net_v1.parameters().len()
+    );
 
     // Access individual layers
     println!("Cross layer weights shapes:");
     for (i, layer) in cross_net_v1.layers().iter().enumerate() {
-        println!("  Layer {}: weight {:?}, bias {:?}",
-                 i, layer.weight().shape(), layer.bias().shape());
+        println!(
+            "  Layer {}: weight {:?}, bias {:?}",
+            i,
+            layer.weight().shape(),
+            layer.bias().shape()
+        );
     }
 
     println!();
@@ -424,7 +480,7 @@ fn mmoe_demo() {
     println!("--- MMoE (Multi-gate Mixture of Experts) ---\n");
 
     // Create MMoE: 4 experts, 2 tasks
-    let config = MMoEConfig::new(64, 4, 2)  // 64 input, 4 experts, 2 tasks
+    let config = MMoEConfig::new(64, 4, 2) // 64 input, 4 experts, 2 tasks
         .with_expert_hidden_units(vec![32, 32])
         .with_expert_activation(ActivationType::ReLU);
 
@@ -448,15 +504,20 @@ fn mmoe_demo() {
 
     // Training with multi-task backward
     let mut mmoe_train = MMoE::new(64, 3, 2, &[32], ActivationType::ReLU).unwrap();
-    let _ = mmoe_train.forward_multi_train(&input).expect("Forward train failed");
+    let _ = mmoe_train
+        .forward_multi_train(&input)
+        .expect("Forward train failed");
 
     // Provide gradient for each task
     let grads = vec![
-        Tensor::ones(&[8, 32]),  // Task 0 gradient
-        Tensor::ones(&[8, 32]),  // Task 1 gradient
+        Tensor::ones(&[8, 32]), // Task 0 gradient
+        Tensor::ones(&[8, 32]), // Task 1 gradient
     ];
     let input_grad = mmoe_train.backward_multi(&grads).expect("Backward failed");
-    println!("\nBackward - input gradient shape: {:?}", input_grad.shape());
+    println!(
+        "\nBackward - input gradient shape: {:?}",
+        input_grad.shape()
+    );
 
     // Access experts and gates
     println!("\nExperts: {} networks", mmoe.experts().len());
@@ -491,26 +552,36 @@ fn ffm_demo() {
     // Forward pass with explicit field indices and values
     // Field indices: which field each feature belongs to
     // Field values: feature values (e.g., 1.0 for one-hot, actual value for numerical)
-    let field_indices = Tensor::from_data(&[2, 5], vec![
-        0.0, 1.0, 2.0, 3.0, 4.0,  // Sample 1: features from fields 0,1,2,3,4
-        0.0, 1.0, 2.0, 3.0, 4.0,  // Sample 2: same field structure
-    ]);
-    let field_values = Tensor::ones(&[2, 5]);  // All features active with value 1.0
+    let field_indices = Tensor::from_data(
+        &[2, 5],
+        vec![
+            0.0, 1.0, 2.0, 3.0, 4.0, // Sample 1: features from fields 0,1,2,3,4
+            0.0, 1.0, 2.0, 3.0, 4.0, // Sample 2: same field structure
+        ],
+    );
+    let field_values = Tensor::ones(&[2, 5]); // All features active with value 1.0
 
     println!("\nField indices shape: {:?}", field_indices.shape());
     println!("Field values shape: {:?}", field_values.shape());
 
-    let output = ffm.forward_with_fields(&field_indices, &field_values)
+    let output = ffm
+        .forward_with_fields(&field_indices, &field_values)
         .expect("Forward failed");
-    println!("Output shape: {:?}  (one scalar per sample)", output.shape());
+    println!(
+        "Output shape: {:?}  (one scalar per sample)",
+        output.shape()
+    );
 
     // Training with backward
-    let _ = ffm.forward_train_with_fields(&field_indices, &field_values)
+    let _ = ffm
+        .forward_train_with_fields(&field_indices, &field_values)
         .expect("Forward train failed");
     let grad = Tensor::ones(&[2, 1]);
     ffm.backward_ffm(&grad).expect("Backward failed");
-    println!("\nGradients computed: embeddings_grad={}",
-             ffm.embeddings_grad().is_some());
+    println!(
+        "\nGradients computed: embeddings_grad={}",
+        ffm.embeddings_grad().is_some()
+    );
 
     // Parameters
     println!("FFM has {} parameter tensors", ffm.parameters().len());
@@ -529,9 +600,7 @@ fn senet_demo() {
 
     // Create SENet with reduction ratio 4
     // Bottleneck dim = 64 / 4 = 16
-    let config = SENetConfig::new(64)
-        .with_reduction_ratio(4)
-        .with_bias(true);
+    let config = SENetConfig::new(64).with_reduction_ratio(4).with_bias(true);
 
     let mut senet = SENetLayer::from_config(config).expect("SENet creation failed");
     println!("Created SENetLayer:");
@@ -551,8 +620,10 @@ fn senet_demo() {
     let _ = senet.forward_train(&input).expect("Forward train failed");
     if let Some(attention) = senet.last_attention_weights() {
         println!("\nAttention weights shape: {:?}", attention.shape());
-        println!("Attention sample (first 5): {:?}",
-                 &attention.data()[0..5.min(attention.numel())]);
+        println!(
+            "Attention sample (first 5): {:?}",
+            &attention.data()[0..5.min(attention.numel())]
+        );
         // Verify sigmoid output range [0, 1]
         let in_range = attention.data().iter().all(|&v| v >= 0.0 && v <= 1.0);
         println!("All attention weights in [0,1]: {}", in_range);
@@ -561,7 +632,10 @@ fn senet_demo() {
     // Backward pass
     let grad = Tensor::ones(&[8, 64]);
     let input_grad = senet.backward(&grad).expect("Backward failed");
-    println!("\nBackward - input gradient shape: {:?}", input_grad.shape());
+    println!(
+        "\nBackward - input gradient shape: {:?}",
+        input_grad.shape()
+    );
 
     // Parameters: fc1 (64->16) + fc2 (16->64), each with weight+bias
     println!("SENet has {} parameter tensors", senet.parameters().len());
@@ -620,17 +694,27 @@ fn group_interaction_demo() {
             .with_interaction_type(interaction_type)
             .with_inter_group(true)
             .with_include_original(false);
-        println!("  {:?}: output_dim={}", interaction_type, test_config.output_dim());
+        println!(
+            "  {:?}: output_dim={}",
+            interaction_type,
+            test_config.output_dim()
+        );
     }
 
     // Backward pass
     let _ = layer.forward_train(&input).expect("Forward train failed");
     let grad = Tensor::ones(&[2, layer.output_dim()]);
     let input_grad = layer.backward(&grad).expect("Backward failed");
-    println!("\nBackward - input gradient shape: {:?}", input_grad.shape());
+    println!(
+        "\nBackward - input gradient shape: {:?}",
+        input_grad.shape()
+    );
 
     // Note: GroupInteractionLayer has no learnable parameters
-    println!("Parameters: {} (no learnable params)", layer.parameters().len());
+    println!(
+        "Parameters: {} (no learnable params)",
+        layer.parameters().len()
+    );
 
     println!();
 }
@@ -668,25 +752,31 @@ fn agru_demo() {
     // Input: [batch=2, seq_len=10, input_dim=32]
     // Attention: [batch=2, seq_len=10] - importance scores for each timestep
     let input = Tensor::rand(&[2, 10, 32]);
-    let attention = Tensor::rand(&[2, 10]);  // Attention scores (e.g., from DIN)
+    let attention = Tensor::rand(&[2, 10]); // Attention scores (e.g., from DIN)
 
     println!("\nInput shape: {:?}", input.shape());
     println!("Attention shape: {:?}", attention.shape());
 
     // Forward with attention modulation
-    let output = agru.forward_with_attention(&input, &attention)
+    let output = agru
+        .forward_with_attention(&input, &attention)
         .expect("Forward with attention failed");
     println!("Output shape: {:?}  (final hidden state)", output.shape());
 
     // Standard GRU forward (without attention modulation)
-    let standard_output = agru.forward_standard(&input)
+    let standard_output = agru
+        .forward_standard(&input)
         .expect("Standard forward failed");
     println!("Standard GRU output shape: {:?}", standard_output.shape());
 
     // Get all hidden states (for sequence-to-sequence tasks)
-    let all_states = agru.forward_all_states(&input, &attention)
+    let all_states = agru
+        .forward_all_states(&input, &attention)
         .expect("Forward all states failed");
-    println!("All hidden states shape: {:?}  (batch, seq_len, hidden)", all_states.shape());
+    println!(
+        "All hidden states shape: {:?}  (batch, seq_len, hidden)",
+        all_states.shape()
+    );
 
     // Parameters: 3 gates (reset, update, candidate) each with input and hidden weights
     let params = agru.parameters();
@@ -713,8 +803,8 @@ fn dien_demo() {
     println!("--- DIEN (Deep Interest Evolution Network) ---\n");
 
     // Create DIEN with config
-    let config = DIENConfig::new(32, 64)  // 32-dim embeddings, 64-dim hidden
-        .with_gru_type(GRUType::AUGRU)    // Use AUGRU for evolution layer
+    let config = DIENConfig::new(32, 64) // 32-dim embeddings, 64-dim hidden
+        .with_gru_type(GRUType::AUGRU) // Use AUGRU for evolution layer
         .with_attention_hidden_units(vec![64, 32])
         .with_use_auxiliary_loss(true)
         .with_use_softmax(false);
@@ -730,10 +820,13 @@ fn dien_demo() {
     // - Mask: [batch=2, seq_len=10] for valid positions
     let behavior_seq = Tensor::rand(&[2, 10, 32]);
     let target_item = Tensor::rand(&[2, 32]);
-    let mask = Tensor::from_data(&[2, 10], vec![
-        1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0,  // 7 valid items
-        1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,  // 5 valid items
-    ]);
+    let mask = Tensor::from_data(
+        &[2, 10],
+        vec![
+            1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, // 7 valid items
+            1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, // 5 valid items
+        ],
+    );
 
     println!("\nInput shapes:");
     println!("  Behavior sequence: {:?}", behavior_seq.shape());
@@ -741,20 +834,29 @@ fn dien_demo() {
     println!("  Mask: {:?}", mask.shape());
 
     // Forward pass
-    let output = dien.forward_dien(&behavior_seq, &target_item, Some(&mask))
+    let output = dien
+        .forward_dien(&behavior_seq, &target_item, Some(&mask))
         .expect("Forward failed");
-    println!("\nOutput shape: {:?}  (evolved interest representation)", output.shape());
+    println!(
+        "\nOutput shape: {:?}  (evolved interest representation)",
+        output.shape()
+    );
 
     // Get attention scores for visualization
-    let attention_scores = dien.get_attention_scores(&behavior_seq, &target_item, Some(&mask))
+    let attention_scores = dien
+        .get_attention_scores(&behavior_seq, &target_item, Some(&mask))
         .expect("Get attention scores failed");
     println!("Attention scores shape: {:?}", attention_scores.shape());
-    println!("Sample attention: {:?}", &attention_scores.data()[0..5.min(attention_scores.numel())]);
+    println!(
+        "Sample attention: {:?}",
+        &attention_scores.data()[0..5.min(attention_scores.numel())]
+    );
 
     // Auxiliary loss for interest extraction supervision
     // Negative samples: [batch, seq_len, embedding_dim]
     let negative_samples = Tensor::rand(&[2, 10, 32]);
-    let aux_loss = dien.auxiliary_loss(&behavior_seq, &negative_samples)
+    let aux_loss = dien
+        .auxiliary_loss(&behavior_seq, &negative_samples)
         .expect("Auxiliary loss failed");
     println!("\nAuxiliary loss: {:.6}", aux_loss);
 
@@ -818,7 +920,8 @@ fn complete_model_demo() {
     let lookup = EmbeddingLookup::new(hash_table.clone());
     let behavior_embeddings = lookup.lookup(&user_item_ids);
     // Reshape to [batch, seq_len, embedding_dim]
-    let behavior_seq = behavior_embeddings.reshape(&[batch_size, num_behavior_items, embedding_dim]);
+    let behavior_seq =
+        behavior_embeddings.reshape(&[batch_size, num_behavior_items, embedding_dim]);
     println!("  Behavior sequence shape: {:?}", behavior_seq.shape());
 
     // Lookup target item embeddings
@@ -832,18 +935,17 @@ fn complete_model_demo() {
     // ========================================
     println!("\nStep 2: DIN Attention");
 
-    let din_config = DINConfig::new(embedding_dim)
-        .with_attention_hidden_units(vec![32, 16]);
+    let din_config = DINConfig::new(embedding_dim).with_attention_hidden_units(vec![32, 16]);
     let din = DINAttention::from_config(din_config).expect("DIN creation failed");
 
     // Query: target item, Keys/Values: user behavior
-    let user_interest = din.forward_attention(
-        &target_embeddings,
-        &behavior_seq,
-        &behavior_seq,
-        None
-    ).expect("DIN forward failed");
-    println!("  User interest shape: {:?}  (attention-weighted behavior)", user_interest.shape());
+    let user_interest = din
+        .forward_attention(&target_embeddings, &behavior_seq, &behavior_seq, None)
+        .expect("DIN forward failed");
+    println!(
+        "  User interest shape: {:?}  (attention-weighted behavior)",
+        user_interest.shape()
+    );
 
     // ========================================
     // 3. Concatenate features for cross network
@@ -851,10 +953,10 @@ fn complete_model_demo() {
     println!("\nStep 3: Feature Concatenation");
 
     // Concatenate: target embedding + user interest + simulated user features
-    let user_features = Tensor::rand(&[batch_size, 16]);  // Simulated user features
+    let user_features = Tensor::rand(&[batch_size, 16]); // Simulated user features
 
     // Manual concatenation: [batch, embedding_dim + embedding_dim + 16]
-    let concat_dim = embedding_dim + embedding_dim + 16;  // 16 + 16 + 16 = 48
+    let concat_dim = embedding_dim + embedding_dim + 16; // 16 + 16 + 16 = 48
     let mut concat_data = vec![0.0f32; batch_size * concat_dim];
 
     for b in 0..batch_size {
@@ -880,10 +982,11 @@ fn complete_model_demo() {
     // ========================================
     println!("\nStep 4: DCN Cross Network");
 
-    let dcn_config = DCNConfig::new(concat_dim, 2);  // 2 cross layers
+    let dcn_config = DCNConfig::new(concat_dim, 2); // 2 cross layers
     let cross_network = CrossNetwork::from_config(&dcn_config);
 
-    let cross_output = cross_network.forward(&combined_features)
+    let cross_output = cross_network
+        .forward(&combined_features)
         .expect("DCN forward failed");
     println!("  Cross network output shape: {:?}", cross_output.shape());
 
@@ -892,12 +995,14 @@ fn complete_model_demo() {
     // ========================================
     println!("\nStep 5: MMoE Multi-Task");
 
-    let mmoe_config = MMoEConfig::new(concat_dim, 3, 2)  // 3 experts, 2 tasks
+    let mmoe_config = MMoEConfig::new(concat_dim, 3, 2) // 3 experts, 2 tasks
         .with_expert_hidden_units(vec![32])
         .with_expert_activation(ActivationType::ReLU);
     let mmoe = MMoE::from_config(mmoe_config).expect("MMoE creation failed");
 
-    let task_outputs = mmoe.forward_multi(&cross_output).expect("MMoE forward failed");
+    let task_outputs = mmoe
+        .forward_multi(&cross_output)
+        .expect("MMoE forward failed");
     println!("  Task 0 (CTR) output shape: {:?}", task_outputs[0].shape());
     println!("  Task 1 (CVR) output shape: {:?}", task_outputs[1].shape());
 
@@ -910,20 +1015,24 @@ fn complete_model_demo() {
     let ctr_hidden = Dense::new(32, hidden_dim);
     let ctr_output = Dense::new(hidden_dim, 1);
 
-    let ctr_h = ctr_hidden.forward(&task_outputs[0]).expect("CTR hidden failed");
-    let ctr_h = ctr_h.map(|x| x.max(0.0));  // ReLU
+    let ctr_h = ctr_hidden
+        .forward(&task_outputs[0])
+        .expect("CTR hidden failed");
+    let ctr_h = ctr_h.map(|x| x.max(0.0)); // ReLU
     let ctr_logits = ctr_output.forward(&ctr_h).expect("CTR output failed");
-    let ctr_probs = ctr_logits.map(|x| 1.0 / (1.0 + (-x).exp()));  // Sigmoid
+    let ctr_probs = ctr_logits.map(|x| 1.0 / (1.0 + (-x).exp())); // Sigmoid
     println!("  CTR predictions shape: {:?}", ctr_probs.shape());
 
     // CVR tower - use hidden_dim for MLP layers
     let cvr_hidden = Dense::new(32, hidden_dim);
     let cvr_output = Dense::new(hidden_dim, 1);
 
-    let cvr_h = cvr_hidden.forward(&task_outputs[1]).expect("CVR hidden failed");
-    let cvr_h = cvr_h.map(|x| x.max(0.0));  // ReLU
+    let cvr_h = cvr_hidden
+        .forward(&task_outputs[1])
+        .expect("CVR hidden failed");
+    let cvr_h = cvr_h.map(|x| x.max(0.0)); // ReLU
     let cvr_logits = cvr_output.forward(&cvr_h).expect("CVR output failed");
-    let cvr_probs = cvr_logits.map(|x| 1.0 / (1.0 + (-x).exp()));  // Sigmoid
+    let cvr_probs = cvr_logits.map(|x| 1.0 / (1.0 + (-x).exp())); // Sigmoid
     println!("  CVR predictions shape: {:?}", cvr_probs.shape());
 
     // ========================================
@@ -931,32 +1040,61 @@ fn complete_model_demo() {
     // ========================================
     println!("\n--- Model Summary ---");
     println!("Data flow:");
-    println!("  Input: {} users, {} behavior items, {} embedding dim",
-             batch_size, num_behavior_items, embedding_dim);
+    println!(
+        "  Input: {} users, {} behavior items, {} embedding dim",
+        batch_size, num_behavior_items, embedding_dim
+    );
     println!("  Behavior embeddings: {:?}", behavior_seq.shape());
     println!("  DIN attention output: {:?}", user_interest.shape());
     println!("  Combined features: {:?}", combined_features.shape());
     println!("  DCN output: {:?}", cross_output.shape());
-    println!("  MMoE task outputs: {:?}, {:?}", task_outputs[0].shape(), task_outputs[1].shape());
+    println!(
+        "  MMoE task outputs: {:?}, {:?}",
+        task_outputs[0].shape(),
+        task_outputs[1].shape()
+    );
     println!("  Final CTR prediction: {:?}", ctr_probs.shape());
     println!("  Final CVR prediction: {:?}", cvr_probs.shape());
 
     // Print sample predictions
     println!("\nSample predictions:");
     for b in 0..batch_size {
-        println!("  Sample {}: CTR={:.4}, CVR={:.4}",
-                 b, ctr_probs.data()[b], cvr_probs.data()[b]);
+        println!(
+            "  Sample {}: CTR={:.4}, CVR={:.4}",
+            b,
+            ctr_probs.data()[b],
+            cvr_probs.data()[b]
+        );
     }
 
     // Count total parameters
-    let total_params: usize =
-        din.parameters().iter().map(|t| t.numel()).sum::<usize>() +
-        cross_network.parameters().iter().map(|t| t.numel()).sum::<usize>() +
-        mmoe.parameters().iter().map(|t| t.numel()).sum::<usize>() +
-        ctr_hidden.parameters().iter().map(|t| t.numel()).sum::<usize>() +
-        ctr_output.parameters().iter().map(|t| t.numel()).sum::<usize>() +
-        cvr_hidden.parameters().iter().map(|t| t.numel()).sum::<usize>() +
-        cvr_output.parameters().iter().map(|t| t.numel()).sum::<usize>();
+    let total_params: usize = din.parameters().iter().map(|t| t.numel()).sum::<usize>()
+        + cross_network
+            .parameters()
+            .iter()
+            .map(|t| t.numel())
+            .sum::<usize>()
+        + mmoe.parameters().iter().map(|t| t.numel()).sum::<usize>()
+        + ctr_hidden
+            .parameters()
+            .iter()
+            .map(|t| t.numel())
+            .sum::<usize>()
+        + ctr_output
+            .parameters()
+            .iter()
+            .map(|t| t.numel())
+            .sum::<usize>()
+        + cvr_hidden
+            .parameters()
+            .iter()
+            .map(|t| t.numel())
+            .sum::<usize>()
+        + cvr_output
+            .parameters()
+            .iter()
+            .map(|t| t.numel())
+            .sum::<usize>();
 
     println!("\nTotal trainable parameters: {}", total_params);
 

@@ -100,10 +100,7 @@ impl ExportCommand {
 
         // Validate checkpoint exists
         if !self.checkpoint_path.exists() {
-            anyhow::bail!(
-                "Checkpoint path does not exist: {:?}",
-                self.checkpoint_path
-            );
+            anyhow::bail!("Checkpoint path does not exist: {:?}", self.checkpoint_path);
         }
 
         // Check if output path exists
@@ -121,8 +118,7 @@ impl ExportCommand {
         }
 
         // Create output directory
-        std::fs::create_dir_all(&self.output_path)
-            .context("Failed to create output directory")?;
+        std::fs::create_dir_all(&self.output_path).context("Failed to create output directory")?;
 
         // Log export configuration
         info!("Export configuration:");

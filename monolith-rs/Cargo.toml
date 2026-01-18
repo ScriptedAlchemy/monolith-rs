@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
-members = ["crates/*"]
+# Only include actual Rust crates; this avoids accidentally treating build/test
+# artifact folders (e.g. `crates/target`) as workspace members.
+members = ["crates/monolith-*"]
 
 # Root package for examples
 [package]
@@ -48,6 +50,7 @@ tempfile = { workspace = true }
 [[example]]
 name = "local_predictor"
 path = "examples/local_predictor.rs"
+required-features = ["full"]
 
 [[example]]
 name = "basic_training"
@@ -56,6 +59,7 @@ path = "examples/basic_training.rs"
 [[example]]
 name = "model_export"
 path = "examples/model_export.rs"
+required-features = ["full"]
 
 [[example]]
 name = "distributed_training"
@@ -64,10 +68,12 @@ path = "examples/distributed_training.rs"
 [[example]]
 name = "grpc_client"
 path = "examples/grpc_client.rs"
+required-features = ["full"]
 
 [[example]]
 name = "grpc_server"
 path = "examples/grpc_server.rs"
+required-features = ["full"]
 
 [[example]]
 name = "layers_demo"
@@ -76,6 +82,7 @@ path = "examples/layers_demo.rs"
 [[example]]
 name = "data_pipeline"
 path = "examples/data_pipeline.rs"
+required-features = ["full"]
 
 [[example]]
 name = "movie_ranking"

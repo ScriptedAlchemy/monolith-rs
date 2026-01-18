@@ -298,7 +298,11 @@ impl MLP {
     pub fn forward_train(&mut self, input: &Tensor) -> Result<Tensor, LayerError> {
         let mut x = input.clone();
 
-        for (dense, activation) in self.dense_layers.iter_mut().zip(self.activations.iter_mut()) {
+        for (dense, activation) in self
+            .dense_layers
+            .iter_mut()
+            .zip(self.activations.iter_mut())
+        {
             x = dense.forward_train(&x)?;
             x = activation.forward_train(&x)?;
         }
@@ -463,10 +467,7 @@ mod tests {
             ActivationType::GELU,
             ActivationType::None,
         ] {
-            let mlp = MLPConfig::new(10)
-                .add_layer(5, activation)
-                .build()
-                .unwrap();
+            let mlp = MLPConfig::new(10).add_layer(5, activation).build().unwrap();
 
             let input = Tensor::rand(&[2, 10]);
             let output = mlp.forward(&input);

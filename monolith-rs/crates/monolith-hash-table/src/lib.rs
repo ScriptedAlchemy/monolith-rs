@@ -30,8 +30,8 @@
 //! table.lookup(&ids, &mut output).unwrap();
 //! ```
 
-mod cuckoo;
 pub mod compressor;
+mod cuckoo;
 mod entry;
 mod error;
 pub mod eviction;
@@ -39,15 +39,17 @@ pub mod initializer;
 mod multi;
 mod traits;
 
-pub use compressor::{Compressor, FixedR8Compressor, Fp16Compressor, NoCompression, OneBitCompressor};
+pub use compressor::{
+    Compressor, FixedR8Compressor, Fp16Compressor, NoCompression, OneBitCompressor,
+};
 pub use cuckoo::CuckooEmbeddingHashTable;
 pub use entry::{EmbeddingEntry, OptimizerState};
 pub use error::{HashTableError, Result};
 pub use eviction::{EvictionPolicy, LRUEviction, NoEviction, TimeBasedEviction};
 pub use initializer::{
-    ConstantInitializer, Initializer, InitializerFactory, OnesInitializer,
-    RandomNormalInitializer, RandomUniformInitializer, TruncatedNormalInitializer,
-    XavierNormalInitializer, XavierUniformInitializer, ZerosInitializer,
+    ConstantInitializer, Initializer, InitializerFactory, OnesInitializer, RandomNormalInitializer,
+    RandomUniformInitializer, TruncatedNormalInitializer, XavierNormalInitializer,
+    XavierUniformInitializer, ZerosInitializer,
 };
 pub use multi::MultiHashTable;
 pub use traits::EmbeddingHashTable;

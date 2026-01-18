@@ -466,7 +466,10 @@ where
 {
     /// Creates a new take dataset.
     pub fn new(inner: I, n: usize) -> Self {
-        Self { inner, remaining: n }
+        Self {
+            inner,
+            remaining: n,
+        }
     }
 
     /// Returns an iterator over the first N examples.
@@ -626,8 +629,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use monolith_proto::monolith::io::proto::feature;
     use crate::example::{add_feature, create_example, get_feature};
+    use monolith_proto::monolith::io::proto::feature;
 
     fn make_examples(count: usize) -> Vec<Example> {
         (0..count)
@@ -704,8 +707,12 @@ mod tests {
             .filter(|ex| {
                 get_feature(ex, "id")
                     .and_then(|f| match &f.r#type {
-                        Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
-                        Some(feature::Type::FidV1List(l)) => l.value.first().copied().map(|v| v as i64),
+                        Some(feature::Type::FidV2List(l)) => {
+                            l.value.first().copied().map(|v| v as i64)
+                        }
+                        Some(feature::Type::FidV1List(l)) => {
+                            l.value.first().copied().map(|v| v as i64)
+                        }
                         _ => None,
                     })
                     .map(|v| v % 2 == 0)
@@ -753,8 +760,12 @@ mod tests {
             .filter(|ex| {
                 get_feature(ex, "id")
                     .and_then(|f| match &f.r#type {
-                        Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
-                        Some(feature::Type::FidV1List(l)) => l.value.first().copied().map(|v| v as i64),
+                        Some(feature::Type::FidV2List(l)) => {
+                            l.value.first().copied().map(|v| v as i64)
+                        }
+                        Some(feature::Type::FidV1List(l)) => {
+                            l.value.first().copied().map(|v| v as i64)
+                        }
                         _ => None,
                     })
                     .map(|v| v < 50)

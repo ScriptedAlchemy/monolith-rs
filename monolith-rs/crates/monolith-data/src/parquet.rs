@@ -277,9 +277,9 @@ impl Predicate {
             Predicate::Ge { column, value } => {
                 column_values.get(column).map_or(false, |v| v >= value)
             }
-            Predicate::In { column, values } => {
-                column_values.get(column).map_or(false, |v| values.contains(v))
-            }
+            Predicate::In { column, values } => column_values
+                .get(column)
+                .map_or(false, |v| values.contains(v)),
             Predicate::And(left, right) => {
                 left.evaluate(column_values) && right.evaluate(column_values)
             }
@@ -536,8 +536,7 @@ impl ParquetDataSource {
 
     /// Resolves a glob pattern to matching files.
     fn resolve_glob(pattern: &str) -> Result<Vec<PathBuf>> {
-        let mut paths: Vec<PathBuf> = glob(pattern)?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let mut paths: Vec<PathBuf> = glob(pattern)?.collect::<std::result::Result<Vec<_>, _>>()?;
 
         // Sort for deterministic order
         paths.sort();
@@ -659,17 +658,15 @@ impl ParquetRecordBatchIterator {
         self.current_file_index += 1;
 
         let file = File::open(path)?;
-        let mut builder = ParquetRecordBatchReaderBuilder::try_new(file)?
-            .with_batch_size(self.batch_size);
+        let mut builder =
+            ParquetRecordBatchReaderBuilder::try_new(file)?.with_batch_size(self.batch_size);
 
         // Apply column projection
         if let Some(ref columns) = self.columns {
             let schema = builder.schema();
             let indices: Vec<usize> = columns
                 .iter()
-                .filter_map(|name| {
-                    schema.fields().iter().position(|f| f.name() == name)
-                })
+                .filter_map(|name| schema.fields().iter().position(|f| f.name() == name))
                 .collect();
             let projection = ProjectionMask::roots(builder.parquet_schema(), indices);
             builder = builder.with_projection(projection);
@@ -770,9 +767,7 @@ impl ParquetIterator {
             let schema = builder.schema();
             let indices: Vec<usize> = columns
                 .iter()
-                .filter_map(|name| {
-                    schema.fields().iter().position(|f| f.name() == name)
-                })
+                .filter_map(|name| schema.fields().iter().position(|f| f.name() == name))
                 .collect();
             let projection = ProjectionMask::roots(builder.parquet_schema(), indices);
             builder = builder.with_projection(projection);
@@ -887,7 +882,11 @@ impl ParquetIterator {
     }
 
     /// Extracts integer values from a row for predicate evaluation.
-    fn extract_int_values(&self, batch: &RecordBatch, row: usize) -> std::collections::HashMap<String, i64> {
+    fn extract_int_values(
+        &self,
+        batch: &RecordBatch,
+        row: usize,
+    ) -> std::collections::HashMap<String, i64> {
         let schema = batch.schema();
         let mut values = std::collections::HashMap::new();
 
@@ -979,7 +978,9 @@ mod tests {
 
         let user_ids: Vec<i64> = (0..num_rows as i64).collect();
         let item_ids: Vec<i64> = (100..100 + num_rows as i64).collect();
-        let labels: Vec<f32> = (0..num_rows).map(|i| if i % 2 == 0 { 1.0 } else { 0.0 }).collect();
+        let labels: Vec<f32> = (0..num_rows)
+            .map(|i| if i % 2 == 0 { 1.0 } else { 0.0 })
+            .collect();
         let categories: Vec<&str> = (0..num_rows)
             .map(|i| if i % 3 == 0 { "sports" } else { "music" })
             .collect();
@@ -1040,8 +1041,8 @@ mod tests {
         let file_path = dir.path().join("test.parquet");
         create_test_parquet_file(&file_path, 10).unwrap();
 
-        let config = ParquetConfig::new(file_path.to_string_lossy())
-            .with_columns(vec!["user_id", "label"]);
+        let config =
+            ParquetConfig::new(file_path.to_string_lossy()).with_columns(vec!["user_id", "label"]);
         let source = ParquetDataSource::open(config).unwrap();
 
         let examples: Vec<_> = source.iter().collect();
@@ -1075,8 +1076,7 @@ mod tests {
         let file_path = dir.path().join("test.parquet");
         create_test_parquet_file(&file_path, 20).unwrap();
 
-        let config = ParquetConfig::new(file_path.to_string_lossy())
-            .with_batch_size(5);
+        let config = ParquetConfig::new(file_path.to_string_lossy()).with_batch_size(5);
         let source = ParquetDataSource::open(config).unwrap();
 
         let examples: Vec<_> = source.iter().collect();
@@ -1128,9 +1128,7 @@ mod tests {
         create_test_parquet_file(&file_path, 10).unwrap();
 
         let config = ParquetConfig::new(file_path.to_string_lossy())
-            .with_predicate(
-                Predicate::ge("user_id", 3).and(Predicate::le("user_id", 6))
-            );
+            .with_predicate(Predicate::ge("user_id", 3).and(Predicate::le("user_id", 6)));
         let source = ParquetDataSource::open(config).unwrap();
 
         let examples: Vec<_> = source.iter().collect();
@@ -1181,8 +1179,7 @@ mod tests {
         let file_path = dir.path().join("test.parquet");
         create_test_parquet_file(&file_path, 25).unwrap();
 
-        let config = ParquetConfig::new(file_path.to_string_lossy())
-            .with_batch_size(10);
+        let config = ParquetConfig::new(file_path.to_string_lossy()).with_batch_size(10);
         let source = ParquetDataSource::open(config).unwrap();
 
         let batches: Vec<_> = source.record_batch_iter().unwrap().collect();
@@ -1274,9 +1271,7 @@ mod tests {
         create_test_parquet_file(&file_path, 10).unwrap();
 
         let config = ParquetConfig::new(file_path.to_string_lossy())
-            .with_predicate(
-                Predicate::eq("user_id", 0).or(Predicate::eq("user_id", 9))
-            );
+            .with_predicate(Predicate::eq("user_id", 0).or(Predicate::eq("user_id", 9)));
         let source = ParquetDataSource::open(config).unwrap();
 
         let examples: Vec<_> = source.iter().collect();

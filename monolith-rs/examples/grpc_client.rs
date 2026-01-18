@@ -307,9 +307,8 @@ impl PredictionClient {
             }
         }
 
-        Err(last_error.unwrap_or_else(|| {
-            ServingError::server("Connection failed after all retries")
-        }))
+        Err(last_error
+            .unwrap_or_else(|| ServingError::server("Connection failed after all retries")))
     }
 
     /// Check if the client is connected.
@@ -438,11 +437,7 @@ impl PredictionClient {
                     return Ok(response);
                 }
                 Err(e) => {
-                    warn!(
-                        "Prediction attempt {} failed: {}",
-                        attempt,
-                        e
-                    );
+                    warn!("Prediction attempt {} failed: {}", attempt, e);
                     last_error = Some(e);
 
                     if attempt < self.max_retries {
@@ -453,7 +448,10 @@ impl PredictionClient {
             }
         }
 
-        error!("Prediction {} failed after {} retries", request_id, self.max_retries);
+        error!(
+            "Prediction {} failed after {} retries",
+            request_id, self.max_retries
+        );
         Err(last_error.unwrap_or_else(|| ServingError::prediction("Unknown error")))
     }
 
@@ -638,7 +636,9 @@ fn rand_u64() -> u64 {
                 .as_nanos() as u64;
         }
         // LCG parameters
-        SEED = SEED.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        SEED = SEED
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         SEED
     }
 }
@@ -854,13 +854,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_mock_client() {
-        let mut client = PredictionClient::new(
-            "localhost:50051",
-            "test_model",
-            Duration::from_secs(10),
-            3,
-        )
-        .with_mock_mode();
+        let mut client =
+            PredictionClient::new("localhost:50051", "test_model", Duration::from_secs(10), 3)
+                .with_mock_mode();
 
         // Connect
         assert!(client.connect().await.is_ok());

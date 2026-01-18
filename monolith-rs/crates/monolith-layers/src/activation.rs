@@ -407,13 +407,7 @@ impl Default for ELU {
 impl Layer for ELU {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
         let alpha = self.alpha;
-        Ok(input.map(|x| {
-            if x > 0.0 {
-                x
-            } else {
-                alpha * (x.exp() - 1.0)
-            }
-        }))
+        Ok(input.map(|x| if x > 0.0 { x } else { alpha * (x.exp() - 1.0) }))
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
@@ -424,13 +418,7 @@ impl Layer for ELU {
 
         let alpha = self.alpha;
         // ELU gradient: 1 if x > 0, else alpha * exp(x) = output + alpha for x <= 0
-        let grad_multiplier = input.map(|x| {
-            if x > 0.0 {
-                1.0
-            } else {
-                alpha * x.exp()
-            }
-        });
+        let grad_multiplier = input.map(|x| if x > 0.0 { 1.0 } else { alpha * x.exp() });
         Ok(grad.mul(&grad_multiplier))
     }
 

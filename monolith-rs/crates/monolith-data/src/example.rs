@@ -224,7 +224,11 @@ pub fn get_feature_mut<'a>(example: &'a mut Example, name: &str) -> Option<&'a m
 ///
 /// A vector of feature names.
 pub fn feature_names(example: &Example) -> Vec<&str> {
-    example.named_feature.iter().map(|nf| nf.name.as_str()).collect()
+    example
+        .named_feature
+        .iter()
+        .map(|nf| nf.name.as_str())
+        .collect()
 }
 
 /// Returns the number of features in an [`Example`].

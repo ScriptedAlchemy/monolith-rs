@@ -7,8 +7,8 @@ description = "Training orchestration and distributed PS for Monolith"
 
 [features]
 default = []
-zookeeper = []
-consul = []
+zookeeper = ["dep:zookeeper-client"]
+consul = ["dep:rs-consul"]
 
 [dependencies]
 monolith-proto = { workspace = true }
@@ -16,7 +16,18 @@ monolith-core = { workspace = true }
 monolith-data = { workspace = true }
 monolith-layers = { workspace = true }
 monolith-checkpoint = { workspace = true }
+monolith-serving = { workspace = true }
+monolith-hash-table = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+tonic = { workspace = true }
+parking_lot = { workspace = true }
+async-trait = "0.1"
+anyhow = { workspace = true }
+
+# Optional dependencies for remote discovery backends.
+zookeeper-client = { version = "0.11", optional = true }
+rs-consul = { version = "0.13", optional = true }

@@ -1,0 +1,229 @@
+//! Distributed training runner.
+//!
+//! This is a Rust-native analogue of Python's `distributed_train` flow:
+//! - role-based startup (ps vs worker)
+//! - discovery-backed registration and cluster formation
+//! - retries/backoff for worker connect
+//! - optional metrics heartbeat
+//!
+//! The actual model math is still outside the scope of this runner; the runner
+//! focuses on the orchestration and the parity-critical distributed plumbing.
+
+use crate::barrier::{PsBarrier, SharedBarrier};
+use crate::discovery::{ServiceDiscoveryAsync, ServiceInfo};
+use crate::distributed_ps::{serve_ps, PsClient, PsServer};
+use crate::parameter_sync_replicator::{DirtyTracker, ParameterSyncReplicator};
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::Duration;
+
+#[derive(Debug, Clone)]
+pub enum Role {
+    Ps,
+    Worker,
+}
+
+#[derive(Debug, Clone)]
+pub struct DistributedRunConfig {
+    pub role: Role,
+    pub index: usize,
+    pub num_ps: usize,
+    pub num_workers: usize,
+    pub bind_addr: SocketAddr,
+    pub discovery_service_type_ps: String,
+    pub discovery_service_type_worker: String,
+    pub table_name: String,
+    pub dim: usize,
+    pub connect_retries: usize,
+    pub retry_backoff_ms: u64,
+    pub heartbeat_interval: Option<Duration>,
+    /// If set, periodically pushes updated embeddings to online serving via ParameterSync.
+    pub parameter_sync_targets: Vec<String>,
+    pub parameter_sync_interval: Duration,
+    pub parameter_sync_model_name: String,
+    pub parameter_sync_signature_name: String,
+}
+
+impl Default for DistributedRunConfig {
+    fn default() -> Self {
+        Self {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_service_type_ps: "ps".to_string(),
+            discovery_service_type_worker: "worker".to_string(),
+            table_name: "emb".to_string(),
+            dim: 64,
+            connect_retries: 6,
+            retry_backoff_ms: 500,
+            heartbeat_interval: Some(Duration::from_secs(10)),
+            parameter_sync_targets: Vec::new(),
+            parameter_sync_interval: Duration::from_millis(200),
+            parameter_sync_model_name: "default".to_string(),
+            parameter_sync_signature_name: "serving_default".to_string(),
+        }
+    }
+}
+
+/// Run a PS or worker process using the provided discovery backend.
+pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
+    discovery: Arc<D>,
+    cfg: DistributedRunConfig,
+) -> anyhow::Result<()> {
+    discovery.connect().await?;
+
+    // Register self.
+    let (service_type, service_id) = match cfg.role {
+        Role::Ps => (
+            cfg.discovery_service_type_ps.clone(),
+            format!("ps-{}", cfg.index),
+        ),
+        Role::Worker => (
+            cfg.discovery_service_type_worker.clone(),
+            format!("worker-{}", cfg.index),
+        ),
+    };
+
+    let mut service = ServiceInfo::new(
+        service_id.clone(),
+        service_id.clone(),
+        service_type.clone(),
+        cfg.bind_addr.ip().to_string(),
+        cfg.bind_addr.port(),
+    );
+    service = service.with_metadata("addr", cfg.bind_addr.to_string());
+
+    discovery.register_async(service).await?;
+
+    match cfg.role {
+        Role::Ps => run_ps_role(Arc::clone(&discovery), &service_id, cfg).await?,
+        Role::Worker => run_worker_role(Arc::clone(&discovery), &service_id, cfg).await?,
+    }
+
+    discovery.disconnect().await?;
+    Ok(())
+}
+
+async fn run_ps_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
+    discovery: Arc<D>,
+    service_id: &str,
+    cfg: DistributedRunConfig,
+) -> anyhow::Result<()> {
+    // PS: start serving and optionally heartbeat in discovery (backend-specific).
+    let ps = Arc::new(PsServer::new(cfg.index as i32, cfg.dim));
+
+    // If parameter sync replication is enabled, wire dirty tracking into the PS RPC path
+    // and spawn a background replicator.
+    if !cfg.parameter_sync_targets.is_empty() {
+        let tracker = Arc::new(DirtyTracker::default());
+        ps.set_dirty_tracker(Arc::clone(&tracker));
+
+        // The replicator exports dirty FIDs from the PS table and pushes them to online.
+        ParameterSyncReplicator::new(
+            Arc::clone(&ps),
+            tracker,
+            cfg.parameter_sync_targets.clone(),
+            cfg.parameter_sync_model_name.clone(),
+            cfg.parameter_sync_signature_name.clone(),
+            cfg.table_name.clone(),
+        )
+        .spawn(cfg.parameter_sync_interval);
+    }
+
+    // Block forever serving; shutdown is external (signal handling is up to the binary).
+    let addr = cfg.bind_addr;
+    tracing::info!(role = "ps", index = cfg.index, addr = %addr, "Starting PS gRPC server");
+    if let Some(interval) = cfg.heartbeat_interval {
+        let discovery = Arc::clone(&discovery);
+        let service_id = service_id.to_string();
+        tokio::spawn(async move {
+            loop {
+                if let Err(e) = discovery.heartbeat_async(&service_id).await {
+                    tracing::warn!(
+                        service_id = %service_id,
+                        error = %e,
+                        "Discovery heartbeat failed"
+                    );
+                }
+                tokio::time::sleep(interval).await;
+            }
+        });
+    }
+    serve_ps(Arc::clone(&ps), addr).await?;
+    Ok(())
+}
+
+async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
+    discovery: Arc<D>,
+    _service_id: &str,
+    cfg: DistributedRunConfig,
+) -> anyhow::Result<()> {
+    // Worker: wait until we discover the expected PS set, then connect client.
+    tracing::info!(
+        role = "worker",
+        index = cfg.index,
+        "Waiting for PS discovery"
+    );
+
+    let mut ps_addrs: Vec<String> = Vec::new();
+    for attempt in 0..=cfg.connect_retries {
+        let ps_services = discovery
+            .discover_async(&cfg.discovery_service_type_ps)
+            .await
+            .unwrap_or_default();
+
+        let mut addrs: Vec<String> = ps_services.into_iter().map(|s| s.address()).collect();
+        addrs.sort();
+        addrs.dedup();
+
+        if addrs.len() >= cfg.num_ps {
+            ps_addrs = addrs;
+            break;
+        }
+
+        if attempt == cfg.connect_retries {
+            anyhow::bail!(
+                "Timed out waiting for PS discovery: got {} expected {}",
+                addrs.len(),
+                cfg.num_ps
+            );
+        }
+
+        tokio::time::sleep(Duration::from_millis(cfg.retry_backoff_ms)).await;
+    }
+
+    // For now, take the first num_ps.
+    ps_addrs.truncate(cfg.num_ps);
+    let ps_addr_refs: Vec<&str> = ps_addrs.iter().map(|s| s.as_str()).collect();
+    tracing::info!(role = "worker", index = cfg.index, ps = ?ps_addrs, "Connecting to PS shards");
+
+    let mut ps_client = PsClient::connect(&ps_addr_refs).await?;
+    let barrier: SharedBarrier = Arc::new(PsBarrier::new(
+        PsClient::connect(&ps_addr_refs).await?,
+        10_000,
+    ));
+
+    // Minimal "training loop" skeleton proving that:
+    // - lookup works
+    // - barrier works
+    // - apply_gradients works
+    let my_ids = vec![cfg.index as i64, cfg.index as i64, 42];
+    let _ = ps_client
+        .lookup(&cfg.table_name, &my_ids, cfg.dim, true)
+        .await?;
+
+    // Barrier on step 0.
+    barrier
+        .wait("step0", cfg.index as i32, cfg.num_workers as i32)
+        .await?;
+
+    // Apply fake gradients (all ones).
+    let grads = vec![1.0f32; my_ids.len() * cfg.dim];
+    let _ = ps_client
+        .apply_gradients(&cfg.table_name, &my_ids, &grads, cfg.dim, 0.01, 0)
+        .await?;
+
+    Ok(())
+}

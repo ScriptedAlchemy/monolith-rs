@@ -300,7 +300,12 @@ impl GroupInteractionLayer {
     /// * `input` - The input data slice
     /// * `group_idx` - The group index
     /// * `feature_idx` - The feature index within the group
-    fn get_feature_embedding(&self, input: &[f32], group_idx: usize, feature_idx: usize) -> Vec<f32> {
+    fn get_feature_embedding(
+        &self,
+        input: &[f32],
+        group_idx: usize,
+        feature_idx: usize,
+    ) -> Vec<f32> {
         let flat_idx = group_idx * self.config.features_per_group + feature_idx;
         let offset = flat_idx * self.config.embedding_dim;
         input[offset..offset + self.config.embedding_dim].to_vec()
@@ -313,9 +318,7 @@ impl GroupInteractionLayer {
                 let inner: f32 = v1.iter().zip(v2.iter()).map(|(a, b)| a * b).sum();
                 vec![inner]
             }
-            InteractionType::Hadamard => {
-                v1.iter().zip(v2.iter()).map(|(a, b)| a * b).collect()
-            }
+            InteractionType::Hadamard => v1.iter().zip(v2.iter()).map(|(a, b)| a * b).collect(),
             InteractionType::Concat => {
                 let mut result = v1.to_vec();
                 result.extend_from_slice(v2);
@@ -413,7 +416,10 @@ impl Layer for GroupInteractionLayer {
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
-        let input = self.cached_input.as_ref().ok_or(LayerError::NotInitialized)?;
+        let input = self
+            .cached_input
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
 
         let batch_size = input.shape()[0];
         let input_dim = self.input_dim();
@@ -926,8 +932,7 @@ mod tests {
 
     #[test]
     fn test_projection_layer_forward() {
-        let config = GroupInteractionConfig::new(2, 2, 4)
-            .with_inter_group(true);
+        let config = GroupInteractionConfig::new(2, 2, 4).with_inter_group(true);
         let layer = GroupInteractionWithProjection::new(&config, 16);
 
         let input = Tensor::rand(&[2, 16]);
@@ -938,8 +943,7 @@ mod tests {
 
     #[test]
     fn test_projection_layer_backward() {
-        let config = GroupInteractionConfig::new(2, 2, 4)
-            .with_inter_group(true);
+        let config = GroupInteractionConfig::new(2, 2, 4).with_inter_group(true);
         let mut layer = GroupInteractionWithProjection::new(&config, 16);
 
         let input = Tensor::rand(&[2, 16]);

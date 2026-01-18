@@ -149,10 +149,7 @@ impl Compressor for FixedR8Compressor {
         }
 
         // Find max absolute value for scaling
-        let max_abs = embedding
-            .iter()
-            .map(|x| x.abs())
-            .fold(0.0f32, f32::max);
+        let max_abs = embedding.iter().map(|x| x.abs()).fold(0.0f32, f32::max);
 
         // Compute scale factor (avoid division by zero)
         let scale = if max_abs > 0.0 {
@@ -303,7 +300,12 @@ mod tests {
 
         // fp16 should be exact for these simple values
         for (orig, decomp) in embedding.iter().zip(decompressed.iter()) {
-            assert!((orig - decomp).abs() < 0.001, "orig={}, decomp={}", orig, decomp);
+            assert!(
+                (orig - decomp).abs() < 0.001,
+                "orig={}, decomp={}",
+                orig,
+                decomp
+            );
         }
     }
 
@@ -318,7 +320,12 @@ mod tests {
 
         // fp16 has ~3 decimal digits of precision
         for (orig, decomp) in embedding.iter().zip(decompressed.iter()) {
-            assert!((orig - decomp).abs() < 0.01, "orig={}, decomp={}", orig, decomp);
+            assert!(
+                (orig - decomp).abs() < 0.01,
+                "orig={}, decomp={}",
+                orig,
+                decomp
+            );
         }
     }
 
@@ -339,7 +346,12 @@ mod tests {
 
         // Should be reasonably close
         for (orig, decomp) in embedding.iter().zip(decompressed.iter()) {
-            assert!((orig - decomp).abs() < 0.02, "orig={}, decomp={}", orig, decomp);
+            assert!(
+                (orig - decomp).abs() < 0.02,
+                "orig={}, decomp={}",
+                orig,
+                decomp
+            );
         }
     }
 
@@ -354,8 +366,12 @@ mod tests {
 
         for (orig, decomp) in embedding.iter().zip(decompressed.iter()) {
             // Allow 1% error
-            assert!((orig - decomp).abs() < orig.abs() * 0.02 + 0.1,
-                    "orig={}, decomp={}", orig, decomp);
+            assert!(
+                (orig - decomp).abs() < orig.abs() * 0.02 + 0.1,
+                "orig={}, decomp={}",
+                orig,
+                decomp
+            );
         }
     }
 
@@ -375,7 +391,7 @@ mod tests {
     #[test]
     fn test_fixed_r8_size() {
         let compressor = FixedR8Compressor;
-        assert_eq!(compressor.compressed_size(10), 14);  // 4 + 10
+        assert_eq!(compressor.compressed_size(10), 14); // 4 + 10
         assert_eq!(compressor.compressed_size(128), 132); // 4 + 128
     }
 

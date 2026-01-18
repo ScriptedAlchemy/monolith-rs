@@ -129,10 +129,16 @@ impl Args {
                     println!();
                     println!("OPTIONS:");
                     println!("    -m, --model-path <PATH>    Path to model checkpoint directory");
-                    println!("    -b, --batch-size <SIZE>    Batch size for inference (default: 128)");
+                    println!(
+                        "    -b, --batch-size <SIZE>    Batch size for inference (default: 128)"
+                    );
                     println!("    -n, --num-batches <NUM>    Number of batches to process (default: 100)");
-                    println!("    --benchmark                Run benchmark mode with timing statistics");
-                    println!("    --no-demo                  Don't generate demo checkpoint if missing");
+                    println!(
+                        "    --benchmark                Run benchmark mode with timing statistics"
+                    );
+                    println!(
+                        "    --no-demo                  Don't generate demo checkpoint if missing"
+                    );
                     println!("    -h, --help                 Print this help message");
                     std::process::exit(0);
                 }
@@ -270,8 +276,12 @@ impl Predictor {
                 hash_table.insert(fid as u64, embedding);
             }
 
-            println!("  Loaded table '{}': {} entries, dim={}",
-                     table_name, hash_table.len(), table_state.dim);
+            println!(
+                "  Loaded table '{}': {} entries, dim={}",
+                table_name,
+                hash_table.len(),
+                table_state.dim
+            );
             embedding_tables.insert(table_name.clone(), hash_table);
         }
 
@@ -295,8 +305,11 @@ impl Predictor {
         // from dense_params and initialize the MLP with them.
         // For this example, we use the randomly initialized weights.
 
-        println!("  MLP created: {} -> {:?} -> 1",
-                 total_embedding_dim, config::MLP_HIDDEN);
+        println!(
+            "  MLP created: {} -> {:?} -> 1",
+            total_embedding_dim,
+            config::MLP_HIDDEN
+        );
 
         Ok(Predictor {
             embedding_tables,
@@ -319,8 +332,12 @@ impl Predictor {
                 hash_table.insert(*fid as u64, embedding.clone());
             }
 
-            println!("  Loaded table '{}': {} entries, dim={}",
-                     table_state.name, hash_table.len(), table_state.dim);
+            println!(
+                "  Loaded table '{}': {} entries, dim={}",
+                table_state.name,
+                hash_table.len(),
+                table_state.dim
+            );
             embedding_tables.insert(table_state.name.clone(), hash_table);
         }
 
@@ -358,7 +375,10 @@ impl Predictor {
         let mut data = vec![0.0f32; batch_size * total_dim];
 
         // Get the shared embedding table (all slots share the same table in this example)
-        let table = self.embedding_tables.values().next()
+        let table = self
+            .embedding_tables
+            .values()
+            .next()
             .expect("No embedding tables loaded");
 
         for (batch_idx, instance) in instances.iter().enumerate() {
@@ -388,8 +408,7 @@ impl Predictor {
                     .unwrap_or_else(|| vec![0.0; config::EMBEDDING_DIM]);
 
                 let start_idx = batch_idx * total_dim + slot_id * config::EMBEDDING_DIM;
-                data[start_idx..start_idx + config::EMBEDDING_DIM]
-                    .copy_from_slice(&slot_embedding);
+                data[start_idx..start_idx + config::EMBEDDING_DIM].copy_from_slice(&slot_embedding);
             }
         }
 
@@ -410,11 +429,15 @@ impl Predictor {
         let embeddings = self.lookup_embeddings(instances);
 
         // Step 2: Forward through MLP
-        let logits = self.mlp.forward(&embeddings)
+        let logits = self
+            .mlp
+            .forward(&embeddings)
             .expect("MLP forward pass failed");
 
         // Step 3: Apply sigmoid for probability output
-        let predictions = self.sigmoid.forward(&logits)
+        let predictions = self
+            .sigmoid
+            .forward(&logits)
             .expect("Sigmoid forward pass failed");
 
         predictions
@@ -468,26 +491,14 @@ fn generate_demo_checkpoint(output_dir: &Path) -> Result<ModelState, String> {
         "mlp.layer0.weight",
         vec![0.1; total_embedding_dim * config::MLP_HIDDEN[0]],
     );
-    state.add_dense_param(
-        "mlp.layer0.bias",
-        vec![0.0; config::MLP_HIDDEN[0]],
-    );
+    state.add_dense_param("mlp.layer0.bias", vec![0.0; config::MLP_HIDDEN[0]]);
     state.add_dense_param(
         "mlp.layer1.weight",
         vec![0.1; config::MLP_HIDDEN[0] * config::MLP_HIDDEN[1]],
     );
-    state.add_dense_param(
-        "mlp.layer1.bias",
-        vec![0.0; config::MLP_HIDDEN[1]],
-    );
-    state.add_dense_param(
-        "mlp.layer2.weight",
-        vec![0.1; config::MLP_HIDDEN[1] * 1],
-    );
-    state.add_dense_param(
-        "mlp.layer2.bias",
-        vec![0.0; 1],
-    );
+    state.add_dense_param("mlp.layer1.bias", vec![0.0; config::MLP_HIDDEN[1]]);
+    state.add_dense_param("mlp.layer2.weight", vec![0.1; config::MLP_HIDDEN[1] * 1]);
+    state.add_dense_param("mlp.layer2.bias", vec![0.0; 1]);
 
     // Add metadata
     state.set_metadata("model_name", "demo_ffm_model");
@@ -499,7 +510,8 @@ fn generate_demo_checkpoint(output_dir: &Path) -> Result<ModelState, String> {
         .with_version("1.0.0");
 
     let exporter = ModelExporter::new(config);
-    exporter.export(&state)
+    exporter
+        .export(&state)
         .map_err(|e| format!("Failed to export model: {}", e))?;
 
     println!("  Exported model to: {}", output_dir.display());
@@ -577,9 +589,18 @@ impl BenchmarkStats {
         println!("Total time:       {:.3} s", self.total_time.as_secs_f64());
         println!();
         println!("Latency Statistics:");
-        println!("  Mean:           {:.3} ms", self.mean().as_secs_f64() * 1000.0);
-        println!("  P50:            {:.3} ms", self.p50().as_secs_f64() * 1000.0);
-        println!("  P99:            {:.3} ms", self.p99().as_secs_f64() * 1000.0);
+        println!(
+            "  Mean:           {:.3} ms",
+            self.mean().as_secs_f64() * 1000.0
+        );
+        println!(
+            "  P50:            {:.3} ms",
+            self.p50().as_secs_f64() * 1000.0
+        );
+        println!(
+            "  P99:            {:.3} ms",
+            self.p99().as_secs_f64() * 1000.0
+        );
         println!();
         println!("Throughput:       {:.2} samples/sec", self.throughput());
         println!("========================");
@@ -634,21 +655,20 @@ fn main() {
     let args = Args::parse();
 
     // Determine model path
-    let model_path = args.model_path.clone().unwrap_or_else(|| {
-        PathBuf::from("/tmp/monolith_demo_model")
-    });
+    let model_path = args
+        .model_path
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("/tmp/monolith_demo_model"));
 
     // Create predictor
     let predictor = if model_path.exists() {
         println!("Found existing model at: {}", model_path.display());
-        Predictor::from_checkpoint(&model_path)
-            .expect("Failed to load model from checkpoint")
+        Predictor::from_checkpoint(&model_path).expect("Failed to load model from checkpoint")
     } else if args.generate_demo {
         println!("No model found, generating demo checkpoint...");
-        let state = generate_demo_checkpoint(&model_path)
-            .expect("Failed to generate demo checkpoint");
-        Predictor::from_model_state(&state)
-            .expect("Failed to create predictor from model state")
+        let state =
+            generate_demo_checkpoint(&model_path).expect("Failed to generate demo checkpoint");
+        Predictor::from_model_state(&state).expect("Failed to create predictor from model state")
     } else {
         eprintln!("Error: Model path does not exist: {}", model_path.display());
         eprintln!("       Use --generate-demo to create a demo model, or provide a valid path.");
@@ -681,7 +701,10 @@ fn main() {
         for (i, &fid) in instances[0].fids.iter().take(5).enumerate() {
             let slot = extract_slot_from_fid(fid);
             let feature = extract_feature_from_fid(fid);
-            println!("    [{}] FID={}, slot={}, feature={}", i, fid, slot, feature);
+            println!(
+                "    [{}] FID={}, slot={}, feature={}",
+                i, fid, slot, feature
+            );
         }
 
         // Run prediction
@@ -733,7 +756,10 @@ mod tests {
     #[test]
     fn test_instance_generation() {
         let instance = Instance::generate_random(42);
-        assert_eq!(instance.fids.len(), config::NUM_SLOTS * config::FEATURES_PER_INSTANCE);
+        assert_eq!(
+            instance.fids.len(),
+            config::NUM_SLOTS * config::FEATURES_PER_INSTANCE
+        );
 
         // All FIDs should have valid slot IDs
         for &fid in &instance.fids {

@@ -199,7 +199,11 @@ impl Expert {
         self.cached_inputs.clear();
         let mut x = input.clone();
 
-        for (dense, activation) in self.dense_layers.iter_mut().zip(self.activations.iter_mut()) {
+        for (dense, activation) in self
+            .dense_layers
+            .iter_mut()
+            .zip(self.activations.iter_mut())
+        {
             self.cached_inputs.push(x.clone());
             x = dense.forward_train(&x)?;
             x = activation.forward_train(&x)?;
@@ -1055,7 +1059,11 @@ mod tests {
         // Check that weights sum to 1 for each sample (softmax property)
         for i in 0..8 {
             let sum: f32 = (0..4).map(|j| weights.data()[i * 4 + j]).sum();
-            assert!((sum - 1.0).abs() < 1e-5, "Weights should sum to 1, got {}", sum);
+            assert!(
+                (sum - 1.0).abs() < 1e-5,
+                "Weights should sum to 1, got {}",
+                sum
+            );
         }
     }
 

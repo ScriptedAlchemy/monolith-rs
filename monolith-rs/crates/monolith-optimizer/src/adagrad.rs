@@ -204,7 +204,9 @@ mod tests {
 
     #[test]
     fn test_adagrad_config_mismatch() {
-        let config = OptimizerConfig::Sgd { learning_rate: 0.01 };
+        let config = OptimizerConfig::Sgd {
+            learning_rate: 0.01,
+        };
         let result = Adagrad::new(config);
         assert!(result.is_err());
     }

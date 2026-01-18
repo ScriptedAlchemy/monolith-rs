@@ -250,7 +250,9 @@ mod tests {
 
     #[test]
     fn test_adam_config_mismatch() {
-        let config = OptimizerConfig::Sgd { learning_rate: 0.01 };
+        let config = OptimizerConfig::Sgd {
+            learning_rate: 0.01,
+        };
         let result = Adam::new(config);
         assert!(result.is_err());
     }

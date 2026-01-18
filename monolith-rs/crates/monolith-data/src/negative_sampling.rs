@@ -149,8 +149,8 @@ impl NegativeSampler for UniformNegativeSampler {
         }
 
         // Get the positive item ID to exclude
-        let positive_item = get_feature(positive, &self.item_feature_name)
-            .and_then(|f| match &f.r#type {
+        let positive_item =
+            get_feature(positive, &self.item_feature_name).and_then(|f| match &f.r#type {
                 Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
                 Some(feature::Type::FidV1List(l)) => l.value.first().copied().map(|v| v as i64),
                 _ => None,
@@ -188,7 +188,12 @@ impl NegativeSampler for UniformNegativeSampler {
                     let mut negative = clone_example(positive);
                     // Remove existing item feature and add new one
                     remove_feature(&mut negative, &self.item_feature_name);
-                    add_feature(&mut negative, &self.item_feature_name, vec![item], vec![1.0]);
+                    add_feature(
+                        &mut negative,
+                        &self.item_feature_name,
+                        vec![item],
+                        vec![1.0],
+                    );
                     // Remove existing label and add new one
                     remove_feature(&mut negative, "label");
                     add_feature(&mut negative, "label", vec![0], vec![0.0]);
@@ -326,8 +331,8 @@ impl FrequencyNegativeSampler {
 
 impl NegativeSampler for FrequencyNegativeSampler {
     fn sample(&self, positive: &Example, num_negatives: usize) -> Vec<Example> {
-        let positive_item = get_feature(positive, &self.item_feature_name)
-            .and_then(|f| match &f.r#type {
+        let positive_item =
+            get_feature(positive, &self.item_feature_name).and_then(|f| match &f.r#type {
                 Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
                 Some(feature::Type::FidV1List(l)) => l.value.first().copied().map(|v| v as i64),
                 _ => None,
@@ -345,7 +350,12 @@ impl NegativeSampler for FrequencyNegativeSampler {
                         let mut negative = clone_example(positive);
                         // Remove existing item feature and add new one
                         remove_feature(&mut negative, &self.item_feature_name);
-                        add_feature(&mut negative, &self.item_feature_name, vec![item], vec![1.0]);
+                        add_feature(
+                            &mut negative,
+                            &self.item_feature_name,
+                            vec![item],
+                            vec![1.0],
+                        );
                         // Remove existing label and add new one
                         remove_feature(&mut negative, "label");
                         add_feature(&mut negative, "label", vec![0], vec![0.0]);
@@ -435,17 +445,16 @@ impl InBatchNegativeSampler {
         }
 
         let positive = &examples[positive_idx];
-        let positive_item = get_feature(positive, &self.item_feature_name)
-            .and_then(|f| match &f.r#type {
+        let positive_item =
+            get_feature(positive, &self.item_feature_name).and_then(|f| match &f.r#type {
                 Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
                 Some(feature::Type::FidV1List(l)) => l.value.first().copied().map(|v| v as i64),
                 _ => None,
             });
 
         // Collect indices of other examples
-        let mut candidate_indices: Vec<usize> = (0..examples.len())
-            .filter(|&i| i != positive_idx)
-            .collect();
+        let mut candidate_indices: Vec<usize> =
+            (0..examples.len()).filter(|&i| i != positive_idx).collect();
 
         // Shuffle candidates
         for i in (1..candidate_indices.len()).rev() {
@@ -457,8 +466,8 @@ impl InBatchNegativeSampler {
 
         for &idx in candidate_indices.iter().take(num_negatives) {
             let other = &examples[idx];
-            let other_item = get_feature(other, &self.item_feature_name)
-                .and_then(|f| match &f.r#type {
+            let other_item =
+                get_feature(other, &self.item_feature_name).and_then(|f| match &f.r#type {
                     Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
                     Some(feature::Type::FidV1List(l)) => l.value.first().copied().map(|v| v as i64),
                     _ => None,
@@ -474,7 +483,12 @@ impl InBatchNegativeSampler {
             if let Some(item) = other_item {
                 // Remove existing item feature and add new one
                 remove_feature(&mut negative, &self.item_feature_name);
-                add_feature(&mut negative, &self.item_feature_name, vec![item], vec![1.0]);
+                add_feature(
+                    &mut negative,
+                    &self.item_feature_name,
+                    vec![item],
+                    vec![1.0],
+                );
             }
             // Remove existing label and add new one
             remove_feature(&mut negative, "label");
@@ -831,12 +845,10 @@ mod tests {
         let count_1000 = negatives
             .iter()
             .filter(|ex| {
-                get_feature(ex, "item_id")
-                    .and_then(|f| match &f.r#type {
-                        Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
-                        _ => None,
-                    })
-                    == Some(1000)
+                get_feature(ex, "item_id").and_then(|f| match &f.r#type {
+                    Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
+                    _ => None,
+                }) == Some(1000)
             })
             .count();
 
@@ -940,26 +952,22 @@ mod tests {
         let positive_count = all_examples
             .iter()
             .filter(|ex| {
-                get_feature(ex, "label")
-                    .and_then(|f| match &f.r#type {
-                        Some(feature::Type::FidV2List(l)) => l.value.first().copied(),
-                        Some(feature::Type::FidV1List(l)) => l.value.first().copied(),
-                        _ => None,
-                    })
-                    == Some(1)
+                get_feature(ex, "label").and_then(|f| match &f.r#type {
+                    Some(feature::Type::FidV2List(l)) => l.value.first().copied(),
+                    Some(feature::Type::FidV1List(l)) => l.value.first().copied(),
+                    _ => None,
+                }) == Some(1)
             })
             .count();
 
         let negative_count = all_examples
             .iter()
             .filter(|ex| {
-                get_feature(ex, "label")
-                    .and_then(|f| match &f.r#type {
-                        Some(feature::Type::FidV2List(l)) => l.value.first().copied(),
-                        Some(feature::Type::FidV1List(l)) => l.value.first().copied(),
-                        _ => None,
-                    })
-                    == Some(0)
+                get_feature(ex, "label").and_then(|f| match &f.r#type {
+                    Some(feature::Type::FidV2List(l)) => l.value.first().copied(),
+                    Some(feature::Type::FidV1List(l)) => l.value.first().copied(),
+                    _ => None,
+                }) == Some(0)
             })
             .count();
 

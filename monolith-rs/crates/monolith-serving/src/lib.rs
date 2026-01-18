@@ -215,22 +215,29 @@
 
 pub mod agent_service;
 pub mod config;
+pub mod embedding_store;
 pub mod error;
 pub mod grpc;
+pub mod grpc_agent;
 pub mod model_loader;
 pub mod parameter_sync;
+pub mod parameter_sync_rpc;
+pub mod parameter_sync_sink;
 pub mod server;
 
 // Re-export main types at crate root for convenience
 pub use agent_service::{AgentServiceImpl, FeatureInput, PredictRequest, PredictResponse};
 pub use config::{ModelLoaderConfig, ParameterServerConfig, ServerConfig};
+pub use embedding_store::EmbeddingStore;
 pub use error::{ServingError, ServingResult};
 pub use grpc::{
-    AgentService, AgentServiceGrpcImpl, GrpcServerConfig, GrpcServerConfigBuilder,
-    GrpcServerState, GrpcServiceStats, ServingServer, ServerType,
+    AgentService, AgentServiceGrpcImpl, GrpcServerConfig, GrpcServerConfigBuilder, GrpcServerState,
+    GrpcServiceStats, ServerType, ServingServer,
 };
 pub use model_loader::{LoadedModel, ModelLoader};
 pub use parameter_sync::{EmbeddingData, ParameterSyncClient, SyncRequest, SyncResponse};
+pub use parameter_sync_rpc::{ParameterSyncGrpcServer, ParameterSyncRpcClient};
+pub use parameter_sync_sink::EmbeddingStorePushSink;
 pub use server::{HealthStatus, Server, ServerState};
 
 /// Crate version.

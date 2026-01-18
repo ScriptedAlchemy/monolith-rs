@@ -100,7 +100,9 @@ impl MultiHashTable {
         assert!(num_shards > 0, "num_shards must be greater than 0");
 
         let shards = (0..num_shards)
-            .map(|_| CuckooEmbeddingHashTable::with_learning_rate(capacity_per_shard, dim, learning_rate))
+            .map(|_| {
+                CuckooEmbeddingHashTable::with_learning_rate(capacity_per_shard, dim, learning_rate)
+            })
             .collect();
 
         Self {
@@ -142,10 +144,12 @@ impl MultiHashTable {
     ///
     /// A reference to the shard, or an error if the index is invalid.
     pub fn get_shard(&self, shard_idx: usize) -> Result<&CuckooEmbeddingHashTable> {
-        self.shards.get(shard_idx).ok_or(HashTableError::InvalidShardIndex {
-            index: shard_idx,
-            num_shards: self.num_shards,
-        })
+        self.shards
+            .get(shard_idx)
+            .ok_or(HashTableError::InvalidShardIndex {
+                index: shard_idx,
+                num_shards: self.num_shards,
+            })
     }
 
     /// Returns a mutable reference to a specific shard.
@@ -159,10 +163,12 @@ impl MultiHashTable {
     /// A mutable reference to the shard, or an error if the index is invalid.
     pub fn get_shard_mut(&mut self, shard_idx: usize) -> Result<&mut CuckooEmbeddingHashTable> {
         let num_shards = self.num_shards;
-        self.shards.get_mut(shard_idx).ok_or(HashTableError::InvalidShardIndex {
-            index: shard_idx,
-            num_shards,
-        })
+        self.shards
+            .get_mut(shard_idx)
+            .ok_or(HashTableError::InvalidShardIndex {
+                index: shard_idx,
+                num_shards,
+            })
     }
 
     /// Sets the learning rate for all shards.
@@ -181,8 +187,7 @@ impl MultiHashTable {
 
     /// Returns the total memory usage across all shards in bytes.
     pub fn memory_usage(&self) -> usize {
-        self.shards.iter().map(|s| s.memory_usage()).sum::<usize>()
-            + std::mem::size_of::<Self>()
+        self.shards.iter().map(|s| s.memory_usage()).sum::<usize>() + std::mem::size_of::<Self>()
     }
 
     /// Returns the size of each shard.
@@ -300,8 +305,7 @@ mod tests {
         // Insert IDs that map to different shards
         let ids = vec![0, 1, 2, 3, 4, 5, 6, 7];
         let embeddings = vec![
-            0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0,
-            4.0, 4.0, 5.0, 5.0, 6.0, 6.0, 7.0, 7.0,
+            0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 5.0, 5.0, 6.0, 6.0, 7.0, 7.0,
         ];
 
         table.assign(&ids, &embeddings).unwrap();
@@ -321,10 +325,7 @@ mod tests {
         let mut table = MultiHashTable::new(4, 256, 2);
 
         let ids = vec![-1, -2, -100, 1, 2, 100];
-        let embeddings = vec![
-            1.0, 1.0, 2.0, 2.0, 3.0, 3.0,
-            4.0, 4.0, 5.0, 5.0, 6.0, 6.0,
-        ];
+        let embeddings = vec![1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 5.0, 5.0, 6.0, 6.0];
 
         table.assign(&ids, &embeddings).unwrap();
 
@@ -338,15 +339,11 @@ mod tests {
         let mut table = MultiHashTable::with_learning_rate(4, 256, 2, 0.1);
 
         let ids = vec![1, 2, 3, 4];
-        let embeddings = vec![
-            1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0,
-        ];
+        let embeddings = vec![1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0];
 
         table.assign(&ids, &embeddings).unwrap();
 
-        let gradients = vec![
-            1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
-        ];
+        let gradients = vec![1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
         table.apply_gradients(&ids, &gradients).unwrap();
 
         let mut output = vec![0.0; 8];
@@ -363,7 +360,9 @@ mod tests {
     fn test_multi_contains() {
         let mut table = MultiHashTable::new(4, 256, 2);
 
-        table.assign(&[1, 5, 9], &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+        table
+            .assign(&[1, 5, 9], &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+            .unwrap();
 
         assert!(table.contains(1));
         assert!(table.contains(5));
@@ -376,7 +375,9 @@ mod tests {
     fn test_multi_clear() {
         let mut table = MultiHashTable::new(4, 256, 2);
 
-        table.assign(&[1, 2, 3, 4], &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]).unwrap();
+        table
+            .assign(&[1, 2, 3, 4], &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
+            .unwrap();
         assert_eq!(table.size(), 4);
 
         table.clear();
@@ -395,7 +396,10 @@ mod tests {
         assert!(table.get_shard(3).is_ok());
         assert!(matches!(
             table.get_shard(4),
-            Err(HashTableError::InvalidShardIndex { index: 4, num_shards: 4 })
+            Err(HashTableError::InvalidShardIndex {
+                index: 4,
+                num_shards: 4
+            })
         ));
     }
 
@@ -416,6 +420,9 @@ mod tests {
         let mut table = MultiHashTable::new(4, 256, 4);
 
         let result = table.assign(&[1], &[1.0, 2.0]); // Should be 4 elements
-        assert!(matches!(result, Err(HashTableError::DimensionMismatch { .. })));
+        assert!(matches!(
+            result,
+            Err(HashTableError::DimensionMismatch { .. })
+        ));
     }
 }

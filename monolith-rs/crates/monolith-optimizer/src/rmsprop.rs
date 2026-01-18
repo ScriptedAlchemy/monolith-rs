@@ -254,7 +254,9 @@ mod tests {
 
     #[test]
     fn test_rmsprop_config_mismatch() {
-        let config = OptimizerConfig::Sgd { learning_rate: 0.01 };
+        let config = OptimizerConfig::Sgd {
+            learning_rate: 0.01,
+        };
         let result = Rmsprop::new(config);
         assert!(result.is_err());
     }

@@ -46,12 +46,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Serving / sync / misc services
         proto_root.join("agent_service.proto"),
         proto_root.join("parameter_sync.proto"),
+        proto_root.join("parameter_sync_rpc.proto"),
+        // PS Training RPC service (for distributed training)
+        proto_root.join("ps_training.proto"),
         proto_root.join("logging_ops.proto"),
         proto_root.join("alert.proto"),
         proto_root.join("ckpt_info.proto"),
         proto_root.join("debugging_info.proto"),
         proto_root.join("monolith_model.proto"),
-        proto_root.join("primus_am_service.proto"),
+        // NOTE: `primus_am_service.proto` imports google/protobuf wrappers; we
+        // currently don't expose a `google` module from `monolith-proto` (and
+        // Primus isn't used by the Rust parity work yet), so skip compiling it
+        // to keep the crate building cleanly.
     ];
 
     // Make sure changes to indirectly imported protos trigger rebuilds too.

@@ -286,7 +286,9 @@ mod tests {
 
     #[test]
     fn test_optimizer_config_name() {
-        let sgd = OptimizerConfig::Sgd { learning_rate: 0.01 };
+        let sgd = OptimizerConfig::Sgd {
+            learning_rate: 0.01,
+        };
         assert_eq!(sgd.name(), "Sgd");
 
         let adam = OptimizerConfig::Adam {
@@ -300,7 +302,9 @@ mod tests {
 
     #[test]
     fn test_optimizer_config_learning_rate() {
-        let sgd = OptimizerConfig::Sgd { learning_rate: 0.01 };
+        let sgd = OptimizerConfig::Sgd {
+            learning_rate: 0.01,
+        };
         assert!((sgd.learning_rate() - 0.01).abs() < 1e-6);
 
         let adagrad = OptimizerConfig::Adagrad {
@@ -313,7 +317,9 @@ mod tests {
 
     #[test]
     fn test_create_optimizer() {
-        let config = OptimizerConfig::Sgd { learning_rate: 0.01 };
+        let config = OptimizerConfig::Sgd {
+            learning_rate: 0.01,
+        };
         let mut optimizer = create_optimizer(config);
 
         let mut embedding = vec![1.0, 2.0];
@@ -328,7 +334,9 @@ mod tests {
     #[test]
     fn test_create_all_optimizer_types() {
         let configs = vec![
-            OptimizerConfig::Sgd { learning_rate: 0.01 },
+            OptimizerConfig::Sgd {
+                learning_rate: 0.01,
+            },
             OptimizerConfig::Adagrad {
                 learning_rate: 0.01,
                 initial_accumulator: 0.1,

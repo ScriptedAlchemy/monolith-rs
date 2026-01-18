@@ -218,6 +218,56 @@ pub trait ServiceDiscovery: Send + Sync {
     fn deregister(&self, service_id: &str) -> Result<()>;
 }
 
+/// Async-friendly service discovery API (used by the distributed runner).
+///
+/// For local/in-memory discovery we can implement these methods directly.
+/// For ZK/Consul, callers can either wrap blocking APIs in `spawn_blocking`
+/// or provide native async implementations later.
+#[async_trait::async_trait]
+pub trait ServiceDiscoveryAsync: Send + Sync {
+    async fn connect(&self) -> Result<()>;
+    async fn disconnect(&self) -> Result<()>;
+
+    async fn register_async(&self, service: ServiceInfo) -> Result<()>;
+    async fn discover_async(&self, service_type: &str) -> Result<Vec<ServiceInfo>>;
+    async fn watch_async(&self, service_type: &str) -> Result<Receiver<DiscoveryEvent>>;
+
+    async fn deregister_async(&self, service_id: &str) -> Result<()>;
+
+    /// Backend-specific keepalive/heartbeat. Default is a no-op for backends
+    /// that do not require explicit heartbeats (e.g. in-memory, ZK ephemerals).
+    async fn heartbeat_async(&self, _service_id: &str) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl ServiceDiscoveryAsync for InMemoryDiscovery {
+    async fn connect(&self) -> Result<()> {
+        Ok(())
+    }
+
+    async fn disconnect(&self) -> Result<()> {
+        Ok(())
+    }
+
+    async fn register_async(&self, service: ServiceInfo) -> Result<()> {
+        self.register(service)
+    }
+
+    async fn discover_async(&self, service_type: &str) -> Result<Vec<ServiceInfo>> {
+        self.discover(service_type)
+    }
+
+    async fn watch_async(&self, service_type: &str) -> Result<Receiver<DiscoveryEvent>> {
+        self.watch(service_type)
+    }
+
+    async fn deregister_async(&self, service_id: &str) -> Result<()> {
+        self.deregister(service_id)
+    }
+}
+
 /// In-memory service discovery implementation for testing.
 ///
 /// This implementation stores all service information in memory and is

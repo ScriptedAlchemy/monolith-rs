@@ -332,8 +332,7 @@ impl FFMLayer {
     /// * `field_i` - The source field index
     /// * `field_j` - The target field index
     fn get_embedding(&self, field_i: usize, field_j: usize) -> Vec<f32> {
-        let offset =
-            (field_i * self.num_fields + field_j) * self.embedding_dim;
+        let offset = (field_i * self.num_fields + field_j) * self.embedding_dim;
         self.embeddings.data()[offset..offset + self.embedding_dim].to_vec()
     }
 
@@ -437,11 +436,7 @@ impl FFMLayer {
                     let v_j_fi = self.get_embedding(field_j, field_i);
 
                     // Compute <v_{i,fj} * x_i, v_{j,fi} * x_j>
-                    let inner: f32 = v_i_fj
-                        .iter()
-                        .zip(v_j_fi.iter())
-                        .map(|(a, b)| a * b)
-                        .sum();
+                    let inner: f32 = v_i_fj.iter().zip(v_j_fi.iter()).map(|(a, b)| a * b).sum();
 
                     interaction_sum += inner * value_i * value_j;
                 }
@@ -515,8 +510,7 @@ impl FFMLayer {
 
                     // Gradient w.r.t. v_{i, fj}: grad * x_i * x_j * v_{j, fi}
                     let v_j_fi = self.get_embedding(field_j, field_i);
-                    let offset_i_fj =
-                        (field_i * self.num_fields + field_j) * self.embedding_dim;
+                    let offset_i_fj = (field_i * self.num_fields + field_j) * self.embedding_dim;
                     for k in 0..self.embedding_dim {
                         embeddings_grad_data[offset_i_fj + k] +=
                             grad_val * value_i * value_j * v_j_fi[k];
@@ -524,8 +518,7 @@ impl FFMLayer {
 
                     // Gradient w.r.t. v_{j, fi}: grad * x_i * x_j * v_{i, fj}
                     let v_i_fj = self.get_embedding(field_i, field_j);
-                    let offset_j_fi =
-                        (field_j * self.num_fields + field_i) * self.embedding_dim;
+                    let offset_j_fi = (field_j * self.num_fields + field_i) * self.embedding_dim;
                     for k in 0..self.embedding_dim {
                         embeddings_grad_data[offset_j_fi + k] +=
                             grad_val * value_i * value_j * v_i_fj[k];
@@ -579,8 +572,7 @@ impl Layer for FFMLayer {
         for b in 0..batch_size {
             for f in 0..num_features {
                 indices_data[b * num_features + f] = input.data()[b * features + f];
-                values_data[b * num_features + f] =
-                    input.data()[b * features + num_features + f];
+                values_data[b * num_features + f] = input.data()[b * features + num_features + f];
             }
         }
 
@@ -676,11 +668,12 @@ mod tests {
         let ffm = FFMLayer::new(3, 4);
 
         // Batch of 2 samples, 3 features each
-        let field_indices =
-            Tensor::from_data(&[2, 3], vec![0.0, 1.0, 2.0, 0.0, 1.0, 2.0]);
+        let field_indices = Tensor::from_data(&[2, 3], vec![0.0, 1.0, 2.0, 0.0, 1.0, 2.0]);
         let field_values = Tensor::ones(&[2, 3]);
 
-        let output = ffm.forward_with_fields(&field_indices, &field_values).unwrap();
+        let output = ffm
+            .forward_with_fields(&field_indices, &field_values)
+            .unwrap();
         assert_eq!(output.shape(), &[2, 1]);
     }
 
@@ -691,7 +684,9 @@ mod tests {
         let field_indices = Tensor::from_data(&[1, 2], vec![0.0, 1.0]);
         let field_values = Tensor::from_data(&[1, 2], vec![1.0, 1.0]);
 
-        let output = ffm.forward_with_fields(&field_indices, &field_values).unwrap();
+        let output = ffm
+            .forward_with_fields(&field_indices, &field_values)
+            .unwrap();
         assert_eq!(output.shape(), &[1, 1]);
     }
 
@@ -702,7 +697,9 @@ mod tests {
         let field_indices = Tensor::from_data(&[1, 2], vec![0.0, 1.0]);
         let field_values = Tensor::ones(&[1, 2]);
 
-        let output = ffm.forward_with_fields(&field_indices, &field_values).unwrap();
+        let output = ffm
+            .forward_with_fields(&field_indices, &field_values)
+            .unwrap();
         assert_eq!(output.shape(), &[1, 1]);
     }
 
@@ -751,8 +748,7 @@ mod tests {
     fn test_ffm_backward() {
         let mut ffm = FFMLayer::new(3, 4);
 
-        let field_indices =
-            Tensor::from_data(&[2, 3], vec![0.0, 1.0, 2.0, 0.0, 1.0, 2.0]);
+        let field_indices = Tensor::from_data(&[2, 3], vec![0.0, 1.0, 2.0, 0.0, 1.0, 2.0]);
         let field_values = Tensor::ones(&[2, 3]);
 
         // Forward with caching
@@ -771,8 +767,7 @@ mod tests {
     fn test_ffm_backward_with_bias() {
         let mut ffm = FFMLayer::new_with_bias(3, 4);
 
-        let field_indices =
-            Tensor::from_data(&[2, 3], vec![0.0, 1.0, 2.0, 0.0, 1.0, 2.0]);
+        let field_indices = Tensor::from_data(&[2, 3], vec![0.0, 1.0, 2.0, 0.0, 1.0, 2.0]);
         let field_values = Tensor::ones(&[2, 3]);
 
         // Forward with caching
@@ -843,7 +838,9 @@ mod tests {
         let field_indices = Tensor::from_data(&[1, 2], vec![0.0, 1.0]);
         let field_values = Tensor::from_data(&[1, 2], vec![2.0, 3.0]);
 
-        let output = ffm.forward_with_fields(&field_indices, &field_values).unwrap();
+        let output = ffm
+            .forward_with_fields(&field_indices, &field_values)
+            .unwrap();
         assert_eq!(output.shape(), &[1, 1]);
 
         // The output should be scaled by value_i * value_j = 2.0 * 3.0 = 6.0
@@ -858,7 +855,9 @@ mod tests {
         let field_indices = Tensor::from_data(&[1, 1], vec![0.0]);
         let field_values = Tensor::from_data(&[1, 1], vec![1.0]);
 
-        let output = ffm.forward_with_fields(&field_indices, &field_values).unwrap();
+        let output = ffm
+            .forward_with_fields(&field_indices, &field_values)
+            .unwrap();
         assert_eq!(output.shape(), &[1, 1]);
         // Output should be 0 since there are no pairs
         assert_eq!(output.data()[0], 0.0);
@@ -884,7 +883,9 @@ mod tests {
         let field_indices = Tensor::from_data(&[batch_size, num_features], indices_data);
         let field_values = Tensor::ones(&[batch_size, num_features]);
 
-        let output = ffm.forward_with_fields(&field_indices, &field_values).unwrap();
+        let output = ffm
+            .forward_with_fields(&field_indices, &field_values)
+            .unwrap();
         assert_eq!(output.shape(), &[batch_size, 1]);
     }
 }

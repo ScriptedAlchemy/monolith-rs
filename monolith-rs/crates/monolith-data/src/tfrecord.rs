@@ -260,8 +260,9 @@ impl TFRecordIterator {
                     let compression = self.compression.unwrap_or_else(|| {
                         CompressionType::from_extension(&path.to_string_lossy())
                     });
-                    self.reader =
-                        Some(TFRecordReader::new(reader, self.verify_crc).with_compression(compression));
+                    self.reader = Some(
+                        TFRecordReader::new(reader, self.verify_crc).with_compression(compression),
+                    );
                     return Some(());
                 }
                 Err(_) => continue, // Skip files that can't be opened
@@ -816,7 +817,8 @@ mod tests {
     fn test_reader_writer_compression_getters() {
         let buffer: Vec<u8> = Vec::new();
 
-        let reader: TFRecordReader<Cursor<&Vec<u8>>> = TFRecordReader::new(Cursor::new(&buffer), true);
+        let reader: TFRecordReader<Cursor<&Vec<u8>>> =
+            TFRecordReader::new(Cursor::new(&buffer), true);
         assert_eq!(reader.compression(), CompressionType::None);
 
         let reader = reader.with_compression(CompressionType::Gzip);

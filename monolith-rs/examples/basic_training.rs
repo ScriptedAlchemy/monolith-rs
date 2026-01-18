@@ -94,7 +94,10 @@ impl SimpleRng {
 
     fn next_u64(&mut self) -> u64 {
         // LCG parameters from Numerical Recipes
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.state
     }
 
@@ -393,16 +396,12 @@ impl FFMLayer {
                             let emb_j_fi = example_cache.get(&key_j_fi).unwrap();
 
                             // Gradient w.r.t. v_{i,fj}: grad_output * v_{j,fi}
-                            let grad_i_fj: Vec<f32> = emb_j_fi
-                                .iter()
-                                .map(|v| grad_output * v)
-                                .collect();
+                            let grad_i_fj: Vec<f32> =
+                                emb_j_fi.iter().map(|v| grad_output * v).collect();
 
                             // Gradient w.r.t. v_{j,fi}: grad_output * v_{i,fj}
-                            let grad_j_fi: Vec<f32> = emb_i_fj
-                                .iter()
-                                .map(|v| grad_output * v)
-                                .collect();
+                            let grad_j_fi: Vec<f32> =
+                                emb_i_fj.iter().map(|v| grad_output * v).collect();
 
                             // Accumulate gradients
                             gradients
@@ -549,7 +548,10 @@ fn save_checkpoint(
         "embeddings_count": embeddings.len(),
     });
 
-    std::fs::write(&checkpoint_path, serde_json::to_string_pretty(&checkpoint_data)?)?;
+    std::fs::write(
+        &checkpoint_path,
+        serde_json::to_string_pretty(&checkpoint_data)?,
+    )?;
 
     println!("Saved checkpoint to {:?}", checkpoint_path);
     Ok(())
@@ -598,7 +600,10 @@ fn main() {
         args.learning_rate,
         true, // use bias
     );
-    println!("Model initialized with {} fields and {}-dim embeddings", NUM_FIELDS, args.embedding_dim);
+    println!(
+        "Model initialized with {} fields and {}-dim embeddings",
+        NUM_FIELDS, args.embedding_dim
+    );
     println!();
 
     // Training loop

@@ -36,23 +36,42 @@ use std::io::Cursor;
 use std::path::PathBuf;
 
 use monolith_data::{
-    // Core dataset types
-    Dataset, VecDataset,
     // Example utilities
-    add_feature, create_example, get_feature, has_feature, feature_names, total_fid_count,
-    // TFRecord support
-    TFRecordReader, TFRecordWriter,
-    // Compression
-    CompressionType, compress, decompress,
-    // Instance format
-    Instance, InstanceBatch, InstanceParser, extract_slot, extract_feature, make_fid,
-    // Transforms
-    TransformChain, FilterTransform, MapTransform,
-    // Negative sampling
-    NegativeSampler, UniformNegativeSampler, FrequencyNegativeSampler,
-    NegativeSamplingConfig, SamplingStrategy,
+    add_feature,
+    compress,
+    create_example,
+    decompress,
+    extract_feature,
+    extract_slot,
+    feature_names,
+    get_feature,
+    has_feature,
+    make_fid,
+    total_fid_count,
     // Batch utilities
     Batch,
+    // Compression
+    CompressionType,
+    // Core dataset types
+    Dataset,
+    FilterTransform,
+    FrequencyNegativeSampler,
+    // Instance format
+    Instance,
+    InstanceBatch,
+    InstanceParser,
+    MapTransform,
+    // Negative sampling
+    NegativeSampler,
+    NegativeSamplingConfig,
+    SamplingStrategy,
+    // TFRecord support
+    TFRecordReader,
+    TFRecordWriter,
+    // Transforms
+    TransformChain,
+    UniformNegativeSampler,
+    VecDataset,
 };
 // Example proto type from monolith-proto
 use monolith_proto::Example;
@@ -130,7 +149,9 @@ fn print_usage() {
     println!("Usage: data_pipeline [OPTIONS]");
     println!();
     println!("Options:");
-    println!("  -i, --input-file <FILE>   Input TFRecord file (generates synthetic if not provided)");
+    println!(
+        "  -i, --input-file <FILE>   Input TFRecord file (generates synthetic if not provided)"
+    );
     println!("  -b, --batch-size <SIZE>   Batch size for processing (default: 16)");
     println!("  -n, --num-batches <NUM>   Number of batches to process, 0 for all (default: 5)");
     println!("  -q, --quiet               Suppress verbose output");
@@ -220,12 +241,18 @@ fn demo_tfrecord_io(config: &Config) {
             let embedding: Vec<f32> = (0..4).map(|j| (i + j) as f32 * 0.1).collect();
             add_feature(&mut example, "embedding", vec![], embedding);
 
-            writer.write_example(&example).expect("Failed to write example");
+            writer
+                .write_example(&example)
+                .expect("Failed to write example");
         }
         writer.flush().expect("Failed to flush writer");
     }
 
-    println!("  Written {} examples ({} bytes)", num_examples, buffer.len());
+    println!(
+        "  Written {} examples ({} bytes)",
+        num_examples,
+        buffer.len()
+    );
 
     // Read examples back
     println!("\nReading TFRecord data from buffer...");
@@ -257,7 +284,10 @@ fn demo_tfrecord_io(config: &Config) {
     }
 
     // Demonstrate iteration and batching
-    println!("\nIterating with batching (batch_size={}):", config.batch_size);
+    println!(
+        "\nIterating with batching (batch_size={}):",
+        config.batch_size
+    );
     let examples: Vec<_> = {
         let mut reader = TFRecordReader::new(Cursor::new(&buffer), true);
         let mut examples = Vec::new();
@@ -352,17 +382,23 @@ fn demo_transforms(config: &Config) {
     println!("\n2.5 Transform Chain (filter + map):");
 
     let chain = TransformChain::new()
-        .add(FilterTransform::new(|ex| {
-            // Keep examples with even user IDs
-            get_feature(ex, "user_id")
-                .and_then(|f| f.fid.first().copied())
-                .map(|fid| extract_feature(fid) % 2 == 0)
-                .unwrap_or(false)
-        }).with_name("EvenUserFilter"))
-        .add(MapTransform::new(|mut ex| {
-            add_feature(&mut ex, "processed", vec![1], vec![1.0]);
-            ex
-        }).with_name("AddProcessedFlag"));
+        .add(
+            FilterTransform::new(|ex| {
+                // Keep examples with even user IDs
+                get_feature(ex, "user_id")
+                    .and_then(|f| f.fid.first().copied())
+                    .map(|fid| extract_feature(fid) % 2 == 0)
+                    .unwrap_or(false)
+            })
+            .with_name("EvenUserFilter"),
+        )
+        .add(
+            MapTransform::new(|mut ex| {
+                add_feature(&mut ex, "processed", vec![1], vec![1.0]);
+                ex
+            })
+            .with_name("AddProcessedFlag"),
+        );
 
     println!("  Chain length: {} transforms", chain.len());
 
@@ -393,9 +429,10 @@ fn demo_instance_format(_config: &Config) {
     // Add sparse features
     instance.add_sparse_feature("user_id", vec![make_fid(1, 12345)], vec![1.0]);
     instance.add_sparse_feature("item_id", vec![make_fid(2, 67890)], vec![1.0]);
-    instance.add_sparse_feature("tags",
+    instance.add_sparse_feature(
+        "tags",
         vec![make_fid(3, 100), make_fid(3, 101), make_fid(3, 102)],
-        vec![0.8, 0.5, 0.3]
+        vec![0.8, 0.5, 0.3],
     );
 
     // Add dense features
@@ -433,8 +470,14 @@ fn demo_instance_format(_config: &Config) {
     match parser.parse_from_json(json) {
         Ok(parsed_instance) => {
             println!("  Parsed successfully!");
-            println!("  Sparse features: {:?}", parsed_instance.sparse_feature_names());
-            println!("  Dense features: {:?}", parsed_instance.dense_feature_names());
+            println!(
+                "  Sparse features: {:?}",
+                parsed_instance.sparse_feature_names()
+            );
+            println!(
+                "  Dense features: {:?}",
+                parsed_instance.dense_feature_names()
+            );
             println!("  Label: {:?}", parsed_instance.label());
         }
         Err(e) => {
@@ -493,7 +536,10 @@ fn demo_instance_format(_config: &Config) {
     println!("  Batch size: {}", batch.len());
 
     let batch_tensors = batch.to_tensor_dict();
-    println!("  Batch tensor keys: {:?}", batch_tensors.keys().collect::<Vec<_>>());
+    println!(
+        "  Batch tensor keys: {:?}",
+        batch_tensors.keys().collect::<Vec<_>>()
+    );
 
     if let Some(batch_labels) = batch_tensors.get("label") {
         if let Some(labels) = batch_labels.as_float() {
@@ -505,7 +551,10 @@ fn demo_instance_format(_config: &Config) {
     println!("\n3.6 Convert Instance to Example proto:");
 
     let example = instance.to_example();
-    println!("  Named features in Example: {}", example.named_feature.len());
+    println!(
+        "  Named features in Example: {}",
+        example.named_feature.len()
+    );
     println!("  Feature names: {:?}", feature_names(&example));
 }
 
@@ -541,8 +590,12 @@ fn demo_negative_sampling(_config: &Config) {
     for (i, neg) in negatives.iter().enumerate() {
         if let Some(item) = get_feature(neg, "item_id") {
             if let Some(label) = get_feature(neg, "label") {
-                println!("    Negative {}: item_id={:?}, label={:?}",
-                    i, item.fid.first(), label.value.first());
+                println!(
+                    "    Negative {}: item_id={:?}, label={:?}",
+                    i,
+                    item.fid.first(),
+                    label.value.first()
+                );
             }
         }
     }
@@ -563,7 +616,10 @@ fn demo_negative_sampling(_config: &Config) {
         .with_seed(123);
 
     let freq_negatives = freq_sampler.sample(&positive, 5);
-    println!("  Generated {} frequency-based negatives", freq_negatives.len());
+    println!(
+        "  Generated {} frequency-based negatives",
+        freq_negatives.len()
+    );
 
     // Count samples from head vs tail items
     let mut head_count = 0;
@@ -579,7 +635,10 @@ fn demo_negative_sampling(_config: &Config) {
             }
         }
     }
-    println!("  Head items (high freq): {}, Tail items: {}", head_count, tail_count);
+    println!(
+        "  Head items (high freq): {}, Tail items: {}",
+        head_count, tail_count
+    );
 
     // 4.3: Negative Sampling Configuration
     println!("\n4.3 Negative Sampling Configuration:");
@@ -602,16 +661,14 @@ fn demo_negative_sampling(_config: &Config) {
     let examples = create_synthetic_examples(10);
     let dataset = VecDataset::new(examples);
 
-    let sampler = Box::new(
-        UniformNegativeSampler::new(item_pool, true)
-            .with_seed(42)
-    );
+    let sampler = Box::new(UniformNegativeSampler::new(item_pool, true).with_seed(42));
 
     let neg_dataset = monolith_data::NegativeSamplingDataset::new(dataset, 3, sampler);
     let all_examples: Vec<_> = neg_dataset.iter().collect();
 
     // Count positives and negatives
-    let positive_count = all_examples.iter()
+    let positive_count = all_examples
+        .iter()
         .filter(|ex| {
             get_feature(ex, "label")
                 .map(|f| f.value.first().copied().unwrap_or(0.0) == 1.0)
@@ -665,8 +722,12 @@ fn demo_compression() {
         match compress(&original_data, compression_type) {
             Ok(compressed) => {
                 let ratio = compressed.len() as f64 / original_data.len() as f64;
-                print!("  {:?}: {} bytes (ratio: {:.2})",
-                    compression_type, compressed.len(), ratio);
+                print!(
+                    "  {:?}: {} bytes (ratio: {:.2})",
+                    compression_type,
+                    compressed.len(),
+                    ratio
+                );
 
                 // Verify round-trip
                 match decompress(&compressed, compression_type) {
@@ -697,13 +758,16 @@ fn demo_compression() {
             writer.write_example(example).expect("Failed to write");
         }
     }
-    println!("  Uncompressed TFRecord: {} bytes", uncompressed_buffer.len());
+    println!(
+        "  Uncompressed TFRecord: {} bytes",
+        uncompressed_buffer.len()
+    );
 
     // Write with gzip compression (if available)
     let mut compressed_buffer = Vec::new();
     {
-        let mut writer = TFRecordWriter::new(&mut compressed_buffer)
-            .with_compression(CompressionType::Gzip);
+        let mut writer =
+            TFRecordWriter::new(&mut compressed_buffer).with_compression(CompressionType::Gzip);
 
         for example in &examples {
             match writer.write_example(example) {
@@ -718,8 +782,11 @@ fn demo_compression() {
 
     if !compressed_buffer.is_empty() {
         let ratio = compressed_buffer.len() as f64 / uncompressed_buffer.len() as f64;
-        println!("  Gzip compressed TFRecord: {} bytes (ratio: {:.2})",
-            compressed_buffer.len(), ratio);
+        println!(
+            "  Gzip compressed TFRecord: {} bytes (ratio: {:.2})",
+            compressed_buffer.len(),
+            ratio
+        );
 
         // Verify we can read it back
         let mut reader = TFRecordReader::new(Cursor::new(&compressed_buffer), true)
@@ -759,7 +826,10 @@ fn demo_fid_utilities() {
 
     for (slot, feature, description) in test_cases {
         let fid = make_fid(slot, feature);
-        println!("  {}: make_fid({}, {}) = {}", description, slot, feature, fid);
+        println!(
+            "  {}: make_fid({}, {}) = {}",
+            description, slot, feature, fid
+        );
     }
 
     // 6.3: Extract slot and feature
@@ -773,9 +843,14 @@ fn demo_fid_utilities() {
         let slot_match = extracted_slot == slot;
         let feature_match = extracted_feature == feature;
 
-        println!("  FID {}: slot={} ({}), feature={} ({})",
-            fid, extracted_slot, if slot_match { "OK" } else { "MISMATCH" },
-            extracted_feature, if feature_match { "OK" } else { "MISMATCH" });
+        println!(
+            "  FID {}: slot={} ({}), feature={} ({})",
+            fid,
+            extracted_slot,
+            if slot_match { "OK" } else { "MISMATCH" },
+            extracted_feature,
+            if feature_match { "OK" } else { "MISMATCH" }
+        );
     }
 
     // 6.4: Slot-based feature grouping
@@ -785,21 +860,31 @@ fn demo_fid_utilities() {
     let mut example = create_example();
 
     // Slot 1: User features
-    add_feature(&mut example, "user_id",
-        vec![make_fid(1, 100), make_fid(1, 101)], vec![1.0, 1.0]);
+    add_feature(
+        &mut example,
+        "user_id",
+        vec![make_fid(1, 100), make_fid(1, 101)],
+        vec![1.0, 1.0],
+    );
 
     // Slot 2: Item features
-    add_feature(&mut example, "item_id",
-        vec![make_fid(2, 200)], vec![1.0]);
+    add_feature(&mut example, "item_id", vec![make_fid(2, 200)], vec![1.0]);
 
     // Slot 3: Context features
-    add_feature(&mut example, "context",
+    add_feature(
+        &mut example,
+        "context",
         vec![make_fid(3, 300), make_fid(3, 301), make_fid(3, 302)],
-        vec![0.8, 0.5, 0.3]);
+        vec![0.8, 0.5, 0.3],
+    );
 
     // Slot 4: Category features
-    add_feature(&mut example, "categories",
-        vec![make_fid(4, 400), make_fid(4, 401)], vec![1.0, 1.0]);
+    add_feature(
+        &mut example,
+        "categories",
+        vec![make_fid(4, 400), make_fid(4, 401)],
+        vec![1.0, 1.0],
+    );
 
     // Group FIDs by slot
     let mut slot_groups: HashMap<i32, Vec<i64>> = HashMap::new();
@@ -819,26 +904,39 @@ fn demo_fid_utilities() {
     for slot in slots {
         let fids = &slot_groups[&slot];
         let features: Vec<_> = fids.iter().map(|&f| extract_feature(f)).collect();
-        println!("    Slot {}: {} FIDs, features: {:?}", slot, fids.len(), features);
+        println!(
+            "    Slot {}: {} FIDs, features: {:?}",
+            slot,
+            fids.len(),
+            features
+        );
     }
 
     // 6.5: FID statistics
     println!("\n6.5 FID statistics:");
 
-    let all_fids: Vec<i64> = example.named_feature.iter()
+    let all_fids: Vec<i64> = example
+        .named_feature
+        .iter()
         .filter_map(|nf| nf.feature.as_ref())
         .flat_map(|f| f.fid.iter().copied())
         .collect();
 
     println!("  Total FIDs in example: {}", all_fids.len());
-    println!("  Unique slots: {:?}", slot_groups.keys().collect::<Vec<_>>());
+    println!(
+        "  Unique slots: {:?}",
+        slot_groups.keys().collect::<Vec<_>>()
+    );
 
     // Min/max feature hash per slot
     for (slot, fids) in &slot_groups {
         let features: Vec<_> = fids.iter().map(|&f| extract_feature(f)).collect();
         let min_feature = features.iter().min().unwrap();
         let max_feature = features.iter().max().unwrap();
-        println!("    Slot {}: feature range [{}, {}]", slot, min_feature, max_feature);
+        println!(
+            "    Slot {}: feature range [{}, {}]",
+            slot, min_feature, max_feature
+        );
     }
 }
 
@@ -888,21 +986,30 @@ fn demo_pipeline_composition(config: &Config) {
 
     // Create a reusable transform chain
     let preprocessing_chain = TransformChain::new()
-        .add(FilterTransform::new(|ex| {
-            // Remove examples with no user_id
-            has_feature(ex, "user_id")
-        }).with_name("RequireUserId"))
-        .add(FilterTransform::new(|ex| {
-            // Remove examples with no item_id
-            has_feature(ex, "item_id")
-        }).with_name("RequireItemId"))
-        .add(MapTransform::new(|mut ex| {
-            // Normalize: ensure label exists
-            if !has_feature(&ex, "label") {
-                add_feature(&mut ex, "label", vec![0], vec![0.0]);
-            }
-            ex
-        }).with_name("EnsureLabel"));
+        .add(
+            FilterTransform::new(|ex| {
+                // Remove examples with no user_id
+                has_feature(ex, "user_id")
+            })
+            .with_name("RequireUserId"),
+        )
+        .add(
+            FilterTransform::new(|ex| {
+                // Remove examples with no item_id
+                has_feature(ex, "item_id")
+            })
+            .with_name("RequireItemId"),
+        )
+        .add(
+            MapTransform::new(|mut ex| {
+                // Normalize: ensure label exists
+                if !has_feature(&ex, "label") {
+                    add_feature(&mut ex, "label", vec![0], vec![0.0]);
+                }
+                ex
+            })
+            .with_name("EnsureLabel"),
+        );
 
     println!("  Transform chain has {} steps", preprocessing_chain.len());
 
@@ -927,7 +1034,11 @@ fn demo_pipeline_composition(config: &Config) {
         .batch(config.batch_size);
 
     let batches: Vec<Batch> = dataset.iter().collect();
-    println!("  Produced {} batches of size {}", batches.len(), config.batch_size);
+    println!(
+        "  Produced {} batches of size {}",
+        batches.len(),
+        config.batch_size
+    );
 
     // 7.4: Skip and Take patterns
     println!("\n7.4 Skip and Take patterns:");
@@ -943,8 +1054,13 @@ fn demo_pipeline_composition(config: &Config) {
         .iter()
         .collect::<Vec<_>>();
 
-    println!("  Page {} (skip {}, take {}): {} examples",
-        page_number, skip_count, page_size, page.len());
+    println!(
+        "  Page {} (skip {}, take {}): {} examples",
+        page_number,
+        skip_count,
+        page_size,
+        page.len()
+    );
 
     // 7.5: Collect statistics during iteration
     println!("\n7.5 Collect statistics during iteration:");
@@ -970,11 +1086,15 @@ fn demo_pipeline_composition(config: &Config) {
     println!("  Statistics:");
     println!("    Positive examples: {}", positive_count);
     println!("    Negative examples: {}", negative_count);
-    println!("    Positive ratio: {:.2}%",
-        100.0 * positive_count as f64 / (positive_count + negative_count) as f64);
+    println!(
+        "    Positive ratio: {:.2}%",
+        100.0 * positive_count as f64 / (positive_count + negative_count) as f64
+    );
     println!("    Total FIDs: {}", total_fids);
-    println!("    Avg FIDs per example: {:.1}",
-        total_fids as f64 / examples.len() as f64);
+    println!(
+        "    Avg FIDs per example: {:.1}",
+        total_fids as f64 / examples.len() as f64
+    );
 }
 
 // =============================================================================
@@ -986,7 +1106,14 @@ fn demo_full_pipeline(config: &Config) {
 
     println!("Building end-to-end training data pipeline...");
     println!("  Batch size: {}", config.batch_size);
-    println!("  Num batches: {}", if config.num_batches == 0 { "all".to_string() } else { config.num_batches.to_string() });
+    println!(
+        "  Num batches: {}",
+        if config.num_batches == 0 {
+            "all".to_string()
+        } else {
+            config.num_batches.to_string()
+        }
+    );
 
     // Step 1: Create or load data
     println!("\nStep 1: Create synthetic training data");
@@ -997,39 +1124,43 @@ fn demo_full_pipeline(config: &Config) {
     println!("\nStep 2: Define preprocessing transforms");
     let preprocessing = TransformChain::new()
         // Validate required features
-        .add(FilterTransform::new(|ex| {
-            has_feature(ex, "user_id") && has_feature(ex, "item_id")
-        }).with_name("ValidateFeatures"))
+        .add(
+            FilterTransform::new(|ex| has_feature(ex, "user_id") && has_feature(ex, "item_id"))
+                .with_name("ValidateFeatures"),
+        )
         // Add derived features
-        .add(MapTransform::new(|mut ex| {
-            // Add cross feature (user_id x item_id)
-            let user_fid = get_feature(&ex, "user_id")
-                .and_then(|f| f.fid.first().copied())
-                .unwrap_or(0);
-            let item_fid = get_feature(&ex, "item_id")
-                .and_then(|f| f.fid.first().copied())
-                .unwrap_or(0);
+        .add(
+            MapTransform::new(|mut ex| {
+                // Add cross feature (user_id x item_id)
+                let user_fid = get_feature(&ex, "user_id")
+                    .and_then(|f| f.fid.first().copied())
+                    .unwrap_or(0);
+                let item_fid = get_feature(&ex, "item_id")
+                    .and_then(|f| f.fid.first().copied())
+                    .unwrap_or(0);
 
-            // Simple cross: combine slot 1 and slot 2 features into slot 5
-            let cross_fid = make_fid(5, (user_fid ^ item_fid) & 0xFFFFFF);
-            add_feature(&mut ex, "user_item_cross", vec![cross_fid], vec![1.0]);
-            ex
-        }).with_name("AddCrossFeature"))
+                // Simple cross: combine slot 1 and slot 2 features into slot 5
+                let cross_fid = make_fid(5, (user_fid ^ item_fid) & 0xFFFFFF);
+                add_feature(&mut ex, "user_item_cross", vec![cross_fid], vec![1.0]);
+                ex
+            })
+            .with_name("AddCrossFeature"),
+        )
         // Add timestamp
-        .add(MapTransform::new(|mut ex| {
-            add_feature(&mut ex, "process_time", vec![1700000000], vec![1.0]);
-            ex
-        }).with_name("AddTimestamp"));
+        .add(
+            MapTransform::new(|mut ex| {
+                add_feature(&mut ex, "process_time", vec![1700000000], vec![1.0]);
+                ex
+            })
+            .with_name("AddTimestamp"),
+        );
 
     println!("  Preprocessing chain: {} transforms", preprocessing.len());
 
     // Step 3: Create negative sampling configuration
     println!("\nStep 3: Configure negative sampling");
     let item_pool: Vec<i64> = (10000..10500).collect();
-    let neg_sampler = Box::new(
-        UniformNegativeSampler::new(item_pool, true)
-            .with_seed(42)
-    );
+    let neg_sampler = Box::new(UniformNegativeSampler::new(item_pool, true).with_seed(42));
     println!("  Item pool size: 500");
     println!("  Negatives per positive: 3");
 
@@ -1044,10 +1175,7 @@ fn demo_full_pipeline(config: &Config) {
         .collect();
 
     // Then shuffle the transformed data
-    let preprocessed: Vec<_> = VecDataset::new(transformed)
-        .shuffle(50)
-        .iter()
-        .collect();
+    let preprocessed: Vec<_> = VecDataset::new(transformed).shuffle(50).iter().collect();
 
     println!("  After preprocessing: {} examples", preprocessed.len());
 
@@ -1055,17 +1183,19 @@ fn demo_full_pipeline(config: &Config) {
     let neg_dataset = monolith_data::NegativeSamplingDataset::new(
         VecDataset::new(preprocessed),
         3, // 3 negatives per positive
-        neg_sampler
+        neg_sampler,
     );
 
     let with_negatives: Vec<_> = neg_dataset.iter().collect();
-    println!("  After negative sampling: {} examples", with_negatives.len());
+    println!(
+        "  After negative sampling: {} examples",
+        with_negatives.len()
+    );
 
     // Step 5: Batch and process
     println!("\nStep 5: Batch and process");
 
-    let batched = VecDataset::new(with_negatives)
-        .batch(config.batch_size);
+    let batched = VecDataset::new(with_negatives).batch(config.batch_size);
 
     let mut batch_num = 0;
     let mut total_examples = 0;
@@ -1103,8 +1233,10 @@ fn demo_full_pipeline(config: &Config) {
     println!("  Total examples: {}", total_examples);
     println!("  Positives: {}", total_positives);
     println!("  Negatives: {}", total_negatives);
-    println!("  Positive ratio: {:.2}%",
-        100.0 * total_positives as f64 / total_examples.max(1) as f64);
+    println!(
+        "  Positive ratio: {:.2}%",
+        100.0 * total_positives as f64 / total_examples.max(1) as f64
+    );
 
     // Step 6: Convert final batch to Instance format
     println!("\nStep 6: Convert batch to Instance format");
@@ -1122,10 +1254,16 @@ fn demo_full_pipeline(config: &Config) {
         instance_batch.push(instance);
     }
 
-    println!("  Converted {} examples to InstanceBatch", instance_batch.len());
+    println!(
+        "  Converted {} examples to InstanceBatch",
+        instance_batch.len()
+    );
 
     let batch_tensors = instance_batch.to_tensor_dict();
-    println!("  Tensor dict keys: {:?}", batch_tensors.keys().collect::<Vec<_>>());
+    println!(
+        "  Tensor dict keys: {:?}",
+        batch_tensors.keys().collect::<Vec<_>>()
+    );
 }
 
 // =============================================================================

@@ -70,18 +70,17 @@ impl TrainCommand {
 
         // Ensure model directory exists
         if !self.model_dir.exists() {
-            std::fs::create_dir_all(&self.model_dir)
-                .context("Failed to create model directory")?;
+            std::fs::create_dir_all(&self.model_dir).context("Failed to create model directory")?;
             info!("Created model directory: {:?}", self.model_dir);
         }
 
         // Load configuration if provided
         let _config = if let Some(config_path) = &self.config_path {
             info!("Loading config from: {:?}", config_path);
-            let config_str = std::fs::read_to_string(config_path)
-                .context("Failed to read config file")?;
-            let config: serde_json::Value = serde_json::from_str(&config_str)
-                .context("Failed to parse config JSON")?;
+            let config_str =
+                std::fs::read_to_string(config_path).context("Failed to read config file")?;
+            let config: serde_json::Value =
+                serde_json::from_str(&config_str).context("Failed to parse config JSON")?;
             Some(config)
         } else {
             warn!("No config file provided, using default configuration");

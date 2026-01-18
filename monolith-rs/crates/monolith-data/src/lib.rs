@@ -96,6 +96,7 @@ pub mod transform;
 
 // Re-export main types for convenience
 pub use batch::{Batch, BatchedDataset};
+pub use compression::{compress, decompress, CompressionError, CompressionType};
 pub use dataset::{
     Dataset, FilteredDataset, MappedDataset, RepeatDataset, ShuffledDataset, SkipDataset,
     TakeDataset, VecDataset,
@@ -105,27 +106,26 @@ pub use example::{
     feature_names, get_feature, get_feature_mut, has_feature, merge_examples, remove_feature,
     total_fid_count,
 };
-pub use compression::{compress, decompress, CompressionError, CompressionType};
 pub use instance::{
     extract_feature, extract_slot, make_fid, DenseFeature, Instance, InstanceBatch, InstanceError,
     InstanceParser, LineIdInfo, SparseFeature, Tensor,
-};
-pub use tfrecord::{TFRecordDataset, TFRecordError, TFRecordReader, TFRecordWriter};
-pub use transform::{
-    FilterMapTransform, FilterTransform, MapTransform, Transform, TransformChain,
-    TransformedDataset,
-};
-pub use negative_sampling::{
-    FrequencyNegativeSampler, InBatchNegativeSampler, NegativeSampler, NegativeSamplingConfig,
-    NegativeSamplingDataset, SamplingStrategy, UniformNegativeSampler,
 };
 pub use kafka::{
     KafkaConfig, KafkaConsumer, KafkaDataSource, KafkaError, KafkaMessage, MockKafkaConsumer,
     OffsetReset,
 };
+pub use negative_sampling::{
+    FrequencyNegativeSampler, InBatchNegativeSampler, NegativeSampler, NegativeSamplingConfig,
+    NegativeSamplingDataset, SamplingStrategy, UniformNegativeSampler,
+};
 #[cfg(feature = "parquet")]
 pub use parquet::{
     ParquetConfig, ParquetDataSource, ParquetError, ParquetIterator, ParquetSchema, Predicate,
+};
+pub use tfrecord::{TFRecordDataset, TFRecordError, TFRecordReader, TFRecordWriter};
+pub use transform::{
+    FilterMapTransform, FilterTransform, MapTransform, Transform, TransformChain,
+    TransformedDataset,
 };
 
 /// Prelude module for convenient imports.
@@ -187,7 +187,8 @@ mod tests {
         let results: Vec<_> = dataset
             .filter(|ex| {
                 get_feature(ex, "id")
-                    .map(|f| f.fid.first().copied().unwrap_or(0) % 2 == 0)
+                    .map(|f| crate::example::extract_feature_data(f))
+                    .map(|d| d.fid.first().copied().unwrap_or(0) % 2 == 0)
                     .unwrap_or(false)
             })
             .map(|mut ex| {

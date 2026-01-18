@@ -270,7 +270,9 @@ mod tests {
 
     #[test]
     fn test_momentum_config_mismatch() {
-        let config = OptimizerConfig::Sgd { learning_rate: 0.01 };
+        let config = OptimizerConfig::Sgd {
+            learning_rate: 0.01,
+        };
         let result = Momentum::new(config);
         assert!(result.is_err());
     }

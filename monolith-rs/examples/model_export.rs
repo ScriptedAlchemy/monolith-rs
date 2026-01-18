@@ -294,10 +294,7 @@ impl MovieRankingModel {
         dense_weights.insert("fc1.bias".to_string(), vec![0.0; hidden_dim]);
 
         // Layer 2: hidden -> output
-        dense_weights.insert(
-            "fc2.weight".to_string(),
-            vec![0.1; hidden_dim * output_dim],
-        );
+        dense_weights.insert("fc2.weight".to_string(), vec![0.1; hidden_dim * output_dim]);
         dense_weights.insert("fc2.bias".to_string(), vec![0.0; output_dim]);
 
         Self {
@@ -386,7 +383,8 @@ impl MovieRankingModel {
         }
 
         // Add optimizer state
-        let optimizer = OptimizerState::new("adam", "all_params", self.learning_rate, self.global_step);
+        let optimizer =
+            OptimizerState::new("adam", "all_params", self.learning_rate, self.global_step);
         state.add_optimizer(optimizer);
 
         // Add metadata
@@ -411,7 +409,9 @@ impl MovieRankingModel {
             }
         }
         if !user_updates.is_empty() {
-            delta.updated_embeddings.insert("user_embeddings".to_string(), user_updates);
+            delta
+                .updated_embeddings
+                .insert("user_embeddings".to_string(), user_updates);
         }
 
         let mut movie_updates = HashMap::new();
@@ -422,12 +422,16 @@ impl MovieRankingModel {
             }
         }
         if !movie_updates.is_empty() {
-            delta.updated_embeddings.insert("movie_embeddings".to_string(), movie_updates);
+            delta
+                .updated_embeddings
+                .insert("movie_embeddings".to_string(), movie_updates);
         }
 
         // Add updated dense parameters
         for (name, weights) in &self.dense_weights {
-            delta.updated_dense_params.insert(name.clone(), weights.clone());
+            delta
+                .updated_dense_params
+                .insert(name.clone(), weights.clone());
         }
 
         delta
@@ -500,7 +504,10 @@ impl MultiFormatExporter {
     /// Export in distributed mode (sharded files).
     fn export_distributed(&self, state: &ModelState) -> anyhow::Result<PathBuf> {
         let num_shards = self.config.num_shards.max(1);
-        println!("  Creating {} shards for distributed serving...", num_shards);
+        println!(
+            "  Creating {} shards for distributed serving...",
+            num_shards
+        );
 
         // Create shards directory
         let shards_dir = self.config.export_path.join("shards");
@@ -559,7 +566,10 @@ impl MultiFormatExporter {
         // Write manifest
         self.write_distributed_manifest(state, num_shards)?;
 
-        println!("  Distributed export saved to: {:?}", self.config.export_path);
+        println!(
+            "  Distributed export saved to: {:?}",
+            self.config.export_path
+        );
         Ok(self.config.export_path.clone())
     }
 
@@ -601,7 +611,10 @@ impl MultiFormatExporter {
             metadata: {
                 let mut meta = HashMap::new();
                 meta.insert("mode".to_string(), self.config.mode.to_string());
-                meta.insert("compression".to_string(), format!("{:?}", self.config.compression));
+                meta.insert(
+                    "compression".to_string(),
+                    format!("{:?}", self.config.compression),
+                );
                 meta
             },
         };
@@ -634,7 +647,10 @@ impl MultiFormatExporter {
                 let mut meta = HashMap::new();
                 meta.insert("mode".to_string(), "distributed".to_string());
                 meta.insert("num_shards".to_string(), num_shards.to_string());
-                meta.insert("compression".to_string(), format!("{:?}", self.config.compression));
+                meta.insert(
+                    "compression".to_string(),
+                    format!("{:?}", self.config.compression),
+                );
                 for (idx, table) in state.hash_tables.iter().enumerate() {
                     meta.insert(
                         format!("table_{}_entries", idx),
@@ -710,7 +726,9 @@ fn verify_export(config: &ModelExportConfig, original_state: &ModelState) -> any
     // Load checkpoint based on mode
     match config.mode {
         ExportMode::Standalone => {
-            let model_path = config.export_path.join(format!("model.{}", config.file_extension()));
+            let model_path = config
+                .export_path
+                .join(format!("model.{}", config.file_extension()));
             let loaded = load_checkpoint(&model_path, config)?;
 
             // Verify state matches
@@ -732,8 +750,14 @@ fn verify_export(config: &ModelExportConfig, original_state: &ModelState) -> any
             // Verify embedding data
             for (idx, original_table) in original_state.hash_tables.iter().enumerate() {
                 let loaded_table = &loaded.state.hash_tables[idx];
-                assert_eq!(loaded_table.name, original_table.name, "Table name mismatch");
-                assert_eq!(loaded_table.dim, original_table.dim, "Table dimension mismatch");
+                assert_eq!(
+                    loaded_table.name, original_table.name,
+                    "Table name mismatch"
+                );
+                assert_eq!(
+                    loaded_table.dim, original_table.dim,
+                    "Table dimension mismatch"
+                );
                 assert_eq!(
                     loaded_table.entries.len(),
                     original_table.entries.len(),
@@ -814,7 +838,8 @@ fn load_checkpoint(path: &PathBuf, config: &ModelExportConfig) -> anyhow::Result
 
     let checkpoint = match config.format {
         SerializationFormat::Bincode => {
-            let reader = CheckpointReader::new(BincodeSerializer::new()).with_compression(compression);
+            let reader =
+                CheckpointReader::new(BincodeSerializer::new()).with_compression(compression);
             reader.read_from_file(path)?
         }
         SerializationFormat::Json => {
@@ -882,19 +907,32 @@ fn main() -> anyhow::Result<()> {
             temp_model.to_model_state()
         };
         let info = manager.save(&state_50)?;
-        println!("\nCheckpoint saved: {:?} (step {})", info.path, info.global_step);
+        println!(
+            "\nCheckpoint saved: {:?} (step {})",
+            info.path, info.global_step
+        );
 
         // Save final checkpoint
         let final_state = model.to_model_state();
         let info = manager.save(&final_state)?;
-        println!("Checkpoint saved: {:?} (step {})", info.path, info.global_step);
+        println!(
+            "Checkpoint saved: {:?} (step {})",
+            info.path, info.global_step
+        );
 
         // Demonstrate incremental delta
-        println!("\nCreating incremental delta (step 50 -> {})...", model.global_step);
+        println!(
+            "\nCreating incremental delta (step 50 -> {})...",
+            model.global_step
+        );
         let delta = model.create_delta(50);
         println!(
             "  Delta contains {} embedding updates",
-            delta.updated_embeddings.values().map(|m| m.len()).sum::<usize>()
+            delta
+                .updated_embeddings
+                .values()
+                .map(|m| m.len())
+                .sum::<usize>()
         );
 
         final_state
@@ -903,7 +941,10 @@ fn main() -> anyhow::Result<()> {
         let checkpoint_config = CheckpointConfig::new(&args.checkpoint_dir);
         let manager = CheckpointManager::new(checkpoint_config, JsonCheckpointer::new());
 
-        println!("Loading latest checkpoint from {:?}...", args.checkpoint_dir);
+        println!(
+            "Loading latest checkpoint from {:?}...",
+            args.checkpoint_dir
+        );
         manager.restore_latest()?
     };
 
@@ -915,13 +956,14 @@ fn main() -> anyhow::Result<()> {
     );
 
     // Create export configuration
-    let export_config = ModelExportConfig::new(args.checkpoint_dir.clone(), args.export_dir.clone())
-        .with_format(args.format)
-        .with_mode(args.mode)
-        .with_compression(args.compression)
-        .with_num_shards(args.num_shards)
-        .with_version(&args.model_version)
-        .with_optimizer(args.include_optimizer);
+    let export_config =
+        ModelExportConfig::new(args.checkpoint_dir.clone(), args.export_dir.clone())
+            .with_format(args.format)
+            .with_mode(args.mode)
+            .with_compression(args.compression)
+            .with_num_shards(args.num_shards)
+            .with_version(&args.model_version)
+            .with_optimizer(args.include_optimizer);
 
     // Export the model
     let exporter = MultiFormatExporter::new(export_config.clone());
@@ -965,7 +1007,10 @@ fn main() -> anyhow::Result<()> {
 
     // Load and verify SavedModel manifest
     let manifest = ModelExporter::load_manifest(&saved_model_dir)?;
-    println!("  Verified manifest: version={}, step={}", manifest.version, manifest.global_step);
+    println!(
+        "  Verified manifest: version={}, step={}",
+        manifest.version, manifest.global_step
+    );
 
     println!("\nAll exports completed successfully!");
 
@@ -997,15 +1042,13 @@ mod tests {
 
     #[test]
     fn test_export_config() {
-        let config = ModelExportConfig::new(
-            PathBuf::from("/tmp/ckpt"),
-            PathBuf::from("/tmp/export"),
-        )
-        .with_format(SerializationFormat::Json)
-        .with_mode(ExportMode::Distributed)
-        .with_compression(Compression::Gzip)
-        .with_num_shards(4)
-        .with_version("2.0.0");
+        let config =
+            ModelExportConfig::new(PathBuf::from("/tmp/ckpt"), PathBuf::from("/tmp/export"))
+                .with_format(SerializationFormat::Json)
+                .with_mode(ExportMode::Distributed)
+                .with_compression(Compression::Gzip)
+                .with_num_shards(4)
+                .with_version("2.0.0");
 
         assert_eq!(config.format, SerializationFormat::Json);
         assert_eq!(config.mode, ExportMode::Distributed);

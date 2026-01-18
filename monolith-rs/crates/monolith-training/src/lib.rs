@@ -54,22 +54,35 @@
 //! // let result = estimator.train().unwrap();
 //! ```
 
+pub mod barrier;
 pub mod discovery;
 pub mod distributed;
+pub mod distributed_ps;
 pub mod estimator;
 pub mod hooks;
 pub mod metrics;
+pub mod parameter_sync_replicator;
+pub mod py_discovery;
+pub mod runner;
 
 // Re-export main types for convenience
+pub use barrier::{
+    Barrier, BarrierError, BarrierResult, InMemoryBarrier, PsBarrier, SharedBarrier,
+};
 #[cfg(feature = "consul")]
 pub use discovery::{new_consul_discovery, ConsulDiscovery};
 pub use discovery::{
     new_in_memory_discovery, DiscoveryError, DiscoveryEvent, HealthStatus, InMemoryDiscovery,
-    Result as DiscoveryResult, ServiceDiscovery, ServiceInfo, SharedDiscovery,
+    Result as DiscoveryResult, ServiceDiscovery, ServiceDiscoveryAsync, ServiceInfo,
+    SharedDiscovery,
 };
 #[cfg(feature = "zookeeper")]
 pub use discovery::{new_zk_discovery, ZkDiscovery};
 pub use distributed::{ClusterConfig, DistributedError, ParameterServer, Worker};
+pub use distributed_ps::{
+    aggregate_gradients, dedup_ids, get_shard_for_id, route_to_shards, EmbeddingTable, PsClient,
+    PsError, PsResult, PsServer, PsServerHandle,
+};
 pub use estimator::{
     ConstantModelFn, Estimator, EstimatorConfig, EstimatorError, EstimatorMode, EstimatorResult,
     EvalResult, ModelFn, PredictResult, TrainResult,
@@ -79,6 +92,9 @@ pub use hooks::{
     LoggingHook,
 };
 pub use metrics::{Metrics, MetricsRecorder};
+pub use parameter_sync_replicator::{DirtyTracker, ParameterSyncReplicator};
+pub use py_discovery::{MlpServiceDiscovery, PyServiceDiscovery, TfConfigServiceDiscovery};
+pub use runner::{run_distributed, DistributedRunConfig, Role};
 
 /// Training configuration combining estimator and distributed settings.
 ///

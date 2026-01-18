@@ -104,11 +104,7 @@ impl NdArrayTensor {
             new_numel
         );
 
-        let data = self
-            .data
-            .clone()
-            .into_shape(IxDyn(new_shape))
-            .unwrap();
+        let data = self.data.clone().into_shape(IxDyn(new_shape)).unwrap();
         Self { data }
     }
 
@@ -535,7 +531,7 @@ mod tests {
         let b = NdArrayTensor::from_slice(&[4.0, 5.0, 6.0], &[3]);
         let c = a.matmul(&b);
 
-        assert_eq!(c.shape(), &[]);
+        assert_eq!(c.shape(), &[] as &[usize]);
         assert_eq!(c.to_vec(), vec![32.0]); // 1*4 + 2*5 + 3*6 = 32
     }
 

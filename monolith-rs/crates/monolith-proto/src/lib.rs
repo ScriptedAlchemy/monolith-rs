@@ -36,6 +36,14 @@ pub mod monolith {
         tonic::include_proto!("monolith.parameter_sync");
     }
 
+    pub mod parameter_sync_rpc {
+        tonic::include_proto!("monolith.parameter_sync_rpc");
+    }
+
+    pub mod ps_training {
+        tonic::include_proto!("monolith.ps_training");
+    }
+
     pub mod serving {
         pub mod agent_service {
             tonic::include_proto!("monolith.serving.agent_service");
@@ -79,9 +87,9 @@ pub mod tensorflow {
     }
 }
 
-pub mod primus {
-    tonic::include_proto!("primus");
-}
+// Primus orchestration protos (not required for current Rust parity work).
+// These import google/protobuf wrappers and would require additional module
+// wiring, so keep them disabled for now.
 
 // Convenience re-exports for commonly used message types.
 pub use idl::matrix::proto::LineId;
@@ -113,4 +121,3 @@ mod tests {
         assert_eq!(req.task, 0);
     }
 }
-

@@ -389,12 +389,10 @@ impl Initializer for TruncatedNormalInitializer {
         let upper = self.mean + 2.0 * self.stddev;
 
         (0..dim)
-            .map(|_| {
-                loop {
-                    let val = normal.sample(&mut rng) as f32;
-                    if val >= lower && val <= upper {
-                        return val;
-                    }
+            .map(|_| loop {
+                let val = normal.sample(&mut rng) as f32;
+                if val >= lower && val <= upper {
+                    return val;
                 }
             })
             .collect()

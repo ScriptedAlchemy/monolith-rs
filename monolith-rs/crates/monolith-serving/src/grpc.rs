@@ -369,9 +369,13 @@ impl GrpcServerConfigBuilder {
         GrpcServerConfig {
             bind_address: self.bind_address.unwrap_or(default.bind_address),
             max_connections: self.max_connections.unwrap_or(default.max_connections),
-            connection_timeout: self.connection_timeout.unwrap_or(default.connection_timeout),
+            connection_timeout: self
+                .connection_timeout
+                .unwrap_or(default.connection_timeout),
             request_timeout: self.request_timeout.unwrap_or(default.request_timeout),
-            keepalive_interval: self.keepalive_interval.unwrap_or(default.keepalive_interval),
+            keepalive_interval: self
+                .keepalive_interval
+                .unwrap_or(default.keepalive_interval),
             keepalive_timeout: self.keepalive_timeout.unwrap_or(default.keepalive_timeout),
             max_message_size: self.max_message_size.unwrap_or(default.max_message_size),
             tcp_nodelay: self.tcp_nodelay.unwrap_or(default.tcp_nodelay),
@@ -719,9 +723,10 @@ impl AgentServiceGrpcImpl {
         }
 
         // Check if param sync is available
-        let param_sync = self.param_sync.as_ref().ok_or_else(|| {
-            ServingError::sync("Parameter sync client not configured")
-        })?;
+        let param_sync = self
+            .param_sync
+            .as_ref()
+            .ok_or_else(|| ServingError::sync("Parameter sync client not configured"))?;
 
         // Perform sync
         let result = if request.full_sync {
@@ -1332,8 +1337,7 @@ mod tests {
         model_loader.load(&model_path).await.unwrap();
 
         let config = GrpcServerConfig::default();
-        let service =
-            AgentServiceGrpcImpl::new(config).with_model_loader(model_loader);
+        let service = AgentServiceGrpcImpl::new(config).with_model_loader(model_loader);
 
         let request = GetModulesRequest { name_prefix: None };
         let response = service.get_modules(request).await.unwrap();
@@ -1440,12 +1444,8 @@ mod tests {
         let embedding_service = Arc::new(EmbeddingService::new(model_loader.clone(), None));
 
         let config = GrpcServerConfig::default();
-        let server = ServingServer::with_services(
-            config,
-            Some(embedding_service),
-            Some(model_loader),
-            None,
-        );
+        let server =
+            ServingServer::with_services(config, Some(embedding_service), Some(model_loader), None);
 
         assert_eq!(server.state(), GrpcServerState::Stopped);
     }
@@ -1457,9 +1457,7 @@ mod tests {
 
         // Start server in background
         let server_clone = Arc::clone(&server);
-        let handle = tokio::spawn(async move {
-            server_clone.serve("127.0.0.1:50099").await
-        });
+        let handle = tokio::spawn(async move { server_clone.serve("127.0.0.1:50099").await });
 
         // Give server time to start
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -1515,10 +1513,7 @@ mod tests {
         }
 
         /// Send a heartbeat request.
-        pub async fn heartbeat(
-            &self,
-            server_type: ServerType,
-        ) -> ServingResult<HeartBeatResponse> {
+        pub async fn heartbeat(&self, server_type: ServerType) -> ServingResult<HeartBeatResponse> {
             let request = HeartBeatRequest { server_type };
             self.service.heartbeat(request).await
         }

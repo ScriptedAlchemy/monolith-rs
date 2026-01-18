@@ -257,8 +257,7 @@ impl AgentServiceImpl {
 
             // Update average latency
             let total = stats.successful_requests as f64;
-            stats.avg_latency_ms =
-                (stats.avg_latency_ms * (total - 1.0) + latency_ms) / total;
+            stats.avg_latency_ms = (stats.avg_latency_ms * (total - 1.0) + latency_ms) / total;
         }
 
         debug!(
@@ -666,7 +665,9 @@ mod tests {
         let mut context = RequestContext::default();
         context.user_id = Some(12345);
         context.session_id = Some("session-abc".to_string());
-        context.custom.insert("key".to_string(), "value".to_string());
+        context
+            .custom
+            .insert("key".to_string(), "value".to_string());
 
         assert_eq!(context.user_id, Some(12345));
         assert_eq!(context.session_id, Some("session-abc".to_string()));

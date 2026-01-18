@@ -75,3 +75,12 @@ message ClientConfig {
   }
   repeated TargetExtraInfo targets_extra_info = 5;
 }
+
+// ParameterSyncService provides a simple push-based API for embedding deltas.
+//
+// This is used for training PS -> online serving replication parity with the
+// Python Monolith implementation.
+service ParameterSyncService {
+  rpc Push(PushRequest) returns (PushResponse) {
+  }
+}

@@ -139,7 +139,11 @@ impl EmbeddingEntry {
     /// Creates a new embedding entry with the specified optimizer state.
     ///
     /// The last update timestamp is initialized to 0.
-    pub fn with_optimizer_state(id: i64, embedding: Vec<f32>, optimizer_state: OptimizerState) -> Self {
+    pub fn with_optimizer_state(
+        id: i64,
+        embedding: Vec<f32>,
+        optimizer_state: OptimizerState,
+    ) -> Self {
         Self {
             id,
             embedding,
@@ -296,8 +300,8 @@ impl EmbeddingEntry {
                         self.embedding[j] = 0.0;
                     } else {
                         let sign = if z[j] > 0.0 { 1.0 } else { -1.0 };
-                        self.embedding[j] = -(z[j] - sign * LAMBDA1)
-                            / ((BETA + n[j].sqrt()) / ALPHA + LAMBDA2);
+                        self.embedding[j] =
+                            -(z[j] - sign * LAMBDA1) / ((BETA + n[j].sqrt()) / ALPHA + LAMBDA2);
                     }
                 }
             }
@@ -321,14 +325,14 @@ mod tests {
 
     #[test]
     fn test_embedding_entry_with_adam() {
-        let entry = EmbeddingEntry::with_optimizer_state(
-            1,
-            vec![0.5, 0.5],
-            OptimizerState::new_adam(2),
-        );
+        let entry =
+            EmbeddingEntry::with_optimizer_state(1, vec![0.5, 0.5], OptimizerState::new_adam(2));
 
         assert_eq!(entry.id(), 1);
-        assert!(matches!(entry.optimizer_state(), OptimizerState::Adam { .. }));
+        assert!(matches!(
+            entry.optimizer_state(),
+            OptimizerState::Adam { .. }
+        ));
 
         if let OptimizerState::Adam { m, v, t } = entry.optimizer_state() {
             assert_eq!(m.len(), 2);

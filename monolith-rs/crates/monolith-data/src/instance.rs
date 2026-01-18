@@ -362,7 +362,12 @@ impl Instance {
     /// * `name` - Feature name
     /// * `fids` - Feature IDs
     /// * `values` - Feature values (weights)
-    pub fn add_sparse_feature(&mut self, name: impl Into<String>, fids: Vec<i64>, values: Vec<f32>) {
+    pub fn add_sparse_feature(
+        &mut self,
+        name: impl Into<String>,
+        fids: Vec<i64>,
+        values: Vec<f32>,
+    ) {
         let name = name.into();
         let feature = SparseFeature::new(name.clone(), fids, values);
         self.sparse_features.insert(name, feature);
@@ -744,7 +749,11 @@ impl InstanceBatch {
         let mut sparse_names: Vec<String> = self
             .instances
             .iter()
-            .flat_map(|inst| inst.sparse_feature_names().into_iter().map(|s| s.to_string()))
+            .flat_map(|inst| {
+                inst.sparse_feature_names()
+                    .into_iter()
+                    .map(|s| s.to_string())
+            })
             .collect();
         sparse_names.sort();
         sparse_names.dedup();
@@ -753,7 +762,11 @@ impl InstanceBatch {
         let mut dense_names: Vec<String> = self
             .instances
             .iter()
-            .flat_map(|inst| inst.dense_feature_names().into_iter().map(|s| s.to_string()))
+            .flat_map(|inst| {
+                inst.dense_feature_names()
+                    .into_iter()
+                    .map(|s| s.to_string())
+            })
             .collect();
         dense_names.sort();
         dense_names.dedup();
@@ -772,7 +785,8 @@ impl InstanceBatch {
                     } else {
                         all_values.extend_from_slice(&feature.values);
                     }
-                    batch_indices.extend(std::iter::repeat(batch_idx as i64).take(feature.fids.len()));
+                    batch_indices
+                        .extend(std::iter::repeat(batch_idx as i64).take(feature.fids.len()));
                 }
             }
 
@@ -793,7 +807,11 @@ impl InstanceBatch {
         }
 
         // Batch labels
-        let all_labels: Vec<f32> = self.instances.iter().flat_map(|i| i.label().iter().copied()).collect();
+        let all_labels: Vec<f32> = self
+            .instances
+            .iter()
+            .flat_map(|i| i.label().iter().copied())
+            .collect();
         if !all_labels.is_empty() {
             dict.insert("label".to_string(), Tensor::Float(all_labels));
         }
@@ -946,17 +964,17 @@ impl InstanceParser {
             let (fid, value) = if let Some(colon_idx) = part.find(':') {
                 let fid_str = &part[..colon_idx];
                 let val_str = &part[colon_idx + 1..];
-                let fid: i64 = fid_str
-                    .parse()
-                    .map_err(|e| InstanceError::CsvParse(format!("invalid fid '{}': {}", fid_str, e)))?;
-                let value: f32 = val_str
-                    .parse()
-                    .map_err(|e| InstanceError::CsvParse(format!("invalid value '{}': {}", val_str, e)))?;
+                let fid: i64 = fid_str.parse().map_err(|e| {
+                    InstanceError::CsvParse(format!("invalid fid '{}': {}", fid_str, e))
+                })?;
+                let value: f32 = val_str.parse().map_err(|e| {
+                    InstanceError::CsvParse(format!("invalid value '{}': {}", val_str, e))
+                })?;
                 (fid, value)
             } else {
-                let fid: i64 = part
-                    .parse()
-                    .map_err(|e| InstanceError::CsvParse(format!("invalid fid '{}': {}", part, e)))?;
+                let fid: i64 = part.parse().map_err(|e| {
+                    InstanceError::CsvParse(format!("invalid fid '{}': {}", part, e))
+                })?;
                 (fid, 1.0)
             };
 
@@ -1095,6 +1113,7 @@ impl From<JsonInstance> for Instance {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use monolith_proto::monolith::io::proto::{feature, FidList, FloatList};
 
     // -------------------------------------------------------------------------
     // FID utilities tests
@@ -1112,8 +1131,20 @@ mod tests {
         for slot in [0, 1, 10, 100, 500] {
             for feature in [0i64, 1, 100, 10000, 1_000_000, 1_000_000_000] {
                 let fid = make_fid(slot, feature);
-                assert_eq!(extract_slot(fid), slot, "slot mismatch for ({}, {})", slot, feature);
-                assert_eq!(extract_feature(fid), feature, "feature mismatch for ({}, {})", slot, feature);
+                assert_eq!(
+                    extract_slot(fid),
+                    slot,
+                    "slot mismatch for ({}, {})",
+                    slot,
+                    feature
+                );
+                assert_eq!(
+                    extract_feature(fid),
+                    feature,
+                    "feature mismatch for ({}, {})",
+                    slot,
+                    feature
+                );
             }
         }
     }
@@ -1157,11 +1188,7 @@ mod tests {
 
     #[test]
     fn test_sparse_feature_slots() {
-        let fids = vec![
-            make_fid(1, 100),
-            make_fid(2, 200),
-            make_fid(1, 300),
-        ];
+        let fids = vec![make_fid(1, 100), make_fid(2, 200), make_fid(1, 300)];
         let feature = SparseFeature::new("test", fids, vec![]);
         let slots = feature.slots();
         assert_eq!(slots, vec![1, 2, 1]);
@@ -1428,7 +1455,9 @@ mod tests {
     #[test]
     fn test_parser_parse_from_csv() {
         let parser = InstanceParser::new();
-        let instance = parser.parse_from_csv("1.0,100:0.5,200:0.3,300:0.2", ',').unwrap();
+        let instance = parser
+            .parse_from_csv("1.0,100:0.5,200:0.3,300:0.2", ',')
+            .unwrap();
 
         assert_eq!(instance.label(), &[1.0]);
         let feature = instance.get_sparse_feature("features").unwrap();
@@ -1452,13 +1481,20 @@ mod tests {
         // Create an Example proto and encode it
         let example = Example {
             named_feature: vec![NamedFeature {
+                id: 0,
                 name: "test".to_string(),
                 feature: Some(Feature {
-                    fid: vec![1, 2, 3],
-                    value: vec![1.0, 2.0, 3.0],
+                    r#type: Some(feature::Type::FidV2List(FidList {
+                        value: vec![1, 2, 3],
+                    })),
                 }),
+                sorted_id: 0,
             }],
-            line_id: None,
+            named_raw_feature: vec![],
+            line_id: Some(monolith_proto::LineId::default()),
+            label: vec![],
+            instance_weight: 1.0,
+            data_source_key: 0,
         };
 
         let bytes = example.encode_to_vec();
@@ -1477,21 +1513,32 @@ mod tests {
         let example = Example {
             named_feature: vec![
                 NamedFeature {
+                    id: 0,
                     name: "sparse".to_string(),
                     feature: Some(Feature {
-                        fid: vec![1, 2],
-                        value: vec![1.0, 2.0],
+                        r#type: Some(feature::Type::FidV2List(FidList { value: vec![1, 2] })),
                     }),
+                    sorted_id: 0,
                 },
                 NamedFeature {
+                    id: 1,
                     name: "dense".to_string(),
                     feature: Some(Feature {
-                        fid: vec![],
-                        value: vec![0.1, 0.2, 0.3],
+                        r#type: Some(feature::Type::FloatList(FloatList {
+                            value: vec![0.1, 0.2, 0.3],
+                        })),
                     }),
+                    sorted_id: 0,
                 },
             ],
-            line_id: Some(vec![1, 2, 3, 4]),
+            named_raw_feature: vec![],
+            line_id: Some(monolith_proto::LineId {
+                uid: Some(12345),
+                ..Default::default()
+            }),
+            label: vec![],
+            instance_weight: 1.0,
+            data_source_key: 0,
         };
 
         let parser = InstanceParser::new();

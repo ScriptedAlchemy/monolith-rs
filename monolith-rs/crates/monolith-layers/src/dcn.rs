@@ -414,14 +414,8 @@ impl Layer for CrossLayer {
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
-        let x0 = self
-            .cached_x0
-            .as_ref()
-            .ok_or(LayerError::NotInitialized)?;
-        let xl = self
-            .cached_xl
-            .as_ref()
-            .ok_or(LayerError::NotInitialized)?;
+        let x0 = self.cached_x0.as_ref().ok_or(LayerError::NotInitialized)?;
+        let xl = self.cached_xl.as_ref().ok_or(LayerError::NotInitialized)?;
 
         let batch_size = grad.shape()[0];
 
@@ -468,8 +462,7 @@ impl Layer for CrossLayer {
 
                 // d_interaction_scalar = sum(d_interaction, axis=1) -> [batch]
                 let d_interaction_scalar_vec = d_interaction.sum_axis(1);
-                let d_interaction_scalar =
-                    d_interaction_scalar_vec.reshape(&[batch_size, 1]);
+                let d_interaction_scalar = d_interaction_scalar_vec.reshape(&[batch_size, 1]);
 
                 // d_weight = xl^T @ d_interaction_scalar -> [d, 1]
                 self.weight_grad = Some(xl.transpose().matmul(&d_interaction_scalar));
@@ -705,10 +698,7 @@ impl Layer for CrossNetwork {
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
-        let _x0 = self
-            .cached_x0
-            .as_ref()
-            .ok_or(LayerError::NotInitialized)?;
+        let _x0 = self.cached_x0.as_ref().ok_or(LayerError::NotInitialized)?;
 
         // Backward through layers in reverse order
         let mut current_grad = grad.clone();

@@ -193,10 +193,7 @@ impl InMemoryDiscovery {
 #[derive(Debug, Clone)]
 enum PsRequest {
     /// Request embeddings for given IDs
-    Lookup {
-        worker_id: usize,
-        ids: Vec<i64>,
-    },
+    Lookup { worker_id: usize, ids: Vec<i64> },
     /// Apply gradients for given IDs
     ApplyGradients {
         worker_id: usize,
@@ -204,9 +201,7 @@ enum PsRequest {
         gradients: Vec<f32>,
     },
     /// Request to save checkpoint
-    Checkpoint {
-        step: u64,
-    },
+    Checkpoint { step: u64 },
     /// Shutdown the PS
     Shutdown,
 }
@@ -262,9 +257,7 @@ impl EmbeddingShard {
             .entry(id)
             .or_insert_with(|| {
                 let mut rng = rand::thread_rng();
-                (0..self.dim)
-                    .map(|_| rng.gen_range(-0.1..0.1))
-                    .collect()
+                (0..self.dim).map(|_| rng.gen_range(-0.1..0.1)).collect()
             })
             .clone()
     }
@@ -273,7 +266,10 @@ impl EmbeddingShard {
     fn apply_gradient(&mut self, id: i64, gradient: &[f32]) {
         self.update_count.fetch_add(1, Ordering::Relaxed);
 
-        let embedding = self.embeddings.entry(id).or_insert_with(|| vec![0.0; self.dim]);
+        let embedding = self
+            .embeddings
+            .entry(id)
+            .or_insert_with(|| vec![0.0; self.dim]);
 
         for (e, g) in embedding.iter_mut().zip(gradient.iter()) {
             *e -= self.learning_rate * g;
@@ -318,7 +314,13 @@ struct ParameterServer {
 }
 
 impl ParameterServer {
-    fn new(shard_id: usize, num_shards: usize, dim: usize, lr: f32, checkpoint_dir: PathBuf) -> Self {
+    fn new(
+        shard_id: usize,
+        num_shards: usize,
+        dim: usize,
+        lr: f32,
+        checkpoint_dir: PathBuf,
+    ) -> Self {
         Self {
             shard: Mutex::new(EmbeddingShard::new(shard_id, dim, lr)),
             shard_id,
@@ -564,10 +566,7 @@ fn run_parameter_server(
     // Update health status
     discovery.update_health(&service_id, HealthStatus::Healthy);
 
-    println!(
-        "[PS-{}] Started and ready to serve embeddings",
-        ps.shard_id
-    );
+    println!("[PS-{}] Started and ready to serve embeddings", ps.shard_id);
 
     while !shutdown.load(Ordering::Relaxed) {
         match rx.recv_timeout(Duration::from_millis(100)) {
@@ -729,9 +728,7 @@ fn run_worker_sync(
             if step % args.log_interval == 0 {
                 println!(
                     "[Step {}] loss = {:.6} (sync mode, {} workers)",
-                    step,
-                    loss,
-                    args.num_workers
+                    step, loss, args.num_workers
                 );
             }
 
@@ -739,7 +736,9 @@ fn run_worker_sync(
             if step % args.checkpoint_interval == 0 {
                 for (shard_id, ps_tx) in ps_channels.iter().enumerate() {
                     let (resp_tx, resp_rx) = mpsc::channel();
-                    ps_tx.send((PsRequest::Checkpoint { step }, resp_tx)).unwrap();
+                    ps_tx
+                        .send((PsRequest::Checkpoint { step }, resp_tx))
+                        .unwrap();
 
                     if let Ok(PsResponse::CheckpointSaved { path }) = resp_rx.recv() {
                         println!("[Checkpoint] Shard {} saved to {:?}", shard_id, path);
@@ -873,16 +872,15 @@ fn run_worker_async(
         // Only worker 0 does logging and checkpointing
         if worker.worker_id == 0 {
             if step % args.log_interval == 0 {
-                println!(
-                    "[Step {}] Worker-0 loss = {:.6} (async mode)",
-                    step, loss
-                );
+                println!("[Step {}] Worker-0 loss = {:.6} (async mode)", step, loss);
             }
 
             if step % args.checkpoint_interval == 0 {
                 for (shard_id, ps_tx) in ps_channels.iter().enumerate() {
                     let (resp_tx, resp_rx) = mpsc::channel();
-                    ps_tx.send((PsRequest::Checkpoint { step }, resp_tx)).unwrap();
+                    ps_tx
+                        .send((PsRequest::Checkpoint { step }, resp_tx))
+                        .unwrap();
 
                     if let Ok(PsResponse::CheckpointSaved { path }) = resp_rx.recv() {
                         println!("[Checkpoint] Shard {} saved to {:?}", shard_id, path);
@@ -1076,7 +1074,10 @@ fn main() {
     println!();
     println!("Service Discovery Summary:");
     println!("  - PS services: {}", discovery.discover("ps").len());
-    println!("  - Worker services: {}", discovery.discover("worker").len());
+    println!(
+        "  - Worker services: {}",
+        discovery.discover("worker").len()
+    );
 
     println!();
     println!("Sync vs Async Trade-offs:");

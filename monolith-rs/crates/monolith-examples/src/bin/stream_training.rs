@@ -42,14 +42,14 @@ use std::time::{Duration, Instant};
 
 // Monolith crates
 use monolith_data::{
-    kafka::{KafkaConfig, KafkaConsumer, KafkaDataSource, KafkaMessage, MockKafkaConsumer},
     example::{add_feature, create_example, get_feature},
+    kafka::{KafkaConfig, KafkaConsumer, KafkaDataSource, KafkaMessage, MockKafkaConsumer},
 };
 use monolith_layers::{
-    layer::Layer,
-    tensor::Tensor,
     activation::Sigmoid,
-    mlp::{MLP, MLPConfig, ActivationType},
+    layer::Layer,
+    mlp::{ActivationType, MLPConfig, MLP},
+    tensor::Tensor,
 };
 use monolith_proto::Example;
 use prost::Message;
@@ -461,10 +461,12 @@ impl KafkaStreamTrainer<MockKafkaConsumer> {
                 offset: i as i64,
                 key: Some(format!("{}", i).into_bytes()),
                 payload,
-                timestamp: Some(std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_millis() as i64),
+                timestamp: Some(
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis() as i64,
+                ),
             };
 
             self.source.consumer_mut().add_message(message);
@@ -492,10 +494,13 @@ impl<C: KafkaConsumer> KafkaStreamTrainer<C> {
         let uid_id = *uid_feature.fid.first().unwrap_or(&0) as f32;
 
         // Normalize features (simple scaling for demonstration)
-        let input = Tensor::from_data(&[1, 2], vec![
-            mov_id / 1000.0,  // Normalize movie ID
-            uid_id / 10000.0, // Normalize user ID
-        ]);
+        let input = Tensor::from_data(
+            &[1, 2],
+            vec![
+                mov_id / 1000.0,  // Normalize movie ID
+                uid_id / 10000.0, // Normalize user ID
+            ],
+        );
 
         let label = *label_feature.value.first().unwrap_or(&0.0);
 
@@ -511,7 +516,14 @@ impl<C: KafkaConsumer> KafkaStreamTrainer<C> {
         println!("  Group ID: {}", self.config.group_id);
         println!("  Learning Rate: {}", self.config.learning_rate);
         println!("  Log Interval: {} examples", self.config.log_interval);
-        println!("  Max Examples: {}", if self.config.max_examples == 0 { "unlimited".to_string() } else { self.config.max_examples.to_string() });
+        println!(
+            "  Max Examples: {}",
+            if self.config.max_examples == 0 {
+                "unlimited".to_string()
+            } else {
+                self.config.max_examples.to_string()
+            }
+        );
         println!();
 
         let poll_timeout = Duration::from_millis(self.config.poll_timeout_ms);
@@ -520,8 +532,13 @@ impl<C: KafkaConsumer> KafkaStreamTrainer<C> {
 
         loop {
             // Check if we've reached max examples
-            if self.config.max_examples > 0 && self.metrics.num_examples() >= self.config.max_examples {
-                println!("\nReached maximum examples limit ({}).", self.config.max_examples);
+            if self.config.max_examples > 0
+                && self.metrics.num_examples() >= self.config.max_examples
+            {
+                println!(
+                    "\nReached maximum examples limit ({}).",
+                    self.config.max_examples
+                );
                 break;
             }
 
@@ -545,15 +562,20 @@ impl<C: KafkaConsumer> KafkaStreamTrainer<C> {
                             }
                         }
                         Err(e) => {
-                            eprintln!("Warning: Failed to decode message at offset {}: {}",
-                                     message.offset, e);
+                            eprintln!(
+                                "Warning: Failed to decode message at offset {}: {}",
+                                message.offset, e
+                            );
                         }
                     }
                 }
                 None => {
                     consecutive_empty_polls += 1;
                     if consecutive_empty_polls >= max_empty_polls {
-                        println!("\nNo more messages available (empty polls: {}).", consecutive_empty_polls);
+                        println!(
+                            "\nNo more messages available (empty polls: {}).",
+                            consecutive_empty_polls
+                        );
                         break;
                     }
                 }
@@ -565,8 +587,14 @@ impl<C: KafkaConsumer> KafkaStreamTrainer<C> {
         println!("Total examples: {}", self.metrics.num_examples());
         println!("Final average loss: {:.4}", self.metrics.avg_loss());
         println!("Final accuracy: {:.2}%", self.metrics.accuracy() * 100.0);
-        println!("Average throughput: {:.1} examples/sec", self.metrics.throughput());
-        println!("Total time: {:.2}s", self.metrics.start_time.elapsed().as_secs_f32());
+        println!(
+            "Average throughput: {:.1} examples/sec",
+            self.metrics.throughput()
+        );
+        println!(
+            "Total time: {:.2}s",
+            self.metrics.start_time.elapsed().as_secs_f32()
+        );
 
         Ok(())
     }
@@ -637,12 +665,12 @@ mod tests {
         let mut metrics = TrainingMetrics::new(10);
 
         // Update with some examples
-        metrics.update(0.5, 0.6, 1.0);  // Correct prediction
-        metrics.update(0.3, 0.3, 0.0);  // Correct prediction
-        metrics.update(0.8, 0.7, 0.0);  // Incorrect prediction
+        metrics.update(0.5, 0.6, 1.0); // Correct prediction
+        metrics.update(0.3, 0.3, 0.0); // Correct prediction
+        metrics.update(0.8, 0.7, 0.0); // Incorrect prediction
 
         assert_eq!(metrics.num_examples(), 3);
-        assert!(metrics.accuracy() > 0.6);  // 2/3 correct
+        assert!(metrics.accuracy() > 0.6); // 2/3 correct
         assert!(metrics.avg_loss() > 0.0);
     }
 

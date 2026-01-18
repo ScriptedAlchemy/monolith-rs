@@ -313,12 +313,7 @@ impl AUGRUCell {
     }
 
     /// Computes the candidate hidden state.
-    fn compute_candidate(
-        &self,
-        x: &Tensor,
-        h: &Tensor,
-        r: &Tensor,
-    ) -> Result<Tensor, LayerError> {
+    fn compute_candidate(&self, x: &Tensor, h: &Tensor, r: &Tensor) -> Result<Tensor, LayerError> {
         let xw = x.matmul(&self.w_h_x);
         let rh = r.mul(h);
         let hw = rh.matmul(&self.w_h_h);
@@ -431,12 +426,18 @@ impl GRUCell {
         // Reset gate
         let xw_r = x.matmul(&self.w_r_x);
         let hw_r = h.matmul(&self.w_r_h);
-        let r = xw_r.add(&hw_r).add(&self.b_r).map(|v| 1.0 / (1.0 + (-v).exp()));
+        let r = xw_r
+            .add(&hw_r)
+            .add(&self.b_r)
+            .map(|v| 1.0 / (1.0 + (-v).exp()));
 
         // Update gate
         let xw_z = x.matmul(&self.w_z_x);
         let hw_z = h.matmul(&self.w_z_h);
-        let z = xw_z.add(&hw_z).add(&self.b_z).map(|v| 1.0 / (1.0 + (-v).exp()));
+        let z = xw_z
+            .add(&hw_z)
+            .add(&self.b_z)
+            .map(|v| 1.0 / (1.0 + (-v).exp()));
 
         // Candidate
         let xw_h = x.matmul(&self.w_h_x);
@@ -595,10 +596,8 @@ impl AttentionModule {
             }
         }
 
-        let attention_tensor = Tensor::from_data(
-            &[batch_size * seq_len, input_dim],
-            attention_input,
-        );
+        let attention_tensor =
+            Tensor::from_data(&[batch_size * seq_len, input_dim], attention_input);
 
         // Forward through MLP
         // Layer 1
@@ -677,7 +676,14 @@ impl AttentionModule {
 
     /// Returns all parameters.
     fn parameters(&self) -> Vec<&Tensor> {
-        vec![&self.w1, &self.b1, &self.w2, &self.b2, &self.w_out, &self.b_out]
+        vec![
+            &self.w1,
+            &self.b1,
+            &self.w2,
+            &self.b2,
+            &self.w_out,
+            &self.b_out,
+        ]
     }
 
     /// Returns mutable references to all parameters.
@@ -850,11 +856,9 @@ impl DIENLayer {
         let target_projected = self.project_target(target_item)?;
 
         // Step 3: Compute attention scores between target and hidden states
-        let attention_scores = self.attention.compute_attention(
-            &target_projected,
-            &extractor_states,
-            mask,
-        )?;
+        let attention_scores =
+            self.attention
+                .compute_attention(&target_projected, &extractor_states, mask)?;
 
         // Step 4: Interest Evolution - run AUGRU with attention
         let evolved_interest = self.run_interest_evolution(
@@ -888,11 +892,9 @@ impl DIENLayer {
         let target_projected = self.project_target(target_item)?;
 
         // Step 3: Compute attention
-        let attention_scores = self.attention.compute_attention(
-            &target_projected,
-            &extractor_states,
-            mask,
-        )?;
+        let attention_scores =
+            self.attention
+                .compute_attention(&target_projected, &extractor_states, mask)?;
 
         // Step 4: Interest Evolution
         let evolved_interest = self.run_interest_evolution(
@@ -1048,13 +1050,7 @@ impl DIENLayer {
     }
 
     /// Extracts a timestep from the behavior sequence.
-    fn extract_timestep(
-        &self,
-        input: &Tensor,
-        t: usize,
-        batch_size: usize,
-        dim: usize,
-    ) -> Tensor {
+    fn extract_timestep(&self, input: &Tensor, t: usize, batch_size: usize, dim: usize) -> Tensor {
         let seq_len = input.shape()[1];
         let mut data = vec![0.0; batch_size * dim];
 
@@ -1215,7 +1211,8 @@ impl DIENLayer {
         let target_projected = self.project_target(target_item)?;
 
         // Compute attention
-        self.attention.compute_attention(&target_projected, &extractor_states, mask)
+        self.attention
+            .compute_attention(&target_projected, &extractor_states, mask)
     }
 }
 
@@ -1238,7 +1235,8 @@ impl Layer for DIENLayer {
 
         if total_len < 2 {
             return Err(LayerError::ForwardError {
-                message: "Input sequence must have at least 2 elements (target + 1 behavior)".to_string(),
+                message: "Input sequence must have at least 2 elements (target + 1 behavior)"
+                    .to_string(),
             });
         }
 
@@ -1253,7 +1251,8 @@ impl Layer for DIENLayer {
         let target = self.extract_target(input, batch_size, embedding_dim);
 
         // Extract behavior sequence (remaining positions)
-        let behavior_seq = self.extract_behavior_seq(input, batch_size, total_len - 1, embedding_dim);
+        let behavior_seq =
+            self.extract_behavior_seq(input, batch_size, total_len - 1, embedding_dim);
 
         // Run DIEN forward
         self.forward_dien(&behavior_seq, &target, None)
@@ -1455,8 +1454,7 @@ mod tests {
 
     #[test]
     fn test_dien_from_config() {
-        let config = DIENConfig::new(16, 32)
-            .with_gru_type(GRUType::AUGRU);
+        let config = DIENConfig::new(16, 32).with_gru_type(GRUType::AUGRU);
 
         let dien = DIENLayer::from_config(config).unwrap();
         assert_eq!(dien.embedding_dim(), 16);
@@ -1470,7 +1468,9 @@ mod tests {
         let behavior_seq = Tensor::rand(&[2, 5, 8]);
         let target_item = Tensor::rand(&[2, 8]);
 
-        let output = dien.forward_dien(&behavior_seq, &target_item, None).unwrap();
+        let output = dien
+            .forward_dien(&behavior_seq, &target_item, None)
+            .unwrap();
         assert_eq!(output.shape(), &[2, 16]);
     }
 
@@ -1480,9 +1480,14 @@ mod tests {
 
         let behavior_seq = Tensor::rand(&[2, 5, 8]);
         let target_item = Tensor::rand(&[2, 8]);
-        let mask = Tensor::from_data(&[2, 5], vec![1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0]);
+        let mask = Tensor::from_data(
+            &[2, 5],
+            vec![1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0],
+        );
 
-        let output = dien.forward_dien(&behavior_seq, &target_item, Some(&mask)).unwrap();
+        let output = dien
+            .forward_dien(&behavior_seq, &target_item, Some(&mask))
+            .unwrap();
         assert_eq!(output.shape(), &[2, 16]);
     }
 
@@ -1494,7 +1499,9 @@ mod tests {
         let behavior_seq = Tensor::rand(&[2, 5, 8]);
         let target_item = Tensor::rand(&[2, 8]);
 
-        let output = dien.forward_dien(&behavior_seq, &target_item, None).unwrap();
+        let output = dien
+            .forward_dien(&behavior_seq, &target_item, None)
+            .unwrap();
         assert_eq!(output.shape(), &[2, 16]);
     }
 
@@ -1633,7 +1640,9 @@ mod tests {
         let behavior_seq = Tensor::rand(&[2, 5, 8]);
         let target_item = Tensor::rand(&[2, 8]);
 
-        let scores = dien.get_attention_scores(&behavior_seq, &target_item, None).unwrap();
+        let scores = dien
+            .get_attention_scores(&behavior_seq, &target_item, None)
+            .unwrap();
         assert_eq!(scores.shape(), &[2, 5]);
     }
 
@@ -1644,7 +1653,9 @@ mod tests {
         let behavior_seq = Tensor::rand(&[2, 5, 8]);
         let target_item = Tensor::rand(&[2, 8]);
 
-        let output = dien.forward_dien_train(&behavior_seq, &target_item, None).unwrap();
+        let output = dien
+            .forward_dien_train(&behavior_seq, &target_item, None)
+            .unwrap();
         assert_eq!(output.shape(), &[2, 16]);
 
         // Cache should be set
@@ -1659,7 +1670,9 @@ mod tests {
         let target_item = Tensor::rand(&[2, 8]);
 
         // Forward with training
-        let _output = dien.forward_dien_train(&behavior_seq, &target_item, None).unwrap();
+        let _output = dien
+            .forward_dien_train(&behavior_seq, &target_item, None)
+            .unwrap();
 
         // Backward
         let grad = Tensor::ones(&[2, 16]);
@@ -1683,7 +1696,9 @@ mod tests {
         let behavior_seq = Tensor::rand(&[2, 1, 8]);
         let target_item = Tensor::rand(&[2, 8]);
 
-        let output = dien.forward_dien(&behavior_seq, &target_item, None).unwrap();
+        let output = dien
+            .forward_dien(&behavior_seq, &target_item, None)
+            .unwrap();
         assert_eq!(output.shape(), &[2, 16]);
     }
 
@@ -1694,7 +1709,9 @@ mod tests {
         let behavior_seq = Tensor::rand(&[32, 10, 8]);
         let target_item = Tensor::rand(&[32, 8]);
 
-        let output = dien.forward_dien(&behavior_seq, &target_item, None).unwrap();
+        let output = dien
+            .forward_dien(&behavior_seq, &target_item, None)
+            .unwrap();
         assert_eq!(output.shape(), &[32, 16]);
     }
 
@@ -1713,8 +1730,12 @@ mod tests {
         let target1 = Tensor::from_data(&[1, 4], vec![1.0, 0.0, 0.0, 0.0]);
         let target2 = Tensor::from_data(&[1, 4], vec![0.0, 1.0, 0.0, 0.0]);
 
-        let scores1 = dien.get_attention_scores(&behavior_seq, &target1, None).unwrap();
-        let scores2 = dien.get_attention_scores(&behavior_seq, &target2, None).unwrap();
+        let scores1 = dien
+            .get_attention_scores(&behavior_seq, &target1, None)
+            .unwrap();
+        let scores2 = dien
+            .get_attention_scores(&behavior_seq, &target2, None)
+            .unwrap();
 
         // Scores should generally be different for different targets
         let diff: f32 = scores1
@@ -1736,12 +1757,18 @@ mod tests {
         let behavior_seq = Tensor::rand(&[2, 5, 8]);
         let target_item = Tensor::rand(&[2, 8]);
 
-        let scores = dien.get_attention_scores(&behavior_seq, &target_item, None).unwrap();
+        let scores = dien
+            .get_attention_scores(&behavior_seq, &target_item, None)
+            .unwrap();
 
         // With softmax, scores should sum to 1 for each batch
         for b in 0..2 {
             let sum: f32 = (0..5).map(|s| scores.data()[b * 5 + s]).sum();
-            assert!((sum - 1.0).abs() < 0.01, "Softmax scores should sum to 1, got {}", sum);
+            assert!(
+                (sum - 1.0).abs() < 0.01,
+                "Softmax scores should sum to 1, got {}",
+                sum
+            );
         }
     }
 }

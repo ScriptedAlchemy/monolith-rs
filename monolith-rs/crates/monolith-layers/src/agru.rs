@@ -138,7 +138,10 @@ impl AGRU {
         // Validate input shapes
         if input.ndim() != 3 {
             return Err(LayerError::ForwardError {
-                message: format!("AGRU expects 3D input [batch, seq, dim], got {}D", input.ndim()),
+                message: format!(
+                    "AGRU expects 3D input [batch, seq, dim], got {}D",
+                    input.ndim()
+                ),
             });
         }
 
@@ -235,12 +238,7 @@ impl AGRU {
     }
 
     /// Computes the candidate hidden state.
-    fn compute_candidate(
-        &self,
-        x: &Tensor,
-        h: &Tensor,
-        r: &Tensor,
-    ) -> Result<Tensor, LayerError> {
+    fn compute_candidate(&self, x: &Tensor, h: &Tensor, r: &Tensor) -> Result<Tensor, LayerError> {
         let xw = x.matmul(&self.w_h_x);
         let rh = r.mul(h);
         let hw = rh.matmul(&self.w_h_h);
@@ -530,9 +528,7 @@ mod tests {
 
     #[test]
     fn test_agru_config() {
-        let config = AGRUConfig::new(32, 64)
-            .with_dropout(0.1)
-            .bidirectional();
+        let config = AGRUConfig::new(32, 64).with_dropout(0.1).bidirectional();
 
         assert_eq!(config.input_dim, 32);
         assert_eq!(config.hidden_dim, 64);
@@ -551,11 +547,15 @@ mod tests {
 
         // With full attention
         let full_attention = Tensor::ones(&[1, 3]);
-        let output_full = agru.forward_with_attention(&input, &full_attention).unwrap();
+        let output_full = agru
+            .forward_with_attention(&input, &full_attention)
+            .unwrap();
 
         // With zero attention (should preserve initial hidden state more)
         let zero_attention = Tensor::zeros(&[1, 3]);
-        let output_zero = agru.forward_with_attention(&input, &zero_attention).unwrap();
+        let output_zero = agru
+            .forward_with_attention(&input, &zero_attention)
+            .unwrap();
 
         // Outputs should be different
         let diff: f32 = output_full

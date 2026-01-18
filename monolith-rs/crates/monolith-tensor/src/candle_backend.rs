@@ -281,10 +281,7 @@ impl CandleTensor {
 
     /// Broadcasts the tensor to the given shape.
     pub fn broadcast(&self, shape: &[usize]) -> Self {
-        let inner = self
-            .inner
-            .broadcast_as(shape)
-            .expect("Failed to broadcast");
+        let inner = self.inner.broadcast_as(shape).expect("Failed to broadcast");
         Self::from_candle(inner)
     }
 
@@ -335,7 +332,9 @@ impl Tensor for CandleTensor {
         let cpu_tensor = if matches!(self.device(), Device::Cpu) {
             self.inner.clone()
         } else {
-            self.inner.to_device(&Device::Cpu).expect("Failed to move to CPU")
+            self.inner
+                .to_device(&Device::Cpu)
+                .expect("Failed to move to CPU")
         };
 
         cpu_tensor
@@ -351,7 +350,10 @@ impl Tensor for CandleTensor {
     }
 
     fn mul(&self, other: &Self) -> Self {
-        let inner = self.inner.mul(&other.inner).expect("Failed to multiply tensors");
+        let inner = self
+            .inner
+            .mul(&other.inner)
+            .expect("Failed to multiply tensors");
         Self::from_candle(inner)
     }
 

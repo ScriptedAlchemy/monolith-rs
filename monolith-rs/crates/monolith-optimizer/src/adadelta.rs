@@ -126,7 +126,8 @@ impl Optimizer for Adadelta {
                 * grad;
 
             // Update delta accumulator
-            self.accum_update[i] = self.rho * self.accum_update[i] + (1.0 - self.rho) * update * update;
+            self.accum_update[i] =
+                self.rho * self.accum_update[i] + (1.0 - self.rho) * update * update;
 
             // Update embedding
             *e -= update;
@@ -220,7 +221,9 @@ mod tests {
 
     #[test]
     fn test_adadelta_config_mismatch() {
-        let config = OptimizerConfig::Sgd { learning_rate: 0.01 };
+        let config = OptimizerConfig::Sgd {
+            learning_rate: 0.01,
+        };
         let result = Adadelta::new(config);
         assert!(result.is_err());
     }

@@ -163,8 +163,14 @@ impl Layer for LayerNorm {
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
-        let input = self.cached_input.as_ref().ok_or(LayerError::NotInitialized)?;
-        let mean = self.cached_mean.as_ref().ok_or(LayerError::NotInitialized)?;
+        let input = self
+            .cached_input
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
+        let mean = self
+            .cached_mean
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
         let var = self.cached_var.as_ref().ok_or(LayerError::NotInitialized)?;
 
         let batch_size = input.shape()[0];
@@ -214,8 +220,8 @@ impl Layer for LayerNorm {
             for j in 0..dim {
                 let idx = i * dim + j;
                 let dx_norm = grad.data()[idx] * self.gamma.data()[j];
-                input_grad[idx] = std_inv[i] / n *
-                    (n * dx_norm - dx_norm_sum - x_norm[idx] * dx_norm_x_norm_sum);
+                input_grad[idx] =
+                    std_inv[i] / n * (n * dx_norm - dx_norm_sum - x_norm[idx] * dx_norm_x_norm_sum);
             }
         }
 
@@ -344,7 +350,8 @@ impl Layer for BatchNorm {
         for i in 0..batch_size {
             for j in 0..dim {
                 let idx = i * dim + j;
-                let x_norm = (input.data()[idx] - mean.data()[j]) / (var.data()[j] + self.eps).sqrt();
+                let x_norm =
+                    (input.data()[idx] - mean.data()[j]) / (var.data()[j] + self.eps).sqrt();
                 output[idx] = self.gamma.data()[j] * x_norm + self.beta.data()[j];
             }
         }
@@ -355,7 +362,10 @@ impl Layer for BatchNorm {
     fn backward(&mut self, _grad: &Tensor) -> Result<Tensor, LayerError> {
         // Simplified backward pass (stub)
         // Full implementation would compute gradients for gamma, beta, and input
-        let input = self.cached_input.as_ref().ok_or(LayerError::NotInitialized)?;
+        let input = self
+            .cached_input
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
 
         // For now, just return a gradient of the same shape
         // A full implementation would compute the proper gradients
@@ -408,10 +418,13 @@ mod tests {
     fn test_layer_norm_normalization() {
         let ln = LayerNorm::new(4);
         // Input where each row has different mean/variance
-        let input = Tensor::from_data(&[2, 4], vec![
-            1.0, 2.0, 3.0, 4.0,  // mean=2.5, var=1.25
-            10.0, 20.0, 30.0, 40.0,  // mean=25, var=125
-        ]);
+        let input = Tensor::from_data(
+            &[2, 4],
+            vec![
+                1.0, 2.0, 3.0, 4.0, // mean=2.5, var=1.25
+                10.0, 20.0, 30.0, 40.0, // mean=25, var=125
+            ],
+        );
 
         let output = ln.forward(&input).unwrap();
 

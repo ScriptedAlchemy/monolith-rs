@@ -752,7 +752,8 @@ mod tests {
             .iter()
             .find(|nf| nf.name == "id")
             .unwrap();
-        assert_eq!(feature.feature.as_ref().unwrap().fid, vec![42]);
+        let data = crate::example::extract_feature_data(feature.feature.as_ref().unwrap());
+        assert_eq!(data.fid, vec![42]);
     }
 
     #[test]
@@ -898,7 +899,8 @@ mod tests {
             .iter()
             .find(|nf| nf.name == "id")
             .unwrap();
-        assert_eq!(feature.feature.as_ref().unwrap().fid, vec![42]);
+        let data = crate::example::extract_feature_data(feature.feature.as_ref().unwrap());
+        assert_eq!(data.fid, vec![42]);
     }
 
     #[test]

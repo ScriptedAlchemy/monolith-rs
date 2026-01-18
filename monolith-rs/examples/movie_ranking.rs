@@ -455,8 +455,10 @@ impl MovieRankingModel {
         for i in 0..batch_size {
             let user_start = i * self.embedding_dim;
             let movie_start = i * self.embedding_dim;
-            concat_data.extend_from_slice(&user_emb_data[user_start..user_start + self.embedding_dim]);
-            concat_data.extend_from_slice(&movie_emb_data[movie_start..movie_start + self.embedding_dim]);
+            concat_data
+                .extend_from_slice(&user_emb_data[user_start..user_start + self.embedding_dim]);
+            concat_data
+                .extend_from_slice(&movie_emb_data[movie_start..movie_start + self.embedding_dim]);
         }
 
         // Transfer to GPU
@@ -478,7 +480,12 @@ impl MovieRankingModel {
     }
 
     /// Backward pass: computes and accumulates gradients.
-    fn backward(&mut self, user_ids: &[u64], movie_ids: &[u64], loss_grad: &CandleTensor) -> (Vec<f32>, Vec<f32>) {
+    fn backward(
+        &mut self,
+        user_ids: &[u64],
+        movie_ids: &[u64],
+        loss_grad: &CandleTensor,
+    ) -> (Vec<f32>, Vec<f32>) {
         let batch_size = user_ids.len();
 
         // Backward through sigmoid is already done in loss computation
@@ -505,14 +512,23 @@ impl MovieRankingModel {
         for i in 0..batch_size {
             let row_start = i * self.embedding_dim * 2;
             user_grad.extend_from_slice(&grad_data[row_start..row_start + self.embedding_dim]);
-            movie_grad.extend_from_slice(&grad_data[row_start + self.embedding_dim..row_start + self.embedding_dim * 2]);
+            movie_grad.extend_from_slice(
+                &grad_data[row_start + self.embedding_dim..row_start + self.embedding_dim * 2],
+            );
         }
 
         (user_grad, movie_grad)
     }
 
     /// Updates all model parameters using SGD with gradient clipping.
-    fn update(&mut self, user_ids: &[u64], movie_ids: &[u64], user_grad: &[f32], movie_grad: &[f32], learning_rate: f32) {
+    fn update(
+        &mut self,
+        user_ids: &[u64],
+        movie_ids: &[u64],
+        user_grad: &[f32],
+        movie_grad: &[f32],
+        learning_rate: f32,
+    ) {
         let max_grad_norm = 1.0; // Gradient clipping threshold
 
         // Update hidden layers (on GPU) with gradient clipping
@@ -526,8 +542,10 @@ impl MovieRankingModel {
         // Update embeddings (on CPU) with clipping
         let user_grad_clipped = clip_embedding_gradients(user_grad, max_grad_norm);
         let movie_grad_clipped = clip_embedding_gradients(movie_grad, max_grad_norm);
-        self.user_embeddings.apply_gradients(user_ids, &user_grad_clipped, learning_rate);
-        self.movie_embeddings.apply_gradients(movie_ids, &movie_grad_clipped, learning_rate);
+        self.user_embeddings
+            .apply_gradients(user_ids, &user_grad_clipped, learning_rate);
+        self.movie_embeddings
+            .apply_gradients(movie_ids, &movie_grad_clipped, learning_rate);
     }
 
     /// Returns model statistics.
@@ -541,7 +559,10 @@ impl MovieRankingModel {
 // ============================================================================
 
 /// Computes binary cross-entropy loss and its gradient on GPU.
-fn binary_cross_entropy_with_grad(predictions: &CandleTensor, labels: &CandleTensor) -> (f32, CandleTensor) {
+fn binary_cross_entropy_with_grad(
+    predictions: &CandleTensor,
+    labels: &CandleTensor,
+) -> (f32, CandleTensor) {
     let eps = 1e-7;
 
     // Compute loss on GPU
@@ -743,7 +764,9 @@ fn train(config: &Config) {
             let gpu = CandleTensor::best_device();
             if matches!(gpu, Device::Cpu) {
                 eprintln!("Warning: GPU requested but not available. Falling back to CPU.");
-                eprintln!("Hint: Build with --features metal (macOS) or --features cuda (Linux/Windows)");
+                eprintln!(
+                    "Hint: Build with --features metal (macOS) or --features cuda (Linux/Windows)"
+                );
             }
             gpu
         }
@@ -757,7 +780,10 @@ fn train(config: &Config) {
 
     println!("System:");
     println!("  Device:          {}", device_name);
-    println!("  Rayon threads:   {} (for parallel CPU ops)", rayon::current_num_threads());
+    println!(
+        "  Rayon threads:   {} (for parallel CPU ops)",
+        rayon::current_num_threads()
+    );
     println!();
 
     println!("Configuration:");
@@ -838,7 +864,13 @@ fn train(config: &Config) {
             let (user_grad, movie_grad) = model.backward(&user_ids, &movie_ids, &grad);
 
             // Update weights (GPU for layers, CPU for embeddings)
-            model.update(&user_ids, &movie_ids, &user_grad, &movie_grad, config.learning_rate);
+            model.update(
+                &user_ids,
+                &movie_ids,
+                &user_grad,
+                &movie_grad,
+                config.learning_rate,
+            );
         }
 
         let avg_loss = epoch_loss / num_batches as f32;
@@ -909,10 +941,20 @@ fn train(config: &Config) {
     println!("  Test Accuracy: {:.2}%", accuracy * 100.0);
     println!();
     println!("Model Statistics:");
-    println!("  User embeddings:  {} (of {} possible)", num_user_emb, config.num_users);
-    println!("  Movie embeddings: {} (of {} possible)", num_movie_emb, config.num_movies);
+    println!(
+        "  User embeddings:  {} (of {} possible)",
+        num_user_emb, config.num_users
+    );
+    println!(
+        "  Movie embeddings: {} (of {} possible)",
+        num_movie_emb, config.num_movies
+    );
     println!();
-    println!("Total training time: {:.2}s (on {})", total_time.as_secs_f32(), device_name);
+    println!(
+        "Total training time: {:.2}s (on {})",
+        total_time.as_secs_f32(),
+        device_name
+    );
     println!("{}", "=".repeat(70));
 }
 

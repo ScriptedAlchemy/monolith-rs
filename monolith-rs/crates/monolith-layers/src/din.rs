@@ -49,7 +49,7 @@
 
 use crate::error::LayerError;
 use crate::layer::Layer;
-use crate::mlp::{ActivationType, MLP, MLPConfig};
+use crate::mlp::{ActivationType, MLPConfig, MLP};
 use crate::tensor::Tensor;
 use serde::{Deserialize, Serialize};
 
@@ -259,8 +259,8 @@ impl DINAttention {
     /// let din = DINAttention::new(64, &[128, 64]);
     /// ```
     pub fn new(embedding_dim: usize, hidden_units: &[usize]) -> Self {
-        let config = DINConfig::new(embedding_dim)
-            .with_attention_hidden_units(hidden_units.to_vec());
+        let config =
+            DINConfig::new(embedding_dim).with_attention_hidden_units(hidden_units.to_vec());
         Self::from_config(config).expect("Invalid DIN configuration")
     }
 
@@ -348,7 +348,13 @@ impl DINAttention {
         let attention_weights = self.compute_attention_weights(query, keys, mask)?;
 
         // Compute weighted sum of values
-        let output = self.weighted_sum(&attention_weights, values, batch_size, seq_len, embedding_dim)?;
+        let output = self.weighted_sum(
+            &attention_weights,
+            values,
+            batch_size,
+            seq_len,
+            embedding_dim,
+        )?;
 
         Ok(output)
     }
@@ -382,7 +388,8 @@ impl DINAttention {
         let attention_logits = self.compute_attention_logits(query, keys)?;
 
         // Apply mask and softmax
-        let attention_weights = self.apply_mask_and_normalize(&attention_logits, mask, batch_size, seq_len)?;
+        let attention_weights =
+            self.apply_mask_and_normalize(&attention_logits, mask, batch_size, seq_len)?;
 
         // Cache for backward pass
         self.cache = Some(DINCache {
@@ -395,7 +402,13 @@ impl DINAttention {
         });
 
         // Compute weighted sum
-        let output = self.weighted_sum(&attention_weights, values, batch_size, seq_len, embedding_dim)?;
+        let output = self.weighted_sum(
+            &attention_weights,
+            values,
+            batch_size,
+            seq_len,
+            embedding_dim,
+        )?;
 
         Ok(output)
     }
@@ -746,7 +759,8 @@ impl Layer for DINAttention {
                 let mut dot = 0.0;
                 for d in 0..embedding_dim {
                     let grad_val = grad.data()[b * embedding_dim + d];
-                    let val = cache.values.data()[b * seq_len * embedding_dim + s * embedding_dim + d];
+                    let val =
+                        cache.values.data()[b * seq_len * embedding_dim + s * embedding_dim + d];
                     dot += grad_val * val;
                 }
                 d_weights[b * seq_len + s] = dot;
@@ -760,7 +774,8 @@ impl Layer for DINAttention {
                 let weight = cache.attention_weights.data()[b * seq_len + s];
                 for d in 0..embedding_dim {
                     let grad_val = grad.data()[b * embedding_dim + d];
-                    d_values[b * seq_len * embedding_dim + s * embedding_dim + d] = weight * grad_val;
+                    d_values[b * seq_len * embedding_dim + s * embedding_dim + d] =
+                        weight * grad_val;
                 }
             }
         }
@@ -803,8 +818,7 @@ impl DINAttention {
 
         for b in 0..batch_size {
             for d in 0..embedding_dim {
-                query_data[b * embedding_dim + d] =
-                    input.data()[b * total_len * embedding_dim + d];
+                query_data[b * embedding_dim + d] = input.data()[b * total_len * embedding_dim + d];
             }
         }
 
@@ -922,9 +936,14 @@ mod tests {
         let values = keys.clone();
 
         // Mask: first 3 positions valid for batch 0, first 2 for batch 1
-        let mask = Tensor::from_data(&[2, 5], vec![1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0]);
+        let mask = Tensor::from_data(
+            &[2, 5],
+            vec![1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0],
+        );
 
-        let output = din.forward_attention(&query, &keys, &values, Some(&mask)).unwrap();
+        let output = din
+            .forward_attention(&query, &keys, &values, Some(&mask))
+            .unwrap();
         assert_eq!(output.shape(), &[2, 8]);
     }
 
@@ -1076,7 +1095,9 @@ mod tests {
         let values = keys.clone();
 
         // Forward with training cache
-        let _output = din.forward_attention_train(&query, &keys, &values, None).unwrap();
+        let _output = din
+            .forward_attention_train(&query, &keys, &values, None)
+            .unwrap();
 
         // Backward
         let grad = Tensor::ones(&[2, 8]);

@@ -278,11 +278,7 @@ impl ParameterSyncClient {
                 (stats.avg_pull_latency_ms * (total - 1.0) + duration.as_millis() as f64) / total;
         }
 
-        debug!(
-            "Pulled {} embeddings in {:?}",
-            embeddings.len(),
-            duration
-        );
+        debug!("Pulled {} embeddings in {:?}", embeddings.len(), duration);
 
         Ok(embeddings)
     }
@@ -367,10 +363,7 @@ impl ParameterSyncClient {
             error_message: None,
         };
 
-        info!(
-            "Full sync completed for slot {} in {:?}",
-            slot_id, duration
-        );
+        info!("Full sync completed for slot {} in {:?}", slot_id, duration);
 
         Ok(response)
     }

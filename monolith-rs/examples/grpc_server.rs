@@ -22,9 +22,8 @@
 use clap::Parser;
 use monolith_serving::{
     config::{ModelLoaderConfig, ParameterServerConfig, ServerConfig},
-    grpc::{GrpcServerConfig, ServingServer, ServerType},
-    AgentServiceImpl, ModelLoader, ParameterSyncClient, Server,
-    ServingError, ServingResult,
+    grpc::{GrpcServerConfig, ServerType, ServingServer},
+    AgentServiceImpl, ModelLoader, ParameterSyncClient, Server, ServingError, ServingResult,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -122,9 +121,8 @@ fn create_demo_model() -> ServingResult<PathBuf> {
         "output_format": "scores"
     }"#;
 
-    std::fs::write(temp_dir.join("metadata.json"), metadata).map_err(|e| {
-        ServingError::model_load(format!("Failed to write metadata.json: {}", e))
-    })?;
+    std::fs::write(temp_dir.join("metadata.json"), metadata)
+        .map_err(|e| ServingError::model_load(format!("Failed to write metadata.json: {}", e)))?;
 
     // Create slot_config.json
     let slot_config = r#"[
@@ -243,7 +241,10 @@ async fn run_high_level_server(args: Args, model_path: PathBuf) -> ServingResult
     info!("  Address: {}:{}", config.host, config.port);
     info!("  Workers: {}", config.num_workers);
     info!("  Model Path: {:?}", config.model_path);
-    info!("  Max Concurrent Requests: {}", config.max_concurrent_requests);
+    info!(
+        "  Max Concurrent Requests: {}",
+        config.max_concurrent_requests
+    );
     info!("  Request Timeout: {:?}", config.request_timeout);
     info!("  Health Check: {}", config.health_check_enabled);
 
@@ -362,7 +363,10 @@ async fn run_grpc_server(args: Args, model_path: PathBuf) -> ServingResult<()> {
     server.register_replica(grpc_config.server_type, bind_addr.clone());
 
     info!("ServingServer created");
-    info!("Registered as {:?} replica at {}", grpc_config.server_type, bind_addr);
+    info!(
+        "Registered as {:?} replica at {}",
+        grpc_config.server_type, bind_addr
+    );
 
     // Spawn server task
     let server_clone = Arc::clone(&server);
@@ -373,7 +377,10 @@ async fn run_grpc_server(args: Args, model_path: PathBuf) -> ServingResult<()> {
         }
     });
 
-    info!("Server is running on {}. Press CTRL+C to stop.", grpc_config.bind_address);
+    info!(
+        "Server is running on {}. Press CTRL+C to stop.",
+        grpc_config.bind_address
+    );
 
     // Wait for shutdown signal
     wait_for_shutdown_signal().await;

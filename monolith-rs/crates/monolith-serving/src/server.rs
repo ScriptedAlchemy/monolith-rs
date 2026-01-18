@@ -116,9 +116,10 @@ impl Server {
     pub fn new(config: ServerConfig) -> Self {
         let model_loader = Arc::new(ModelLoader::new(config.model_loader.clone()));
 
-        let param_sync = config.parameter_server.as_ref().map(|ps_config| {
-            Arc::new(ParameterSyncClient::new(ps_config.clone()))
-        });
+        let param_sync = config
+            .parameter_server
+            .as_ref()
+            .map(|ps_config| Arc::new(ParameterSyncClient::new(ps_config.clone())));
 
         Self {
             config,

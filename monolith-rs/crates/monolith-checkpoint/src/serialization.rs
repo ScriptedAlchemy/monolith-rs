@@ -273,9 +273,8 @@ impl BincodeSerializer {
 
 impl CheckpointSerializer for BincodeSerializer {
     fn serialize(&self, checkpoint: &Checkpoint) -> Result<Vec<u8>> {
-        bincode::serialize(checkpoint).map_err(|e| {
-            CheckpointError::Corrupted(format!("Bincode serialization failed: {}", e))
-        })
+        bincode::serialize(checkpoint)
+            .map_err(|e| CheckpointError::Corrupted(format!("Bincode serialization failed: {}", e)))
     }
 
     fn deserialize(&self, data: &[u8]) -> Result<Checkpoint> {
@@ -1035,7 +1034,9 @@ mod tests {
 
         // Write uncompressed
         let writer = CheckpointWriter::new(BincodeSerializer::new());
-        writer.write_to_file(&uncompressed_path, &checkpoint).unwrap();
+        writer
+            .write_to_file(&uncompressed_path, &checkpoint)
+            .unwrap();
 
         // Write compressed
         let writer = CheckpointWriter::new(BincodeSerializer::new())

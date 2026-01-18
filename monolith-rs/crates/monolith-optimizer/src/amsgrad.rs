@@ -302,7 +302,9 @@ mod tests {
 
     #[test]
     fn test_amsgrad_config_mismatch() {
-        let config = OptimizerConfig::Sgd { learning_rate: 0.01 };
+        let config = OptimizerConfig::Sgd {
+            learning_rate: 0.01,
+        };
         let result = Amsgrad::new(config);
         assert!(result.is_err());
     }
