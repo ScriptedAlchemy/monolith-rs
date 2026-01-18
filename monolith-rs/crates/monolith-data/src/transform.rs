@@ -24,7 +24,6 @@
 //! ```
 
 use monolith_proto::Example;
-use monolith_proto::monolith::io::proto::feature;
 
 /// A transform that can be applied to examples.
 ///
@@ -351,6 +350,7 @@ where
 mod tests {
     use super::*;
     use crate::example::{add_feature, create_example, get_feature, has_feature};
+    use monolith_proto::monolith::io::proto::feature;
 
     fn make_example_with_value(val: i64) -> Example {
         let mut ex = create_example();
@@ -437,8 +437,12 @@ mod tests {
             .add(FilterTransform::new(|ex| {
                 get_feature(ex, "value")
                     .and_then(|f| match &f.r#type {
-                        Some(feature::Type::FidV2List(l)) => l.value.first().copied().map(|v| v as i64),
-                        Some(feature::Type::FidV1List(l)) => l.value.first().copied().map(|v| v as i64),
+                        Some(feature::Type::FidV2List(l)) => {
+                            l.value.first().copied().map(|v| v as i64)
+                        }
+                        Some(feature::Type::FidV1List(l)) => {
+                            l.value.first().copied().map(|v| v as i64)
+                        }
                         _ => None,
                     })
                     .map(|v| v > 5)
