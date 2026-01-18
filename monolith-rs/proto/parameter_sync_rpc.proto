@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package monolith.parameter_sync_rpc;
+
+import "parameter_sync.proto";
+
+// A minimal gRPC service for pushing embedding deltas to online serving.
+//
+// The upstream Monolith `parameter_sync.proto` defines messages but does not
+// include a service definition. Rust needs an explicit service to use tonic,
+// so we define this small wrapper service.
+service ParameterSyncRpc {
+  rpc Push(monolith.parameter_sync.PushRequest) returns (monolith.parameter_sync.PushResponse);
+}
+

@@ -1,0 +1,243 @@
+// Copyright 2024 Monolith-RS Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package monolith.ps_training;
+
+// Parameter Server Training Service
+//
+// This service provides the core RPC interface for distributed training,
+// matching the Python DistributedHashTable behavior in distributed_ps.py.
+service ParameterServerTraining {
+  // Lookup embeddings for a batch of feature IDs.
+  // The caller should handle deduplication and shard routing.
+  rpc Lookup(LookupRequest) returns (LookupResponse);
+
+  // Apply gradients for a batch of feature IDs.
+  // The caller should handle gradient aggregation for duplicate IDs.
+  rpc ApplyGradients(ApplyGradientsRequest) returns (ApplyGradientsResponse);
+
+  // Barrier synchronization across workers.
+  rpc Barrier(BarrierRequest) returns (BarrierResponse);
+
+  // Health check for the PS instance.
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+
+  // Get PS statistics and metadata.
+  rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
+}
+
+// Request to lookup embeddings for a batch of feature IDs.
+message LookupRequest {
+  // The table name (for multi-table support).
+  string table_name = 1;
+
+  // Feature IDs to lookup. Should be unique (caller handles dedup).
+  repeated int64 fids = 2;
+
+  // Embedding dimension (for validation and initialization).
+  int32 dim_size = 3;
+
+  // Whether to initialize missing IDs (training mode).
+  bool create_if_missing = 4;
+
+  // Timeout in milliseconds.
+  int64 timeout_ms = 5;
+}
+
+// Response containing embeddings for the requested IDs.
+message LookupResponse {
+  // Status code (0 = OK).
+  int32 status_code = 1;
+
+  // Error message if status_code != 0.
+  string error_message = 2;
+
+  // Flat array of embeddings: [emb_0, emb_1, ..., emb_n] where each emb_i
+  // has length dim_size. Total length = len(fids) * dim_size.
+  repeated float embeddings = 3;
+
+  // Bitmask or indices indicating which IDs were found vs initialized.
+  // If found[i] is true, fids[i] existed; otherwise it was initialized.
+  repeated bool found = 4;
+
+  // Number of IDs successfully looked up.
+  int32 num_found = 5;
+
+  // Number of IDs that were newly initialized.
+  int32 num_initialized = 6;
+}
+
+// Request to apply gradients for a batch of feature IDs.
+message ApplyGradientsRequest {
+  // The table name (for multi-table support).
+  string table_name = 1;
+
+  // Feature IDs to update. Should be unique (caller aggregates duplicates).
+  repeated int64 fids = 2;
+
+  // Flat array of gradients, same layout as embeddings in LookupResponse.
+  repeated float gradients = 3;
+
+  // Embedding dimension.
+  int32 dim_size = 4;
+
+  // Learning rate for this update.
+  float learning_rate = 5;
+
+  // Global step (for optimizers that use it, e.g., Adam).
+  int64 global_step = 6;
+
+  // Timeout in milliseconds.
+  int64 timeout_ms = 7;
+}
+
+// Response after applying gradients.
+message ApplyGradientsResponse {
+  // Status code (0 = OK).
+  int32 status_code = 1;
+
+  // Error message if status_code != 0.
+  string error_message = 2;
+
+  // Number of IDs successfully updated.
+  int32 num_updated = 3;
+
+  // Number of IDs that were not found (and thus not updated).
+  int32 num_not_found = 4;
+}
+
+// Request for barrier synchronization.
+message BarrierRequest {
+  // Unique barrier ID for this synchronization point.
+  string barrier_id = 1;
+
+  // Worker ID making this request.
+  int32 worker_id = 2;
+
+  // Total number of workers that should participate.
+  int32 num_workers = 3;
+
+  // Timeout in milliseconds.
+  int64 timeout_ms = 4;
+}
+
+// Response when barrier is passed.
+message BarrierResponse {
+  // Status code (0 = OK, 1 = timeout, 2 = cancelled).
+  int32 status_code = 1;
+
+  // Error message if status_code != 0.
+  string error_message = 2;
+
+  // Number of workers that arrived at the barrier.
+  int32 num_arrived = 3;
+}
+
+// Health check request.
+message HealthCheckRequest {
+  // Optional: specific component to check.
+  string component = 1;
+}
+
+// Health check response.
+message HealthCheckResponse {
+  // Overall health status.
+  enum Status {
+    UNKNOWN = 0;
+    HEALTHY = 1;
+    UNHEALTHY = 2;
+    DEGRADED = 3;
+  }
+  Status status = 1;
+
+  // Human-readable message.
+  string message = 2;
+
+  // Uptime in seconds.
+  int64 uptime_seconds = 3;
+}
+
+// Request for PS statistics.
+message GetStatsRequest {
+  // Whether to include detailed per-table stats.
+  bool include_table_stats = 1;
+}
+
+// Response with PS statistics.
+message GetStatsResponse {
+  // PS shard ID.
+  int32 shard_id = 1;
+
+  // Total number of embeddings across all tables.
+  int64 total_embeddings = 2;
+
+  // Memory usage in bytes.
+  int64 memory_bytes = 3;
+
+  // Per-table statistics.
+  repeated TableStats table_stats = 4;
+
+  // Number of lookup requests served.
+  int64 lookup_count = 5;
+
+  // Number of apply_gradients requests served.
+  int64 apply_gradients_count = 6;
+
+  // Average lookup latency in microseconds.
+  int64 avg_lookup_latency_us = 7;
+
+  // Average apply_gradients latency in microseconds.
+  int64 avg_apply_latency_us = 8;
+}
+
+// Per-table statistics.
+message TableStats {
+  // Table name.
+  string name = 1;
+
+  // Number of embeddings in this table.
+  int64 num_embeddings = 2;
+
+  // Embedding dimension.
+  int32 dim_size = 3;
+
+  // Memory usage in bytes.
+  int64 memory_bytes = 4;
+}
+
+// Multi-table batch request for lookup (optimized for multi-slot models).
+message BatchLookupRequest {
+  // Multiple lookup requests, one per table.
+  repeated LookupRequest requests = 1;
+}
+
+// Multi-table batch response for lookup.
+message BatchLookupResponse {
+  // Responses for each table, in the same order as requests.
+  repeated LookupResponse responses = 1;
+}
+
+// Multi-table batch request for apply_gradients.
+message BatchApplyGradientsRequest {
+  // Multiple apply_gradients requests, one per table.
+  repeated ApplyGradientsRequest requests = 1;
+}
+
+// Multi-table batch response for apply_gradients.
+message BatchApplyGradientsResponse {
+  // Responses for each table, in the same order as requests.
+  repeated ApplyGradientsResponse responses = 1;
+}
