@@ -426,7 +426,7 @@ impl Layer for SENetLayer {
 
         // Backward through FC2
         // We need to compute gradients for fc2's weights
-        let fc1_relu = Self::relu(fc1_output);
+        let _fc1_relu = Self::relu(fc1_output);
 
         // For proper backward, we would need to call fc2.backward()
         // But since fc2 didn't cache inputs, we compute the input gradient manually
