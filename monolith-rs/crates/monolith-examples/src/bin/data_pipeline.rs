@@ -276,8 +276,8 @@ fn demo_tfrecord_io(config: &Config) {
             println!("  Features: {:?}", feature_names(&example));
             println!("  Total FIDs: {}", total_fid_count(&example));
 
-            if let Some(user_feature) = get_feature(&example, "user_id") {
-                println!("  user_id FID: {:?}", user_feature.fid);
+            if let Some(d) = get_feature_data(&example, "user_id") {
+                println!("  user_id FID: {:?}", d.fid);
             }
         }
     }
@@ -341,7 +341,8 @@ fn demo_transforms(config: &Config) {
     let positive_only: Vec<_> = dataset
         .filter(|ex| {
             get_feature(ex, "label")
-                .map(|f| f.value.first().copied().unwrap_or(0.0) > 0.5)
+                .and_then(|_| get_feature_data(ex, "label"))
+                .map(|d| d.value.first().copied().unwrap_or(0.0) > 0.5)
                 .unwrap_or(false)
         })
         .iter()
@@ -359,8 +360,8 @@ fn demo_transforms(config: &Config) {
     if config.verbose {
         let first_ids: Vec<_> = shuffled
             .iter()
-            .filter_map(|ex| get_feature(ex, "user_id"))
-            .filter_map(|f| f.fid.first().copied())
+            .filter_map(|ex| get_feature_data(ex, "user_id"))
+            .filter_map(|d| d.fid.first().copied())
             .take(5)
             .collect();
         println!("  First 5 user_ids: {:?}", first_ids);
@@ -384,8 +385,8 @@ fn demo_transforms(config: &Config) {
         .add(
             FilterTransform::new(|ex| {
                 // Keep examples with even user IDs
-                get_feature(ex, "user_id")
-                    .and_then(|f| f.fid.first().copied())
+                get_feature_data(ex, "user_id")
+                    .and_then(|d| d.fid.first().copied())
                     .map(|fid| extract_feature(fid) % 2 == 0)
                     .unwrap_or(false)
             })
@@ -587,15 +588,15 @@ fn demo_negative_sampling(_config: &Config) {
     println!("  Generated {} negative samples", negatives.len());
 
     for (i, neg) in negatives.iter().enumerate() {
-        if let Some(item) = get_feature(neg, "item_id") {
-            if let Some(label) = get_feature(neg, "label") {
-                println!(
-                    "    Negative {}: item_id={:?}, label={:?}",
-                    i,
-                    item.fid.first(),
-                    label.value.first()
-                );
-            }
+        if let (Some(item), Some(label)) =
+            (get_feature_data(neg, "item_id"), get_feature_data(neg, "label"))
+        {
+            println!(
+                "    Negative {}: item_id={:?}, label={:?}",
+                i,
+                item.fid.first().copied(),
+                label.value.first().copied()
+            );
         }
     }
 
@@ -624,13 +625,12 @@ fn demo_negative_sampling(_config: &Config) {
     let mut head_count = 0;
     let mut tail_count = 0;
     for neg in &freq_negatives {
-        if let Some(item) = get_feature(neg, "item_id") {
-            if let Some(&item_id) = item.fid.first() {
-                if item_id < 10020 {
-                    head_count += 1;
-                } else {
-                    tail_count += 1;
-                }
+        if let Some(item_id) = get_feature_data(neg, "item_id").and_then(|d| d.fid.first().copied())
+        {
+            if item_id < 10020 {
+                head_count += 1;
+            } else {
+                tail_count += 1;
             }
         }
     }
@@ -669,8 +669,8 @@ fn demo_negative_sampling(_config: &Config) {
     let positive_count = all_examples
         .iter()
         .filter(|ex| {
-            get_feature(ex, "label")
-                .map(|f| f.value.first().copied().unwrap_or(0.0) == 1.0)
+            get_feature_data(ex, "label")
+                .map(|d| d.value.first().copied().unwrap_or(0.0) == 1.0)
                 .unwrap_or(false)
         })
         .count();
@@ -890,7 +890,8 @@ fn demo_fid_utilities() {
 
     for nf in &example.named_feature {
         if let Some(feature) = &nf.feature {
-            for &fid in &feature.fid {
+            let d = monolith_data::example::extract_feature_data(feature);
+            for fid in d.fid {
                 let slot = extract_slot(fid);
                 slot_groups.entry(slot).or_default().push(fid);
             }
@@ -918,7 +919,7 @@ fn demo_fid_utilities() {
         .named_feature
         .iter()
         .filter_map(|nf| nf.feature.as_ref())
-        .flat_map(|f| f.fid.iter().copied())
+        .flat_map(|f| monolith_data::example::extract_feature_data(f).fid.into_iter())
         .collect();
 
     println!("  Total FIDs in example: {}", all_fids.len());
