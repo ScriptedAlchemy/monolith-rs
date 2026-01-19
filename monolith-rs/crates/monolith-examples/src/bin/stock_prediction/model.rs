@@ -221,7 +221,7 @@ impl StockPredictionModel {
             .for_each(|(chunk, instance)| {
                 features.write_sequence_features(instance, lookback, chunk);
             });
-        let mut seq_tensor = Tensor::from_data(&[batch_size, lookback, seq_feature_dim], seq_data);
+        let seq_tensor = Tensor::from_data(&[batch_size, lookback, seq_feature_dim], seq_data);
 
         // Multi-lookback pooled features: for each configured lookback L, compute a mean pool
         // over the last L steps of the sequence tensor. This gives multi-horizon context without
