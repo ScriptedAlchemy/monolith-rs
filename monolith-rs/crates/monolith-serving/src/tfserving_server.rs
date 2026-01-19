@@ -11,7 +11,10 @@ use monolith_data::example::extract_feature_data;
 use monolith_data::instance::extract_slot;
 use monolith_proto::tensorflow_core as tf_core;
 use monolith_proto::tensorflow_serving::apis as tfserving_apis;
+use monolith_proto::tensorflow_serving::error as tfserving_error;
+use parking_lot::RwLock;
 use prost::Message;
+use prost_types::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
@@ -35,6 +38,119 @@ impl TfServingPredictionServer {
     /// Create a new prediction server backed by the given agent.
     pub fn new(agent: Arc<AgentServiceImpl>) -> Self {
         Self { agent }
+    }
+}
+
+/// TensorFlow Serving-compatible ModelService implementation (server side).
+#[derive(Clone, Default)]
+pub struct TfServingModelServer {
+    statuses: Arc<RwLock<HashMap<String, Vec<tfserving_apis::ModelVersionStatus>>>>,
+}
+
+impl TfServingModelServer {
+    /// Create a new model service with empty status store.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Register a model version status (used for tests or static setups).
+    pub fn register_model_version(
+        &self,
+        model_name: impl Into<String>,
+        version: i64,
+        state: tfserving_apis::model_version_status::State,
+    ) {
+        let status = tfserving_apis::ModelVersionStatus {
+            version,
+            state: state as i32,
+            status: Some(ok_status()),
+        };
+        let mut map = self.statuses.write();
+        map.entry(model_name.into()).or_default().push(status);
+    }
+
+    fn update_from_config(&self, config: tfserving_apis::ModelServerConfig) {
+        let mut map = self.statuses.write();
+        map.clear();
+
+        if let Some(cfg) = config.config {
+            match cfg {
+                tfserving_apis::model_server_config::Config::ModelConfigList(list) => {
+                    for model in list.config {
+                        let name = model.name;
+                        // We don't have filesystem version scanning here yet, so default to v0.
+                        let status = tfserving_apis::ModelVersionStatus {
+                            version: 0,
+                            state: tfserving_apis::model_version_status::State::Available as i32,
+                            status: Some(ok_status()),
+                        };
+                        map.entry(name).or_default().push(status);
+                    }
+                }
+                tfserving_apis::model_server_config::Config::CustomModelConfig(_custom) => {
+                    // Custom config is out of scope; keep store empty.
+                }
+            }
+        }
+    }
+}
+
+#[tonic::async_trait]
+impl tfserving_apis::model_service_server::ModelService for TfServingModelServer {
+    async fn get_model_status(
+        &self,
+        request: Request<tfserving_apis::GetModelStatusRequest>,
+    ) -> Result<Response<tfserving_apis::GetModelStatusResponse>, Status> {
+        let req = request.into_inner();
+        let spec = req
+            .model_spec
+            .ok_or_else(|| Status::invalid_argument("model_spec is required"))?;
+
+        let mut statuses = self
+            .statuses
+            .read()
+            .get(&spec.name)
+            .cloned()
+            .unwrap_or_default();
+
+        // If a specific version is requested, filter it.
+        if let Some(choice) = spec.version_choice {
+            match choice {
+                tfserving_apis::model_spec::VersionChoice::Version(v) => {
+                    let requested = v;
+                    statuses.retain(|s| s.version == requested);
+                }
+                tfserving_apis::model_spec::VersionChoice::VersionLabel(_label) => {
+                    // Version labels are not supported; return empty for now.
+                    statuses.clear();
+                }
+            }
+        }
+
+        Ok(Response::new(tfserving_apis::GetModelStatusResponse {
+            model_version_status: statuses,
+        }))
+    }
+
+    async fn handle_reload_config_request(
+        &self,
+        request: Request<tfserving_apis::ReloadConfigRequest>,
+    ) -> Result<Response<tfserving_apis::ReloadConfigResponse>, Status> {
+        let req = request.into_inner();
+        if let Some(config) = req.config {
+            self.update_from_config(config);
+        }
+        Ok(Response::new(tfserving_apis::ReloadConfigResponse {
+            status: Some(ok_status()),
+            metric: Vec::new(),
+        }))
+    }
+}
+
+fn ok_status() -> tfserving_apis::StatusProto {
+    tfserving_apis::StatusProto {
+        error_code: tfserving_error::Code::Ok as i32,
+        error_message: String::new(),
     }
 }
 
@@ -100,12 +216,30 @@ impl tfserving_apis::prediction_service_server::PredictionService for TfServingP
 
     async fn get_model_metadata(
         &self,
-        _request: Request<monolith_proto::tensorflow_serving::apis::GetModelMetadataRequest>,
+        request: Request<monolith_proto::tensorflow_serving::apis::GetModelMetadataRequest>,
     ) -> Result<Response<monolith_proto::tensorflow_serving::apis::GetModelMetadataResponse>, Status>
     {
-        Err(Status::unimplemented(
-            "get_model_metadata is not implemented",
-        ))
+        let req = request.into_inner();
+        let mut metadata = HashMap::new();
+
+        if req.metadata_field.iter().any(|f| f == "signature_def") {
+            let sig_map = tfserving_apis::SignatureDefMap {
+                signature_def: HashMap::new(),
+            };
+            let bytes = sig_map.encode_to_vec();
+            metadata.insert(
+                "signature_def".to_string(),
+                Any {
+                    type_url: "type.googleapis.com/tensorflow.serving.SignatureDefMap".to_string(),
+                    value: bytes,
+                },
+            );
+        }
+
+        Ok(Response::new(tfserving_apis::GetModelMetadataResponse {
+            model_spec: req.model_spec,
+            metadata,
+        }))
     }
 }
 
@@ -117,8 +251,10 @@ fn extract_examples(
         let batch: monolith_proto::monolith::io::proto::ExampleBatchRowMajor =
             monolith_proto::monolith::io::proto::ExampleBatchRowMajor::decode(bytes.as_slice())
                 .map_err(|e| {
-                ServingError::PredictionError(format!("Failed to decode ExampleBatchRowMajor: {e}"))
-            })?;
+                    ServingError::PredictionError(format!(
+                        "Failed to decode ExampleBatchRowMajor: {e}"
+                    ))
+                })?;
         if batch.example.is_empty() {
             return Err(ServingError::PredictionError(
                 "example_batch_row_major is empty".to_string(),

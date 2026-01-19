@@ -249,7 +249,8 @@ pub use server::{HealthStatus, Server, ServerState};
 pub use tfserving::{parse_model_server_config_pbtxt, TfServingClient};
 #[cfg(feature = "grpc")]
 pub use tfserving_server::{
-    TfServingPredictionServer, INPUT_EXAMPLE, INPUT_EXAMPLE_BATCH, OUTPUT_SCORES,
+    TfServingModelServer, TfServingPredictionServer, INPUT_EXAMPLE, INPUT_EXAMPLE_BATCH,
+    OUTPUT_SCORES,
 };
 
 /// Crate version.
