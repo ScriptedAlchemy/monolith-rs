@@ -118,7 +118,8 @@ tonic-build = "0.11"
 prost = "0.12"
 prost-build = "0.12"
 prost-types = "0.12"
-prost-reflect = "0.16"
+# Keep prost-reflect aligned with prost 0.12 to avoid pulling a second prost major version.
+prost-reflect = "0.12"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -163,6 +164,9 @@ tempfile = "3.10"
 # Random number generation
 rand = "0.8"
 rand_distr = "0.4"
+
+# System info (resource reporting)
+sysinfo = "0.30"
 
 # Numeric types
 half = "2.4"

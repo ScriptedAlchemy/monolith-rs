@@ -33,6 +33,19 @@ pub struct CandleTensor {
     shape_cache: Vec<usize>,
 }
 
+// A single shared Metal device across threads can trigger command-buffer encoder assertions in
+// Metal's validation layer under parallel test/workloads. Use a per-thread cached device instead:
+// - avoids repeatedly creating/dropping devices (reduces macOS "context leak detected" spam)
+// - avoids cross-thread contention in the underlying command queue
+#[cfg(feature = "metal")]
+thread_local! {
+    static BEST_DEVICE: Device = Device::new_metal(0).unwrap_or(Device::Cpu);
+}
+#[cfg(all(feature = "cuda", not(feature = "metal")))]
+thread_local! {
+    static BEST_DEVICE: Device = Device::new_cuda(0).unwrap_or(Device::Cpu);
+}
+
 impl CandleTensor {
     /// Returns the best available device (GPU if available, otherwise CPU).
     ///
@@ -40,13 +53,9 @@ impl CandleTensor {
     /// On systems with CUDA, this returns a CUDA device.
     /// Otherwise, it falls back to CPU.
     pub fn best_device() -> Device {
-        #[cfg(feature = "metal")]
+        #[cfg(any(feature = "metal", feature = "cuda"))]
         {
-            Device::new_metal(0).unwrap_or(Device::Cpu)
-        }
-        #[cfg(all(feature = "cuda", not(feature = "metal")))]
-        {
-            Device::new_cuda(0).unwrap_or(Device::Cpu)
+            BEST_DEVICE.with(|d| d.clone())
         }
         #[cfg(not(any(feature = "metal", feature = "cuda")))]
         {
@@ -115,6 +124,15 @@ impl CandleTensor {
     /// Reshapes the tensor to a new shape.
     pub fn reshape(&self, new_shape: &[usize]) -> Self {
         let inner = self.inner.reshape(new_shape).expect("Failed to reshape");
+        Self::from_candle(inner)
+    }
+
+    /// Broadcasts this tensor to the provided shape (like numpy broadcasting).
+    pub fn broadcast_as(&self, shape: &[usize]) -> Self {
+        let inner = self
+            .inner
+            .broadcast_as(shape)
+            .expect("Failed to broadcast_as");
         Self::from_candle(inner)
     }
 
