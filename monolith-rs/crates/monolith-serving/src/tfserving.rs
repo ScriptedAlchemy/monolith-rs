@@ -16,7 +16,8 @@ use monolith_proto::tensorflow_serving::apis::{
     GetModelStatusRequest, PredictRequest, ReloadConfigRequest,
 };
 use monolith_proto::tensorflow_serving::config::ModelServerConfig;
-use prost::Message;
+use prost::Message as ProstMessage;
+use prost_reflect::prost::Message as ReflectMessage;
 use prost_reflect::{DescriptorPool, DynamicMessage};
 use tonic::transport::{Channel, Endpoint};
 
@@ -120,7 +121,7 @@ pub fn parse_model_server_config_pbtxt(
         ServingError::ConfigError(format!("Failed to parse ModelServerConfig pbtxt: {e}"))
     })?;
 
-    let bytes = dynamic.encode_to_vec();
+    let bytes = ReflectMessage::encode_to_vec(&dynamic);
     ModelServerConfig::decode(bytes.as_slice()).map_err(|e| {
         ServingError::ConfigError(format!(
             "Failed to decode ModelServerConfig from pbtxt: {e}"

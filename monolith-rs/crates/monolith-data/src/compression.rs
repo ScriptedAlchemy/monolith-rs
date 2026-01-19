@@ -20,6 +20,8 @@
 //! ```
 
 use std::io;
+#[cfg(any(feature = "gzip", feature = "snappy", feature = "compression"))]
+use std::io::{Read, Write};
 use thiserror::Error;
 
 /// Errors that can occur during compression/decompression operations.

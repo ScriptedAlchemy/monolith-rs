@@ -78,6 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=../../proto/float_compressor.proto");
     println!("cargo:rerun-if-changed=../../proto/initializer_config.proto");
     println!("cargo:rerun-if-changed=../../proto/optimizer.proto");
+    println!("cargo:rerun-if-changed=../../proto/xla/tsl/protobuf/error_codes.proto");
 
     // Convert to string paths for tonic-build.
     let proto_strs: Vec<_> = protos

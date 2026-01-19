@@ -225,7 +225,9 @@ pub mod parameter_sync;
 pub mod parameter_sync_rpc;
 pub mod parameter_sync_sink;
 pub mod server;
+#[cfg(feature = "grpc")]
 pub mod tfserving;
+#[cfg(feature = "grpc")]
 pub mod tfserving_server;
 
 // Re-export main types at crate root for convenience
@@ -243,7 +245,9 @@ pub use parameter_sync::{EmbeddingData, ParameterSyncClient, SyncRequest, SyncRe
 pub use parameter_sync_rpc::{ParameterSyncGrpcServer, ParameterSyncRpcClient};
 pub use parameter_sync_sink::EmbeddingStorePushSink;
 pub use server::{HealthStatus, Server, ServerState};
+#[cfg(feature = "grpc")]
 pub use tfserving::{parse_model_server_config_pbtxt, TfServingClient};
+#[cfg(feature = "grpc")]
 pub use tfserving_server::{
     TfServingPredictionServer, INPUT_EXAMPLE, INPUT_EXAMPLE_BATCH, OUTPUT_SCORES,
 };

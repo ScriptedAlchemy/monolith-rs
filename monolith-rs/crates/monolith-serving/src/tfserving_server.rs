@@ -1,3 +1,4 @@
+#![cfg(feature = "grpc")]
 //! TensorFlow Serving-compatible prediction service (server side).
 //!
 //! This provides a minimal PredictionService implementation that accepts
@@ -8,13 +9,8 @@ use crate::agent_service::{AgentServiceImpl, FeatureInput, PredictRequest};
 use crate::error::{ServingError, ServingResult};
 use monolith_data::example::extract_feature_data;
 use monolith_data::instance::extract_slot;
-use monolith_proto::monolith::io::proto::{Example, ExampleBatchRowMajor};
-use monolith_proto::tensorflow_core::tensor_shape_proto::Dim;
-use monolith_proto::tensorflow_core::{DataType, TensorProto, TensorShapeProto};
-use monolith_proto::tensorflow_serving::apis::prediction_service_server::PredictionService;
-use monolith_proto::tensorflow_serving::apis::{
-    PredictRequest as TfPredictRequest, PredictResponse as TfPredictResponse,
-};
+use monolith_proto::tensorflow_core as tf_core;
+use monolith_proto::tensorflow_serving::apis as tfserving_apis;
 use prost::Message;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -43,13 +39,13 @@ impl TfServingPredictionServer {
 }
 
 #[tonic::async_trait]
-impl PredictionService for TfServingPredictionServer {
+impl tfserving_apis::prediction_service_server::PredictionService for TfServingPredictionServer {
     async fn predict(
         &self,
-        request: Request<TfPredictRequest>,
-    ) -> Result<Response<TfPredictResponse>, Status> {
+        request: Request<tfserving_apis::PredictRequest>,
+    ) -> Result<Response<tfserving_apis::PredictResponse>, Status> {
         let req = request.into_inner();
-        let examples = extract_examples(&req)
+        let examples: Vec<monolith_proto::monolith::io::proto::Example> = extract_examples(&req)
             .map_err(|e| Status::invalid_argument(format!("Invalid PredictRequest: {e}")))?;
 
         let mut batch_scores: Vec<Vec<f32>> = Vec::with_capacity(examples.len());
@@ -72,7 +68,7 @@ impl PredictionService for TfServingPredictionServer {
         let outputs = scores_to_outputs(&batch_scores)
             .map_err(|e| Status::internal(format!("Output conversion failed: {e}")))?;
 
-        Ok(Response::new(TfPredictResponse {
+        Ok(Response::new(tfserving_apis::PredictResponse {
             outputs,
             model_spec: req.model_spec,
         }))
@@ -113,12 +109,16 @@ impl PredictionService for TfServingPredictionServer {
     }
 }
 
-fn extract_examples(req: &TfPredictRequest) -> ServingResult<Vec<Example>> {
+fn extract_examples(
+    req: &tfserving_apis::PredictRequest,
+) -> ServingResult<Vec<monolith_proto::monolith::io::proto::Example>> {
     if let Some(tensor) = req.inputs.get(INPUT_EXAMPLE_BATCH) {
         let bytes = tensor_to_bytes(tensor)?;
-        let batch = ExampleBatchRowMajor::decode(bytes.as_slice()).map_err(|e| {
-            ServingError::PredictionError(format!("Failed to decode ExampleBatchRowMajor: {e}"))
-        })?;
+        let batch: monolith_proto::monolith::io::proto::ExampleBatchRowMajor =
+            monolith_proto::monolith::io::proto::ExampleBatchRowMajor::decode(bytes.as_slice())
+                .map_err(|e| {
+                ServingError::PredictionError(format!("Failed to decode ExampleBatchRowMajor: {e}"))
+            })?;
         if batch.example.is_empty() {
             return Err(ServingError::PredictionError(
                 "example_batch_row_major is empty".to_string(),
@@ -129,7 +129,7 @@ fn extract_examples(req: &TfPredictRequest) -> ServingResult<Vec<Example>> {
 
     if let Some(tensor) = req.inputs.get(INPUT_EXAMPLE) {
         let bytes = tensor_to_bytes(tensor)?;
-        let example = Example::decode(bytes.as_slice())
+        let example = monolith_proto::monolith::io::proto::Example::decode(bytes.as_slice())
             .map_err(|e| ServingError::PredictionError(format!("Failed to decode Example: {e}")))?;
         return Ok(vec![example]);
     }
@@ -139,8 +139,8 @@ fn extract_examples(req: &TfPredictRequest) -> ServingResult<Vec<Example>> {
     ))
 }
 
-fn tensor_to_bytes(tensor: &TensorProto) -> ServingResult<Vec<u8>> {
-    if tensor.dtype != DataType::DtString as i32 {
+fn tensor_to_bytes(tensor: &tf_core::TensorProto) -> ServingResult<Vec<u8>> {
+    if tensor.dtype != tf_core::DataType::DtString as i32 {
         return Err(ServingError::PredictionError(
             "Input tensor must be DT_STRING".to_string(),
         ));
@@ -156,7 +156,9 @@ fn tensor_to_bytes(tensor: &TensorProto) -> ServingResult<Vec<u8>> {
     ))
 }
 
-fn example_to_features(example: &Example) -> Result<Vec<FeatureInput>, Box<Status>> {
+fn example_to_features(
+    example: &monolith_proto::monolith::io::proto::Example,
+) -> Result<Vec<FeatureInput>, Box<Status>> {
     let mut out = Vec::new();
     for nf in &example.named_feature {
         let Some(feature) = &nf.feature else {
@@ -187,7 +189,7 @@ fn example_to_features(example: &Example) -> Result<Vec<FeatureInput>, Box<Statu
     Ok(out)
 }
 
-fn scores_to_outputs(scores: &[Vec<f32>]) -> ServingResult<HashMap<String, TensorProto>> {
+fn scores_to_outputs(scores: &[Vec<f32>]) -> ServingResult<HashMap<String, tf_core::TensorProto>> {
     let batch = scores.len();
     if batch == 0 {
         return Err(ServingError::PredictionError("Empty batch".to_string()));
@@ -204,13 +206,13 @@ fn scores_to_outputs(scores: &[Vec<f32>]) -> ServingResult<HashMap<String, Tenso
         flat.extend_from_slice(row);
     }
 
-    let shape = TensorShapeProto {
+    let shape = tf_core::TensorShapeProto {
         dim: vec![
-            Dim {
+            tf_core::tensor_shape_proto::Dim {
                 size: batch as i64,
                 name: "".to_string(),
             },
-            Dim {
+            tf_core::tensor_shape_proto::Dim {
                 size: dim as i64,
                 name: "".to_string(),
             },
@@ -218,8 +220,8 @@ fn scores_to_outputs(scores: &[Vec<f32>]) -> ServingResult<HashMap<String, Tenso
         ..Default::default()
     };
 
-    let tensor = TensorProto {
-        dtype: DataType::DtFloat as i32,
+    let tensor = tf_core::TensorProto {
+        dtype: tf_core::DataType::DtFloat as i32,
         tensor_shape: Some(shape),
         float_val: flat,
         ..Default::default()
