@@ -28,7 +28,7 @@
 //! // Create DIN attention layer
 //! let config = DINConfig::new(32)
 //!     .with_attention_hidden_units(vec![64, 32])
-//!     .with_activation(monolith_layers::mlp::ActivationType::Sigmoid);
+//!     .with_activation(monolith_layers::mlp::ActivationType::None);
 //! let din = DINAttention::from_config(config).unwrap();
 //!
 //! // Query: target item embedding [batch_size, embedding_dim]
@@ -48,10 +48,21 @@
 //! - Zhou, G., et al. "Deep Interest Network for Click-Through Rate Prediction." KDD 2018.
 
 use crate::error::LayerError;
+use crate::initializer::Initializer;
 use crate::layer::Layer;
 use crate::mlp::{ActivationType, MLPConfig, MLP};
+use crate::regularizer::Regularizer;
 use crate::tensor::Tensor;
 use serde::{Deserialize, Serialize};
+
+/// Output mode for DIN attention.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DINOutputMode {
+    /// Weighted sum over sequence -> [batch_size, embedding_dim]
+    Sum,
+    /// Elementwise weighting -> [batch_size, seq_len, embedding_dim]
+    Elementwise,
+}
 
 /// Configuration for DIN attention layer.
 ///
@@ -63,7 +74,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// let config = DINConfig::new(64)
 ///     .with_attention_hidden_units(vec![128, 64])
-///     .with_activation(ActivationType::Sigmoid)
+///     .with_activation(ActivationType::None)
 ///     .with_use_softmax(false);
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,6 +85,17 @@ pub struct DINConfig {
     pub attention_hidden_units: Vec<usize>,
     /// Activation function for the attention MLP
     pub attention_activation: ActivationType,
+    /// Initializer for attention MLP weights
+    pub initializer: Initializer,
+    /// Kernel regularizer for attention MLP
+    pub regularizer: Regularizer,
+    /// Output mode for attention results
+    pub mode: DINOutputMode,
+    /// Whether to apply decay scaling (divide by sqrt(embedding_dim))
+    pub decay: bool,
+    /// Whether the activation is the default (Python-style) setting
+    #[serde(default)]
+    pub attention_activation_is_default: bool,
     /// Whether to apply softmax to attention scores
     pub use_softmax: bool,
     /// Whether to use bias in MLP layers
@@ -99,7 +121,12 @@ impl DINConfig {
         Self {
             embedding_dim,
             attention_hidden_units: vec![64, 32],
-            attention_activation: ActivationType::Sigmoid,
+            attention_activation: ActivationType::None,
+            initializer: Initializer::GlorotNormal,
+            regularizer: Regularizer::None,
+            mode: DINOutputMode::Sum,
+            decay: false,
+            attention_activation_is_default: true,
             use_softmax: false,
             use_bias: true,
         }
@@ -122,6 +149,31 @@ impl DINConfig {
     /// * `activation` - Activation function type
     pub fn with_activation(mut self, activation: ActivationType) -> Self {
         self.attention_activation = activation;
+        self.attention_activation_is_default = false;
+        self
+    }
+
+    /// Sets the initializer for attention MLP weights.
+    pub fn with_initializer(mut self, initializer: Initializer) -> Self {
+        self.initializer = initializer;
+        self
+    }
+
+    /// Sets kernel regularizer for attention MLP.
+    pub fn with_regularizer(mut self, regularizer: Regularizer) -> Self {
+        self.regularizer = regularizer;
+        self
+    }
+
+    /// Sets the output mode for attention.
+    pub fn with_mode(mut self, mode: DINOutputMode) -> Self {
+        self.mode = mode;
+        self
+    }
+
+    /// Sets whether to apply decay scaling to attention weights.
+    pub fn with_decay(mut self, decay: bool) -> Self {
+        self.decay = decay;
         self
     }
 
@@ -282,12 +334,25 @@ impl DINAttention {
 
         // Build attention MLP
         let mut mlp_config = MLPConfig::new(attention_input_dim);
+        let hidden_activation = if config.attention_activation == ActivationType::None
+            && config.attention_activation_is_default
+        {
+            ActivationType::relu()
+        } else {
+            config.attention_activation.clone()
+        };
         for &units in &config.attention_hidden_units {
-            mlp_config = mlp_config.add_layer(units, config.attention_activation);
+            mlp_config = mlp_config.add_layer_with_initializer(
+                units,
+                hidden_activation.clone(),
+                config.initializer,
+            );
         }
         // Output layer: single attention score
-        mlp_config = mlp_config.add_layer(1, ActivationType::None);
+        mlp_config =
+            mlp_config.add_layer_with_initializer(1, ActivationType::None, config.initializer);
         mlp_config = mlp_config.with_bias(config.use_bias);
+        mlp_config = mlp_config.with_regularizers(config.regularizer.clone(), Regularizer::None);
 
         let attention_mlp = MLP::from_config(mlp_config)?;
 
@@ -347,8 +412,8 @@ impl DINAttention {
         // Compute attention scores for each key
         let attention_weights = self.compute_attention_weights(query, keys, mask)?;
 
-        // Compute weighted sum of values
-        let output = self.weighted_sum(
+        // Apply attention to values
+        let output = self.apply_attention(
             &attention_weights,
             values,
             batch_size,
@@ -401,8 +466,8 @@ impl DINAttention {
             mask: mask.cloned(),
         });
 
-        // Compute weighted sum
-        let output = self.weighted_sum(
+        // Apply attention
+        let output = self.apply_attention(
             &attention_weights,
             values,
             batch_size,
@@ -522,40 +587,30 @@ impl DINAttention {
         let seq_len = keys.shape()[1];
         let embedding_dim = self.config.embedding_dim;
 
-        // For each (query, key) pair, compute [q, k, q-k, q*k]
-        let attention_input_dim = 4 * embedding_dim;
-        let mut attention_inputs = vec![0.0; batch_size * seq_len * attention_input_dim];
+        // [B, H] -> [B, 1, H] -> [B, T, H]
+        let query_expanded =
+            query
+                .reshape(&[batch_size, 1, embedding_dim])
+                .broadcast_as(&[batch_size, seq_len, embedding_dim]);
+        let query_minus_key = query_expanded.sub(keys);
+        let query_mul_key = query_expanded.mul(keys);
 
-        for b in 0..batch_size {
-            for s in 0..seq_len {
-                let q_offset = b * embedding_dim;
-                let k_offset = b * seq_len * embedding_dim + s * embedding_dim;
-                let out_offset = (b * seq_len + s) * attention_input_dim;
-
-                for d in 0..embedding_dim {
-                    let q_val = query.data()[q_offset + d];
-                    let k_val = keys.data()[k_offset + d];
-
-                    // [query, key, query-key, query*key]
-                    attention_inputs[out_offset + d] = q_val;
-                    attention_inputs[out_offset + embedding_dim + d] = k_val;
-                    attention_inputs[out_offset + 2 * embedding_dim + d] = q_val - k_val;
-                    attention_inputs[out_offset + 3 * embedding_dim + d] = q_val * k_val;
-                }
-            }
-        }
-
-        // Reshape to [batch_size * seq_len, 4 * embedding_dim]
-        let attention_input = Tensor::from_data(
-            &[batch_size * seq_len, attention_input_dim],
-            attention_inputs,
-        );
+        // Concatenate [q, k, q-k, q*k] along last dimension -> [B, T, 4H]
+        let attention_input =
+            Tensor::cat(&[query_expanded, keys.clone(), query_minus_key, query_mul_key], 2)
+                .reshape(&[batch_size * seq_len, 4 * embedding_dim]);
 
         // Pass through attention MLP
         let logits = self.attention_mlp.forward(&attention_input)?;
 
         // Reshape to [batch_size, seq_len]
-        Ok(logits.reshape(&[batch_size, seq_len]))
+        let logits = logits.reshape(&[batch_size, seq_len]);
+        if self.config.decay {
+            let scale = 1.0 / (embedding_dim as f32).sqrt();
+            Ok(logits.scale(scale))
+        } else {
+            Ok(logits)
+        }
     }
 
     /// Applies mask and normalization to attention logits.
@@ -566,71 +621,23 @@ impl DINAttention {
         batch_size: usize,
         seq_len: usize,
     ) -> Result<Tensor, LayerError> {
-        let mut weights = logits.data().to_vec();
+        let mut logits = logits.clone();
 
-        // Apply mask (set padded positions to large negative value)
-        if let Some(m) = mask {
-            for b in 0..batch_size {
-                for s in 0..seq_len {
-                    let idx = b * seq_len + s;
-                    if m.data()[idx] == 0.0 {
-                        weights[idx] = f32::NEG_INFINITY;
-                    }
-                }
-            }
-        }
-
-        // Apply softmax if configured
         if self.config.use_softmax {
-            for b in 0..batch_size {
-                // Find max for numerical stability
-                let mut max_val = f32::NEG_INFINITY;
-                for s in 0..seq_len {
-                    let idx = b * seq_len + s;
-                    if weights[idx] > max_val {
-                        max_val = weights[idx];
-                    }
-                }
-
-                // Handle case where all values are -inf
-                if max_val == f32::NEG_INFINITY {
-                    max_val = 0.0;
-                }
-
-                // Compute exp and sum
-                let mut sum = 0.0;
-                for s in 0..seq_len {
-                    let idx = b * seq_len + s;
-                    if weights[idx] != f32::NEG_INFINITY {
-                        weights[idx] = (weights[idx] - max_val).exp();
-                        sum += weights[idx];
-                    } else {
-                        weights[idx] = 0.0;
-                    }
-                }
-
-                // Normalize
-                if sum > 0.0 {
-                    for s in 0..seq_len {
-                        let idx = b * seq_len + s;
-                        weights[idx] /= sum;
-                    }
-                }
+            if let Some(m) = mask {
+                let ones = Tensor::ones(&[batch_size, seq_len]);
+                let mask_inv = ones.sub(m);
+                let penalty = mask_inv.scale(1.0e9);
+                logits = logits.sub(&penalty);
             }
-        } else {
-            // Use raw scores (with sigmoid applied by MLP typically)
-            // Just mask out padding
-            for b in 0..batch_size {
-                for s in 0..seq_len {
-                    let idx = b * seq_len + s;
-                    if weights[idx] == f32::NEG_INFINITY {
-                        weights[idx] = 0.0;
-                    }
-                }
-            }
+            return Ok(logits.softmax(1));
         }
 
-        Ok(Tensor::from_data(&[batch_size, seq_len], weights))
+        if let Some(m) = mask {
+            return Ok(logits.mul(m));
+        }
+
+        Ok(logits)
     }
 
     /// Computes attention weights.
@@ -647,8 +654,8 @@ impl DINAttention {
         self.apply_mask_and_normalize(&logits, mask, batch_size, seq_len)
     }
 
-    /// Computes weighted sum of values.
-    fn weighted_sum(
+    /// Applies attention weights to values based on output mode.
+    fn apply_attention(
         &self,
         weights: &Tensor,
         values: &Tensor,
@@ -656,21 +663,14 @@ impl DINAttention {
         seq_len: usize,
         embedding_dim: usize,
     ) -> Result<Tensor, LayerError> {
-        let mut output = vec![0.0; batch_size * embedding_dim];
-
-        for b in 0..batch_size {
-            for s in 0..seq_len {
-                let weight = weights.data()[b * seq_len + s];
-                let v_offset = b * seq_len * embedding_dim + s * embedding_dim;
-                let out_offset = b * embedding_dim;
-
-                for d in 0..embedding_dim {
-                    output[out_offset + d] += weight * values.data()[v_offset + d];
-                }
-            }
+        let w = weights
+            .reshape(&[batch_size, seq_len, 1])
+            .broadcast_as(&[batch_size, seq_len, embedding_dim]);
+        let weighted = values.mul(&w);
+        match self.config.mode {
+            DINOutputMode::Sum => Ok(weighted.sum_axis(1)),
+            DINOutputMode::Elementwise => Ok(weighted),
         }
-
-        Ok(Tensor::from_data(&[batch_size, embedding_dim], output))
     }
 
     /// Returns attention weights for analysis/visualization.
@@ -751,31 +751,61 @@ impl Layer for DINAttention {
         let seq_len = cache.keys.shape()[1];
         let embedding_dim = self.config.embedding_dim;
 
-        // Gradient of weighted sum w.r.t. attention weights
-        // d(output)/d(weights[s]) = values[s]
-        let mut d_weights = vec![0.0; batch_size * seq_len];
-        for b in 0..batch_size {
-            for s in 0..seq_len {
-                let mut dot = 0.0;
-                for d in 0..embedding_dim {
-                    let grad_val = grad.data()[b * embedding_dim + d];
-                    let val =
-                        cache.values.data()[b * seq_len * embedding_dim + s * embedding_dim + d];
-                    dot += grad_val * val;
-                }
-                d_weights[b * seq_len + s] = dot;
-            }
-        }
+        // Single GPU→CPU sync for all cached tensors and grad
+        let grad_data = grad.data_ref();
+        let values_data = cache.values.data_ref();
+        let weights_data = cache.attention_weights.data_ref();
 
-        // Gradient w.r.t. values
+        let mut d_weights = vec![0.0; batch_size * seq_len];
         let mut d_values = vec![0.0; batch_size * seq_len * embedding_dim];
-        for b in 0..batch_size {
-            for s in 0..seq_len {
-                let weight = cache.attention_weights.data()[b * seq_len + s];
-                for d in 0..embedding_dim {
-                    let grad_val = grad.data()[b * embedding_dim + d];
-                    d_values[b * seq_len * embedding_dim + s * embedding_dim + d] =
-                        weight * grad_val;
+
+        match self.config.mode {
+            DINOutputMode::Sum => {
+                // Gradient of weighted sum w.r.t. attention weights
+                // d(output)/d(weights[s]) = values[s]
+                for b in 0..batch_size {
+                    for s in 0..seq_len {
+                        let mut dot = 0.0;
+                        for d in 0..embedding_dim {
+                            let grad_val = grad_data[b * embedding_dim + d];
+                            let val =
+                                values_data[b * seq_len * embedding_dim + s * embedding_dim + d];
+                            dot += grad_val * val;
+                        }
+                        d_weights[b * seq_len + s] = dot;
+                    }
+                }
+
+                // Gradient w.r.t. values
+                for b in 0..batch_size {
+                    for s in 0..seq_len {
+                        let weight = weights_data[b * seq_len + s];
+                        for d in 0..embedding_dim {
+                            let grad_val = grad_data[b * embedding_dim + d];
+                            d_values[b * seq_len * embedding_dim + s * embedding_dim + d] =
+                                weight * grad_val;
+                        }
+                    }
+                }
+            }
+            DINOutputMode::Elementwise => {
+                // output = values * weights (broadcast)
+                // d_weights = sum_d(grad * values), d_values = grad * weights
+                for b in 0..batch_size {
+                    for s in 0..seq_len {
+                        let weight = weights_data[b * seq_len + s];
+                        let mut dot = 0.0;
+                        for d in 0..embedding_dim {
+                            let grad_val =
+                                grad_data[b * seq_len * embedding_dim + s * embedding_dim + d];
+                            let val =
+                                values_data[b * seq_len * embedding_dim + s * embedding_dim + d];
+                            dot += grad_val * val;
+                            d_values[b * seq_len * embedding_dim + s * embedding_dim + d] =
+                                weight * grad_val;
+                        }
+                        d_weights[b * seq_len + s] = dot;
+                    }
                 }
             }
         }
@@ -800,6 +830,10 @@ impl Layer for DINAttention {
         "DINAttention"
     }
 
+    fn regularization_loss(&self) -> f32 {
+        self.attention_mlp.regularization_loss()
+    }
+
     fn is_training(&self) -> bool {
         self.training
     }
@@ -812,40 +846,19 @@ impl Layer for DINAttention {
 
 impl DINAttention {
     /// Extracts query from combined input tensor.
-    fn extract_query(&self, input: &Tensor, batch_size: usize, embedding_dim: usize) -> Tensor {
-        let total_len = input.shape()[1];
-        let mut query_data = vec![0.0; batch_size * embedding_dim];
-
-        for b in 0..batch_size {
-            for d in 0..embedding_dim {
-                query_data[b * embedding_dim + d] = input.data()[b * total_len * embedding_dim + d];
-            }
-        }
-
-        Tensor::from_data(&[batch_size, embedding_dim], query_data)
+    fn extract_query(&self, input: &Tensor, _batch_size: usize, _embedding_dim: usize) -> Tensor {
+        input.narrow(1, 0, 1).squeeze(1).contiguous()
     }
 
     /// Extracts keys from combined input tensor.
     fn extract_keys(
         &self,
         input: &Tensor,
-        batch_size: usize,
+        _batch_size: usize,
         seq_len: usize,
-        embedding_dim: usize,
+        _embedding_dim: usize,
     ) -> Tensor {
-        let total_len = input.shape()[1];
-        let mut keys_data = vec![0.0; batch_size * seq_len * embedding_dim];
-
-        for b in 0..batch_size {
-            for s in 0..seq_len {
-                for d in 0..embedding_dim {
-                    keys_data[b * seq_len * embedding_dim + s * embedding_dim + d] =
-                        input.data()[b * total_len * embedding_dim + (s + 1) * embedding_dim + d];
-                }
-            }
-        }
-
-        Tensor::from_data(&[batch_size, seq_len, embedding_dim], keys_data)
+        input.narrow(1, 1, seq_len).contiguous()
     }
 }
 
@@ -858,24 +871,32 @@ mod tests {
         let config = DINConfig::new(32);
         assert_eq!(config.embedding_dim, 32);
         assert_eq!(config.attention_hidden_units, vec![64, 32]);
-        assert_eq!(config.attention_activation, ActivationType::Sigmoid);
+        assert_eq!(config.attention_activation, ActivationType::None);
+        assert!(config.attention_activation_is_default);
         assert!(!config.use_softmax);
         assert!(config.use_bias);
+        assert_eq!(config.mode, DINOutputMode::Sum);
+        assert!(!config.decay);
     }
 
     #[test]
     fn test_din_config_builder() {
         let config = DINConfig::new(64)
             .with_attention_hidden_units(vec![128, 64])
-            .with_activation(ActivationType::ReLU)
+            .with_activation(ActivationType::relu())
+            .with_mode(DINOutputMode::Elementwise)
+            .with_decay(true)
             .with_use_softmax(true)
             .with_bias(false);
 
         assert_eq!(config.embedding_dim, 64);
         assert_eq!(config.attention_hidden_units, vec![128, 64]);
-        assert_eq!(config.attention_activation, ActivationType::ReLU);
+        assert_eq!(config.attention_activation, ActivationType::relu());
+        assert!(!config.attention_activation_is_default);
         assert!(config.use_softmax);
         assert!(!config.use_bias);
+        assert_eq!(config.mode, DINOutputMode::Elementwise);
+        assert!(config.decay);
     }
 
     #[test]
@@ -908,7 +929,7 @@ mod tests {
     fn test_din_from_config() {
         let config = DINConfig::new(16)
             .with_attention_hidden_units(vec![32, 16])
-            .with_activation(ActivationType::Sigmoid);
+            .with_activation(ActivationType::sigmoid());
 
         let din = DINAttention::from_config(config).unwrap();
         assert_eq!(din.embedding_dim(), 16);
@@ -960,6 +981,21 @@ mod tests {
 
         let output = din.forward_attention(&query, &keys, &values, None).unwrap();
         assert_eq!(output.shape(), &[2, 8]);
+    }
+
+    #[test]
+    fn test_din_forward_attention_elementwise() {
+        let config = DINConfig::new(8)
+            .with_attention_hidden_units(vec![16, 8])
+            .with_mode(DINOutputMode::Elementwise);
+        let din = DINAttention::from_config(config).unwrap();
+
+        let query = Tensor::rand(&[2, 8]);
+        let keys = Tensor::rand(&[2, 5, 8]);
+        let values = keys.clone();
+
+        let output = din.forward_attention(&query, &keys, &values, None).unwrap();
+        assert_eq!(output.shape(), &[2, 5, 8]);
     }
 
     #[test]

@@ -30,8 +30,12 @@ ta-lib-sys = { version = "0.1.2", optional = true }
 rayon = { workspace = true }
 num_cpus = "1.16"
 
+# Serialization (for indicator caching)
+serde = { workspace = true }
+bincode = { workspace = true }
+
 [features]
-default = ["talib"]
+default = ["talib", "metal"]
 training = ["dep:monolith-training"]
 metal = ["monolith-layers/metal"]
 cuda = ["monolith-layers/cuda"]

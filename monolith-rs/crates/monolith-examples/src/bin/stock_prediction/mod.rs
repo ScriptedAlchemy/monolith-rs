@@ -19,6 +19,7 @@
 
 pub mod app;
 pub mod backtest;
+pub mod cache;
 pub mod config;
 pub mod data;
 pub mod indicators;

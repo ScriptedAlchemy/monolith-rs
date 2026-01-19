@@ -8,3 +8,5 @@ description = "Core traits, types, and feature abstractions for Monolith"
 [dependencies]
 thiserror = { workspace = true }
 serde = { workspace = true }
+regex = { workspace = true }
+once_cell = { workspace = true }

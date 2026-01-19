@@ -322,8 +322,8 @@ impl OnlineModel {
     pub fn new(input_dim: usize, learning_rate: f32) -> Self {
         // Build a simple MLP: input -> 64 -> 32 -> 1
         let mlp = MLPConfig::new(input_dim)
-            .add_layer(64, ActivationType::ReLU)
-            .add_layer(32, ActivationType::ReLU)
+            .add_layer(64, ActivationType::relu())
+            .add_layer(32, ActivationType::relu())
             .add_layer(1, ActivationType::None) // Sigmoid applied separately
             .build()
             .expect("Failed to build MLP");
@@ -376,11 +376,13 @@ impl OnlineModel {
     fn simple_gradient_update(&mut self, grad: f32) {
         // Apply a small gradient update to all parameters
         // This is a simplified version - real implementation would do proper backprop
+        let lr = self.learning_rate;
         for param in self.mlp.parameters_mut() {
-            let data = param.data_mut();
-            for val in data.iter_mut() {
-                *val -= self.learning_rate * grad * 0.01; // Scaled gradient
-            }
+            param.modify_data(|data| {
+                for val in data.iter_mut() {
+                    *val -= lr * grad * 0.01; // Scaled gradient
+                }
+            });
         }
     }
 }

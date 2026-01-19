@@ -87,12 +87,15 @@ pub mod compression;
 pub mod dataset;
 pub mod example;
 pub mod instance;
+pub mod interleave;
 pub mod kafka;
 pub mod negative_sampling;
 #[cfg(feature = "parquet")]
 pub mod parquet;
 pub mod tfrecord;
 pub mod transform;
+pub mod utils;
+pub mod feature_list;
 
 // Re-export main types for convenience
 pub use batch::{Batch, BatchedDataset};
@@ -110,6 +113,7 @@ pub use instance::{
     extract_feature, extract_slot, make_fid, DenseFeature, Instance, InstanceBatch, InstanceError,
     InstanceParser, LineIdInfo, SparseFeature, Tensor,
 };
+pub use interleave::{InterleavedDataset, InterleavedIterator};
 pub use kafka::{
     KafkaConfig, KafkaConsumer, KafkaDataSource, KafkaError, KafkaMessage, MockKafkaConsumer,
     OffsetReset,
@@ -126,6 +130,10 @@ pub use tfrecord::{TFRecordDataset, TFRecordError, TFRecordReader, TFRecordWrite
 pub use transform::{
     FilterMapTransform, FilterTransform, MapTransform, Transform, TransformChain,
     TransformedDataset,
+};
+pub use utils::{
+    add_feature as add_valid_feature, enable_tob_env, get_feature_name_and_slot,
+    get_slot_feature_name, get_slot_from_feature_name, register_slots,
 };
 
 /// Prelude module for convenient imports.

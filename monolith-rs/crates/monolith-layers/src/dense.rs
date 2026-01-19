@@ -4,7 +4,10 @@
 //! `y = xW + b` where W is the weight matrix and b is the bias vector.
 
 use crate::error::LayerError;
+use crate::initializer::Initializer;
 use crate::layer::Layer;
+use crate::constraint::Constraint;
+use crate::regularizer::Regularizer;
 use crate::tensor::Tensor;
 use serde::{Deserialize, Serialize};
 
@@ -34,6 +37,22 @@ pub struct Dense {
     weights: Tensor,
     /// Bias vector of shape [out_features]
     bias: Tensor,
+    /// Kernel regularizer
+    kernel_regularizer: Regularizer,
+    /// Bias regularizer
+    bias_regularizer: Regularizer,
+    /// Kernel constraint
+    kernel_constraint: Constraint,
+    /// Bias constraint
+    bias_constraint: Constraint,
+    /// Whether to apply kernel norm (weight normalization)
+    allow_kernel_norm: bool,
+    /// Whether the kernel norm scale is trainable
+    kernel_norm_trainable: bool,
+    /// Trainable kernel norm scale (shape [out_features])
+    kernel_norm: Option<Tensor>,
+    /// Gradient of kernel norm scale
+    kernel_norm_grad: Option<Tensor>,
     /// Gradient of weights
     weights_grad: Option<Tensor>,
     /// Gradient of bias
@@ -51,7 +70,7 @@ pub struct Dense {
 impl Dense {
     /// Creates a new dense layer with the specified input and output dimensions.
     ///
-    /// Weights are initialized using Xavier/Glorot initialization and
+    /// Weights are initialized using Glorot uniform initialization and
     /// biases are initialized to zeros.
     ///
     /// # Arguments
@@ -67,21 +86,13 @@ impl Dense {
     /// let layer = Dense::new(64, 32);
     /// ```
     pub fn new(in_features: usize, out_features: usize) -> Self {
-        // Xavier/Glorot initialization
-        let std = (2.0 / (in_features + out_features) as f32).sqrt();
-        let weights = Tensor::randn(&[in_features, out_features], 0.0, std);
-        let bias = Tensor::zeros(&[out_features]);
-
-        Self {
-            weights,
-            bias,
-            weights_grad: None,
-            bias_grad: None,
-            cached_input: None,
+        Self::new_with_initializer(
             in_features,
             out_features,
-            use_bias: true,
-        }
+            Initializer::GlorotUniform,
+            Initializer::Zeros,
+            true,
+        )
     }
 
     /// Creates a new dense layer without bias.
@@ -91,10 +102,110 @@ impl Dense {
     /// * `in_features` - Number of input features
     /// * `out_features` - Number of output features
     pub fn new_no_bias(in_features: usize, out_features: usize) -> Self {
-        let mut layer = Self::new(in_features, out_features);
-        layer.use_bias = false;
-        layer.bias = Tensor::zeros(&[out_features]);
-        layer
+        Self::new_with_initializer(
+            in_features,
+            out_features,
+            Initializer::GlorotUniform,
+            Initializer::Zeros,
+            false,
+        )
+    }
+
+    /// Creates a new dense layer with custom initializers.
+    ///
+    /// # Arguments
+    ///
+    /// * `in_features` - Number of input features
+    /// * `out_features` - Number of output features
+    /// * `weight_init` - Initializer for the weight matrix
+    /// * `bias_init` - Initializer for the bias vector
+    /// * `use_bias` - Whether to use bias
+    pub fn new_with_initializer(
+        in_features: usize,
+        out_features: usize,
+        weight_init: Initializer,
+        bias_init: Initializer,
+        use_bias: bool,
+    ) -> Self {
+        Self::new_with_options(
+            in_features,
+            out_features,
+            weight_init,
+            bias_init,
+            use_bias,
+            Regularizer::None,
+            Regularizer::None,
+            Constraint::None,
+            Constraint::None,
+        )
+    }
+
+    /// Creates a new dense layer with full options.
+    pub fn new_with_options(
+        in_features: usize,
+        out_features: usize,
+        weight_init: Initializer,
+        bias_init: Initializer,
+        use_bias: bool,
+        kernel_regularizer: Regularizer,
+        bias_regularizer: Regularizer,
+        kernel_constraint: Constraint,
+        bias_constraint: Constraint,
+    ) -> Self {
+        let weights = weight_init.initialize(&[in_features, out_features]);
+        let bias = if use_bias {
+            bias_init.initialize(&[out_features])
+        } else {
+            Tensor::zeros(&[out_features])
+        };
+
+        Self {
+            weights,
+            bias,
+            kernel_regularizer,
+            bias_regularizer,
+            kernel_constraint,
+            bias_constraint,
+            allow_kernel_norm: false,
+            kernel_norm_trainable: false,
+            kernel_norm: None,
+            kernel_norm_grad: None,
+            weights_grad: None,
+            bias_grad: None,
+            cached_input: None,
+            in_features,
+            out_features,
+            use_bias,
+        }
+    }
+
+    /// Enables kernel norm (weight normalization).
+    ///
+    /// If `trainable` is true, a trainable scale vector is created (shape [out_features])
+    /// initialized to the L2 norm of the current weights along axis 0.
+    pub fn with_kernel_norm(mut self, trainable: bool) -> Self {
+        self.enable_kernel_norm(trainable);
+        self
+    }
+
+    /// Enables kernel norm on an existing layer.
+    pub fn enable_kernel_norm(&mut self, trainable: bool) {
+        self.allow_kernel_norm = true;
+        self.kernel_norm_trainable = trainable;
+        if trainable {
+            let norm = self
+                .weights
+                .sqr()
+                .sum_axis(0)
+                .add(&Tensor::from_data(
+                    &[self.out_features],
+                    vec![1e-6; self.out_features],
+                ))
+                .sqrt();
+            self.kernel_norm = Some(norm);
+        } else {
+            self.kernel_norm = None;
+        }
     }
 
     /// Creates a dense layer with custom weights and bias.
@@ -131,6 +242,14 @@ impl Dense {
         Ok(Self {
             weights,
             bias,
+            kernel_regularizer: Regularizer::None,
+            bias_regularizer: Regularizer::None,
+            kernel_constraint: Constraint::None,
+            bias_constraint: Constraint::None,
+            allow_kernel_norm: false,
+            kernel_norm_trainable: false,
+            kernel_norm: None,
+            kernel_norm_grad: None,
             weights_grad: None,
             bias_grad: None,
             cached_input: None,
@@ -138,6 +257,30 @@ impl Dense {
             out_features,
             use_bias: true,
         })
+    }
+
+    /// Sets the kernel regularizer.
+    pub fn with_kernel_regularizer(mut self, regularizer: Regularizer) -> Self {
+        self.kernel_regularizer = regularizer;
+        self
+    }
+
+    /// Sets the bias regularizer.
+    pub fn with_bias_regularizer(mut self, regularizer: Regularizer) -> Self {
+        self.bias_regularizer = regularizer;
+        self
+    }
+
+    /// Sets the kernel constraint.
+    pub fn with_kernel_constraint(mut self, constraint: Constraint) -> Self {
+        self.kernel_constraint = constraint;
+        self
+    }
+
+    /// Sets the bias constraint.
+    pub fn with_bias_constraint(mut self, constraint: Constraint) -> Self {
+        self.bias_constraint = constraint;
+        self
     }
 
     /// Returns the input feature dimension.
@@ -155,9 +298,24 @@ impl Dense {
         &self.weights
     }
 
+    /// Returns a mutable reference to the weights tensor.
+    pub fn weights_mut(&mut self) -> &mut Tensor {
+        &mut self.weights
+    }
+
     /// Returns a reference to the bias tensor.
     pub fn bias(&self) -> &Tensor {
         &self.bias
+    }
+
+    /// Returns a mutable reference to the bias tensor.
+    pub fn bias_mut(&mut self) -> &mut Tensor {
+        &mut self.bias
+    }
+
+    /// Returns whether this layer uses bias.
+    pub fn has_bias(&self) -> bool {
+        self.use_bias
     }
 
     /// Returns the weight gradients if available.
@@ -170,38 +328,83 @@ impl Dense {
         self.bias_grad.as_ref()
     }
 
+    /// Returns the kernel norm gradients if available.
+    pub fn kernel_norm_grad(&self) -> Option<&Tensor> {
+        self.kernel_norm_grad.as_ref()
+    }
+
     /// Clears the cached input and gradients.
     pub fn clear_cache(&mut self) {
         self.cached_input = None;
         self.weights_grad = None;
         self.bias_grad = None;
+        self.kernel_norm_grad = None;
+    }
+
+    fn normalized_weights(&self) -> (Tensor, Tensor) {
+        let eps = Tensor::from_data(&[self.out_features], vec![1e-6; self.out_features]);
+        let norm = self.weights.sqr().sum_axis(0).add(&eps).sqrt();
+        let norm_broadcast = norm
+            .reshape(&[1, self.out_features])
+            .broadcast_as(&[self.in_features, self.out_features]);
+        let w_norm = self.weights.div(&norm_broadcast);
+        (norm, w_norm)
+    }
+
+    fn effective_weights(&self) -> Tensor {
+        if !self.allow_kernel_norm {
+            return self.weights.clone();
+        }
+
+        let (_norm, mut w_norm) = self.normalized_weights();
+        if self.kernel_norm_trainable {
+            if let Some(scale) = &self.kernel_norm {
+                let scale_broadcast = scale
+                    .reshape(&[1, self.out_features])
+                    .broadcast_as(&[self.in_features, self.out_features]);
+                w_norm = w_norm.mul(&scale_broadcast);
+            }
+        }
+        w_norm
     }
 }
 
 impl Layer for Dense {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
         // Validate input shape
-        if input.ndim() != 2 {
+        if input.ndim() < 2 {
             return Err(LayerError::ForwardError {
-                message: format!("Expected 2D input, got {}D", input.ndim()),
+                message: format!("Expected >=2D input, got {}D", input.ndim()),
             });
         }
-        if input.shape()[1] != self.in_features {
+        let in_dim = *input.shape().last().unwrap();
+        if in_dim != self.in_features {
             return Err(LayerError::InvalidInputDimension {
                 expected: self.in_features,
-                actual: input.shape()[1],
+                actual: in_dim,
             });
         }
 
-        // Compute y = xW + b
-        let output = input.matmul(&self.weights);
-        let output = if self.use_bias {
-            output.add(&self.bias)
-        } else {
-            output
-        };
+        let weights = self.effective_weights();
+        if input.ndim() == 2 {
+            let output = input.matmul(&weights);
+            let output = if self.use_bias {
+                output.add(&self.bias)
+            } else {
+                output
+            };
+            return Ok(output);
+        }
 
-        Ok(output)
+        let batch = input.numel() / in_dim;
+        let input_2d = input.reshape(&[batch, in_dim]);
+        let mut output = input_2d.matmul(&weights);
+        if self.use_bias {
+            output = output.add(&self.bias);
+        }
+        let mut out_shape = input.shape().to_vec();
+        *out_shape.last_mut().unwrap() = self.out_features;
+        Ok(output.reshape(&out_shape))
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
@@ -211,48 +414,133 @@ impl Layer for Dense {
             .ok_or(LayerError::NotInitialized)?;
 
         // Validate gradient shape
-        if grad.shape()[1] != self.out_features {
+        if grad.ndim() < 2 {
             return Err(LayerError::InvalidOutputDimension {
                 expected: self.out_features,
-                actual: grad.shape()[1],
+                actual: 0,
+            });
+        }
+        let out_dim = *grad.shape().last().unwrap();
+        if out_dim != self.out_features {
+            return Err(LayerError::InvalidOutputDimension {
+                expected: self.out_features,
+                actual: out_dim,
             });
         }
 
+        let in_dim = *input.shape().last().unwrap();
+        let batch = input.numel() / in_dim;
+        let input_2d = input.reshape(&[batch, in_dim]);
+        let grad_2d = grad.reshape(&[batch, out_dim]);
+
         // Compute gradients
-        // dL/dW = x^T @ dL/dy
-        let weights_grad = input.transpose().matmul(grad);
-        self.weights_grad = Some(weights_grad);
+        // dL/dW_eff = x^T @ dL/dy
+        let weights_grad_eff = input_2d.transpose().matmul(&grad_2d);
+
+        if !self.allow_kernel_norm {
+            let mut weights_grad = weights_grad_eff;
+            if let Some(reg_grad) = self.kernel_regularizer.grad(&self.weights) {
+                weights_grad = weights_grad.add(&reg_grad);
+            }
+            self.weights_grad = Some(weights_grad);
+        } else {
+            let (norm, w_norm) = self.normalized_weights();
+            let norm_broadcast = norm
+                .reshape(&[1, self.out_features])
+                .broadcast_as(&[self.in_features, self.out_features]);
+
+            let weights_grad_norm = if self.kernel_norm_trainable {
+                if let Some(scale) = &self.kernel_norm {
+                    let scale_broadcast = scale
+                        .reshape(&[1, self.out_features])
+                        .broadcast_as(&[self.in_features, self.out_features]);
+                    weights_grad_eff.mul(&scale_broadcast)
+                } else {
+                    weights_grad_eff.clone()
+                }
+            } else {
+                weights_grad_eff.clone()
+            };
+
+            // dL/dw = (dL/dw_norm - w_norm * sum(dL/dw_norm * w_norm, axis=0)) / norm
+            let dot = weights_grad_norm.mul(&w_norm).sum_axis(0);
+            let dot_broadcast = dot
+                .reshape(&[1, self.out_features])
+                .broadcast_as(&[self.in_features, self.out_features]);
+            let mut weights_grad =
+                weights_grad_norm.sub(&w_norm.mul(&dot_broadcast)).div(&norm_broadcast);
+            if let Some(reg_grad) = self.kernel_regularizer.grad(&self.weights) {
+                weights_grad = weights_grad.add(&reg_grad);
+            }
+            self.weights_grad = Some(weights_grad);
+
+            if self.kernel_norm_trainable {
+                // dL/dg = sum(dL/dW_eff * w_norm, axis=0)
+                let kernel_norm_grad = weights_grad_eff.mul(&w_norm).sum_axis(0);
+                self.kernel_norm_grad = Some(kernel_norm_grad);
+            }
+        }
 
         // dL/db = sum(dL/dy, axis=0)
         if self.use_bias {
-            let bias_grad = grad.sum_axis(0);
+            let mut bias_grad = grad_2d.sum_axis(0);
+            if let Some(reg_grad) = self.bias_regularizer.grad(&self.bias) {
+                bias_grad = bias_grad.add(&reg_grad);
+            }
             self.bias_grad = Some(bias_grad);
         }
 
-        // dL/dx = dL/dy @ W^T
-        let input_grad = grad.matmul(&self.weights.transpose());
-
-        Ok(input_grad)
+        // dL/dx = dL/dy @ W_eff^T
+        let weights = self.effective_weights();
+        let input_grad = grad_2d.matmul(&weights.transpose());
+        Ok(input_grad.reshape(input.shape()))
     }
 
     fn parameters(&self) -> Vec<&Tensor> {
+        let mut params = Vec::new();
+        params.push(&self.weights);
         if self.use_bias {
-            vec![&self.weights, &self.bias]
-        } else {
-            vec![&self.weights]
+            params.push(&self.bias);
         }
+        if self.kernel_norm_trainable {
+            if let Some(kernel_norm) = &self.kernel_norm {
+                params.push(kernel_norm);
+            }
+        }
+        params
     }
 
     fn parameters_mut(&mut self) -> Vec<&mut Tensor> {
+        let mut params = Vec::new();
+        params.push(&mut self.weights);
         if self.use_bias {
-            vec![&mut self.weights, &mut self.bias]
-        } else {
-            vec![&mut self.weights]
+            params.push(&mut self.bias);
         }
+        if self.kernel_norm_trainable {
+            if let Some(kernel_norm) = &mut self.kernel_norm {
+                params.push(kernel_norm);
+            }
+        }
+        params
     }
 
     fn name(&self) -> &str {
         "Dense"
+    }
+
+    fn regularization_loss(&self) -> f32 {
+        let mut loss = self.kernel_regularizer.loss(&self.weights);
+        if self.use_bias {
+            loss += self.bias_regularizer.loss(&self.bias);
+        }
+        loss
+    }
+
+    fn apply_constraints(&mut self) {
+        self.weights = self.kernel_constraint.apply(&self.weights);
+        if self.use_bias {
+            self.bias = self.bias_constraint.apply(&self.bias);
+        }
     }
 }
 

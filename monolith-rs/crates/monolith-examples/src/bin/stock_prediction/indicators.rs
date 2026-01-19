@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use ta::indicators::{
     AverageTrueRange, BollingerBands, CommodityChannelIndex, ExponentialMovingAverage, Maximum,
     Minimum, MoneyFlowIndex, OnBalanceVolume, RateOfChange, RelativeStrengthIndex,
@@ -172,7 +173,7 @@ mod talib {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TechnicalIndicators {
     // Trend Indicators
     pub sma_5: f32,

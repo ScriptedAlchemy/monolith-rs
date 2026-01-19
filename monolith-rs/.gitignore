@@ -18,6 +18,9 @@ Cargo.lock
 *.swo
 *~
 *.iml
+__pycache__/
+*.pyc
+*.pyo
 
 # Generated protobuf code (optional - can be version controlled)
 # crates/monolith-proto/src/generated/
@@ -40,3 +43,6 @@ criterion/
 
 # Local datasets / large files
 /data/
+
+# Example datasets (large)
+/examples/stock_prediction/

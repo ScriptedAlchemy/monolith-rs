@@ -55,6 +55,7 @@
 //! ```
 
 pub mod barrier;
+pub mod base_embedding_task;
 pub mod discovery;
 pub mod distributed;
 pub mod distributed_ps;
@@ -68,6 +69,10 @@ pub mod runner;
 // Re-export main types for convenience
 pub use barrier::{
     Barrier, BarrierError, BarrierResult, InMemoryBarrier, PsBarrier, SharedBarrier,
+};
+pub use base_embedding_task::{
+    BaseEmbeddingTask, BaseEmbeddingTaskConfig, BaseTaskConfig, EmbeddingDataset, EvalConfig,
+    InputConfig, TrainConfig,
 };
 #[cfg(feature = "consul")]
 pub use discovery::{new_consul_discovery, ConsulDiscovery};

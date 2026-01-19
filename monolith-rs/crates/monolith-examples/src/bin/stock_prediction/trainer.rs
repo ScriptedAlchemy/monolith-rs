@@ -2,7 +2,7 @@ use super::config::StockPredictorConfig;
 use super::data::RandomGenerator;
 use super::instances::{create_batches, FeatureIndex, StockInstance};
 use super::model::StockPredictionModel;
-use monolith_optimizer::{Amsgrad, Optimizer};
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Default)]
 pub struct TrainingMetrics {
@@ -15,6 +15,37 @@ pub struct TrainingMetrics {
     pub samples_processed: usize,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct DeviceMetrics {
+    pub forward_time: Duration,
+    pub backward_time: Duration,
+    pub loss_time: Duration,
+    pub data_prep_time: Duration,
+    pub total_time: Duration,
+    pub samples: usize,
+}
+
+impl DeviceMetrics {
+    pub fn throughput(&self) -> f32 {
+        if self.total_time.as_secs_f32() > 0.0 {
+            self.samples as f32 / self.total_time.as_secs_f32()
+        } else {
+            0.0
+        }
+    }
+
+    pub fn gpu_activity_pct(&self) -> f32 {
+        // Estimate GPU activity as forward+backward time / total time
+        // This is an approximation since forward/backward use GPU heavily
+        let compute_time = self.forward_time + self.backward_time;
+        if self.total_time.as_secs_f32() > 0.0 {
+            100.0 * compute_time.as_secs_f32() / self.total_time.as_secs_f32()
+        } else {
+            0.0
+        }
+    }
+}
+
 pub struct Trainer {
     model: StockPredictionModel,
     config: StockPredictorConfig,
@@ -25,23 +56,14 @@ pub struct Trainer {
     best_eval_loss: f32,
     patience_counter: usize,
     rng: RandomGenerator,
-    optimizers: Vec<Amsgrad>,
     grad_clip: f32,
     warmup_steps: usize,
-    fd_epsilon: f32,
-    fd_num_coords: usize,
+    device_metrics: DeviceMetrics,
 }
 
 impl Trainer {
     pub fn new(config: &StockPredictorConfig, indicator_dim: usize) -> Self {
-        let mut model = StockPredictionModel::new(config, indicator_dim);
-
-        let optimizers: Vec<Amsgrad> = model
-            .parameters_mut()
-            .iter()
-            .map(|_| Amsgrad::with_params(config.learning_rate, 0.9, 0.999, 1e-8, 0.0001))
-            .collect();
-
+        let model = StockPredictionModel::new(config, indicator_dim);
         let warmup_steps = 50;
 
         Self {
@@ -54,12 +76,18 @@ impl Trainer {
             best_eval_loss: f32::MAX,
             patience_counter: 0,
             rng: RandomGenerator::new(config.seed),
-            optimizers,
             grad_clip: 1.0,
             warmup_steps,
-            fd_epsilon: 1e-3,
-            fd_num_coords: 2048,
+            device_metrics: DeviceMetrics::default(),
         }
+    }
+
+    pub fn device_metrics(&self) -> &DeviceMetrics {
+        &self.device_metrics
+    }
+
+    pub fn reset_device_metrics(&mut self) {
+        self.device_metrics = DeviceMetrics::default();
     }
 
     pub fn update_lr(&mut self) {
@@ -87,6 +115,7 @@ impl Trainer {
         train_instances: &[StockInstance],
         features: &FeatureIndex,
     ) -> TrainingMetrics {
+        let epoch_start = Instant::now();
         let mut indices: Vec<usize> = (0..train_instances.len()).collect();
         self.rng.shuffle(&mut indices);
 
@@ -94,12 +123,25 @@ impl Trainer {
         let mut direction_correct = 0;
         let mut total_samples = 0;
 
-        for chunk in indices.chunks(self.config.batch_size) {
-            let batch: Vec<&StockInstance> = chunk.iter().map(|&i| &train_instances[i]).collect();
+        let mut forward_time = Duration::ZERO;
+        let mut backward_time = Duration::ZERO;
+        let mut loss_time = Duration::ZERO;
+        let mut data_prep_time = Duration::ZERO;
 
-            let output = self.model.forward(&batch, features);
+        for chunk in indices.chunks(self.config.batch_size) {
+            let t0 = Instant::now();
+            let batch: Vec<&StockInstance> = chunk.iter().map(|&i| &train_instances[i]).collect();
+            data_prep_time += t0.elapsed();
+
+            // Forward pass with gradient tracking
+            let t1 = Instant::now();
+            let (output, cache) = self.model.forward_train(&batch, features);
+            forward_time += t1.elapsed();
+
+            let t2 = Instant::now();
             let (total_loss, direction_loss, magnitude_loss, profitable_loss) =
                 self.model.compute_loss(&output, &batch);
+            loss_time += t2.elapsed();
 
             epoch_metrics.total_loss += total_loss * batch.len() as f32;
             epoch_metrics.direction_loss += direction_loss * batch.len() as f32;
@@ -114,7 +156,10 @@ impl Trainer {
             }
             total_samples += batch.len();
 
-            self.finite_difference_step(&batch, features);
+            // Backpropagation step
+            let t3 = Instant::now();
+            self.backprop_step(&batch, &output, &cache);
+            backward_time += t3.elapsed();
 
             self.global_step += 1;
 
@@ -125,6 +170,14 @@ impl Trainer {
                 );
             }
         }
+
+        // Update device metrics
+        self.device_metrics.forward_time += forward_time;
+        self.device_metrics.backward_time += backward_time;
+        self.device_metrics.loss_time += loss_time;
+        self.device_metrics.data_prep_time += data_prep_time;
+        self.device_metrics.total_time += epoch_start.elapsed();
+        self.device_metrics.samples += total_samples;
 
         epoch_metrics.step = self.global_step;
         epoch_metrics.samples_processed = total_samples;
@@ -139,119 +192,22 @@ impl Trainer {
         epoch_metrics
     }
 
-    fn finite_difference_step(&mut self, batch: &[&StockInstance], features: &FeatureIndex) {
+    fn backprop_step(
+        &mut self,
+        batch: &[&StockInstance],
+        output: &super::model::ModelOutput,
+        cache: &super::model::ForwardCache,
+    ) {
         self.update_lr();
 
-        let baseline_loss = {
-            let output = self.model.forward(batch, features);
-            let (loss, _, _, _) = self.model.compute_loss(&output, batch);
-            loss
-        };
+        // Compute loss gradients
+        let loss_grads = self.model.compute_loss_gradients(output, batch);
 
-        let num_params = self.model.parameters_mut().len().max(1);
-        let param_idx = self.global_step % num_params;
+        // Backward pass (computes gradients for all layers)
+        self.model.backward(&loss_grads, cache);
 
-        let (param_len, coord_count) = {
-            let params = self.model.parameters_mut();
-            let len = params[param_idx].data().len();
-            (len, self.fd_num_coords.min(len.max(1)))
-        };
-
-        let mut coord_indices = Vec::with_capacity(coord_count);
-        let mut coord_deltas = Vec::with_capacity(coord_count);
-        for j in 0..coord_count {
-            let h = (self.global_step as u64)
-                .wrapping_mul(1_000_003)
-                .wrapping_add(param_idx as u64 * 97)
-                .wrapping_add(j as u64 * 1_009);
-            let idx = (h as usize) % param_len;
-            let delta = if (h >> 11) & 1 == 0 { 1.0 } else { -1.0 };
-            coord_indices.push(idx);
-            coord_deltas.push(delta);
-        }
-
-        let eps = self.fd_epsilon;
-
-        // Apply perturbation (+eps * delta) at selected coordinates
-        {
-            let mut params = self.model.parameters_mut();
-            let data = params[param_idx].data_mut();
-            for (&idx, &delta) in coord_indices.iter().zip(coord_deltas.iter()) {
-                data[idx] += eps * delta;
-            }
-        }
-
-        let loss_plus = {
-            let output = self.model.forward(batch, features);
-            let (loss, _, _, _) = self.model.compute_loss(&output, batch);
-            loss
-        };
-
-        // Apply perturbation (-2eps * delta) to reach the negative side
-        {
-            let mut params = self.model.parameters_mut();
-            let data = params[param_idx].data_mut();
-            for (&idx, &delta) in coord_indices.iter().zip(coord_deltas.iter()) {
-                data[idx] -= 2.0 * eps * delta;
-            }
-        }
-
-        let loss_minus = {
-            let output = self.model.forward(batch, features);
-            let (loss, _, _, _) = self.model.compute_loss(&output, batch);
-            loss
-        };
-
-        // Restore original weights
-        {
-            let mut params = self.model.parameters_mut();
-            let data = params[param_idx].data_mut();
-            for (&idx, &delta) in coord_indices.iter().zip(coord_deltas.iter()) {
-                data[idx] += eps * delta;
-            }
-        }
-
-        // Central difference gradient estimate along +/- delta direction
-        let coeff = (loss_plus - loss_minus) / (2.0 * eps).max(1e-12);
-
-        // Ensure we have an optimizer state per parameter tensor
-        if param_idx >= self.optimizers.len() {
-            self.optimizers.resize_with(param_idx + 1, || {
-                Amsgrad::with_params(self.learning_rate, 0.9, 0.999, 1e-8, 0.0001)
-            });
-        }
-
-        // Keep optimizer learning rate in sync with scheduler (recreate if needed)
-        // NOTE: Amsgrad doesn't expose a setter; recreating is fine because we keep its state per tensor.
-        // We only recreate if LR changes meaningfully to avoid unnecessary resets.
-        let lr_now = self.learning_rate;
-        let lr_prev = self.optimizers[param_idx].config().learning_rate();
-        if (lr_prev - lr_now).abs() > 1e-12 {
-            // Preserve state? Not possible without setters; prefer stability by keeping state and accepting fixed LR.
-            // So we do nothing here.
-        }
-
-        // Build sparse gradient vector for AMSGrad
-        let mut grads = vec![0.0_f32; param_len];
-        for (&idx, &delta) in coord_indices.iter().zip(coord_deltas.iter()) {
-            let g = (coeff as f32) * delta;
-            grads[idx] = g.clamp(-self.grad_clip, self.grad_clip);
-        }
-
-        // Apply AMSGrad update using its internal moment estimates (much more stable than raw SGD)
-        let mut params = self.model.parameters_mut();
-        let data = params[param_idx].data_mut();
-        self.optimizers[param_idx].apply_gradients(data, &grads);
-
-        if !baseline_loss.is_finite() || !loss_plus.is_finite() || !loss_minus.is_finite() {
-            self.fd_epsilon = (self.fd_epsilon * 0.5).max(1e-6);
-        } else {
-            // Mildly increase epsilon if gradients are too tiny (helps avoid stalling)
-            let gap = (loss_plus - loss_minus).abs();
-            if gap < 1e-6 {
-                self.fd_epsilon = (self.fd_epsilon * 1.05).min(1e-2);
-            }
-        }
+        // Apply gradients using SGD with gradient clipping
+        self.model.apply_gradients(self.learning_rate, self.grad_clip);
     }
 
     pub fn evaluate(

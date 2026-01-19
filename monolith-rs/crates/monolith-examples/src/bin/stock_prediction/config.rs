@@ -29,7 +29,6 @@ pub struct StockPredictorConfig {
     /// `lookback_window` is automatically set to `max(lookbacks)` when parsing args.
     pub lookbacks: Vec<usize>,
 
-    pub use_synthetic_data: bool,
     pub intraday_file: Option<String>,
     pub intraday_ticker: Option<String>,
     pub intraday_aggregate: usize,
@@ -64,9 +63,11 @@ pub struct StockPredictorConfig {
     pub timeframes: Vec<usize>,
 }
 
-pub const DEFAULT_FUTURESHARKS_REPO_DIR: &str = "data/financial-data";
-pub const DEFAULT_FUTURESHARKS_DATA_DIR: &str =
-    "data/financial-data/pyfinancialdata/data/stocks/histdata";
+/// Default location for local intraday datasets checked into/outside this repo.
+///
+/// In this repo we keep datasets out of `data/` (which is gitignored) and instead
+/// use `examples/stock_prediction/data/` for the stock prediction example.
+pub const DEFAULT_STOCK_PREDICTION_DATA_DIR: &str = "examples/stock_prediction/data";
 
 impl Default for StockPredictorConfig {
     fn default() -> Self {
@@ -76,17 +77,16 @@ impl Default for StockPredictorConfig {
             lookback_window: 20,
             lookbacks: vec![20],
 
-            use_synthetic_data: false,
             intraday_file: None,
             intraday_ticker: None,
             intraday_aggregate: 5,
 
-            ticker_embedding_dim: 32,
-            sector_embedding_dim: 16,
-            dien_hidden_size: 128,
+            ticker_embedding_dim: 128,
+            sector_embedding_dim: 64,
+            dien_hidden_size: 0,
             dcn_cross_layers: 4,
 
-            batch_size: 64,
+            batch_size: 256,
             learning_rate: 0.0003,
             train_ratio: 0.8,
             num_epochs: 100,
@@ -98,10 +98,10 @@ impl Default for StockPredictorConfig {
             seed: 42,
             verbose: true,
 
-            data_dir: Some(DEFAULT_FUTURESHARKS_DATA_DIR.to_string()),
+            data_dir: Some(DEFAULT_STOCK_PREDICTION_DATA_DIR.to_string()),
 
             num_workers: 0,
-            gpu_mode: false,
+            gpu_mode: cfg!(any(feature = "metal", feature = "cuda")),
 
             max_bars_per_ticker: 0,
             bar_stride: 5,
@@ -158,9 +158,6 @@ pub fn parse_args() -> StockPredictorConfig {
                     }
                     i += 1;
                 }
-            }
-            "--synthetic" => {
-                config.use_synthetic_data = true;
             }
             "--intraday-file" => {
                 if i + 1 < args.len() {
@@ -318,8 +315,7 @@ OPTIONS:
     -d, --days <N>              Days of historical data [default: 252]
     -l, --lookback <N>          Lookback window size (sets --lookbacks to this single value) [default: 120]
     --lookbacks <LIST>          Comma-separated pooled lookbacks (bars) [default: 20,60,120]
-    --synthetic                 Generate synthetic data instead of reading CSVs
-    --intraday-file <PATH>      Load a single intraday CSV (FutureSharks / Yahoo)
+    --intraday-file <PATH>      Load a single intraday CSV (supported formats)
     --intraday-ticker <SYMBOL>  Override ticker symbol for --intraday-file
     --intraday-agg <MIN>        Aggregate intraday minutes before feature calc [default: 5]
     -b, --batch-size <N>        Training batch size [default: 32]
@@ -329,7 +325,7 @@ OPTIONS:
     --min-delta <X>             Minimum eval loss improvement to reset patience [default: 1e-4]
     -s, --seed <SEED>           Random seed [default: 42]
     --data-dir <PATH>           Load real stock data from CSV files in directory
-                                [default: data/financial-data/pyfinancialdata/data/stocks/histdata]
+                                [default: examples/stock_prediction/data]
     -w, --workers <N>           Number of parallel workers [default: auto-detect]
     --gpu                       Enable GPU acceleration mode (requires metal/cuda feature)
     --max-bars <N>              Max bars per ticker after load [default: 0=all]

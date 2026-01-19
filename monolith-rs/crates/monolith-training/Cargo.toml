@@ -14,6 +14,8 @@ consul = ["dep:rs-consul"]
 monolith-proto = { workspace = true }
 monolith-serving = { workspace = true }
 monolith-hash-table = { workspace = true }
+monolith-core = { workspace = true }
+monolith-data = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -23,6 +25,8 @@ tonic = { workspace = true }
 parking_lot = { workspace = true }
 async-trait = "0.1"
 anyhow = { workspace = true }
+chrono = { version = "0.4", default-features = false, features = ["alloc"] }
+glob = { workspace = true }
 
 # Optional dependencies for remote discovery backends.
 zookeeper-client = { version = "0.11", optional = true, features = ["tokio"] }

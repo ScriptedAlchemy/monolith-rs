@@ -4,6 +4,7 @@
 //! attention mechanisms for sequential recommendation and user behavior modeling.
 
 use crate::error::LayerError;
+use crate::initializer::Initializer;
 use crate::layer::Layer;
 use crate::tensor::Tensor;
 use serde::{Deserialize, Serialize};
@@ -87,25 +88,36 @@ impl AGRU {
     /// * `input_dim` - Dimension of the input features
     /// * `hidden_dim` - Dimension of the hidden state
     pub fn new(input_dim: usize, hidden_dim: usize) -> Self {
-        // Xavier initialization
-        let std_x = (2.0 / (input_dim + hidden_dim) as f32).sqrt();
-        let std_h = (2.0 / (hidden_dim + hidden_dim) as f32).sqrt();
+        Self::new_with_initializer(
+            input_dim,
+            hidden_dim,
+            Initializer::HeNormal,
+            Initializer::Ones,
+        )
+    }
 
+    /// Creates a new AGRU layer with custom initializers.
+    pub fn new_with_initializer(
+        input_dim: usize,
+        hidden_dim: usize,
+        weight_init: Initializer,
+        bias_init: Initializer,
+    ) -> Self {
         Self {
             input_dim,
             hidden_dim,
             // Reset gate
-            w_r_x: Tensor::randn(&[input_dim, hidden_dim], 0.0, std_x),
-            w_r_h: Tensor::randn(&[hidden_dim, hidden_dim], 0.0, std_h),
-            b_r: Tensor::zeros(&[hidden_dim]),
+            w_r_x: weight_init.initialize(&[input_dim, hidden_dim]),
+            w_r_h: weight_init.initialize(&[hidden_dim, hidden_dim]),
+            b_r: bias_init.initialize(&[hidden_dim]),
             // Update gate
-            w_z_x: Tensor::randn(&[input_dim, hidden_dim], 0.0, std_x),
-            w_z_h: Tensor::randn(&[hidden_dim, hidden_dim], 0.0, std_h),
-            b_z: Tensor::zeros(&[hidden_dim]),
+            w_z_x: weight_init.initialize(&[input_dim, hidden_dim]),
+            w_z_h: weight_init.initialize(&[hidden_dim, hidden_dim]),
+            b_z: bias_init.initialize(&[hidden_dim]),
             // Candidate hidden state
-            w_h_x: Tensor::randn(&[input_dim, hidden_dim], 0.0, std_x),
-            w_h_h: Tensor::randn(&[hidden_dim, hidden_dim], 0.0, std_h),
-            b_h: Tensor::zeros(&[hidden_dim]),
+            w_h_x: weight_init.initialize(&[input_dim, hidden_dim]),
+            w_h_h: weight_init.initialize(&[hidden_dim, hidden_dim]),
+            b_h: bias_init.initialize(&[hidden_dim]),
             cache: None,
         }
     }
@@ -199,26 +211,14 @@ impl AGRU {
         batch_size: usize,
         input_dim: usize,
     ) -> Tensor {
-        let seq_len = input.shape()[1];
-        let mut data = vec![0.0; batch_size * input_dim];
-
-        for b in 0..batch_size {
-            for d in 0..input_dim {
-                data[b * input_dim + d] = input.data()[b * seq_len * input_dim + t * input_dim + d];
-            }
-        }
-
-        Tensor::from_data(&[batch_size, input_dim], data)
+        let _ = (batch_size, input_dim);
+        input.narrow(1, t, 1).squeeze(1).contiguous()
     }
 
     /// Extracts attention weights for a single timestep.
     fn extract_attention(&self, attention: &Tensor, t: usize, batch_size: usize) -> Tensor {
-        let seq_len = attention.shape()[1];
-        let data: Vec<f32> = (0..batch_size)
-            .map(|b| attention.data()[b * seq_len + t])
-            .collect();
-
-        Tensor::from_data(&[batch_size], data)
+        let _ = batch_size;
+        attention.narrow(1, t, 1).squeeze(1).contiguous()
     }
 
     /// Computes the reset gate.
@@ -226,7 +226,7 @@ impl AGRU {
         let xw = x.matmul(&self.w_r_x);
         let hw = h.matmul(&self.w_r_h);
         let sum = xw.add(&hw).add(&self.b_r);
-        Ok(sum.map(|v| 1.0 / (1.0 + (-v).exp()))) // sigmoid
+        Ok(sum.sigmoid())
     }
 
     /// Computes the update gate.
@@ -234,7 +234,7 @@ impl AGRU {
         let xw = x.matmul(&self.w_z_x);
         let hw = h.matmul(&self.w_z_h);
         let sum = xw.add(&hw).add(&self.b_z);
-        Ok(sum.map(|v| 1.0 / (1.0 + (-v).exp()))) // sigmoid
+        Ok(sum.sigmoid())
     }
 
     /// Computes the candidate hidden state.
@@ -243,7 +243,7 @@ impl AGRU {
         let rh = r.mul(h);
         let hw = rh.matmul(&self.w_h_h);
         let sum = xw.add(&hw).add(&self.b_h);
-        Ok(sum.map(|v| v.tanh()))
+        Ok(sum.tanh())
     }
 
     /// Computes the new hidden state with attention.
@@ -256,19 +256,11 @@ impl AGRU {
     ) -> Result<Tensor, LayerError> {
         let batch_size = h.shape()[0];
         let hidden_dim = h.shape()[1];
-        let mut result = vec![0.0; batch_size * hidden_dim];
-
-        for b in 0..batch_size {
-            let attention = a.data()[b];
-            for d in 0..hidden_dim {
-                let idx = b * hidden_dim + d;
-                let z_val = z.data()[idx];
-                let za = z_val * attention;
-                result[idx] = (1.0 - za) * h.data()[idx] + za * h_tilde.data()[idx];
-            }
-        }
-
-        Ok(Tensor::from_data(&[batch_size, hidden_dim], result))
+        let att = a.reshape(&[batch_size, 1]).broadcast_as(&[batch_size, hidden_dim]);
+        let z_att = z.mul(&att);
+        let one = Tensor::ones(&[batch_size, hidden_dim]);
+        let h_new = one.sub(&z_att).mul(h).add(&z_att.mul(h_tilde));
+        Ok(h_new)
     }
 
     /// Performs forward pass with uniform attention (standard GRU).
@@ -320,7 +312,7 @@ impl AGRU {
         }
 
         // Collect all hidden states
-        let mut all_states = vec![0.0; batch_size * seq_len * self.hidden_dim];
+        let mut states: Vec<Tensor> = Vec::with_capacity(seq_len);
         let mut h = Tensor::zeros(&[batch_size, self.hidden_dim]);
 
         for t in 0..seq_len {
@@ -331,20 +323,10 @@ impl AGRU {
             let z_t = self.compute_update_gate(&x_t, &h)?;
             let h_tilde = self.compute_candidate(&x_t, &h, &r_t)?;
             h = self.compute_hidden_state(&h, &h_tilde, &z_t, &a_t)?;
-
-            // Store hidden state
-            for b in 0..batch_size {
-                for d in 0..self.hidden_dim {
-                    all_states[b * seq_len * self.hidden_dim + t * self.hidden_dim + d] =
-                        h.data()[b * self.hidden_dim + d];
-                }
-            }
+            states.push(h.reshape(&[batch_size, 1, self.hidden_dim]));
         }
 
-        Ok(Tensor::from_data(
-            &[batch_size, seq_len, self.hidden_dim],
-            all_states,
-        ))
+        Ok(Tensor::cat(&states, 1))
     }
 }
 

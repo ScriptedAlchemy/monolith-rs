@@ -82,6 +82,13 @@ pub trait Layer: Send + Sync {
     /// A vector of mutable references to the layer's parameter tensors
     fn parameters_mut(&mut self) -> Vec<&mut Tensor>;
 
+    /// Returns the regularization loss contributed by this layer.
+    ///
+    /// Default implementation returns 0.0.
+    fn regularization_loss(&self) -> f32 {
+        0.0
+    }
+
     /// Returns the name of the layer for debugging and logging purposes.
     fn name(&self) -> &str {
         "Layer"
@@ -101,6 +108,13 @@ pub trait Layer: Send + Sync {
     ///
     /// * `training` - Whether to enable training mode
     fn set_training(&mut self, _training: bool) {
+        // Default implementation does nothing
+    }
+
+    /// Applies parameter constraints (if any).
+    ///
+    /// Default implementation does nothing.
+    fn apply_constraints(&mut self) {
         // Default implementation does nothing
     }
 }

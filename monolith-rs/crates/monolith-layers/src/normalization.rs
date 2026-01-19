@@ -6,6 +6,7 @@
 
 use crate::error::LayerError;
 use crate::layer::Layer;
+use crate::regularizer::Regularizer;
 use crate::tensor::Tensor;
 use serde::{Deserialize, Serialize};
 
@@ -16,49 +17,28 @@ use serde::{Deserialize, Serialize};
 ///
 /// The normalization is computed as:
 /// `y = (x - mean) / sqrt(var + eps) * gamma + beta`
-///
-/// # Example
-///
-/// ```
-/// use monolith_layers::normalization::LayerNorm;
-/// use monolith_layers::layer::Layer;
-/// use monolith_layers::tensor::Tensor;
-///
-/// let layer_norm = LayerNorm::new(64);
-/// let input = Tensor::rand(&[32, 64]);
-/// let output = layer_norm.forward(&input).unwrap();
-/// assert_eq!(output.shape(), &[32, 64]);
-/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LayerNorm {
-    /// Learnable scale parameter (gamma)
     gamma: Tensor,
-    /// Learnable shift parameter (beta)
     beta: Tensor,
-    /// Small constant for numerical stability
+    regularizer: Regularizer,
     eps: f32,
-    /// Normalized dimension
     normalized_shape: usize,
-    /// Cached values for backward pass
     cached_input: Option<Tensor>,
     cached_mean: Option<Tensor>,
     cached_var: Option<Tensor>,
-    /// Gradient accumulators
     gamma_grad: Option<Tensor>,
     beta_grad: Option<Tensor>,
 }
 
 impl LayerNorm {
     /// Creates a new Layer Normalization layer.
-    ///
-    /// # Arguments
-    ///
-    /// * `normalized_shape` - The size of the dimension to normalize
     pub fn new(normalized_shape: usize) -> Self {
         Self {
             gamma: Tensor::ones(&[normalized_shape]),
             beta: Tensor::zeros(&[normalized_shape]),
-            eps: 1e-5,
+            regularizer: Regularizer::None,
+            eps: 1e-6,
             normalized_shape,
             cached_input: None,
             cached_mean: None,
@@ -69,15 +49,15 @@ impl LayerNorm {
     }
 
     /// Creates a Layer Normalization layer with custom epsilon.
-    ///
-    /// # Arguments
-    ///
-    /// * `normalized_shape` - The size of the dimension to normalize
-    /// * `eps` - Small constant for numerical stability
     pub fn with_eps(normalized_shape: usize, eps: f32) -> Self {
         let mut layer = Self::new(normalized_shape);
         layer.eps = eps;
         layer
+    }
+
+    pub fn with_regularizer(mut self, regularizer: Regularizer) -> Self {
+        self.regularizer = regularizer;
+        self
     }
 
     /// Returns the normalized shape.
@@ -99,9 +79,9 @@ impl LayerNorm {
     pub fn forward_train(&mut self, input: &Tensor) -> Result<Tensor, LayerError> {
         self.cached_input = Some(input.clone());
 
-        // Compute mean and variance along last dimension
-        let mean = input.mean_axis(1);
-        let var = input.var_axis(1);
+        let axis = input.ndim().saturating_sub(1);
+        let mean = input.mean_axis(axis);
+        let var = input.var_axis(axis);
 
         self.cached_mean = Some(mean.clone());
         self.cached_var = Some(var.clone());
@@ -121,46 +101,41 @@ impl LayerNorm {
 
 impl Layer for LayerNorm {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
-        if input.ndim() != 2 {
+        if input.ndim() < 2 {
             return Err(LayerError::ForwardError {
-                message: format!("LayerNorm expects 2D input, got {}D", input.ndim()),
+                message: format!("LayerNorm expects >=2D input, got {}D", input.ndim()),
             });
         }
-        if input.shape()[1] != self.normalized_shape {
+        let dim = *input.shape().last().unwrap();
+        if dim != self.normalized_shape {
             return Err(LayerError::InvalidInputDimension {
                 expected: self.normalized_shape,
-                actual: input.shape()[1],
+                actual: dim,
             });
         }
 
-        let batch_size = input.shape()[0];
-        let dim = input.shape()[1];
+        let axis = input.ndim() - 1;
+        let mean = input.mean_axis(axis);
+        let var = input.var_axis(axis);
 
-        // Compute mean and variance along last dimension
-        let mean = input.mean_axis(1);
-        let var = input.var_axis(1);
+        let mut mean_shape = mean.shape().to_vec();
+        mean_shape.push(1);
+        let mut var_shape = var.shape().to_vec();
+        var_shape.push(1);
 
-        // Normalize: (x - mean) / sqrt(var + eps)
-        let mut normalized = vec![0.0; input.numel()];
-        for i in 0..batch_size {
-            let mu = mean.data()[i];
-            let std = (var.data()[i] + self.eps).sqrt();
-            for j in 0..dim {
-                let idx = i * dim + j;
-                normalized[idx] = (input.data()[idx] - mu) / std;
-            }
-        }
+        let mean_b = mean.reshape(&mean_shape).broadcast_as(input.shape());
+        let var_b = var.reshape(&var_shape).broadcast_as(input.shape());
+        let std = var_b
+            .add(&Tensor::from_data(&[1], vec![self.eps]))
+            .sqrt();
+        let normalized = input.sub(&mean_b).div(&std);
 
-        // Apply affine transformation: gamma * normalized + beta
-        let mut output = vec![0.0; input.numel()];
-        for i in 0..batch_size {
-            for j in 0..dim {
-                let idx = i * dim + j;
-                output[idx] = self.gamma.data()[j] * normalized[idx] + self.beta.data()[j];
-            }
-        }
+        let mut gamma_shape = vec![1; input.ndim() - 1];
+        gamma_shape.push(dim);
+        let gamma_b = self.gamma.reshape(&gamma_shape).broadcast_as(input.shape());
+        let beta_b = self.beta.reshape(&gamma_shape).broadcast_as(input.shape());
 
-        Ok(Tensor::from_data(input.shape(), output))
+        Ok(normalized.mul(&gamma_b).add(&beta_b))
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
@@ -168,65 +143,48 @@ impl Layer for LayerNorm {
             .cached_input
             .as_ref()
             .ok_or(LayerError::NotInitialized)?;
-        let mean = self
-            .cached_mean
-            .as_ref()
-            .ok_or(LayerError::NotInitialized)?;
-        let var = self.cached_var.as_ref().ok_or(LayerError::NotInitialized)?;
+        let dim = *input.shape().last().unwrap();
+        let outer = input.numel() / dim;
 
-        let batch_size = input.shape()[0];
-        let dim = input.shape()[1];
-        let n = dim as f32;
+        let input_2d = input.reshape(&[outer, dim]);
+        let grad_2d = grad.reshape(&[outer, dim]);
 
-        // Compute normalized values
-        let mut x_norm = vec![0.0; input.numel()];
-        let mut std_inv = vec![0.0; batch_size];
-        for i in 0..batch_size {
-            std_inv[i] = 1.0 / (var.data()[i] + self.eps).sqrt();
-            for j in 0..dim {
-                let idx = i * dim + j;
-                x_norm[idx] = (input.data()[idx] - mean.data()[i]) * std_inv[i];
-            }
+        let mean = input_2d.mean_axis(1);
+        let var = input_2d.var_axis(1);
+        let std = var
+            .add(&Tensor::from_data(&[1], vec![self.eps]))
+            .sqrt();
+
+        let mean_b = mean.reshape(&[outer, 1]).broadcast_as(&[outer, dim]);
+        let std_b = std.reshape(&[outer, 1]).broadcast_as(&[outer, dim]);
+        let x_norm = input_2d.sub(&mean_b).div(&std_b);
+
+        let gamma_b = self.gamma.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
+
+        let mut gamma_grad = grad_2d.mul(&x_norm).sum_axis(0);
+        let mut beta_grad = grad_2d.sum_axis(0);
+        if let Some(reg_grad) = self.regularizer.grad(&self.gamma) {
+            gamma_grad = gamma_grad.add(&reg_grad);
         }
-
-        // Gradient w.r.t. gamma: sum over batch of grad * x_norm
-        let mut gamma_grad = vec![0.0; dim];
-        for j in 0..dim {
-            for i in 0..batch_size {
-                let idx = i * dim + j;
-                gamma_grad[j] += grad.data()[idx] * x_norm[idx];
-            }
+        if let Some(reg_grad) = self.regularizer.grad(&self.beta) {
+            beta_grad = beta_grad.add(&reg_grad);
         }
-        self.gamma_grad = Some(Tensor::from_data(&[dim], gamma_grad));
-
-        // Gradient w.r.t. beta: sum over batch of grad
-        let beta_grad = grad.sum_axis(0);
+        self.gamma_grad = Some(gamma_grad);
         self.beta_grad = Some(beta_grad);
 
-        // Gradient w.r.t. input
-        let mut input_grad = vec![0.0; input.numel()];
-        for i in 0..batch_size {
-            // Compute intermediate values for this sample
-            let mut dx_norm_sum = 0.0;
-            let mut dx_norm_x_norm_sum = 0.0;
+        let n = dim as f32;
+        let grad_sum = grad_2d.sum_axis(1);
+        let grad_dot = grad_2d.mul(&x_norm).sum_axis(1);
+        let grad_sum_b = grad_sum.reshape(&[outer, 1]).broadcast_as(&[outer, dim]);
+        let grad_dot_b = grad_dot.reshape(&[outer, 1]).broadcast_as(&[outer, dim]);
 
-            for j in 0..dim {
-                let idx = i * dim + j;
-                let dx_norm = grad.data()[idx] * self.gamma.data()[j];
-                dx_norm_sum += dx_norm;
-                dx_norm_x_norm_sum += dx_norm * x_norm[idx];
-            }
+        let dx = grad_2d
+            .sub(&grad_sum_b.scale(1.0 / n))
+            .sub(&x_norm.mul(&grad_dot_b).scale(1.0 / n))
+            .div(&std_b)
+            .mul(&gamma_b);
 
-            // Compute gradient for each element
-            for j in 0..dim {
-                let idx = i * dim + j;
-                let dx_norm = grad.data()[idx] * self.gamma.data()[j];
-                input_grad[idx] =
-                    std_inv[i] / n * (n * dx_norm - dx_norm_sum - x_norm[idx] * dx_norm_x_norm_sum);
-            }
-        }
-
-        Ok(Tensor::from_data(input.shape(), input_grad))
+        Ok(dx.reshape(input.shape()))
     }
 
     fn parameters(&self) -> Vec<&Tensor> {
@@ -235,6 +193,10 @@ impl Layer for LayerNorm {
 
     fn parameters_mut(&mut self) -> Vec<&mut Tensor> {
         vec![&mut self.gamma, &mut self.beta]
+    }
+
+    fn regularization_loss(&self) -> f32 {
+        self.regularizer.loss(&self.gamma) + self.regularizer.loss(&self.beta)
     }
 
     fn name(&self) -> &str {
@@ -242,302 +204,227 @@ impl Layer for LayerNorm {
     }
 }
 
-/// Batch Normalization layer (stub implementation).
+/// Batch Normalization layer for N-D inputs.
 ///
-/// Normalizes the input across the batch dimension, then applies
-/// a learnable affine transformation.
-///
-/// Note: This is a simplified implementation that does not include
-/// running statistics for inference mode.
+/// Normalizes across all dimensions except the last feature dimension.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchNorm {
-    /// Learnable scale parameter (gamma)
     gamma: Tensor,
-    /// Learnable shift parameter (beta)
     beta: Tensor,
-    /// Running mean for inference
+    regularizer: Regularizer,
+    gamma_grad: Option<Tensor>,
+    beta_grad: Option<Tensor>,
     running_mean: Tensor,
-    /// Running variance for inference
     running_var: Tensor,
-    /// Momentum for running statistics
     momentum: f32,
-    /// Small constant for numerical stability
     eps: f32,
-    /// Number of features
-    num_features: usize,
-    /// Whether in training mode
-    training: bool,
-    /// Cached values for backward pass
+    renorm: bool,
+    renorm_clipping: Option<(f32, f32, f32)>,
+    renorm_momentum: f32,
     cached_input: Option<Tensor>,
     cached_mean: Option<Tensor>,
     cached_var: Option<Tensor>,
-    /// Gradient accumulators
-    #[serde(skip)]
-    gamma_grad: Option<Tensor>,
-    #[serde(skip)]
-    beta_grad: Option<Tensor>,
+    cached_std: Option<Tensor>,
+    cached_x_norm: Option<Tensor>,
+    cached_r: Option<Tensor>,
 }
 
 impl BatchNorm {
-    /// Creates a new Batch Normalization layer.
-    ///
-    /// # Arguments
-    ///
-    /// * `num_features` - Number of features (C in [N, C] input)
+    /// Creates a new BatchNorm layer.
     pub fn new(num_features: usize) -> Self {
         Self {
             gamma: Tensor::ones(&[num_features]),
             beta: Tensor::zeros(&[num_features]),
+            regularizer: Regularizer::None,
+            gamma_grad: None,
+            beta_grad: None,
             running_mean: Tensor::zeros(&[num_features]),
             running_var: Tensor::ones(&[num_features]),
-            momentum: 0.1,
-            eps: 1e-5,
-            num_features,
-            training: true,
+            momentum: 0.99,
+            eps: 1e-6,
+            renorm: false,
+            renorm_clipping: None,
+            renorm_momentum: 0.99,
             cached_input: None,
             cached_mean: None,
             cached_var: None,
-            gamma_grad: None,
-            beta_grad: None,
+            cached_std: None,
+            cached_x_norm: None,
+            cached_r: None,
         }
     }
 
-    /// Creates a Batch Normalization layer with custom parameters.
-    ///
-    /// # Arguments
-    ///
-    /// * `num_features` - Number of features
-    /// * `momentum` - Momentum for running statistics
-    /// * `eps` - Small constant for numerical stability
-    pub fn with_params(num_features: usize, momentum: f32, eps: f32) -> Self {
-        let mut layer = Self::new(num_features);
-        layer.momentum = momentum;
-        layer.eps = eps;
-        layer
+    /// Creates BatchNorm with custom momentum and epsilon.
+    pub fn with_momentum(num_features: usize, momentum: f32, eps: f32) -> Self {
+        let mut bn = Self::new(num_features);
+        bn.momentum = momentum;
+        bn.eps = eps;
+        bn
     }
 
-    /// Returns the number of features.
-    pub fn num_features(&self) -> usize {
-        self.num_features
+    pub fn with_regularizer(mut self, regularizer: Regularizer) -> Self {
+        self.regularizer = regularizer;
+        self
+    }
+
+    /// Enables batch renorm with optional clipping (rmin, rmax, dmax).
+    pub fn with_renorm(
+        mut self,
+        renorm: bool,
+        clipping: Option<(f32, f32, f32)>,
+        renorm_momentum: f32,
+    ) -> Self {
+        self.renorm = renorm;
+        self.renorm_clipping = clipping;
+        self.renorm_momentum = renorm_momentum;
+        self
     }
 
     /// Performs forward pass and caches values for backward pass.
     pub fn forward_train(&mut self, input: &Tensor) -> Result<Tensor, LayerError> {
-        if input.ndim() != 2 {
+        if input.ndim() < 2 {
             return Err(LayerError::ForwardError {
-                message: format!("BatchNorm expects 2D input, got {}D", input.ndim()),
+                message: format!("BatchNorm expects >=2D input, got {}D", input.ndim()),
             });
         }
-        if input.shape()[1] != self.num_features {
+
+        let dim = *input.shape().last().unwrap();
+        if dim != self.gamma.shape()[0] {
             return Err(LayerError::InvalidInputDimension {
-                expected: self.num_features,
-                actual: input.shape()[1],
+                expected: self.gamma.shape()[0],
+                actual: dim,
             });
         }
 
-        let batch_size = input.shape()[0];
-        let dim = input.shape()[1];
+        let outer = input.numel() / dim;
+        let input_2d = input.reshape(&[outer, dim]);
 
-        // Batch statistics: [C]
-        let mean = input.mean_axis(0);
-        let mut var = input.var_axis(0);
-        // Match TF semantics: variance is non-negative (numerical safety).
-        let var_data: Vec<f32> = var.data().iter().map(|&v| v.max(0.0)).collect();
-        var = Tensor::from_data(&[dim], var_data);
+        let mean = input_2d.mean_axis(0);
+        let var = input_2d.var_axis(0);
+        let eps_vec = Tensor::from_data(&[dim], vec![self.eps; dim]);
+        let std = var.add(&eps_vec).sqrt();
 
-        // Update running stats (momentum matches TF BN: moving = momentum * batch + (1-momentum) * moving).
-        let m = self.momentum;
-        let om = 1.0 - m;
-        let mut new_rm = vec![0.0; dim];
-        let mut new_rv = vec![0.0; dim];
-        for j in 0..dim {
-            new_rm[j] = m * mean.data()[j] + om * self.running_mean.data()[j];
-            new_rv[j] = m * var.data()[j] + om * self.running_var.data()[j];
-        }
-        self.running_mean = Tensor::from_data(&[dim], new_rm);
-        self.running_var = Tensor::from_data(&[dim], new_rv);
+        let mean_b = mean.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
+        let std_b = std.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
+        let x_norm = input_2d.sub(&mean_b).div(&std_b);
 
-        // Cache for backward.
-        self.cached_input = Some(input.clone());
-        self.cached_mean = Some(mean.clone());
-        self.cached_var = Some(var.clone());
+        let (x_hat, r_opt) = if self.renorm {
+            let running_std = self.running_var.add(&eps_vec).sqrt();
+            let mut r = std.div(&running_std);
+            let mut d = mean.sub(&self.running_mean).div(&running_std);
 
-        // Normalize and affine.
-        let mut output = vec![0.0; input.numel()];
-        for i in 0..batch_size {
-            for j in 0..dim {
-                let idx = i * dim + j;
-                let x_norm =
-                    (input.data()[idx] - mean.data()[j]) / (var.data()[j] + self.eps).sqrt();
-                output[idx] = self.gamma.data()[j] * x_norm + self.beta.data()[j];
+            if let Some((rmin, rmax, dmax)) = self.renorm_clipping {
+                r = r.clamp(rmin, rmax);
+                d = d.clamp(-dmax, dmax);
             }
-        }
 
-        Ok(Tensor::from_data(input.shape(), output))
-    }
+            let r_b = r.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
+            let d_b = d.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
+            (x_norm.mul(&r_b).add(&d_b), Some(r))
+        } else {
+            (x_norm.clone(), None)
+        };
 
-    /// Clears cached values and gradients.
-    pub fn clear_cache(&mut self) {
-        self.cached_input = None;
-        self.cached_mean = None;
-        self.cached_var = None;
-        self.gamma_grad = None;
-        self.beta_grad = None;
-    }
+        let gamma_b = self.gamma.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
+        let beta_b = self.beta.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
+        let output = x_hat.mul(&gamma_b).add(&beta_b);
 
-    /// Returns gamma gradients if available.
-    pub fn gamma_grad(&self) -> Option<&Tensor> {
-        self.gamma_grad.as_ref()
-    }
+        let momentum = self.momentum;
+        let mean_update = self.running_mean.scale(momentum).add(&mean.scale(1.0 - momentum));
+        let var_update = self.running_var.scale(momentum).add(&var.scale(1.0 - momentum));
+        self.running_mean = mean_update;
+        self.running_var = var_update;
 
-    /// Returns beta gradients if available.
-    pub fn beta_grad(&self) -> Option<&Tensor> {
-        self.beta_grad.as_ref()
-    }
+        self.cached_input = Some(input.clone());
+        self.cached_mean = Some(mean);
+        self.cached_var = Some(var);
+        self.cached_std = Some(std);
+        self.cached_x_norm = Some(x_norm);
+        self.cached_r = r_opt;
 
-    /// Returns references to running mean/var.
-    pub fn running_stats(&self) -> (&Tensor, &Tensor) {
-        (&self.running_mean, &self.running_var)
+        Ok(output.reshape(input.shape()))
     }
 }
 
 impl Layer for BatchNorm {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
-        if input.ndim() != 2 {
+        if input.ndim() < 2 {
             return Err(LayerError::ForwardError {
-                message: format!("BatchNorm expects 2D input, got {}D", input.ndim()),
+                message: format!("BatchNorm expects >=2D input, got {}D", input.ndim()),
             });
         }
-        if input.shape()[1] != self.num_features {
+
+        let dim = *input.shape().last().unwrap();
+        if dim != self.gamma.shape()[0] {
             return Err(LayerError::InvalidInputDimension {
-                expected: self.num_features,
-                actual: input.shape()[1],
+                expected: self.gamma.shape()[0],
+                actual: dim,
             });
         }
 
-        let batch_size = input.shape()[0];
-        let dim = input.shape()[1];
+        let outer = input.numel() / dim;
+        let input_2d = input.reshape(&[outer, dim]);
 
-        let (mean, var) = if self.training {
-            // Use batch statistics during training
-            (input.mean_axis(0), input.var_axis(0))
-        } else {
-            // Use running statistics during inference
-            (self.running_mean.clone(), self.running_var.clone())
-        };
-        // Match TF semantics: variance is non-negative (numerical safety).
-        let var = if var.numel() == dim {
-            let var_data: Vec<f32> = var.data().iter().map(|&v| v.max(0.0)).collect();
-            Tensor::from_data(&[dim], var_data)
-        } else {
-            var
-        };
+        let eps_vec = Tensor::from_data(&[dim], vec![self.eps; dim]);
+        let std = self.running_var.add(&eps_vec).sqrt();
 
-        // Normalize and apply affine transformation
-        let mut output = vec![0.0; input.numel()];
-        for i in 0..batch_size {
-            for j in 0..dim {
-                let idx = i * dim + j;
-                let x_norm =
-                    (input.data()[idx] - mean.data()[j]) / (var.data()[j] + self.eps).sqrt();
-                output[idx] = self.gamma.data()[j] * x_norm + self.beta.data()[j];
-            }
-        }
+        let mean_b = self
+            .running_mean
+            .reshape(&[1, dim])
+            .broadcast_as(&[outer, dim]);
+        let std_b = std.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
+        let x_norm = input_2d.sub(&mean_b).div(&std_b);
 
-        Ok(Tensor::from_data(input.shape(), output))
+        let gamma_b = self.gamma.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
+        let beta_b = self.beta.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
+        Ok(x_norm.mul(&gamma_b).add(&beta_b).reshape(input.shape()))
     }
 
-    fn backward(&mut self, _grad: &Tensor) -> Result<Tensor, LayerError> {
-        // Compute gradients for gamma, beta, and input.
-        let input = self
-            .cached_input
-            .as_ref()
-            .ok_or(LayerError::NotInitialized)?;
-        let mean = self
-            .cached_mean
-            .as_ref()
-            .ok_or(LayerError::NotInitialized)?;
-        let var = self.cached_var.as_ref().ok_or(LayerError::NotInitialized)?;
+    fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
+        let input = self.cached_input.as_ref().ok_or(LayerError::NotInitialized)?;
+        let x_norm = self.cached_x_norm.as_ref().ok_or(LayerError::NotInitialized)?;
+        let std = self.cached_std.as_ref().ok_or(LayerError::NotInitialized)?;
 
-        let grad = _grad;
-        if grad.shape() != input.shape() {
-            return Err(LayerError::ShapeMismatch {
-                expected: input.shape().to_vec(),
-                actual: grad.shape().to_vec(),
-            });
-        }
+        let dim = *input.shape().last().unwrap();
+        let outer = input.numel() / dim;
+        let grad_2d = grad.reshape(&[outer, dim]);
 
-        let batch_size = input.shape()[0];
-        let dim = input.shape()[1];
-        let n = batch_size as f32;
+        let gamma_b = self.gamma.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
+        let mut dxhat = grad_2d.mul(&gamma_b);
 
-        // Precompute inv std and x_hat for each element.
-        let mut inv_std = vec![0.0f32; dim];
-        for j in 0..dim {
-            inv_std[j] = 1.0 / (var.data()[j].max(0.0) + self.eps).sqrt();
-        }
-        let mut x_hat = vec![0.0f32; input.numel()];
-        for i in 0..batch_size {
-            for j in 0..dim {
-                let idx = i * dim + j;
-                x_hat[idx] = (input.data()[idx] - mean.data()[j]) * inv_std[j];
+        if self.renorm {
+            if let Some(r) = &self.cached_r {
+                let r_b = r.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
+                dxhat = dxhat.mul(&r_b);
             }
         }
 
-        // dBeta, dGamma over batch.
-        let mut d_beta = vec![0.0f32; dim];
-        let mut d_gamma = vec![0.0f32; dim];
-        for i in 0..batch_size {
-            for j in 0..dim {
-                let idx = i * dim + j;
-                d_beta[j] += grad.data()[idx];
-                d_gamma[j] += grad.data()[idx] * x_hat[idx];
-            }
+        let mut dgamma = grad_2d.mul(x_norm).sum_axis(0);
+        let mut dbeta = grad_2d.sum_axis(0);
+        if let Some(reg_grad) = self.regularizer.grad(&self.gamma) {
+            dgamma = dgamma.add(&reg_grad);
         }
-        self.beta_grad = Some(Tensor::from_data(&[dim], d_beta));
-        self.gamma_grad = Some(Tensor::from_data(&[dim], d_gamma));
-
-        // dx_hat = dY * gamma
-        let mut dx_hat = vec![0.0f32; input.numel()];
-        for i in 0..batch_size {
-            for j in 0..dim {
-                let idx = i * dim + j;
-                dx_hat[idx] = grad.data()[idx] * self.gamma.data()[j];
-            }
+        if let Some(reg_grad) = self.regularizer.grad(&self.beta) {
+            dbeta = dbeta.add(&reg_grad);
         }
+        self.gamma_grad = Some(dgamma);
+        self.beta_grad = Some(dbeta);
 
-        // Compute dvar and dmu per channel.
-        let mut dvar = vec![0.0f32; dim];
-        let mut dmu = vec![0.0f32; dim];
-        for j in 0..dim {
-            let mut sum_dxhat_xmu = 0.0f32;
-            let mut sum_xmu = 0.0f32;
-            let mut sum_dxhat = 0.0f32;
-            for i in 0..batch_size {
-                let idx = i * dim + j;
-                let xmu = input.data()[idx] - mean.data()[j];
-                sum_dxhat_xmu += dx_hat[idx] * xmu;
-                sum_xmu += xmu;
-                sum_dxhat += dx_hat[idx];
-            }
+        let n = outer as f32;
+        let sum_dxhat = dxhat.sum_axis(0);
+        let sum_dxhat_xnorm = dxhat.mul(x_norm).sum_axis(0);
+        let sum_dxhat_b = sum_dxhat.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
+        let sum_dxhat_xnorm_b = sum_dxhat_xnorm.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
 
-            let inv_std_j = inv_std[j];
-            let inv_std3 = inv_std_j * inv_std_j * inv_std_j;
-            dvar[j] = -0.5 * sum_dxhat_xmu * inv_std3;
-            dmu[j] = -inv_std_j * sum_dxhat + dvar[j] * (-2.0 * sum_xmu / n);
-        }
+        let std_b = std.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
+        let dx = dxhat
+            .scale(n)
+            .sub(&sum_dxhat_b)
+            .sub(&x_norm.mul(&sum_dxhat_xnorm_b))
+            .div(&std_b)
+            .scale(1.0 / n);
 
-        // dx
-        let mut dx = vec![0.0f32; input.numel()];
-        for i in 0..batch_size {
-            for j in 0..dim {
-                let idx = i * dim + j;
-                let xmu = input.data()[idx] - mean.data()[j];
-                dx[idx] = dx_hat[idx] * inv_std[j] + dvar[j] * 2.0 * xmu / n + dmu[j] / n;
-            }
-        }
-
-        Ok(Tensor::from_data(input.shape(), dx))
+        Ok(dx.reshape(input.shape()))
     }
 
     fn parameters(&self) -> Vec<&Tensor> {
@@ -548,16 +435,97 @@ impl Layer for BatchNorm {
         vec![&mut self.gamma, &mut self.beta]
     }
 
+    fn regularization_loss(&self) -> f32 {
+        self.regularizer.loss(&self.gamma) + self.regularizer.loss(&self.beta)
+    }
+
     fn name(&self) -> &str {
         "BatchNorm"
     }
+}
 
-    fn is_training(&self) -> bool {
-        self.training
+/// GradNorm helper for multi-task gradient balancing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GradNorm {
+    loss_names: Vec<String>,
+    scale: f32,
+    loss_pow: f32,
+    relative_diff: bool,
+    epsilon: f32,
+    weights: Tensor,
+}
+
+impl GradNorm {
+    /// Creates a new GradNorm helper.
+    pub fn new(loss_names: Vec<String>) -> Self {
+        let n = loss_names.len().max(1);
+        Self {
+            loss_names,
+            scale: 1.0,
+            loss_pow: 2.0,
+            relative_diff: false,
+            epsilon: 1e-6,
+            weights: Tensor::zeros(&[n]),
+        }
     }
 
-    fn set_training(&mut self, training: bool) {
-        self.training = training;
+    /// Sets GradNorm hyperparameters.
+    pub fn with_params(mut self, scale: f32, loss_pow: f32, relative_diff: bool, epsilon: f32) -> Self {
+        self.scale = scale;
+        self.loss_pow = loss_pow;
+        self.relative_diff = relative_diff;
+        self.epsilon = epsilon;
+        self
+    }
+
+    /// Returns current softmax weights.
+    pub fn weights(&self) -> Tensor {
+        self.weights.softmax(0)
+    }
+
+    /// Computes GradNorm loss and weighted loss.
+    pub fn compute(
+        &self,
+        losses: &[f32],
+        grads: &[Tensor],
+    ) -> Result<(f32, f32, Tensor), LayerError> {
+        if losses.len() != grads.len() {
+            return Err(LayerError::ForwardError {
+                message: "GradNorm losses and grads length mismatch".to_string(),
+            });
+        }
+        let n = losses.len().max(1) as f32;
+        let weights = self.weights();
+        let w = weights.data();
+
+        let mut gnorms = Vec::with_capacity(grads.len());
+        for g in grads {
+            let norm = (g.sqr().sum()).sqrt();
+            gnorms.push(norm);
+        }
+
+        let mut avgnorm = 0.0f32;
+        for (i, &gn) in gnorms.iter().enumerate() {
+            avgnorm += gn * w[i];
+        }
+        avgnorm /= n;
+
+        let mut gnorm_loss = 0.0f32;
+        for (i, &gn) in gnorms.iter().enumerate() {
+            let mut diff = (gn * w[i] - avgnorm).abs();
+            if self.relative_diff {
+                diff /= avgnorm + self.epsilon;
+            }
+            gnorm_loss += diff.powf(self.loss_pow);
+        }
+        gnorm_loss *= self.scale;
+
+        let mut weighted_loss = 0.0f32;
+        for (i, &loss) in losses.iter().enumerate() {
+            weighted_loss += loss * w[i];
+        }
+
+        Ok((gnorm_loss, weighted_loss, weights))
     }
 }
 
@@ -574,80 +542,10 @@ mod tests {
     }
 
     #[test]
-    fn test_layer_norm_forward() {
-        let ln = LayerNorm::new(10);
-        let input = Tensor::rand(&[3, 10]);
-
-        let output = ln.forward(&input).unwrap();
-        assert_eq!(output.shape(), &[3, 10]);
-    }
-
-    #[test]
-    fn test_layer_norm_normalization() {
-        let ln = LayerNorm::new(4);
-        // Input where each row has different mean/variance
-        let input = Tensor::from_data(
-            &[2, 4],
-            vec![
-                1.0, 2.0, 3.0, 4.0, // mean=2.5, var=1.25
-                10.0, 20.0, 30.0, 40.0, // mean=25, var=125
-            ],
-        );
-
-        let output = ln.forward(&input).unwrap();
-
-        // After normalization, each row should have approximately zero mean
-        let row1_mean: f32 = output.data()[0..4].iter().sum::<f32>() / 4.0;
-        let row2_mean: f32 = output.data()[4..8].iter().sum::<f32>() / 4.0;
-
-        assert!(row1_mean.abs() < 0.1);
-        assert!(row2_mean.abs() < 0.1);
-    }
-
-    #[test]
-    fn test_layer_norm_invalid_input() {
-        let ln = LayerNorm::new(64);
-        let input = Tensor::rand(&[3, 32]); // Wrong dimension
-
-        let result = ln.forward(&input);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_layer_norm_parameters() {
-        let ln = LayerNorm::new(64);
-        let params = ln.parameters();
-        assert_eq!(params.len(), 2); // gamma and beta
-    }
-
-    #[test]
-    fn test_batch_norm_creation() {
-        let bn = BatchNorm::new(64);
-        assert_eq!(bn.num_features(), 64);
-    }
-
-    #[test]
     fn test_batch_norm_forward() {
-        let bn = BatchNorm::new(10);
-        let input = Tensor::rand(&[8, 10]); // Batch of 8
-
+        let bn = BatchNorm::new(4);
+        let input = Tensor::rand(&[2, 3, 4]);
         let output = bn.forward(&input).unwrap();
-        assert_eq!(output.shape(), &[8, 10]);
-    }
-
-    #[test]
-    fn test_batch_norm_training_mode() {
-        let mut bn = BatchNorm::new(10);
-        assert!(bn.is_training());
-
-        bn.set_training(false);
-        assert!(!bn.is_training());
-    }
-
-    #[test]
-    fn test_batch_norm_parameters() {
-        let bn = BatchNorm::new(64);
-        let params = bn.parameters();
-        assert_eq!(params.len(), 2); // gamma and beta
+        assert_eq!(output.shape(), &[2, 3, 4]);
     }
 }

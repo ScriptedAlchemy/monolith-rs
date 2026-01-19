@@ -1,9 +1,7 @@
 use monolith_proto::monolith::io::proto::{feature, Example, Feature, FidList, NamedFeature};
 use monolith_proto::tensorflow_core::{DataType, TensorProto};
 use monolith_proto::tensorflow_serving::apis::prediction_service_server::PredictionService;
-use monolith_proto::tensorflow_serving::apis::{
-    GetModelMetadataRequest, ModelSpec, PredictRequest as TfPredictRequest,
-};
+use monolith_proto::tensorflow_serving::apis::PredictRequest as TfPredictRequest;
 use monolith_serving::config::ModelLoaderConfig;
 use monolith_serving::tfserving_server::{TfServingPredictionServer, INPUT_EXAMPLE, OUTPUT_SCORES};
 use monolith_serving::{AgentServiceImpl, ModelLoader};
@@ -72,34 +70,4 @@ async fn test_tfserving_predict_single_example() {
         .unwrap()
         .into_inner();
     assert!(resp.outputs.contains_key(OUTPUT_SCORES));
-}
-
-#[tokio::test]
-async fn test_tfserving_get_model_metadata_signature_def() {
-    let dir = tempdir().unwrap();
-    let model_path = dir.path().join("model");
-    std::fs::create_dir_all(&model_path).unwrap();
-
-    let loader = Arc::new(ModelLoader::new(ModelLoaderConfig::default()));
-    loader.load(&model_path).await.unwrap();
-
-    let agent = Arc::new(AgentServiceImpl::new(loader, None));
-    let service = TfServingPredictionServer::new(agent);
-
-    let req = GetModelMetadataRequest {
-        model_spec: Some(ModelSpec {
-            name: "demo".to_string(),
-            version_choice: None,
-            signature_name: "".to_string(),
-        }),
-        metadata_field: vec!["signature_def".to_string()],
-    };
-
-    let resp = service
-        .get_model_metadata(Request::new(req))
-        .await
-        .unwrap()
-        .into_inner();
-
-    assert!(resp.metadata.contains_key("signature_def"));
 }

@@ -1,8 +1,48 @@
 use super::config::{Mode, StockPredictorConfig};
-use super::data::{RandomGenerator, Sector, StockDataGenerator};
+use super::data::{RandomGenerator, Sector, StockBar, TickerInfo};
 use super::indicators::{IndicatorCalculator, TechnicalIndicators};
 use super::instances::{FeatureIndex, InstanceCreator};
 use super::model::{EmbeddingTables, StockPredictionModel};
+
+/// Create minimal test bars for a single ticker.
+fn create_test_bars(ticker_id: i64, num_bars: usize) -> Vec<StockBar> {
+    let mut bars = Vec::with_capacity(num_bars);
+    let mut price = 100.0_f32;
+    let mut prev_close = price;
+
+    for i in 0..num_bars {
+        let change = ((i % 7) as f32 - 3.0) * 0.01;
+        price *= 1.0 + change;
+        let returns = if i == 0 { 0.0 } else { (price - prev_close) / prev_close };
+        prev_close = price;
+
+        bars.push(StockBar {
+            ticker_id,
+            timestamp: i as i64,
+            day_index: i,
+            open: price * 0.999,
+            high: price * 1.01,
+            low: price * 0.99,
+            close: price,
+            volume: 1_000_000.0 + (i as f64 * 10_000.0),
+            returns,
+        });
+    }
+    bars
+}
+
+/// Create a test ticker.
+fn create_test_ticker(id: i64, symbol: &str) -> TickerInfo {
+    TickerInfo {
+        ticker_id: id,
+        name: format!("{} Inc.", symbol),
+        symbol: symbol.to_string(),
+        sector: Sector::Technology,
+        beta: 1.0,
+        base_volatility: 0.02,
+        drift: 0.0001,
+    }
+}
 
 #[test]
 fn test_config_default() {
@@ -13,22 +53,8 @@ fn test_config_default() {
 }
 
 #[test]
-fn test_stock_data_generation() {
-    let mut generator = StockDataGenerator::new(42);
-    generator.generate_tickers(10);
-    generator.generate_bars(50);
-
-    assert_eq!(generator.tickers().len(), 10);
-    assert_eq!(generator.bars().len(), 10 * 50);
-}
-
-#[test]
 fn test_indicator_calculation() {
-    let mut generator = StockDataGenerator::new(42);
-    generator.generate_tickers(1);
-    generator.generate_bars(30);
-
-    let bars = generator.bars().to_vec();
+    let bars = create_test_bars(0, 30);
     let mut calc = IndicatorCalculator::new();
     let indicators = calc.compute_indicators(&bars);
 
@@ -37,18 +63,14 @@ fn test_indicator_calculation() {
 
 #[test]
 fn test_instance_creation() {
-    let mut generator = StockDataGenerator::new(42);
-    generator.generate_tickers(1);
-    generator.generate_bars(50);
-
-    let ticker = &generator.tickers()[0];
-    let bars = generator.bars().to_vec();
+    let ticker = create_test_ticker(0, "TEST");
+    let bars = create_test_bars(0, 50);
 
     let mut calc = IndicatorCalculator::new();
     let indicators = calc.compute_indicators(&bars);
 
     let creator = InstanceCreator::new(10);
-    let instances = creator.create_instances(0, ticker, &bars, &indicators);
+    let instances = creator.create_instances(0, &ticker, &bars, &indicators);
 
     assert!(!instances.is_empty());
 }
@@ -78,11 +100,8 @@ fn test_model_forward() {
     let indicator_dim = TechnicalIndicators::NUM_FEATURES * config.timeframes.len();
     let model = StockPredictionModel::new(&config, indicator_dim);
 
-    let mut generator = StockDataGenerator::new(42);
-    generator.generate_tickers(1);
-    generator.generate_bars(30);
-    let ticker = generator.tickers()[0].clone();
-    let bars = generator.bars().to_vec();
+    let ticker = create_test_ticker(0, "TEST");
+    let bars = create_test_bars(0, 30);
 
     let mut calc = IndicatorCalculator::new();
     let indicators = calc.compute_indicators(&bars);
@@ -117,10 +136,7 @@ fn test_technical_indicators_to_vec() {
 #[test]
 #[cfg(feature = "talib")]
 fn test_talib_features_are_finite() {
-    let mut generator = StockDataGenerator::new(42);
-    generator.generate_tickers(1);
-    generator.generate_bars(120);
-    let bars = generator.bars().to_vec();
+    let bars = create_test_bars(0, 120);
 
     let mut calc = IndicatorCalculator::new();
     let indicators = calc.compute_indicators(&bars);
@@ -141,9 +157,6 @@ fn test_random_generator() {
     let mut rng = RandomGenerator::new(42);
     let u = rng.uniform();
     assert!(u >= 0.0 && u < 1.0);
-
-    let n = rng.normal();
-    assert!(n.is_finite());
 }
 
 #[test]
@@ -164,11 +177,8 @@ fn test_sector() {
 
 #[test]
 fn test_feature_index_indicator_dim_multi_tf() {
-    let mut generator = StockDataGenerator::new(42);
-    generator.generate_tickers(1);
-    generator.generate_bars(40);
-    let ticker = generator.tickers()[0].clone();
-    let bars = generator.bars().to_vec();
+    let ticker = create_test_ticker(0, "TEST");
+    let bars = create_test_bars(0, 40);
 
     let mut calc = IndicatorCalculator::new();
     let indicators = calc.compute_indicators(&bars);
@@ -188,11 +198,8 @@ fn test_feature_index_indicator_dim_multi_tf() {
 
 #[test]
 fn test_sequence_features_are_finite() {
-    let mut generator = StockDataGenerator::new(7);
-    generator.generate_tickers(1);
-    generator.generate_bars(60);
-    let ticker = generator.tickers()[0].clone();
-    let bars = generator.bars().to_vec();
+    let ticker = create_test_ticker(0, "TEST");
+    let bars = create_test_bars(0, 60);
 
     let mut calc = IndicatorCalculator::new();
     let indicators = calc.compute_indicators(&bars);

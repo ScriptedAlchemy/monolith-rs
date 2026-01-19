@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::config::{DEFAULT_FUTURESHARKS_DATA_DIR, DEFAULT_FUTURESHARKS_REPO_DIR};
+use super::config::DEFAULT_STOCK_PREDICTION_DATA_DIR;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Sector {
@@ -91,13 +91,6 @@ pub struct StockBar {
     pub returns: f32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MarketRegime {
-    Bull,
-    Bear,
-    Sideways,
-}
-
 #[derive(Clone)]
 pub struct RandomGenerator {
     state: u64,
@@ -112,20 +105,9 @@ impl RandomGenerator {
         (self.next_u64() >> 33) as f32 / (1u64 << 31) as f32
     }
 
-    pub fn normal(&mut self) -> f32 {
-        let u1 = self.uniform().max(1e-10);
-        let u2 = self.uniform();
-        (-2.0 * u1.ln()).sqrt() * (2.0 * std::f32::consts::PI * u2).cos()
-    }
-
     fn next_u64(&mut self) -> u64 {
         self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1);
         self.state
-    }
-
-    pub fn choice<T: Clone>(&mut self, items: &[T]) -> T {
-        let idx = (self.uniform() * items.len() as f32) as usize % items.len();
-        items[idx].clone()
     }
 
     pub fn shuffle<T>(&mut self, slice: &mut [T]) {
@@ -133,174 +115,6 @@ impl RandomGenerator {
             let j = (self.uniform() * (i + 1) as f32) as usize % (i + 1);
             slice.swap(i, j);
         }
-    }
-}
-
-pub struct StockDataGenerator {
-    rng: RandomGenerator,
-    tickers: Vec<TickerInfo>,
-    bars: Vec<StockBar>,
-    current_regime: MarketRegime,
-    regime_counter: usize,
-}
-
-impl StockDataGenerator {
-    pub fn new(seed: u64) -> Self {
-        Self {
-            rng: RandomGenerator::new(seed),
-            tickers: Vec::new(),
-            bars: Vec::new(),
-            current_regime: MarketRegime::Sideways,
-            regime_counter: 0,
-        }
-    }
-
-    pub fn generate_tickers(&mut self, num_tickers: usize) -> &[TickerInfo] {
-        self.tickers.clear();
-
-        let symbols = [
-            "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "BRK", "JPM", "JNJ", "V",
-            "PG", "UNH", "HD", "MA", "DIS", "PYPL", "BAC", "CMCSA", "ADBE", "NFLX", "CRM", "XOM",
-            "CSCO", "PFE", "INTC", "KO", "PEP", "ABT", "TMO", "COST", "CVX", "NKE", "MRK", "LLY",
-            "WMT", "ABBV", "AVGO", "ACN", "DHR", "TXN", "MDT", "UNP", "NEE", "LIN", "ORCL", "PM",
-            "HON", "LOW", "AMT", "QCOM", "IBM", "RTX", "SBUX", "CVS", "GS", "BLK", "DE", "SPGI",
-            "AXP", "GILD", "ISRG", "MDLZ", "BA", "MMM", "CAT", "MO", "ADP", "TGT", "BKNG", "CHTR",
-            "ZTS", "SYK", "CI", "ANTM", "TJX", "REGN", "DUK", "SO", "USB", "PLD", "BDX", "CL",
-            "MU", "ATVI", "MMC", "ITW", "CME", "FISV", "HUM", "APD", "NOC", "EQIX", "ICE", "ETN",
-            "CCI", "NSC", "WM", "SHW", "VRTX",
-        ];
-
-        for i in 0..num_tickers {
-            let sector = self.rng.choice(Sector::all());
-            let symbol = if i < symbols.len() {
-                symbols[i].to_string()
-            } else {
-                format!("SYM{:03}", i)
-            };
-            let name = format!("{} Inc.", symbol);
-
-            let (base_vol, drift) = match sector {
-                Sector::Technology => (0.02 + self.rng.uniform() * 0.02, 0.0003),
-                Sector::Healthcare => (0.015 + self.rng.uniform() * 0.015, 0.0002),
-                Sector::Finance => (0.018 + self.rng.uniform() * 0.012, 0.0001),
-                Sector::Energy => (0.025 + self.rng.uniform() * 0.025, 0.0001),
-                Sector::Utilities => (0.008 + self.rng.uniform() * 0.007, 0.0001),
-                _ => (0.015 + self.rng.uniform() * 0.015, 0.00015),
-            };
-
-            let beta = match sector {
-                Sector::Technology => 1.2 + self.rng.uniform() * 0.5,
-                Sector::Utilities => 0.5 + self.rng.uniform() * 0.3,
-                Sector::Finance => 1.0 + self.rng.uniform() * 0.4,
-                _ => 0.8 + self.rng.uniform() * 0.4,
-            };
-
-            self.tickers.push(TickerInfo {
-                ticker_id: i as i64,
-                name,
-                symbol,
-                sector,
-                beta,
-                base_volatility: base_vol,
-                drift,
-            });
-        }
-
-        &self.tickers
-    }
-
-    pub fn generate_bars(&mut self, days: usize) -> &[StockBar] {
-        self.bars.clear();
-
-        if self.tickers.is_empty() {
-            return &self.bars;
-        }
-
-        let mut prices: Vec<f32> = self
-            .tickers
-            .iter()
-            .map(|_| 50.0 + self.rng.uniform() * 150.0)
-            .collect();
-
-        let mut volatilities: Vec<f32> = self.tickers.iter().map(|t| t.base_volatility).collect();
-        let mut market_returns: Vec<f32> = Vec::with_capacity(days);
-
-        for day in 0..days {
-            self.update_regime();
-
-            let market_return = match self.current_regime {
-                MarketRegime::Bull => 0.0005 + self.rng.normal() * 0.01,
-                MarketRegime::Bear => -0.0003 + self.rng.normal() * 0.015,
-                MarketRegime::Sideways => self.rng.normal() * 0.008,
-            };
-            market_returns.push(market_return);
-
-            let is_earnings_season = (day % 63) < 21;
-
-            for (ticker_idx, ticker) in self.tickers.iter().enumerate() {
-                let target_vol = ticker.base_volatility;
-                volatilities[ticker_idx] = volatilities[ticker_idx] * 0.95 + target_vol * 0.05;
-
-                let vol = if is_earnings_season && self.rng.uniform() < 0.1 {
-                    volatilities[ticker_idx] * 2.0
-                } else {
-                    volatilities[ticker_idx]
-                };
-
-                let idiosyncratic = self.rng.normal() * vol;
-                let daily_return = ticker.beta * market_return + idiosyncratic + ticker.drift;
-
-                let prev_price = prices[ticker_idx];
-                let new_price = prev_price * (1.0 + daily_return);
-                prices[ticker_idx] = new_price.max(0.01);
-
-                let intraday_vol = vol * 0.5;
-                let open = prev_price * (1.0 + self.rng.normal() * intraday_vol * 0.3);
-                let high = new_price.max(open) * (1.0 + self.rng.uniform() * intraday_vol);
-                let low = new_price.min(open) * (1.0 - self.rng.uniform() * intraday_vol);
-
-                let base_volume = 1_000_000.0 + self.rng.uniform() as f64 * 10_000_000.0;
-                let volume_mult = (1.0 + daily_return.abs() * 10.0) as f64;
-                let volume = base_volume * volume_mult * (0.5 + self.rng.uniform() as f64);
-
-                self.bars.push(StockBar {
-                    ticker_id: ticker.ticker_id,
-                    timestamp: day as i64,
-                    day_index: day,
-                    open: open.max(0.01),
-                    high: high.max(open.max(new_price)),
-                    low: low.min(open.min(new_price)).max(0.01),
-                    close: new_price,
-                    volume,
-                    returns: daily_return,
-                });
-            }
-        }
-
-        &self.bars
-    }
-
-    fn update_regime(&mut self) {
-        self.regime_counter += 1;
-
-        if self.regime_counter > 20 && self.rng.uniform() < 0.05 {
-            self.current_regime = match self.rng.uniform() {
-                x if x < 0.4 => MarketRegime::Bull,
-                x if x < 0.7 => MarketRegime::Sideways,
-                _ => MarketRegime::Bear,
-            };
-            self.regime_counter = 0;
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn tickers(&self) -> &[TickerInfo] {
-        &self.tickers
-    }
-
-    #[allow(dead_code)]
-    pub fn bars(&self) -> &[StockBar] {
-        &self.bars
     }
 }
 
@@ -527,11 +341,12 @@ pub struct IntradayDataSources;
 impl IntradayDataSources {
     pub fn print_download_instructions() {
         println!("\n=== Intraday Data Download Instructions ===\n");
-        println!("FutureSharks financial-data (1-minute bars, 2010-2018)");
-        println!("  git clone https://github.com/FutureSharks/financial-data.git");
         println!(
-            "  # Default path is data/financial-data/pyfinancialdata/data/stocks/histdata\n"
+            "This example expects intraday CSVs in:\n  {}\n",
+            DEFAULT_STOCK_PREDICTION_DATA_DIR
         );
+        println!("Supported CSV format (no header):");
+        println!("  SYMBOL,YYYY-MM-DD,HH:MM:SS,OPEN,HIGH,LOW,CLOSE,VOLUME\n");
         println!("\n===========================================\n");
     }
 }
@@ -565,22 +380,39 @@ impl IntradayCsvLoader {
         let mut minute_bars: Vec<(f32, f32, f32, f32, f64)> = Vec::new();
 
         for (i, line) in reader.lines().enumerate() {
-            if i == 0 {
-                continue;
-            }
-
             let line = line.map_err(|e| format!("Read error: {}", e))?;
             let fields: Vec<&str> = line.split(',').collect();
+
+            // The supported intraday formats in this repo:
+            // - Flat 6-column: `ts,open,high,low,close,volume` with a header row
+            // - This dataset (no header): `symbol,date,time,open,high,low,close,volume`
+            //
+            // For intraday aggregation, we only need OHLCV, so we ignore symbol/date/time.
+
+            // Skip obvious header rows.
+            if i == 0 {
+                let lower = line.to_lowercase();
+                if lower.contains("open") && lower.contains("close") {
+                    continue;
+                }
+            }
 
             if fields.len() < 6 {
                 continue;
             }
 
-            let open: f32 = fields[1].parse().unwrap_or(0.0);
-            let high: f32 = fields[2].parse().unwrap_or(0.0);
-            let low: f32 = fields[3].parse().unwrap_or(0.0);
-            let close: f32 = fields[4].parse().unwrap_or(0.0);
-            let volume: f64 = fields[5].parse().unwrap_or(0.0);
+            let (open_idx, high_idx, low_idx, close_idx, vol_idx) = match fields.len() {
+                6 => (1, 2, 3, 4, 5),
+                // symbol,date,time,open,high,low,close,volume
+                n if n >= 8 => (3, 4, 5, 6, 7),
+                _ => continue,
+            };
+
+            let open: f32 = fields[open_idx].parse().unwrap_or(0.0);
+            let high: f32 = fields[high_idx].parse().unwrap_or(0.0);
+            let low: f32 = fields[low_idx].parse().unwrap_or(0.0);
+            let close: f32 = fields[close_idx].parse().unwrap_or(0.0);
+            let volume: f64 = fields[vol_idx].parse().unwrap_or(0.0);
 
             if close <= 0.0 {
                 continue;
@@ -647,6 +479,93 @@ impl IntradayCsvLoader {
         Ok(())
     }
 
+    /// Loads a directory of intraday CSVs.
+    ///
+    /// Supports:
+    /// - "flat" layout: `<dir>/<TICKER>.csv`
+    /// - nested layout (like the user's dataset): `<dir>/**/<TICKER>.csv`
+    ///
+    /// CSV format expected (no header):
+    /// `SYMBOL,YYYY-MM-DD,HH:MM:SS,OPEN,HIGH,LOW,CLOSE,VOLUME`
+    pub fn load_dir_recursive(
+        &mut self,
+        dir: &str,
+        max_tickers: usize,
+        aggregate_minutes: usize,
+    ) -> Result<(), String> {
+        use std::collections::HashSet;
+        use std::fs;
+        use std::path::Path;
+
+        let root = Path::new(dir);
+        if !root.exists() {
+            return Err(format!("Directory does not exist: {}", dir));
+        }
+
+        let mut csv_paths: Vec<String> = Vec::new();
+        let mut seen: HashSet<String> = HashSet::new();
+
+        // DFS over the directory tree collecting .csv files.
+        let mut stack: Vec<std::path::PathBuf> = vec![root.to_path_buf()];
+        while let Some(p) = stack.pop() {
+            let rd = match fs::read_dir(&p) {
+                Ok(rd) => rd,
+                Err(_) => continue,
+            };
+
+            for entry in rd.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                if path
+                    .extension()
+                    .and_then(|s| s.to_str())
+                    .map(|ext| ext.eq_ignore_ascii_case("csv"))
+                    .unwrap_or(false)
+                {
+                    // De-dup by ticker symbol inferred from filename.
+                    let sym = path
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("")
+                        .to_uppercase();
+                    if sym.is_empty() {
+                        continue;
+                    }
+                    if seen.insert(sym) {
+                        csv_paths.push(path.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+
+        csv_paths.sort();
+        csv_paths.truncate(max_tickers);
+
+        if csv_paths.is_empty() {
+            return Err(format!("No CSV files found under {}", dir));
+        }
+
+        println!(
+            "  Loading {} intraday CSV files from {} (recursive)",
+            csv_paths.len(),
+            dir
+        );
+
+        for path in csv_paths {
+            let sym = std::path::Path::new(&path)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("INTRADAY")
+                .to_uppercase();
+            self.load_file(&path, &sym, aggregate_minutes)?;
+        }
+
+        Ok(())
+    }
+
     fn aggregate_bars(
         minute_bars: &[(f32, f32, f32, f32, f64)],
         period: usize,
@@ -674,171 +593,11 @@ impl IntradayCsvLoader {
     }
 }
 
-pub struct FutureSharksHistdataLoader {
-    tickers: Vec<TickerInfo>,
-    bars: Vec<StockBar>,
-}
+// NOTE: This example is focused on local intraday CSV datasets under
+// `examples/stock_prediction/data/`.
 
-impl FutureSharksHistdataLoader {
-    pub fn new() -> Self {
-        Self {
-            tickers: Vec::new(),
-            bars: Vec::new(),
-        }
-    }
-
-    pub fn tickers(&self) -> &[TickerInfo] {
-        &self.tickers
-    }
-
-    pub fn bars(&self) -> &[StockBar] {
-        &self.bars
-    }
-
-    pub fn load_dir(&mut self, dir: &str, max_instruments: usize) -> Result<(), String> {
-        use std::fs;
-
-        let mut instrument_dirs: Vec<_> = fs::read_dir(dir)
-            .map_err(|e| format!("Failed to read {}: {}", dir, e))?
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().is_dir())
-            .collect();
-
-        instrument_dirs.sort_by_key(|a| a.path());
-        instrument_dirs.truncate(max_instruments);
-
-        if instrument_dirs.is_empty() {
-            return Err(format!("No instrument subdirectories found in {}", dir));
-        }
-
-        for entry in instrument_dirs {
-            let instrument = entry
-                .path()
-                .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or("UNKNOWN")
-                .to_string();
-            self.load_instrument_dir(entry.path().to_string_lossy().as_ref(), &instrument)?;
-        }
-
-        if self.tickers.is_empty() || self.bars.is_empty() {
-            return Err(format!("No valid histdata bars found in {}", dir));
-        }
-
-        Ok(())
-    }
-
-    fn load_instrument_dir(&mut self, instrument_dir: &str, symbol: &str) -> Result<(), String> {
-        use std::fs;
-        use std::io::{BufRead, BufReader};
-
-        let mut files: Vec<_> = fs::read_dir(instrument_dir)
-            .map_err(|e| format!("Failed to read {}: {}", instrument_dir, e))?
-            .filter_map(|e| e.ok())
-            .filter(|e| {
-                e.path()
-                    .extension()
-                    .and_then(|s| s.to_str())
-                    .map(|ext| ext.eq_ignore_ascii_case("csv"))
-                    .unwrap_or(false)
-            })
-            .collect();
-
-        files.sort_by_key(|a| a.path());
-
-        if files.is_empty() {
-            return Err(format!("No CSV files found in {}", instrument_dir));
-        }
-
-        let ticker_id = self.tickers.len() as i64;
-        let mut bars_for_ticker: Vec<StockBar> = Vec::new();
-        let mut prev_close: Option<f32> = None;
-
-        for entry in files {
-            let path = entry.path();
-            let file = fs::File::open(&path)
-                .map_err(|e| format!("Failed to open {}: {}", path.display(), e))?;
-            let reader = BufReader::new(file);
-
-            for line in reader.lines().map_while(Result::ok) {
-                let mut parts = line.split(';');
-                let ts = parts.next().unwrap_or("");
-                let open: f32 = parts.next().unwrap_or("0").parse().unwrap_or(0.0);
-                let high: f32 = parts.next().unwrap_or("0").parse().unwrap_or(0.0);
-                let low: f32 = parts.next().unwrap_or("0").parse().unwrap_or(0.0);
-                let close: f32 = parts.next().unwrap_or("0").parse().unwrap_or(0.0);
-                let volume: f64 = parts.next().unwrap_or("0").parse().unwrap_or(0.0);
-
-                if open <= 0.0 || close <= 0.0 || !open.is_finite() || !close.is_finite() {
-                    continue;
-                }
-
-                let (date_part, time_part) = match ts.split_once(' ') {
-                    Some((d, t)) => (d, t),
-                    None => continue,
-                };
-                if date_part.len() != 8 || time_part.len() < 4 {
-                    continue;
-                }
-                let day: i64 = date_part.parse().unwrap_or(0);
-                let hhmm: i64 = time_part[..4].parse().unwrap_or(0);
-
-                let timestamp = day * 10_000 + hhmm;
-
-                let returns = if let Some(pc) = prev_close {
-                    (close - pc) / pc
-                } else {
-                    0.0
-                };
-                prev_close = Some(close);
-
-                let day_index = bars_for_ticker.len();
-
-                bars_for_ticker.push(StockBar {
-                    ticker_id,
-                    timestamp,
-                    day_index,
-                    open,
-                    high,
-                    low,
-                    close,
-                    volume,
-                    returns,
-                });
-            }
-        }
-
-        if bars_for_ticker.is_empty() {
-            return Err(format!("No valid bars parsed for {}", symbol));
-        }
-
-        let returns: Vec<f32> = bars_for_ticker.iter().map(|b| b.returns).collect();
-        let mean_ret: f32 = returns.iter().sum::<f32>() / returns.len().max(1) as f32;
-        let variance: f32 = returns.iter().map(|r| (r - mean_ret).powi(2)).sum::<f32>()
-            / returns.len().max(1) as f32;
-        let annualization = (252.0_f32 * 390.0_f32).sqrt();
-        let volatility = variance.sqrt() * annualization;
-
-        self.tickers.push(TickerInfo {
-            ticker_id,
-            name: symbol.to_string(),
-            symbol: symbol.to_string(),
-            sector: Sector::Technology,
-            beta: 1.0,
-            base_volatility: volatility,
-            drift: mean_ret * 252.0 * 390.0,
-        });
-
-        self.bars.extend(bars_for_ticker);
-
-        Ok(())
-    }
-}
-
-pub fn ensure_futuresharks_dataset_present(data_dir: Option<&str>) {
-    use std::fs;
+pub fn ensure_dataset_present(data_dir: Option<&str>) {
     use std::path::Path;
-    use std::process::Command;
 
     let Some(data_dir) = data_dir else {
         return;
@@ -847,67 +606,10 @@ pub fn ensure_futuresharks_dataset_present(data_dir: Option<&str>) {
     if Path::new(data_dir).exists() {
         return;
     }
-
-    if data_dir != DEFAULT_FUTURESHARKS_DATA_DIR {
-        return;
-    }
-
-    let repo_dir = Path::new(DEFAULT_FUTURESHARKS_REPO_DIR);
-    let git_dir = repo_dir.join(".git");
-
-    let mut attempted = false;
-    if repo_dir.exists() {
-        if git_dir.exists() {
-            eprintln!(
-                "Default intraday dataset not found at `{}`. Updating `{}` ...",
-                DEFAULT_FUTURESHARKS_DATA_DIR, DEFAULT_FUTURESHARKS_REPO_DIR
-            );
-            let _ = Command::new("git")
-                .args(["-C", DEFAULT_FUTURESHARKS_REPO_DIR, "pull", "--ff-only"])
-                .status();
-            attempted = true;
-        } else if fs::read_dir(repo_dir)
-            .map(|mut it| it.next().is_none())
-            .unwrap_or(false)
-        {
-            let _ = fs::remove_dir_all(repo_dir);
-        } else {
-            eprintln!(
-                "Default intraday dataset not found at `{}` and `{}` is not a git repo.",
-                DEFAULT_FUTURESHARKS_DATA_DIR, DEFAULT_FUTURESHARKS_REPO_DIR
-            );
-            eprintln!("Remove it or set --data-dir to the dataset location.");
-            return;
-        }
-    }
-
-    if Path::new(DEFAULT_FUTURESHARKS_DATA_DIR).exists() {
-        return;
-    }
-
-    if !attempted {
-        eprintln!(
-            "Default intraday dataset not found at `{}`. Cloning into `{}` ...",
-            DEFAULT_FUTURESHARKS_DATA_DIR, DEFAULT_FUTURESHARKS_REPO_DIR
-        );
-        let status = Command::new("git")
-            .args([
-                "clone",
-                "--depth",
-                "1",
-                "https://github.com/FutureSharks/financial-data.git",
-                DEFAULT_FUTURESHARKS_REPO_DIR,
-            ])
-            .status();
-
-        if !matches!(status, Ok(s) if s.success()) {
-            eprintln!("Auto-clone failed. Run this manually:");
-            eprintln!(
-                "  git clone https://github.com/FutureSharks/financial-data.git {}",
-                DEFAULT_FUTURESHARKS_REPO_DIR
-            );
-        }
-    }
+    eprintln!(
+        "Dataset directory not found: `{}`. Put intraday CSVs under `{}` (or pass --data-dir).",
+        data_dir, DEFAULT_STOCK_PREDICTION_DATA_DIR
+    );
 }
 
 pub fn load_real_data_auto(
@@ -915,18 +617,55 @@ pub fn load_real_data_auto(
     num_tickers: usize,
     lookback_window: usize,
 ) -> Result<(Vec<TickerInfo>, Vec<StockBar>), String> {
-    let canonical_dir = normalize_futuresharks_dir(data_dir);
+    let canonical_dir = data_dir.to_string();
 
-    if is_futuresharks_histdata_dir(&canonical_dir) {
-        let mut loader = FutureSharksHistdataLoader::new();
-        loader.load_dir(&canonical_dir, num_tickers)?;
-        Ok((loader.tickers().to_vec(), loader.bars().to_vec()))
-    } else {
-        let mut loader = CsvDataLoader::new(&canonical_dir);
-        loader.load(num_tickers, lookback_window + 50)?;
-        let tickers_with_beta = calculate_betas(loader.tickers(), loader.bars());
-        Ok((tickers_with_beta, loader.bars().to_vec()))
+    // Prefer intraday recursive loader for the local dataset layout.
+    let mut intraday = IntradayCsvLoader::new();
+    intraday.load_dir_recursive(&canonical_dir, num_tickers, 1)?;
+    let tickers = intraday.tickers().to_vec();
+    let bars = intraday.bars().to_vec();
+
+    // Enforce a minimum bar count similar to the daily loader's lookback requirements.
+    let min_required = lookback_window + 50;
+    let mut bars_by_tid: HashMap<i64, usize> = HashMap::new();
+    for b in &bars {
+        *bars_by_tid.entry(b.ticker_id).or_insert(0) += 1;
     }
+    let eligible: std::collections::HashSet<i64> = bars_by_tid
+        .iter()
+        .filter_map(|(&tid, &n)| if n >= min_required { Some(tid) } else { None })
+        .collect();
+
+    let mut filtered_tickers: Vec<TickerInfo> = Vec::new();
+    let mut id_remap: HashMap<i64, i64> = HashMap::new();
+    for t in &tickers {
+        if eligible.contains(&t.ticker_id) {
+            let new_id = filtered_tickers.len() as i64;
+            id_remap.insert(t.ticker_id, new_id);
+            let mut nt = t.clone();
+            nt.ticker_id = new_id;
+            filtered_tickers.push(nt);
+        }
+    }
+
+    let mut filtered_bars: Vec<StockBar> = Vec::new();
+    for b in bars {
+        if let Some(&new_id) = id_remap.get(&b.ticker_id) {
+            let mut nb = b;
+            nb.ticker_id = new_id;
+            filtered_bars.push(nb);
+        }
+    }
+
+    if filtered_tickers.is_empty() {
+        return Err(format!(
+            "No tickers had at least {} bars under {}",
+            min_required, canonical_dir
+        ));
+    }
+
+    let tickers_with_beta = calculate_betas(&filtered_tickers, &filtered_bars);
+    Ok((tickers_with_beta, filtered_bars))
 }
 
 pub fn aggregate_bars(bars: &[StockBar], timeframe_minutes: usize) -> Vec<StockBar> {
@@ -964,41 +703,7 @@ pub fn aggregate_bars(bars: &[StockBar], timeframe_minutes: usize) -> Vec<StockB
         .collect()
 }
 
-fn normalize_futuresharks_dir(data_dir: &str) -> String {
-    let p = std::path::Path::new(data_dir);
-    if p.ends_with("financial-data") || p.ends_with("data/financial-data") {
-        return DEFAULT_FUTURESHARKS_DATA_DIR.to_string();
-    }
-    data_dir.to_string()
-}
-
-fn is_futuresharks_histdata_dir(data_dir: &str) -> bool {
-    let Ok(rd) = std::fs::read_dir(data_dir) else {
-        return false;
-    };
-
-    for entry in rd.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            let Ok(sub) = std::fs::read_dir(&path) else {
-                continue;
-            };
-            for e in sub.flatten() {
-                let p = e.path();
-                if let Some(name) = p.file_name().and_then(|s| s.to_str()) {
-                    if name.starts_with("DAT_ASCII_")
-                        && name.contains("_M1_")
-                        && name.ends_with(".csv")
-                    {
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-
-    false
-}
+// NOTE: We default to local intraday CSVs placed under `examples/stock_prediction/data/`.
 
 fn calculate_betas(tickers: &[TickerInfo], bars: &[StockBar]) -> Vec<TickerInfo> {
     let mut day_returns: HashMap<usize, Vec<f32>> = HashMap::new();

@@ -330,7 +330,8 @@ impl FFMLayer {
     /// * `field_j` - The target field index
     fn get_embedding(&self, field_i: usize, field_j: usize) -> Vec<f32> {
         let offset = (field_i * self.num_fields + field_j) * self.embedding_dim;
-        self.embeddings.data()[offset..offset + self.embedding_dim].to_vec()
+        let embeddings_data = self.embeddings.data_ref();
+        embeddings_data[offset..offset + self.embedding_dim].to_vec()
     }
 
     /// Computes the inner product of two embedding vectors.
@@ -397,14 +398,17 @@ impl FFMLayer {
 
         let mut output_data = vec![0.0f32; batch_size];
 
+        let indices_data = field_indices.data_ref();
+        let values_data = field_values.data_ref();
+
         // For each sample in the batch
         for b in 0..batch_size {
             let mut interaction_sum = 0.0f32;
 
             // Compute pairwise interactions between all field pairs
             for i in 0..num_features {
-                let field_i = field_indices.data()[b * num_features + i] as usize;
-                let value_i = field_values.data()[b * num_features + i];
+                let field_i = indices_data[b * num_features + i] as usize;
+                let value_i = values_data[b * num_features + i];
 
                 if field_i >= self.num_fields {
                     return Err(LayerError::ForwardError {
@@ -416,8 +420,8 @@ impl FFMLayer {
                 }
 
                 for j in (i + 1)..num_features {
-                    let field_j = field_indices.data()[b * num_features + j] as usize;
-                    let value_j = field_values.data()[b * num_features + j];
+                    let field_j = indices_data[b * num_features + j] as usize;
+                    let value_j = values_data[b * num_features + j];
 
                     if field_j >= self.num_fields {
                         return Err(LayerError::ForwardError {
@@ -444,7 +448,7 @@ impl FFMLayer {
 
         // Add bias if enabled
         if self.use_bias {
-            let bias_val = self.bias.data()[0];
+            let bias_val = self.bias.data_ref()[0];
             for val in &mut output_data {
                 *val += bias_val;
             }
@@ -493,17 +497,21 @@ impl FFMLayer {
         let mut embeddings_grad_data =
             vec![0.0f32; self.num_fields * self.num_fields * self.embedding_dim];
 
+        let grad_data = grad.data_ref();
+        let indices_data = field_indices.data_ref();
+        let values_data = field_values.data_ref();
+
         // Compute gradients
         for b in 0..batch_size {
-            let grad_val = grad.data()[b];
+            let grad_val = grad_data[b];
 
             for i in 0..num_features {
-                let field_i = field_indices.data()[b * num_features + i] as usize;
-                let value_i = field_values.data()[b * num_features + i];
+                let field_i = indices_data[b * num_features + i] as usize;
+                let value_i = values_data[b * num_features + i];
 
                 for j in (i + 1)..num_features {
-                    let field_j = field_indices.data()[b * num_features + j] as usize;
-                    let value_j = field_values.data()[b * num_features + j];
+                    let field_j = indices_data[b * num_features + j] as usize;
+                    let value_j = values_data[b * num_features + j];
 
                     // Gradient w.r.t. v_{i, fj}: grad * x_i * x_j * v_{j, fi}
                     let v_j_fi = self.get_embedding(field_j, field_i);
@@ -531,7 +539,7 @@ impl FFMLayer {
 
         // Bias gradient
         if self.use_bias {
-            let bias_grad: f32 = grad.data().iter().sum();
+            let bias_grad: f32 = grad_data.iter().sum();
             self.bias_grad = Some(Tensor::from_data(&[1], vec![bias_grad]));
         }
 
@@ -566,10 +574,12 @@ impl Layer for FFMLayer {
         let mut indices_data = vec![0.0f32; batch_size * num_features];
         let mut values_data = vec![0.0f32; batch_size * num_features];
 
+        let input_data = input.data_ref();
         for b in 0..batch_size {
             for f in 0..num_features {
-                indices_data[b * num_features + f] = input.data()[b * features + f];
-                values_data[b * num_features + f] = input.data()[b * features + num_features + f];
+                indices_data[b * num_features + f] = input_data[b * features + f];
+                values_data[b * num_features + f] =
+                    input_data[b * features + num_features + f];
             }
         }
 

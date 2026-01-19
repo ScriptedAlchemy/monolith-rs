@@ -16,6 +16,7 @@ thiserror = { workspace = true }
 serde = { workspace = true }
 rayon = { workspace = true }
 monolith-tensor = { workspace = true, optional = true }
+libm = "0.2"
 
 [features]
 default = []

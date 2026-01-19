@@ -353,9 +353,10 @@ impl GroupInteractionLayer {
         let output_dim = self.output_dim();
         let mut output_data = vec![0.0f32; batch_size * output_dim];
 
+        let input_data = input.data_ref();
         for b in 0..batch_size {
             let input_start = b * input_dim;
-            let input_slice = &input.data()[input_start..input_start + input_dim];
+            let input_slice = &input_data[input_start..input_start + input_dim];
             let output_start = b * output_dim;
             let mut output_offset = 0;
 
@@ -430,16 +431,18 @@ impl Layer for GroupInteractionLayer {
         // Initialize input gradient
         let mut input_grad = vec![0.0f32; batch_size * input_dim];
 
+        let input_data = input.data_ref();
+        let grad_data = grad.data_ref();
         for b in 0..batch_size {
             let input_start = b * input_dim;
-            let input_slice = &input.data()[input_start..input_start + input_dim];
+            let input_slice = &input_data[input_start..input_start + input_dim];
             let grad_start = b * output_dim;
             let mut grad_offset = 0;
 
             // Gradient for original embeddings
             if self.config.include_original {
                 for i in 0..total_features * embedding_dim {
-                    input_grad[input_start + i] += grad.data()[grad_start + grad_offset + i];
+                    input_grad[input_start + i] += grad_data[grad_start + grad_offset + i];
                 }
                 grad_offset += total_features * embedding_dim;
             }
@@ -468,7 +471,7 @@ impl Layer for GroupInteractionLayer {
                             InteractionType::InnerProduct => {
                                 // d(v_i . v_j)/d(v_i) = v_j
                                 // d(v_i . v_j)/d(v_j) = v_i
-                                let g = grad.data()[grad_start + grad_offset];
+                                let g = grad_data[grad_start + grad_offset];
                                 for k in 0..embedding_dim {
                                     input_grad[input_start + offset_i + k] += g * v_j[k];
                                     input_grad[input_start + offset_j + k] += g * v_i[k];
@@ -479,7 +482,7 @@ impl Layer for GroupInteractionLayer {
                                 // d(v_i * v_j)/d(v_i) = v_j (element-wise)
                                 // d(v_i * v_j)/d(v_j) = v_i (element-wise)
                                 for k in 0..embedding_dim {
-                                    let g = grad.data()[grad_start + grad_offset + k];
+                                    let g = grad_data[grad_start + grad_offset + k];
                                     input_grad[input_start + offset_i + k] += g * v_j[k];
                                     input_grad[input_start + offset_j + k] += g * v_i[k];
                                 }
@@ -490,9 +493,9 @@ impl Layer for GroupInteractionLayer {
                                 // d(concat)/d(v_j) = second half of grad
                                 for k in 0..embedding_dim {
                                     input_grad[input_start + offset_i + k] +=
-                                        grad.data()[grad_start + grad_offset + k];
+                                        grad_data[grad_start + grad_offset + k];
                                     input_grad[input_start + offset_j + k] +=
-                                        grad.data()[grad_start + grad_offset + embedding_dim + k];
+                                        grad_data[grad_start + grad_offset + embedding_dim + k];
                                 }
                                 grad_offset += embedding_dim * 2;
                             }

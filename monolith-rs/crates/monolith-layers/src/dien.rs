@@ -9,7 +9,7 @@
 //! DIEN consists of three main components:
 //!
 //! 1. **Interest Extractor Layer**: Uses a GRU to extract user interests from behavior sequences
-//! 2. **Interest Evolution Layer**: Uses AUGRU (Attention-based GRU) to model interest evolution
+//! 2. **Interest Evolution Layer**: Uses AGRU/AUGRU (Attention-based GRU) to model interest evolution
 //!    with attention to the target item
 //! 3. **Auxiliary Loss**: Helps the interest extractor capture sequential patterns
 //!
@@ -20,7 +20,7 @@
 //!                                                        |
 //! Target Item ---------> Attention --------------------->|
 //!                                                        v
-//!                                           AUGRU (Interest Evolution) --> Evolved Interest
+//!                                           AGRU/AUGRU (Interest Evolution) --> Evolved Interest
 //! ```
 //!
 //! # Example
@@ -30,9 +30,9 @@
 //! use monolith_layers::tensor::Tensor;
 //!
 //! // Create DIEN layer
-//! let config = DIENConfig::new(32, 64)
+//! let config = DIENConfig::new(32, 32)
 //!     .with_use_auxiliary_loss(true)
-//!     .with_gru_type(GRUType::AUGRU);
+//!     .with_gru_type(GRUType::AGRU);
 //! let mut dien = DIENLayer::from_config(config).unwrap();
 //!
 //! // User behavior sequence [batch_size, seq_len, embedding_dim]
@@ -44,7 +44,7 @@
 //!
 //! // Forward pass
 //! let evolved_interest = dien.forward_dien(&behavior_seq, &target_item, Some(&mask)).unwrap();
-//! assert_eq!(evolved_interest.shape(), &[4, 64]);
+//! assert_eq!(evolved_interest.shape(), &[4, 32]);
 //! ```
 //!
 //! # References
@@ -53,6 +53,13 @@
 
 use crate::error::LayerError;
 use crate::layer::Layer;
+use crate::activation::{
+    ELU, Exponential, HardSigmoid, LeakyReLU, Linear, Mish, PReLU, ReLU, SELU, Sigmoid2, Softmax,
+    Softplus, Softsign, Swish, ThresholdedReLU,
+};
+use crate::initializer::Initializer;
+use crate::mlp::ActivationType;
+use crate::regularizer::Regularizer;
 use crate::tensor::Tensor;
 use serde::{Deserialize, Serialize};
 
@@ -61,9 +68,57 @@ use serde::{Deserialize, Serialize};
 pub enum GRUType {
     /// Standard GRU cell
     Standard,
-    /// Attention-based GRU (AUGRU) - modifies update gate with attention
+    /// Attention-based GRU (AGRU) - uses attention to mix state and candidate
     #[default]
+    AGRU,
+    /// Attention-based GRU (AUGRU) - modifies update gate with attention
     AUGRU,
+}
+
+fn apply_activation(input: &Tensor, activation: &ActivationType) -> Tensor {
+    match activation {
+        ActivationType::ReLU {
+            max_value,
+            negative_slope,
+            threshold,
+        } => ReLU::with_params(*max_value, *negative_slope, *threshold)
+            .forward(input)
+            .unwrap(),
+        ActivationType::Sigmoid => input.sigmoid(),
+        ActivationType::Sigmoid2 => Sigmoid2::new().forward(input).unwrap(),
+        ActivationType::Tanh => input.tanh(),
+        ActivationType::GELU => input.gelu(),
+        ActivationType::SELU => SELU::new().forward(input).unwrap(),
+        ActivationType::Softplus => Softplus::new().forward(input).unwrap(),
+        ActivationType::Softsign => Softsign::new().forward(input).unwrap(),
+        ActivationType::Swish => Swish::new().forward(input).unwrap(),
+        ActivationType::Mish => Mish::new().forward(input).unwrap(),
+        ActivationType::HardSigmoid => HardSigmoid::new().forward(input).unwrap(),
+        ActivationType::LeakyReLU { alpha } => LeakyReLU::new(*alpha).forward(input).unwrap(),
+        ActivationType::ELU { alpha } => ELU::new(*alpha).forward(input).unwrap(),
+        ActivationType::PReLU {
+            alpha,
+            initializer,
+            shared_axes,
+            regularizer,
+            constraint,
+        } => PReLU::with_params(
+            *alpha,
+            initializer.clone(),
+            shared_axes.clone(),
+            regularizer.clone(),
+            constraint.clone(),
+        )
+        .forward(input)
+        .unwrap(),
+        ActivationType::ThresholdedReLU { theta } => {
+            ThresholdedReLU::new(*theta).forward(input).unwrap()
+        }
+        ActivationType::Softmax { axis } => Softmax::with_axis(*axis).forward(input).unwrap(),
+        ActivationType::Linear => Linear::new().forward(input).unwrap(),
+        ActivationType::Exponential => Exponential::new().forward(input).unwrap(),
+        ActivationType::None => input.clone(),
+    }
 }
 
 /// Configuration for DIEN layer.
@@ -73,9 +128,9 @@ pub enum GRUType {
 /// ```
 /// use monolith_layers::dien::{DIENConfig, GRUType};
 ///
-/// let config = DIENConfig::new(32, 64)
+/// let config = DIENConfig::new(32, 32)
 ///     .with_use_auxiliary_loss(true)
-///     .with_gru_type(GRUType::AUGRU)
+///     .with_gru_type(GRUType::AGRU)
 ///     .with_attention_hidden_units(vec![64, 32]);
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,6 +139,14 @@ pub struct DIENConfig {
     pub embedding_dim: usize,
     /// Dimension of hidden states in GRU cells
     pub hidden_size: usize,
+    /// Activation for GRU/AUGRU candidate state
+    pub activation: ActivationType,
+    /// Initializer for GRU/AUGRU weights and attention projection
+    pub initializer: Initializer,
+    /// Initializer for recurrent (hidden-to-hidden) weights
+    pub recurrent_initializer: Initializer,
+    /// Kernel regularizer for GRU/AUGRU weights and attention projection
+    pub regularizer: Regularizer,
     /// Whether to use auxiliary loss for training
     pub use_auxiliary_loss: bool,
     /// Type of GRU to use in interest evolution layer
@@ -105,16 +168,44 @@ impl DIENConfig {
         Self {
             embedding_dim,
             hidden_size,
+            activation: ActivationType::relu(),
+            initializer: Initializer::HeUniform,
+            recurrent_initializer: Initializer::Orthogonal,
+            regularizer: Regularizer::None,
             use_auxiliary_loss: true,
-            gru_type: GRUType::AUGRU,
+            gru_type: GRUType::AGRU,
             attention_hidden_units: vec![64, 32],
-            use_softmax: false,
+            use_softmax: true,
         }
     }
 
     /// Sets whether to use auxiliary loss.
     pub fn with_use_auxiliary_loss(mut self, use_auxiliary_loss: bool) -> Self {
         self.use_auxiliary_loss = use_auxiliary_loss;
+        self
+    }
+
+    /// Sets the activation for GRU/AUGRU candidate state.
+    pub fn with_activation(mut self, activation: ActivationType) -> Self {
+        self.activation = activation;
+        self
+    }
+
+    /// Sets the initializer for GRU/AUGRU weights and attention projection.
+    pub fn with_initializer(mut self, initializer: Initializer) -> Self {
+        self.initializer = initializer;
+        self
+    }
+
+    /// Sets the recurrent initializer for hidden-to-hidden weights.
+    pub fn with_recurrent_initializer(mut self, initializer: Initializer) -> Self {
+        self.recurrent_initializer = initializer;
+        self
+    }
+
+    /// Sets kernel regularizer for GRU/AUGRU weights and attention projection.
+    pub fn with_regularizer(mut self, regularizer: Regularizer) -> Self {
+        self.regularizer = regularizer;
         self
     }
 
@@ -146,6 +237,14 @@ impl DIENConfig {
         if self.hidden_size == 0 {
             return Err(LayerError::ConfigError {
                 message: "Hidden size must be positive".to_string(),
+            });
+        }
+        if self.embedding_dim != self.hidden_size {
+            return Err(LayerError::ConfigError {
+                message: format!(
+                    "DIEN expects target/query dim == hidden size (python behavior). Got embedding_dim={} hidden_size={}",
+                    self.embedding_dim, self.hidden_size
+                ),
             });
         }
         for (i, &dim) in self.attention_hidden_units.iter().enumerate() {
@@ -187,6 +286,8 @@ pub struct AUGRUCell {
     input_dim: usize,
     /// Hidden dimension
     hidden_dim: usize,
+    /// Activation for candidate state
+    activation: ActivationType,
     /// Reset gate weights for input
     w_r_x: Tensor,
     /// Reset gate weights for hidden state
@@ -214,26 +315,42 @@ impl AUGRUCell {
     ///
     /// * `input_dim` - Dimension of the input features
     /// * `hidden_dim` - Dimension of the hidden state
-    pub fn new(input_dim: usize, hidden_dim: usize) -> Self {
-        // Xavier initialization
-        let std_x = (2.0 / (input_dim + hidden_dim) as f32).sqrt();
-        let std_h = (2.0 / (hidden_dim + hidden_dim) as f32).sqrt();
+    pub fn new(input_dim: usize, hidden_dim: usize, activation: ActivationType) -> Self {
+        Self::new_with_initializer(
+            input_dim,
+            hidden_dim,
+            activation,
+            Initializer::HeNormal,
+            Initializer::Orthogonal,
+            Initializer::Ones,
+        )
+    }
 
+    /// Creates a new AUGRU cell with custom initializers.
+    pub fn new_with_initializer(
+        input_dim: usize,
+        hidden_dim: usize,
+        activation: ActivationType,
+        input_init: Initializer,
+        recurrent_init: Initializer,
+        bias_init: Initializer,
+    ) -> Self {
         Self {
             input_dim,
             hidden_dim,
+            activation,
             // Reset gate
-            w_r_x: Tensor::randn(&[input_dim, hidden_dim], 0.0, std_x),
-            w_r_h: Tensor::randn(&[hidden_dim, hidden_dim], 0.0, std_h),
-            b_r: Tensor::zeros(&[hidden_dim]),
+            w_r_x: input_init.initialize(&[input_dim, hidden_dim]),
+            w_r_h: recurrent_init.initialize(&[hidden_dim, hidden_dim]),
+            b_r: bias_init.initialize(&[hidden_dim]),
             // Update gate
-            w_z_x: Tensor::randn(&[input_dim, hidden_dim], 0.0, std_x),
-            w_z_h: Tensor::randn(&[hidden_dim, hidden_dim], 0.0, std_h),
-            b_z: Tensor::zeros(&[hidden_dim]),
+            w_z_x: input_init.initialize(&[input_dim, hidden_dim]),
+            w_z_h: recurrent_init.initialize(&[hidden_dim, hidden_dim]),
+            b_z: bias_init.initialize(&[hidden_dim]),
             // Candidate hidden state
-            w_h_x: Tensor::randn(&[input_dim, hidden_dim], 0.0, std_x),
-            w_h_h: Tensor::randn(&[hidden_dim, hidden_dim], 0.0, std_h),
-            b_h: Tensor::zeros(&[hidden_dim]),
+            w_h_x: input_init.initialize(&[input_dim, hidden_dim]),
+            w_h_h: recurrent_init.initialize(&[hidden_dim, hidden_dim]),
+            b_h: bias_init.initialize(&[hidden_dim]),
         }
     }
 
@@ -265,6 +382,7 @@ impl AUGRUCell {
         attention: &Tensor,
     ) -> Result<Tensor, LayerError> {
         let batch_size = x.shape()[0];
+        let hidden_dim = self.hidden_dim;
 
         // Reset gate: r = sigmoid(x @ W_r_x + h @ W_r_h + b_r)
         let r = self.compute_reset_gate(x, h)?;
@@ -275,20 +393,36 @@ impl AUGRUCell {
         // Candidate: h_tilde = tanh(x @ W_h_x + (r * h) @ W_h_h + b_h)
         let h_tilde = self.compute_candidate(x, h, &r)?;
 
-        // Apply attention to update gate: z' = a * z
-        // New hidden: h_new = (1 - z') * h + z' * h_tilde
-        let mut result = vec![0.0; batch_size * self.hidden_dim];
-        for b in 0..batch_size {
-            let att = attention.data()[b];
-            for d in 0..self.hidden_dim {
-                let idx = b * self.hidden_dim + d;
-                let z_val = z.data()[idx];
-                let z_att = att * z_val;
-                result[idx] = (1.0 - z_att) * h.data()[idx] + z_att * h_tilde.data()[idx];
-            }
-        }
+        // AUGRU: u = (1 - a) * z
+        // New hidden: h_new = u * h + (1 - u) * h_tilde
+        let att = attention.reshape(&[batch_size, 1]).broadcast_as(&[batch_size, hidden_dim]);
+        let one = Tensor::ones(&[batch_size, hidden_dim]);
+        let z_att = one.sub(&att).mul(&z);
+        let h_new = z_att.mul(h).add(&one.sub(&z_att).mul(&h_tilde));
+        Ok(h_new)
+    }
 
-        Ok(Tensor::from_data(&[batch_size, self.hidden_dim], result))
+    /// Computes one step of AGRU with attention.
+    pub fn forward_step_agru(
+        &self,
+        x: &Tensor,
+        h: &Tensor,
+        attention: &Tensor,
+    ) -> Result<Tensor, LayerError> {
+        let batch_size = x.shape()[0];
+        let hidden_dim = self.hidden_dim;
+
+        // Reset gate: r = sigmoid(x @ W_r_x + h @ W_r_h + b_r)
+        let r = self.compute_reset_gate(x, h)?;
+
+        // Candidate: h_tilde = tanh(x @ W_h_x + (r * h) @ W_h_h + b_h)
+        let h_tilde = self.compute_candidate(x, h, &r)?;
+
+        // AGRU: new_h = (1 - a) * h + a * h_tilde
+        let att = attention.reshape(&[batch_size, 1]).broadcast_as(&[batch_size, hidden_dim]);
+        let one = Tensor::ones(&[batch_size, hidden_dim]);
+        let h_new = one.sub(&att).mul(h).add(&att.mul(&h_tilde));
+        Ok(h_new)
     }
 
     /// Computes the reset gate.
@@ -296,7 +430,7 @@ impl AUGRUCell {
         let xw = x.matmul(&self.w_r_x);
         let hw = h.matmul(&self.w_r_h);
         let sum = xw.add(&hw).add(&self.b_r);
-        Ok(sum.map(|v| 1.0 / (1.0 + (-v).exp()))) // sigmoid
+        Ok(sum.sigmoid())
     }
 
     /// Computes the update gate.
@@ -304,7 +438,7 @@ impl AUGRUCell {
         let xw = x.matmul(&self.w_z_x);
         let hw = h.matmul(&self.w_z_h);
         let sum = xw.add(&hw).add(&self.b_z);
-        Ok(sum.map(|v| 1.0 / (1.0 + (-v).exp()))) // sigmoid
+        Ok(sum.sigmoid())
     }
 
     /// Computes the candidate hidden state.
@@ -313,7 +447,7 @@ impl AUGRUCell {
         let rh = r.mul(h);
         let hw = rh.matmul(&self.w_h_h);
         let sum = xw.add(&hw).add(&self.b_h);
-        Ok(sum.map(|v| v.tanh()))
+        Ok(apply_activation(&sum, &self.activation))
     }
 
     /// Returns all parameters of the AUGRU cell.
@@ -354,6 +488,8 @@ pub struct GRUCell {
     input_dim: usize,
     /// Hidden dimension
     hidden_dim: usize,
+    /// Activation for candidate state
+    activation: ActivationType,
     /// Reset gate weights for input
     w_r_x: Tensor,
     /// Reset gate weights for hidden state
@@ -376,22 +512,39 @@ pub struct GRUCell {
 
 impl GRUCell {
     /// Creates a new GRU cell.
-    pub fn new(input_dim: usize, hidden_dim: usize) -> Self {
-        let std_x = (2.0 / (input_dim + hidden_dim) as f32).sqrt();
-        let std_h = (2.0 / (hidden_dim + hidden_dim) as f32).sqrt();
+    pub fn new(input_dim: usize, hidden_dim: usize, activation: ActivationType) -> Self {
+        Self::new_with_initializer(
+            input_dim,
+            hidden_dim,
+            activation,
+            Initializer::HeUniform,
+            Initializer::Orthogonal,
+            Initializer::Zeros,
+        )
+    }
 
+    /// Creates a new GRU cell with custom initializers.
+    pub fn new_with_initializer(
+        input_dim: usize,
+        hidden_dim: usize,
+        activation: ActivationType,
+        input_init: Initializer,
+        recurrent_init: Initializer,
+        bias_init: Initializer,
+    ) -> Self {
         Self {
             input_dim,
             hidden_dim,
-            w_r_x: Tensor::randn(&[input_dim, hidden_dim], 0.0, std_x),
-            w_r_h: Tensor::randn(&[hidden_dim, hidden_dim], 0.0, std_h),
-            b_r: Tensor::zeros(&[hidden_dim]),
-            w_z_x: Tensor::randn(&[input_dim, hidden_dim], 0.0, std_x),
-            w_z_h: Tensor::randn(&[hidden_dim, hidden_dim], 0.0, std_h),
-            b_z: Tensor::zeros(&[hidden_dim]),
-            w_h_x: Tensor::randn(&[input_dim, hidden_dim], 0.0, std_x),
-            w_h_h: Tensor::randn(&[hidden_dim, hidden_dim], 0.0, std_h),
-            b_h: Tensor::zeros(&[hidden_dim]),
+            activation,
+            w_r_x: input_init.initialize(&[input_dim, hidden_dim]),
+            w_r_h: recurrent_init.initialize(&[hidden_dim, hidden_dim]),
+            b_r: bias_init.initialize(&[hidden_dim]),
+            w_z_x: input_init.initialize(&[input_dim, hidden_dim]),
+            w_z_h: recurrent_init.initialize(&[hidden_dim, hidden_dim]),
+            b_z: bias_init.initialize(&[hidden_dim]),
+            w_h_x: input_init.initialize(&[input_dim, hidden_dim]),
+            w_h_h: recurrent_init.initialize(&[hidden_dim, hidden_dim]),
+            b_h: bias_init.initialize(&[hidden_dim]),
         }
     }
 
@@ -417,40 +570,28 @@ impl GRUCell {
     /// New hidden state [batch_size, hidden_dim]
     pub fn forward_step(&self, x: &Tensor, h: &Tensor) -> Result<Tensor, LayerError> {
         let batch_size = x.shape()[0];
+        let hidden_dim = self.hidden_dim;
 
         // Reset gate
         let xw_r = x.matmul(&self.w_r_x);
         let hw_r = h.matmul(&self.w_r_h);
-        let r = xw_r
-            .add(&hw_r)
-            .add(&self.b_r)
-            .map(|v| 1.0 / (1.0 + (-v).exp()));
+        let r = xw_r.add(&hw_r).add(&self.b_r).sigmoid();
 
         // Update gate
         let xw_z = x.matmul(&self.w_z_x);
         let hw_z = h.matmul(&self.w_z_h);
-        let z = xw_z
-            .add(&hw_z)
-            .add(&self.b_z)
-            .map(|v| 1.0 / (1.0 + (-v).exp()));
+        let z = xw_z.add(&hw_z).add(&self.b_z).sigmoid();
 
         // Candidate
         let xw_h = x.matmul(&self.w_h_x);
         let rh = r.mul(h);
         let hw_h = rh.matmul(&self.w_h_h);
-        let h_tilde = xw_h.add(&hw_h).add(&self.b_h).map(|v| v.tanh());
+        let h_tilde = apply_activation(&xw_h.add(&hw_h).add(&self.b_h), &self.activation);
 
         // New hidden state: h_new = (1 - z) * h + z * h_tilde
-        let mut result = vec![0.0; batch_size * self.hidden_dim];
-        for b in 0..batch_size {
-            for d in 0..self.hidden_dim {
-                let idx = b * self.hidden_dim + d;
-                let z_val = z.data()[idx];
-                result[idx] = (1.0 - z_val) * h.data()[idx] + z_val * h_tilde.data()[idx];
-            }
-        }
-
-        Ok(Tensor::from_data(&[batch_size, self.hidden_dim], result))
+        let one = Tensor::ones(&[batch_size, hidden_dim]);
+        let h_new = one.sub(&z).mul(h).add(&z.mul(&h_tilde));
+        Ok(h_new)
     }
 
     /// Returns all parameters.
@@ -487,62 +628,20 @@ impl GRUCell {
 /// Attention module for computing attention scores between target and hidden states.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct AttentionModule {
-    /// Embedding dimension
-    embedding_dim: usize,
     /// Hidden dimension (for hidden states)
     hidden_dim: usize,
-    /// First layer weights
-    w1: Tensor,
-    /// First layer bias
-    b1: Tensor,
-    /// Second layer weights
-    w2: Tensor,
-    /// Second layer bias
-    b2: Tensor,
-    /// Output layer weights
-    w_out: Tensor,
-    /// Output layer bias
-    b_out: Tensor,
+    /// Attention weight matrix
+    weight: Tensor,
     /// Whether to use softmax
     use_softmax: bool,
 }
 
 impl AttentionModule {
     /// Creates a new attention module.
-    fn new(
-        embedding_dim: usize,
-        hidden_dim: usize,
-        hidden_units: &[usize],
-        use_softmax: bool,
-    ) -> Self {
-        // Input: [target, hidden_state, target-hidden, target*hidden] where target is projected
-        // We need to project target from embedding_dim to hidden_dim first
-        let input_dim = 4 * hidden_dim;
-
-        let h1 = if !hidden_units.is_empty() {
-            hidden_units[0]
-        } else {
-            32
-        };
-        let h2 = if hidden_units.len() > 1 {
-            hidden_units[1]
-        } else {
-            h1 / 2
-        };
-
-        let std1 = (2.0 / (input_dim + h1) as f32).sqrt();
-        let std2 = (2.0 / (h1 + h2) as f32).sqrt();
-        let std_out = (2.0 / (h2 + 1) as f32).sqrt();
-
+    fn new(hidden_dim: usize, use_softmax: bool, initializer: Initializer) -> Self {
         Self {
-            embedding_dim,
             hidden_dim,
-            w1: Tensor::randn(&[input_dim, h1], 0.0, std1),
-            b1: Tensor::zeros(&[h1]),
-            w2: Tensor::randn(&[h1, h2], 0.0, std2),
-            b2: Tensor::zeros(&[h2]),
-            w_out: Tensor::randn(&[h2, 1], 0.0, std_out),
-            b_out: Tensor::zeros(&[1]),
+            weight: initializer.initialize(&[hidden_dim, hidden_dim]),
             use_softmax,
         }
     }
@@ -568,129 +667,42 @@ impl AttentionModule {
         let seq_len = hidden_states.shape()[1];
         let hidden_dim = self.hidden_dim;
 
-        // Build attention input for each (target, hidden_state) pair
-        // Input: [target, hidden, target-hidden, target*hidden]
-        let input_dim = 4 * hidden_dim;
-        let mut attention_input = vec![0.0; batch_size * seq_len * input_dim];
+        // query_weight = target @ W^T, shape [B, H]
+        let weight_t = self.weight.transpose();
+        let query_weight = target.matmul(&weight_t);
 
-        for b in 0..batch_size {
-            for s in 0..seq_len {
-                let t_offset = b * hidden_dim;
-                let h_offset = b * seq_len * hidden_dim + s * hidden_dim;
-                let out_offset = (b * seq_len + s) * input_dim;
+        // logits = sum(hidden_states * query_weight, dim=H) -> [B, T]
+        let query_broadcast =
+            query_weight.reshape(&[batch_size, 1, hidden_dim]).broadcast_as(&[
+                batch_size,
+                seq_len,
+                hidden_dim,
+            ]);
+        let mut logits = hidden_states.mul(&query_broadcast).sum_axis(2);
 
-                for d in 0..hidden_dim {
-                    let t_val = target.data()[t_offset + d];
-                    let h_val = hidden_states.data()[h_offset + d];
-
-                    attention_input[out_offset + d] = t_val;
-                    attention_input[out_offset + hidden_dim + d] = h_val;
-                    attention_input[out_offset + 2 * hidden_dim + d] = t_val - h_val;
-                    attention_input[out_offset + 3 * hidden_dim + d] = t_val * h_val;
-                }
-            }
-        }
-
-        let attention_tensor =
-            Tensor::from_data(&[batch_size * seq_len, input_dim], attention_input);
-
-        // Forward through MLP
-        // Layer 1
-        let h1 = attention_tensor.matmul(&self.w1).add(&self.b1);
-        let h1 = h1.map(|v| 1.0 / (1.0 + (-v).exp())); // sigmoid
-
-        // Layer 2
-        let h2 = h1.matmul(&self.w2).add(&self.b2);
-        let h2 = h2.map(|v| 1.0 / (1.0 + (-v).exp())); // sigmoid
-
-        // Output layer
-        let logits = h2.matmul(&self.w_out).add(&self.b_out);
-
-        // Reshape to [batch_size, seq_len]
-        let mut scores = logits.reshape(&[batch_size, seq_len]).data().to_vec();
-
-        // Apply mask
+        // Apply mask by subtracting a large value where mask == 0
         if let Some(m) = mask {
-            for b in 0..batch_size {
-                for s in 0..seq_len {
-                    let idx = b * seq_len + s;
-                    if m.data()[idx] == 0.0 {
-                        scores[idx] = f32::NEG_INFINITY;
-                    }
-                }
-            }
+            let ones = Tensor::ones(&[batch_size, seq_len]);
+            let mask_inv = ones.sub(m);
+            let penalty = mask_inv.scale(1.0e9);
+            logits = logits.sub(&penalty);
         }
 
-        // Apply softmax if configured
         if self.use_softmax {
-            for b in 0..batch_size {
-                // Find max for numerical stability
-                let mut max_val = f32::NEG_INFINITY;
-                for s in 0..seq_len {
-                    let idx = b * seq_len + s;
-                    if scores[idx] > max_val {
-                        max_val = scores[idx];
-                    }
-                }
-
-                if max_val == f32::NEG_INFINITY {
-                    max_val = 0.0;
-                }
-
-                // Compute exp and sum
-                let mut sum = 0.0;
-                for s in 0..seq_len {
-                    let idx = b * seq_len + s;
-                    if scores[idx] != f32::NEG_INFINITY {
-                        scores[idx] = (scores[idx] - max_val).exp();
-                        sum += scores[idx];
-                    } else {
-                        scores[idx] = 0.0;
-                    }
-                }
-
-                // Normalize
-                if sum > 0.0 {
-                    for s in 0..seq_len {
-                        let idx = b * seq_len + s;
-                        scores[idx] /= sum;
-                    }
-                }
-            }
+            Ok(logits.softmax(1))
         } else {
-            // Just apply sigmoid to get values in [0, 1]
-            for score in &mut scores {
-                if *score == f32::NEG_INFINITY {
-                    *score = 0.0;
-                }
-            }
+            Ok(logits.sigmoid())
         }
-
-        Ok(Tensor::from_data(&[batch_size, seq_len], scores))
     }
 
     /// Returns all parameters.
     fn parameters(&self) -> Vec<&Tensor> {
-        vec![
-            &self.w1,
-            &self.b1,
-            &self.w2,
-            &self.b2,
-            &self.w_out,
-            &self.b_out,
-        ]
+        vec![&self.weight]
     }
 
     /// Returns mutable references to all parameters.
     fn parameters_mut(&mut self) -> Vec<&mut Tensor> {
-        vec![
-            &mut self.w1,
-            &mut self.b1,
-            &mut self.w2,
-            &mut self.b2,
-            &mut self.w_out,
-            &mut self.b_out,
-        ]
+        vec![&mut self.weight]
     }
 }
 
@@ -726,10 +738,6 @@ pub struct DIENLayer {
     evolution_standard_gru: GRUCell,
     /// Attention module
     attention: AttentionModule,
-    /// Projection from embedding_dim to hidden_dim for target
-    target_projection: Tensor,
-    /// Target projection bias
-    target_projection_bias: Tensor,
     /// Whether in training mode
     training: bool,
     /// Cached values for backward pass
@@ -774,24 +782,35 @@ impl DIENLayer {
         let hidden_size = config.hidden_size;
 
         // Interest extractor: maps embedding_dim -> hidden_size
-        let interest_extractor = GRUCell::new(embedding_dim, hidden_size);
-
-        // Interest evolution: maps hidden_size -> hidden_size
-        let evolution_gru = AUGRUCell::new(hidden_size, hidden_size);
-        let evolution_standard_gru = GRUCell::new(hidden_size, hidden_size);
-
-        // Attention module
-        let attention = AttentionModule::new(
+        let interest_extractor = GRUCell::new_with_initializer(
             embedding_dim,
             hidden_size,
-            &config.attention_hidden_units,
-            config.use_softmax,
+            config.activation.clone(),
+            config.initializer,
+            config.recurrent_initializer,
+            Initializer::Zeros,
         );
 
-        // Target projection: embedding_dim -> hidden_size
-        let std_proj = (2.0 / (embedding_dim + hidden_size) as f32).sqrt();
-        let target_projection = Tensor::randn(&[embedding_dim, hidden_size], 0.0, std_proj);
-        let target_projection_bias = Tensor::zeros(&[hidden_size]);
+        // Interest evolution: maps hidden_size -> hidden_size
+        let evolution_gru = AUGRUCell::new_with_initializer(
+            hidden_size,
+            hidden_size,
+            config.activation.clone(),
+            config.initializer,
+            config.recurrent_initializer,
+            Initializer::Ones,
+        );
+        let evolution_standard_gru = GRUCell::new_with_initializer(
+            hidden_size,
+            hidden_size,
+            config.activation.clone(),
+            config.initializer,
+            config.recurrent_initializer,
+            Initializer::Zeros,
+        );
+
+        // Attention module
+        let attention = AttentionModule::new(hidden_size, config.use_softmax, config.initializer);
 
         Ok(Self {
             config,
@@ -799,8 +818,6 @@ impl DIENLayer {
             evolution_gru,
             evolution_standard_gru,
             attention,
-            target_projection,
-            target_projection_bias,
             training: true,
             cache: None,
         })
@@ -941,6 +958,7 @@ impl DIENLayer {
         let batch_size = behavior_seq.shape()[0];
         let seq_len = behavior_seq.shape()[1];
         let embedding_dim = self.config.embedding_dim;
+        let hidden_size = self.config.hidden_size;
 
         if behavior_seq.shape()[2] != embedding_dim {
             return Err(LayerError::InvalidInputDimension {
@@ -949,16 +967,16 @@ impl DIENLayer {
             });
         }
 
-        if target_item.shape()[1] != embedding_dim {
+        if target_item.shape()[1] != hidden_size {
             return Err(LayerError::InvalidInputDimension {
-                expected: embedding_dim,
+                expected: hidden_size,
                 actual: target_item.shape()[1],
             });
         }
 
         if target_item.shape()[0] != batch_size {
             return Err(LayerError::ShapeMismatch {
-                expected: vec![batch_size, embedding_dim],
+                expected: vec![batch_size, hidden_size],
                 actual: target_item.shape().to_vec(),
             });
         }
@@ -986,7 +1004,7 @@ impl DIENLayer {
         let hidden_size = self.config.hidden_size;
 
         let mut h = Tensor::zeros(&[batch_size, hidden_size]);
-        let mut all_states = vec![0.0; batch_size * seq_len * hidden_size];
+        let mut states: Vec<Tensor> = Vec::with_capacity(seq_len);
 
         for t in 0..seq_len {
             // Extract input at timestep t
@@ -995,25 +1013,16 @@ impl DIENLayer {
             // GRU step
             h = self.interest_extractor.forward_step(&x_t, &h)?;
 
-            // Store hidden state
-            for b in 0..batch_size {
-                for d in 0..hidden_size {
-                    all_states[b * seq_len * hidden_size + t * hidden_size + d] =
-                        h.data()[b * hidden_size + d];
-                }
-            }
+            // Store hidden state as [batch, 1, hidden]
+            states.push(h.reshape(&[batch_size, 1, hidden_size]));
         }
 
-        Ok(Tensor::from_data(
-            &[batch_size, seq_len, hidden_size],
-            all_states,
-        ))
+        Ok(Tensor::cat(&states, 1))
     }
 
     /// Projects target item to hidden dimension.
     fn project_target(&self, target_item: &Tensor) -> Result<Tensor, LayerError> {
-        let projected = target_item.matmul(&self.target_projection);
-        Ok(projected.add(&self.target_projection_bias))
+        Ok(target_item.clone())
     }
 
     /// Runs the interest evolution layer.
@@ -1036,6 +1045,7 @@ impl DIENLayer {
 
             // GRU/AUGRU step
             h = match self.config.gru_type {
+                GRUType::AGRU => self.evolution_gru.forward_step_agru(&x_t, &h, &a_t)?,
                 GRUType::AUGRU => self.evolution_gru.forward_step(&x_t, &h, &a_t)?,
                 GRUType::Standard => self.evolution_standard_gru.forward_step(&x_t, &h)?,
             };
@@ -1046,16 +1056,8 @@ impl DIENLayer {
 
     /// Extracts a timestep from the behavior sequence.
     fn extract_timestep(&self, input: &Tensor, t: usize, batch_size: usize, dim: usize) -> Tensor {
-        let seq_len = input.shape()[1];
-        let mut data = vec![0.0; batch_size * dim];
-
-        for b in 0..batch_size {
-            for d in 0..dim {
-                data[b * dim + d] = input.data()[b * seq_len * dim + t * dim + d];
-            }
-        }
-
-        Tensor::from_data(&[batch_size, dim], data)
+        let _ = (batch_size, dim);
+        input.narrow(1, t, 1).squeeze(1).contiguous()
     }
 
     /// Extracts a timestep from hidden states.
@@ -1076,12 +1078,8 @@ impl DIENLayer {
         t: usize,
         batch_size: usize,
     ) -> Tensor {
-        let seq_len = attention.shape()[1];
-        let data: Vec<f32> = (0..batch_size)
-            .map(|b| attention.data()[b * seq_len + t])
-            .collect();
-
-        Tensor::from_data(&[batch_size], data)
+        let _ = batch_size;
+        attention.narrow(1, t, 1).squeeze(1).contiguous()
     }
 
     /// Computes auxiliary loss for training the interest extractor.
@@ -1122,6 +1120,10 @@ impl DIENLayer {
         // Run interest extractor to get hidden states
         let extractor_states = self.run_interest_extractor(behavior_seq, batch_size, seq_len)?;
 
+        let extractor_data = extractor_states.data_ref();
+        let behavior_data = behavior_seq.data_ref();
+        let neg_data = neg_samples.data_ref();
+
         // For each timestep t, predict next behavior using hidden state h_t
         // Positive: next item in sequence (behavior_seq[t+1])
         // Negative: neg_samples[t+1]
@@ -1148,9 +1150,9 @@ impl DIENLayer {
                 let mut neg_score = 0.0;
 
                 for d in 0..dim {
-                    let h_val = extractor_states.data()[h_offset + d];
-                    let pos_val = behavior_seq.data()[pos_offset + d];
-                    let neg_val = neg_samples.data()[neg_offset + d];
+                    let h_val = extractor_data[h_offset + d];
+                    let pos_val = behavior_data[pos_offset + d];
+                    let neg_val = neg_data[neg_offset + d];
 
                     pos_score += h_val * pos_val;
                     neg_score += h_val * neg_val;
@@ -1278,13 +1280,10 @@ impl Layer for DIENLayer {
 
         // Evolution GRU parameters
         params.extend(self.evolution_gru.parameters());
+        params.extend(self.evolution_standard_gru.parameters());
 
         // Attention parameters
         params.extend(self.attention.parameters());
-
-        // Target projection
-        params.push(&self.target_projection);
-        params.push(&self.target_projection_bias);
 
         params
     }
@@ -1297,19 +1296,25 @@ impl Layer for DIENLayer {
 
         // Evolution GRU parameters
         params.extend(self.evolution_gru.parameters_mut());
+        params.extend(self.evolution_standard_gru.parameters_mut());
 
         // Attention parameters
         params.extend(self.attention.parameters_mut());
-
-        // Target projection
-        params.push(&mut self.target_projection);
-        params.push(&mut self.target_projection_bias);
 
         params
     }
 
     fn name(&self) -> &str {
         "DIENLayer"
+    }
+
+    fn regularization_loss(&self) -> f32 {
+        let reg = &self.config.regularizer;
+        self.parameters()
+            .into_iter()
+            .filter(|t| t.ndim() > 1)
+            .map(|t| reg.loss(t))
+            .sum()
     }
 
     fn is_training(&self) -> bool {
@@ -1323,40 +1328,19 @@ impl Layer for DIENLayer {
 
 impl DIENLayer {
     /// Extracts target from combined input.
-    fn extract_target(&self, input: &Tensor, batch_size: usize, embedding_dim: usize) -> Tensor {
-        let total_len = input.shape()[1];
-        let mut data = vec![0.0; batch_size * embedding_dim];
-
-        for b in 0..batch_size {
-            for d in 0..embedding_dim {
-                data[b * embedding_dim + d] = input.data()[b * total_len * embedding_dim + d];
-            }
-        }
-
-        Tensor::from_data(&[batch_size, embedding_dim], data)
+    fn extract_target(&self, input: &Tensor, _batch_size: usize, _embedding_dim: usize) -> Tensor {
+        input.narrow(1, 0, 1).squeeze(1).contiguous()
     }
 
     /// Extracts behavior sequence from combined input.
     fn extract_behavior_seq(
         &self,
         input: &Tensor,
-        batch_size: usize,
+        _batch_size: usize,
         seq_len: usize,
-        embedding_dim: usize,
+        _embedding_dim: usize,
     ) -> Tensor {
-        let total_len = input.shape()[1];
-        let mut data = vec![0.0; batch_size * seq_len * embedding_dim];
-
-        for b in 0..batch_size {
-            for s in 0..seq_len {
-                for d in 0..embedding_dim {
-                    data[b * seq_len * embedding_dim + s * embedding_dim + d] =
-                        input.data()[b * total_len * embedding_dim + (s + 1) * embedding_dim + d];
-                }
-            }
-        }
-
-        Tensor::from_data(&[batch_size, seq_len, embedding_dim], data)
+        input.narrow(1, 1, seq_len).contiguous()
     }
 }
 
@@ -1366,16 +1350,16 @@ mod tests {
 
     #[test]
     fn test_dien_config_default() {
-        let config = DIENConfig::new(32, 64);
+        let config = DIENConfig::new(32, 32);
         assert_eq!(config.embedding_dim, 32);
-        assert_eq!(config.hidden_size, 64);
+        assert_eq!(config.hidden_size, 32);
         assert!(config.use_auxiliary_loss);
-        assert_eq!(config.gru_type, GRUType::AUGRU);
+        assert_eq!(config.gru_type, GRUType::AGRU);
     }
 
     #[test]
     fn test_dien_config_builder() {
-        let config = DIENConfig::new(32, 64)
+        let config = DIENConfig::new(32, 32)
             .with_use_auxiliary_loss(false)
             .with_gru_type(GRUType::Standard)
             .with_attention_hidden_units(vec![128, 64])
@@ -1390,7 +1374,7 @@ mod tests {
     #[test]
     fn test_dien_config_validation() {
         // Valid config
-        let config = DIENConfig::new(32, 64);
+        let config = DIENConfig::new(32, 32);
         assert!(config.validate().is_ok());
 
         // Invalid: zero embedding dim
@@ -1400,11 +1384,15 @@ mod tests {
         // Invalid: zero hidden size
         let config = DIENConfig::new(32, 0);
         assert!(config.validate().is_err());
+
+        // Invalid: embedding dim != hidden size
+        let config = DIENConfig::new(32, 64);
+        assert!(config.validate().is_err());
     }
 
     #[test]
     fn test_augru_cell_creation() {
-        let cell = AUGRUCell::new(32, 64);
+        let cell = AUGRUCell::new(32, 64, ActivationType::relu());
         assert_eq!(cell.input_dim(), 32);
         assert_eq!(cell.hidden_dim(), 64);
         assert_eq!(cell.parameters().len(), 9);
@@ -1412,7 +1400,7 @@ mod tests {
 
     #[test]
     fn test_augru_cell_forward() {
-        let cell = AUGRUCell::new(8, 16);
+        let cell = AUGRUCell::new(8, 16, ActivationType::relu());
 
         let x = Tensor::rand(&[2, 8]);
         let h = Tensor::zeros(&[2, 16]);
@@ -1424,14 +1412,14 @@ mod tests {
 
     #[test]
     fn test_gru_cell_creation() {
-        let cell = GRUCell::new(32, 64);
+        let cell = GRUCell::new(32, 64, ActivationType::relu());
         assert_eq!(cell.input_dim(), 32);
         assert_eq!(cell.hidden_dim(), 64);
     }
 
     #[test]
     fn test_gru_cell_forward() {
-        let cell = GRUCell::new(8, 16);
+        let cell = GRUCell::new(8, 16, ActivationType::relu());
 
         let x = Tensor::rand(&[2, 8]);
         let h = Tensor::zeros(&[2, 16]);
@@ -1442,23 +1430,23 @@ mod tests {
 
     #[test]
     fn test_dien_creation() {
-        let dien = DIENLayer::new(32, 64);
+        let dien = DIENLayer::new(32, 32);
         assert_eq!(dien.embedding_dim(), 32);
-        assert_eq!(dien.hidden_size(), 64);
-    }
-
-    #[test]
-    fn test_dien_from_config() {
-        let config = DIENConfig::new(16, 32).with_gru_type(GRUType::AUGRU);
-
-        let dien = DIENLayer::from_config(config).unwrap();
-        assert_eq!(dien.embedding_dim(), 16);
         assert_eq!(dien.hidden_size(), 32);
     }
 
     #[test]
+    fn test_dien_from_config() {
+        let config = DIENConfig::new(16, 16).with_gru_type(GRUType::AUGRU);
+
+        let dien = DIENLayer::from_config(config).unwrap();
+        assert_eq!(dien.embedding_dim(), 16);
+        assert_eq!(dien.hidden_size(), 16);
+    }
+
+    #[test]
     fn test_dien_forward() {
-        let dien = DIENLayer::new(8, 16);
+        let dien = DIENLayer::new(8, 8);
 
         let behavior_seq = Tensor::rand(&[2, 5, 8]);
         let target_item = Tensor::rand(&[2, 8]);
@@ -1466,12 +1454,12 @@ mod tests {
         let output = dien
             .forward_dien(&behavior_seq, &target_item, None)
             .unwrap();
-        assert_eq!(output.shape(), &[2, 16]);
+        assert_eq!(output.shape(), &[2, 8]);
     }
 
     #[test]
     fn test_dien_forward_with_mask() {
-        let dien = DIENLayer::new(8, 16);
+        let dien = DIENLayer::new(8, 8);
 
         let behavior_seq = Tensor::rand(&[2, 5, 8]);
         let target_item = Tensor::rand(&[2, 8]);
@@ -1483,12 +1471,12 @@ mod tests {
         let output = dien
             .forward_dien(&behavior_seq, &target_item, Some(&mask))
             .unwrap();
-        assert_eq!(output.shape(), &[2, 16]);
+        assert_eq!(output.shape(), &[2, 8]);
     }
 
     #[test]
     fn test_dien_forward_standard_gru() {
-        let config = DIENConfig::new(8, 16).with_gru_type(GRUType::Standard);
+        let config = DIENConfig::new(8, 8).with_gru_type(GRUType::Standard);
         let dien = DIENLayer::from_config(config).unwrap();
 
         let behavior_seq = Tensor::rand(&[2, 5, 8]);
@@ -1497,37 +1485,36 @@ mod tests {
         let output = dien
             .forward_dien(&behavior_seq, &target_item, None)
             .unwrap();
-        assert_eq!(output.shape(), &[2, 16]);
+        assert_eq!(output.shape(), &[2, 8]);
     }
 
     #[test]
     fn test_dien_layer_trait() {
-        let dien = DIENLayer::new(8, 16);
+        let dien = DIENLayer::new(8, 8);
 
         // Combined input: [batch, seq_len+1, embedding_dim]
         let input = Tensor::rand(&[2, 6, 8]);
 
         let output = dien.forward(&input).unwrap();
-        assert_eq!(output.shape(), &[2, 16]);
+        assert_eq!(output.shape(), &[2, 8]);
         assert_eq!(dien.name(), "DIENLayer");
     }
 
     #[test]
     fn test_dien_parameters() {
-        let dien = DIENLayer::new(8, 16);
+        let dien = DIENLayer::new(8, 8);
         let params = dien.parameters();
 
         // Interest extractor: 9 params
         // Evolution GRU: 9 params
-        // Attention: 6 params
-        // Target projection: 2 params
-        // Total: 26 params
-        assert_eq!(params.len(), 26);
+        // Attention: 1 param (weight)
+        // Total: 19 params
+        assert_eq!(params.len(), 19);
     }
 
     #[test]
     fn test_dien_training_mode() {
-        let mut dien = DIENLayer::new(8, 16);
+        let mut dien = DIENLayer::new(8, 8);
         assert!(dien.is_training());
 
         dien.set_training(false);
@@ -1539,7 +1526,7 @@ mod tests {
 
     #[test]
     fn test_dien_invalid_behavior_shape() {
-        let dien = DIENLayer::new(8, 16);
+        let dien = DIENLayer::new(8, 8);
 
         let behavior_seq = Tensor::rand(&[2, 8]); // 2D instead of 3D
         let target_item = Tensor::rand(&[2, 8]);
@@ -1550,7 +1537,7 @@ mod tests {
 
     #[test]
     fn test_dien_invalid_target_shape() {
-        let dien = DIENLayer::new(8, 16);
+        let dien = DIENLayer::new(8, 8);
 
         let behavior_seq = Tensor::rand(&[2, 5, 8]);
         let target_item = Tensor::rand(&[2, 5, 8]); // 3D instead of 2D
@@ -1561,7 +1548,7 @@ mod tests {
 
     #[test]
     fn test_dien_embedding_dim_mismatch() {
-        let dien = DIENLayer::new(8, 16);
+        let dien = DIENLayer::new(8, 8);
 
         let behavior_seq = Tensor::rand(&[2, 5, 16]); // Wrong embedding dim
         let target_item = Tensor::rand(&[2, 8]);
@@ -1572,7 +1559,7 @@ mod tests {
 
     #[test]
     fn test_dien_batch_size_mismatch() {
-        let dien = DIENLayer::new(8, 16);
+        let dien = DIENLayer::new(8, 8);
 
         let behavior_seq = Tensor::rand(&[2, 5, 8]);
         let target_item = Tensor::rand(&[3, 8]); // Different batch size
@@ -1583,7 +1570,7 @@ mod tests {
 
     #[test]
     fn test_dien_mask_shape_mismatch() {
-        let dien = DIENLayer::new(8, 16);
+        let dien = DIENLayer::new(8, 8);
 
         let behavior_seq = Tensor::rand(&[2, 5, 8]);
         let target_item = Tensor::rand(&[2, 8]);
@@ -1595,7 +1582,7 @@ mod tests {
 
     #[test]
     fn test_dien_auxiliary_loss() {
-        let config = DIENConfig::new(8, 16).with_use_auxiliary_loss(true);
+        let config = DIENConfig::new(8, 8).with_use_auxiliary_loss(true);
         let dien = DIENLayer::from_config(config).unwrap();
 
         let behavior_seq = Tensor::rand(&[2, 5, 8]);
@@ -1607,7 +1594,7 @@ mod tests {
 
     #[test]
     fn test_dien_auxiliary_loss_disabled() {
-        let config = DIENConfig::new(8, 16).with_use_auxiliary_loss(false);
+        let config = DIENConfig::new(8, 8).with_use_auxiliary_loss(false);
         let dien = DIENLayer::from_config(config).unwrap();
 
         let behavior_seq = Tensor::rand(&[2, 5, 8]);
@@ -1619,7 +1606,7 @@ mod tests {
 
     #[test]
     fn test_dien_auxiliary_loss_shape_mismatch() {
-        let dien = DIENLayer::new(8, 16);
+        let dien = DIENLayer::new(8, 8);
 
         let behavior_seq = Tensor::rand(&[2, 5, 8]);
         let neg_samples = Tensor::rand(&[2, 3, 8]); // Wrong shape
@@ -1630,7 +1617,7 @@ mod tests {
 
     #[test]
     fn test_dien_get_attention_scores() {
-        let dien = DIENLayer::new(8, 16);
+        let dien = DIENLayer::new(8, 8);
 
         let behavior_seq = Tensor::rand(&[2, 5, 8]);
         let target_item = Tensor::rand(&[2, 8]);
@@ -1713,7 +1700,7 @@ mod tests {
     #[test]
     fn test_gru_type_default() {
         let gru_type = GRUType::default();
-        assert_eq!(gru_type, GRUType::AUGRU);
+        assert_eq!(gru_type, GRUType::AGRU);
     }
 
     #[test]
@@ -1746,7 +1733,7 @@ mod tests {
 
     #[test]
     fn test_dien_with_softmax_attention() {
-        let config = DIENConfig::new(8, 16).with_use_softmax(true);
+        let config = DIENConfig::new(8, 8).with_use_softmax(true);
         let dien = DIENLayer::from_config(config).unwrap();
 
         let behavior_seq = Tensor::rand(&[2, 5, 8]);

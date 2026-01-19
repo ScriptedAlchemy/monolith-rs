@@ -7,14 +7,13 @@
 
 use crate::agent_service::{AgentServiceImpl, FeatureInput, PredictRequest};
 use crate::error::{ServingError, ServingResult};
+use crate::model_loader::ModelLoader;
 use monolith_data::example::extract_feature_data;
 use monolith_data::instance::extract_slot;
 use monolith_proto::tensorflow_core as tf_core;
 use monolith_proto::tensorflow_serving::apis as tfserving_apis;
-use monolith_proto::tensorflow_serving::error as tfserving_error;
-use parking_lot::RwLock;
+use monolith_proto::tensorflow_serving::error::Code as TfServingCode;
 use prost::Message;
-use prost_types::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
@@ -41,57 +40,23 @@ impl TfServingPredictionServer {
     }
 }
 
-/// TensorFlow Serving-compatible ModelService implementation (server side).
-#[derive(Clone, Default)]
+/// TensorFlow Serving-compatible ModelService implementation.
+#[derive(Clone)]
 pub struct TfServingModelServer {
-    statuses: Arc<RwLock<HashMap<String, Vec<tfserving_apis::ModelVersionStatus>>>>,
+    loader: Option<Arc<ModelLoader>>,
 }
 
 impl TfServingModelServer {
-    /// Create a new model service with empty status store.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Register a model version status (used for tests or static setups).
-    pub fn register_model_version(
-        &self,
-        model_name: impl Into<String>,
-        version: i64,
-        state: tfserving_apis::model_version_status::State,
-    ) {
-        let status = tfserving_apis::ModelVersionStatus {
-            version,
-            state: state as i32,
-            status: Some(ok_status()),
-        };
-        let mut map = self.statuses.write();
-        map.entry(model_name.into()).or_default().push(status);
-    }
-
-    fn update_from_config(&self, config: tfserving_apis::ModelServerConfig) {
-        let mut map = self.statuses.write();
-        map.clear();
-
-        if let Some(cfg) = config.config {
-            match cfg {
-                tfserving_apis::model_server_config::Config::ModelConfigList(list) => {
-                    for model in list.config {
-                        let name = model.name;
-                        // We don't have filesystem version scanning here yet, so default to v0.
-                        let status = tfserving_apis::ModelVersionStatus {
-                            version: 0,
-                            state: tfserving_apis::model_version_status::State::Available as i32,
-                            status: Some(ok_status()),
-                        };
-                        map.entry(name).or_default().push(status);
-                    }
-                }
-                tfserving_apis::model_server_config::Config::CustomModelConfig(_custom) => {
-                    // Custom config is out of scope; keep store empty.
-                }
-            }
+    /// Create a new model service using the provided model loader.
+    pub fn new(loader: Arc<ModelLoader>) -> Self {
+        Self {
+            loader: Some(loader),
         }
+    }
+
+    /// Create a model service without a loader (responds with NOT_FOUND).
+    pub fn new_unbound() -> Self {
+        Self { loader: None }
     }
 }
 
@@ -102,55 +67,67 @@ impl tfserving_apis::model_service_server::ModelService for TfServingModelServer
         request: Request<tfserving_apis::GetModelStatusRequest>,
     ) -> Result<Response<tfserving_apis::GetModelStatusResponse>, Status> {
         let req = request.into_inner();
-        let spec = req
-            .model_spec
-            .ok_or_else(|| Status::invalid_argument("model_spec is required"))?;
+        let loader = self
+            .loader
+            .as_ref()
+            .ok_or_else(|| Status::not_found("Model loader not configured"))?;
 
-        let mut statuses = self
-            .statuses
-            .read()
-            .get(&spec.name)
-            .cloned()
-            .unwrap_or_default();
+        let model = loader
+            .current_model()
+            .ok_or_else(|| Status::not_found("No model loaded"))?;
 
-        // If a specific version is requested, filter it.
-        if let Some(choice) = spec.version_choice {
-            match choice {
-                tfserving_apis::model_spec::VersionChoice::Version(v) => {
-                    let requested = v;
-                    statuses.retain(|s| s.version == requested);
+        let version = model
+            .version
+            .parse::<i64>()
+            .unwrap_or(model.metadata.global_step);
+
+        let requested = req.model_spec.as_ref().and_then(|spec| {
+            spec.version_choice.as_ref().and_then(|choice| {
+                if let tfserving_apis::model_spec::VersionChoice::Version(v) = choice {
+                    Some(*v)
+                } else {
+                    None
                 }
-                tfserving_apis::model_spec::VersionChoice::VersionLabel(_label) => {
-                    // Version labels are not supported; return empty for now.
-                    statuses.clear();
-                }
+            })
+        });
+
+        if let Some(req_version) = requested {
+            if req_version != version {
+                return Ok(Response::new(tfserving_apis::GetModelStatusResponse {
+                    model_version_status: Vec::new(),
+                }));
             }
         }
 
+        let status = tfserving_apis::StatusProto {
+            error_code: TfServingCode::Ok as i32,
+            error_message: "".to_string(),
+        };
+
+        let state = if model.is_ready() {
+            tfserving_apis::model_version_status::State::Available
+        } else {
+            tfserving_apis::model_version_status::State::Start
+        };
+
+        let version_status = tfserving_apis::ModelVersionStatus {
+            version,
+            state: state as i32,
+            status: Some(status),
+        };
+
         Ok(Response::new(tfserving_apis::GetModelStatusResponse {
-            model_version_status: statuses,
+            model_version_status: vec![version_status],
         }))
     }
 
     async fn handle_reload_config_request(
         &self,
-        request: Request<tfserving_apis::ReloadConfigRequest>,
+        _request: Request<tfserving_apis::ReloadConfigRequest>,
     ) -> Result<Response<tfserving_apis::ReloadConfigResponse>, Status> {
-        let req = request.into_inner();
-        if let Some(config) = req.config {
-            self.update_from_config(config);
-        }
-        Ok(Response::new(tfserving_apis::ReloadConfigResponse {
-            status: Some(ok_status()),
-            metric: Vec::new(),
-        }))
-    }
-}
-
-fn ok_status() -> tfserving_apis::StatusProto {
-    tfserving_apis::StatusProto {
-        error_code: tfserving_error::Code::Ok as i32,
-        error_message: String::new(),
+        Err(Status::unimplemented(
+            "handle_reload_config_request is not implemented",
+        ))
     }
 }
 
@@ -216,30 +193,12 @@ impl tfserving_apis::prediction_service_server::PredictionService for TfServingP
 
     async fn get_model_metadata(
         &self,
-        request: Request<monolith_proto::tensorflow_serving::apis::GetModelMetadataRequest>,
+        _request: Request<monolith_proto::tensorflow_serving::apis::GetModelMetadataRequest>,
     ) -> Result<Response<monolith_proto::tensorflow_serving::apis::GetModelMetadataResponse>, Status>
     {
-        let req = request.into_inner();
-        let mut metadata = HashMap::new();
-
-        if req.metadata_field.iter().any(|f| f == "signature_def") {
-            let sig_map = tfserving_apis::SignatureDefMap {
-                signature_def: HashMap::new(),
-            };
-            let bytes = sig_map.encode_to_vec();
-            metadata.insert(
-                "signature_def".to_string(),
-                Any {
-                    type_url: "type.googleapis.com/tensorflow.serving.SignatureDefMap".to_string(),
-                    value: bytes,
-                },
-            );
-        }
-
-        Ok(Response::new(tfserving_apis::GetModelMetadataResponse {
-            model_spec: req.model_spec,
-            metadata,
-        }))
+        Err(Status::unimplemented(
+            "get_model_metadata is not implemented",
+        ))
     }
 }
 

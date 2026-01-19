@@ -3,10 +3,11 @@ use std::time::Instant;
 use rayon::prelude::*;
 
 use super::backtest::Backtester;
+use super::cache::{load_cached_indicators, save_indicators_to_cache};
 use super::config::{parse_args, print_usage, Mode, StockPredictorConfig};
 use super::data::{
-    aggregate_bars, ensure_futuresharks_dataset_present, load_real_data_auto, StockBar,
-    StockDataGenerator, TickerInfo,
+    aggregate_bars, ensure_dataset_present, load_real_data_auto, StockBar,
+    TickerInfo,
 };
 use super::data::IntradayCsvLoader;
 use super::indicators::{IndicatorCalculator, TechnicalIndicators};
@@ -76,18 +77,8 @@ pub fn run() {
                 std::process::exit(2);
             }
         }
-    } else if config.use_synthetic_data {
-        println!("Section 1: Generating Synthetic Stock Data");
-        let mut generator = StockDataGenerator::new(config.seed);
-        let tickers = generator
-            .generate_tickers(config.num_tickers.max(1))
-            .to_vec();
-        let bars = generator
-            .generate_bars(config.days_of_history.max(config.lookback_window + 1))
-            .to_vec();
-        (tickers, bars)
     } else if let Some(ref data_dir) = config.data_dir {
-        ensure_futuresharks_dataset_present(Some(data_dir));
+        ensure_dataset_present(Some(data_dir));
         println!("Section 1: Loading Real Stock Data from CSV");
         match load_real_data_auto(data_dir, config.num_tickers, config.lookback_window) {
             Ok((tickers, bars)) => (tickers, bars),
@@ -99,7 +90,7 @@ pub fn run() {
             }
         }
     } else {
-        eprintln!("Error: Provide --data-dir, --intraday-file, or --synthetic.");
+        eprintln!("Error: Provide --data-dir or --intraday-file.");
         eprintln!();
         print_usage();
         std::process::exit(2);
@@ -146,26 +137,42 @@ pub fn run() {
             .map(|&tf| tf.div_ceil(stride).max(1))
             .collect::<Vec<_>>(),
     );
-    let indicators_by_ticker: Vec<Vec<Vec<TechnicalIndicators>>> = bars_by_ticker
-        .par_iter()
-        .map(|_ticker_bars| {
-            timeframes_bars
-                .iter()
-                .map(|&tf| {
-                    let mut calc = IndicatorCalculator::new();
-                    if tf == 1 {
-                        calc.compute_indicators(_ticker_bars)
-                    } else {
-                        let aggregated = aggregate_bars(_ticker_bars, tf);
-                        calc.compute_indicators(&aggregated)
-                    }
+
+    // Try to load from cache first
+    let (indicators_by_ticker, from_cache) =
+        if let Some(cached) = load_cached_indicators(&config, &bars_by_ticker) {
+            println!("  Loaded indicators from cache");
+            (cached, true)
+        } else {
+            let indicators: Vec<Vec<Vec<TechnicalIndicators>>> = bars_by_ticker
+                .par_iter()
+                .map(|_ticker_bars| {
+                    timeframes_bars
+                        .iter()
+                        .map(|&tf| {
+                            let mut calc = IndicatorCalculator::new();
+                            if tf == 1 {
+                                calc.compute_indicators(_ticker_bars)
+                            } else {
+                                let aggregated = aggregate_bars(_ticker_bars, tf);
+                                calc.compute_indicators(&aggregated)
+                            }
+                        })
+                        .collect()
                 })
-                .collect()
-        })
-        .collect();
+                .collect();
+
+            // Save to cache for next run
+            match save_indicators_to_cache(&config, &bars_by_ticker, &indicators) {
+                Ok(path) => println!("  Saved indicators to cache: {}", path.display()),
+                Err(e) => eprintln!("  Warning: Failed to save cache: {}", e),
+            }
+
+            (indicators, false)
+        };
 
     println!(
-        "  {} indicators per bar x {} timeframes (requested {}m, effective {} bars, stride {})",
+        "  {} indicators per bar x {} timeframes (requested {}m, effective {} bars, stride {}){}",
         TechnicalIndicators::NUM_FEATURES,
         timeframes_bars.len(),
         timeframes_minutes
@@ -178,7 +185,8 @@ pub fn run() {
             .map(|t| t.to_string())
             .collect::<Vec<_>>()
             .join(","),
-        stride
+        stride,
+        if from_cache { " [cached]" } else { "" }
     );
 
     let feature_index = FeatureIndex::new(
@@ -218,12 +226,19 @@ pub fn run() {
         overlap
     );
 
+    let seq_feature_dim = 4 + feature_index.indicator_dim();
+    let dien_hidden = if config.dien_hidden_size == 0 {
+        seq_feature_dim
+    } else {
+        config.dien_hidden_size
+    };
+
     println!("\nSection 4: Model Architecture");
     println!(
         "  Ticker embedding: {} x {} | DIEN hidden: {} | DCN: {} layers",
         config.num_tickers,
         config.ticker_embedding_dim,
-        config.dien_hidden_size,
+        dien_hidden,
         config.dcn_cross_layers
     );
 
@@ -290,9 +305,11 @@ fn run_training(
             trainer.decay_lr();
         }
 
+        trainer.reset_device_metrics();
         let train_metrics = trainer.train_epoch(train_instances, features);
         let eval_metrics = trainer.evaluate(eval_instances, features);
 
+        let dm = trainer.device_metrics();
         println!(
             "  Epoch {}/{}: Loss: {:.4} | Eval: {:.4} | Acc: {:.1}% | LR: {:.6}",
             epoch + 1,
@@ -301,6 +318,19 @@ fn run_training(
             eval_metrics.total_loss,
             eval_metrics.direction_accuracy * 100.0,
             trainer.current_lr()
+        );
+        println!(
+            "    Timing: Forward {:.1}s | Backward {:.1}s | Loss {:.1}s | Data {:.2}s | Total {:.1}s",
+            dm.forward_time.as_secs_f32(),
+            dm.backward_time.as_secs_f32(),
+            dm.loss_time.as_secs_f32(),
+            dm.data_prep_time.as_secs_f32(),
+            dm.total_time.as_secs_f32()
+        );
+        println!(
+            "    Throughput: {:.0} samples/sec | GPU activity: {:.1}%",
+            dm.throughput(),
+            dm.gpu_activity_pct()
         );
 
         if trainer.check_early_stopping(eval_metrics.total_loss) {

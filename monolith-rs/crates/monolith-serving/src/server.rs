@@ -8,12 +8,22 @@ use crate::config::ServerConfig;
 use crate::error::{ServingError, ServingResult};
 use crate::model_loader::ModelLoader;
 use crate::parameter_sync::ParameterSyncClient;
+#[cfg(feature = "grpc")]
+use crate::tfserving_server::{TfServingModelServer, TfServingPredictionServer};
 use parking_lot::RwLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::mpsc;
+#[cfg(feature = "grpc")]
+use tonic::transport::Server as TonicServer;
 use tracing::{error, info, warn};
+
+#[cfg(feature = "grpc")]
+use monolith_proto::tensorflow_serving::apis::{
+    model_service_server::ModelServiceServer,
+    prediction_service_server::PredictionServiceServer,
+};
 
 /// Server state enumeration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -195,8 +205,33 @@ impl Server {
         *self.agent_service.write() = Some(agent_service);
 
         // Create shutdown channel
-        let (shutdown_tx, _shutdown_rx) = mpsc::channel::<()>(1);
+        let (shutdown_tx, mut shutdown_rx) = mpsc::channel::<()>(1);
         *self.shutdown_tx.write() = Some(shutdown_tx);
+
+        #[cfg(feature = "grpc")]
+        {
+            let predict_service = TfServingPredictionServer::new(Arc::clone(
+                self.agent_service.read().as_ref().expect("agent service"),
+            ));
+            let model_service = TfServingModelServer::new(Arc::clone(&self.model_loader));
+            let socket_addr = self.config.socket_addr().parse().map_err(|e| {
+                *self.state.write() = ServerState::Error;
+                ServingError::ServerError(format!("Invalid bind address: {e}"))
+            })?;
+
+            tokio::spawn(async move {
+                let server = TonicServer::builder()
+                    .add_service(PredictionServiceServer::new(predict_service))
+                    .add_service(ModelServiceServer::new(model_service))
+                    .serve_with_shutdown(socket_addr, async move {
+                        let _ = shutdown_rx.recv().await;
+                    });
+
+                if let Err(e) = server.await {
+                    error!("TF Serving gRPC server error: {}", e);
+                }
+            });
+        }
 
         // Record start time
         *self.start_time.write() = Some(Instant::now());

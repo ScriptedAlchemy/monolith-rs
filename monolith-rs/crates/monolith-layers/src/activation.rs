@@ -3,8 +3,11 @@
 //! This module provides common activation functions as neural network layers,
 //! including ReLU, Sigmoid, Tanh, and GELU.
 
+use crate::constraint::Constraint;
 use crate::error::LayerError;
+use crate::initializer::Initializer;
 use crate::layer::Layer;
+use crate::regularizer::Regularizer;
 use crate::tensor::Tensor;
 use serde::{Deserialize, Serialize};
 
@@ -24,8 +27,11 @@ use serde::{Deserialize, Serialize};
 /// let output = relu.forward(&input).unwrap();
 /// assert_eq!(output.data(), &[0.0, 0.0, 1.0, 2.0]);
 /// ```
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReLU {
+    max_value: Option<f32>,
+    negative_slope: f32,
+    threshold: f32,
     /// Cached input for backward pass
     cached_input: Option<Tensor>,
 }
@@ -33,7 +39,22 @@ pub struct ReLU {
 impl ReLU {
     /// Creates a new ReLU activation layer.
     pub fn new() -> Self {
-        Self { cached_input: None }
+        Self {
+            max_value: None,
+            negative_slope: 0.0,
+            threshold: 0.0,
+            cached_input: None,
+        }
+    }
+
+    /// Creates a ReLU with custom parameters.
+    pub fn with_params(max_value: Option<f32>, negative_slope: f32, threshold: f32) -> Self {
+        Self {
+            max_value,
+            negative_slope,
+            threshold,
+            cached_input: None,
+        }
     }
 
     /// Performs forward pass and caches input for backward pass.
@@ -45,7 +66,20 @@ impl ReLU {
 
 impl Layer for ReLU {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
-        Ok(input.map(|x| x.max(0.0)))
+        let threshold = Tensor::from_data(&[1], vec![self.threshold]);
+        let shifted = input.sub(&threshold);
+        let pos_mask = input.ge_scalar(self.threshold);
+        let ones = Tensor::ones(input.shape());
+        let neg_mask = ones.sub(&pos_mask);
+        let pos_out = input.clone();
+        let neg_out = shifted.scale(self.negative_slope);
+        let mut out = pos_out.mul(&pos_mask).add(&neg_out.mul(&neg_mask));
+
+        if let Some(max_value) = self.max_value {
+            out = out.clamp(-1.0e20, max_value);
+        }
+
+        Ok(out)
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
@@ -54,9 +88,17 @@ impl Layer for ReLU {
             .as_ref()
             .ok_or(LayerError::NotInitialized)?;
 
-        // ReLU gradient: 1 if x > 0, else 0
-        let mask = input.map(|x| if x > 0.0 { 1.0 } else { 0.0 });
-        Ok(grad.mul(&mask))
+        let pos_mask = input.ge_scalar(self.threshold);
+        let ones = Tensor::ones(input.shape());
+        let neg_mask = ones.sub(&pos_mask);
+        let mut grad_multiplier = pos_mask.add(&neg_mask.scale(self.negative_slope));
+
+        if let Some(max_value) = self.max_value {
+            let max_mask = input.lt_scalar(max_value);
+            grad_multiplier = grad_multiplier.mul(&max_mask);
+        }
+
+        Ok(grad.mul(&grad_multiplier))
     }
 
     fn parameters(&self) -> Vec<&Tensor> {
@@ -113,7 +155,7 @@ impl Sigmoid {
 
 impl Layer for Sigmoid {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
-        Ok(input.map(|x| 1.0 / (1.0 + (-x).exp())))
+        Ok(input.sigmoid())
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
@@ -137,6 +179,55 @@ impl Layer for Sigmoid {
 
     fn name(&self) -> &str {
         "Sigmoid"
+    }
+}
+
+/// Sigmoid2 activation function (2 * sigmoid(x)).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Sigmoid2 {
+    cached_output: Option<Tensor>,
+}
+
+impl Sigmoid2 {
+    pub fn new() -> Self {
+        Self { cached_output: None }
+    }
+
+    pub fn forward_train(&mut self, input: &Tensor) -> Result<Tensor, LayerError> {
+        let output = self.forward(input)?;
+        self.cached_output = Some(output.clone());
+        Ok(output)
+    }
+}
+
+impl Layer for Sigmoid2 {
+    fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
+        Ok(input.sigmoid().scale(2.0))
+    }
+
+    fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
+        let output = self
+            .cached_output
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
+
+        // y = 2 * sigmoid(x); dy/dx = 2 * s * (1 - s)
+        let half = output.scale(0.5);
+        let ones = Tensor::ones(output.shape());
+        let grad_multiplier = half.mul(&ones.sub(&half)).scale(2.0);
+        Ok(grad.mul(&grad_multiplier))
+    }
+
+    fn parameters(&self) -> Vec<&Tensor> {
+        vec![]
+    }
+
+    fn parameters_mut(&mut self) -> Vec<&mut Tensor> {
+        vec![]
+    }
+
+    fn name(&self) -> &str {
+        "Sigmoid2"
     }
 }
 
@@ -181,7 +272,7 @@ impl Tanh {
 
 impl Layer for Tanh {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
-        Ok(input.map(|x| x.tanh()))
+        Ok(input.tanh())
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
@@ -208,10 +299,194 @@ impl Layer for Tanh {
     }
 }
 
+/// Softsign activation function.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Softsign {
+    cached_input: Option<Tensor>,
+}
+
+impl Softsign {
+    pub fn new() -> Self {
+        Self { cached_input: None }
+    }
+
+    pub fn forward_train(&mut self, input: &Tensor) -> Result<Tensor, LayerError> {
+        self.cached_input = Some(input.clone());
+        self.forward(input)
+    }
+}
+
+impl Layer for Softsign {
+    fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
+        let abs = input.abs();
+        let ones = Tensor::ones(input.shape());
+        let denom = abs.add(&ones);
+        Ok(input.div(&denom))
+    }
+
+    fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
+        let input = self
+            .cached_input
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
+        let abs = input.abs();
+        let ones = Tensor::ones(input.shape());
+        let denom = abs.add(&ones);
+        let grad_multiplier = denom.sqr().recip();
+        Ok(grad.mul(&grad_multiplier))
+    }
+
+    fn parameters(&self) -> Vec<&Tensor> {
+        vec![]
+    }
+
+    fn parameters_mut(&mut self) -> Vec<&mut Tensor> {
+        vec![]
+    }
+
+    fn name(&self) -> &str {
+        "Softsign"
+    }
+}
+
+/// Linear activation function (identity).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Linear;
+
+impl Linear {
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn forward_train(&mut self, input: &Tensor) -> Result<Tensor, LayerError> {
+        Ok(input.clone())
+    }
+}
+
+impl Layer for Linear {
+    fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
+        Ok(input.clone())
+    }
+
+    fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
+        Ok(grad.clone())
+    }
+
+    fn parameters(&self) -> Vec<&Tensor> {
+        vec![]
+    }
+
+    fn parameters_mut(&mut self) -> Vec<&mut Tensor> {
+        vec![]
+    }
+
+    fn name(&self) -> &str {
+        "Linear"
+    }
+}
+
+/// Exponential activation function.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Exponential {
+    cached_output: Option<Tensor>,
+}
+
+impl Exponential {
+    pub fn new() -> Self {
+        Self { cached_output: None }
+    }
+
+    pub fn forward_train(&mut self, input: &Tensor) -> Result<Tensor, LayerError> {
+        let output = self.forward(input)?;
+        self.cached_output = Some(output.clone());
+        Ok(output)
+    }
+}
+
+impl Layer for Exponential {
+    fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
+        Ok(input.exp())
+    }
+
+    fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
+        let output = self
+            .cached_output
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
+        Ok(grad.mul(output))
+    }
+
+    fn parameters(&self) -> Vec<&Tensor> {
+        vec![]
+    }
+
+    fn parameters_mut(&mut self) -> Vec<&mut Tensor> {
+        vec![]
+    }
+
+    fn name(&self) -> &str {
+        "Exponential"
+    }
+}
+
+/// Thresholded ReLU activation function.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThresholdedReLU {
+    theta: f32,
+    cached_input: Option<Tensor>,
+}
+
+impl ThresholdedReLU {
+    pub fn new(theta: f32) -> Self {
+        Self {
+            theta,
+            cached_input: None,
+        }
+    }
+
+    pub fn forward_train(&mut self, input: &Tensor) -> Result<Tensor, LayerError> {
+        self.cached_input = Some(input.clone());
+        self.forward(input)
+    }
+}
+
+impl Default for ThresholdedReLU {
+    fn default() -> Self {
+        Self::new(1.0)
+    }
+}
+
+impl Layer for ThresholdedReLU {
+    fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
+        let mask = input.gt_scalar(self.theta);
+        Ok(input.mul(&mask))
+    }
+
+    fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
+        let input = self
+            .cached_input
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
+        let mask = input.gt_scalar(self.theta);
+        Ok(grad.mul(&mask))
+    }
+
+    fn parameters(&self) -> Vec<&Tensor> {
+        vec![]
+    }
+
+    fn parameters_mut(&mut self) -> Vec<&mut Tensor> {
+        vec![]
+    }
+
+    fn name(&self) -> &str {
+        "ThresholdedReLU"
+    }
+}
+
 /// Gaussian Error Linear Unit (GELU) activation function.
 ///
 /// Computes `f(x) = x * Phi(x)` where Phi is the CDF of the standard normal distribution.
-/// We use the approximation: `GELU(x) ≈ 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))`
 ///
 /// # Example
 ///
@@ -244,17 +519,11 @@ impl GELU {
         self.forward(input)
     }
 
-    /// GELU approximation constant
-    const SQRT_2_OVER_PI: f32 = 0.797_884_6; // sqrt(2/pi)
-    const GELU_COEF: f32 = 0.044715;
 }
 
 impl Layer for GELU {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
-        Ok(input.map(|x| {
-            let inner = Self::SQRT_2_OVER_PI * (x + Self::GELU_COEF * x * x * x);
-            0.5 * x * (1.0 + inner.tanh())
-        }))
+        Ok(input.gelu())
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
@@ -263,18 +532,24 @@ impl Layer for GELU {
             .as_ref()
             .ok_or(LayerError::NotInitialized)?;
 
-        // GELU derivative is complex, using numerical approximation
-        // d/dx GELU(x) ≈ 0.5 * (1 + tanh(inner)) + 0.5 * x * (1 - tanh(inner)^2) * d_inner
-        // where d_inner = sqrt(2/pi) * (1 + 3 * 0.044715 * x^2)
-        let grad_multiplier = input.map(|x| {
-            let x3 = x * x * x;
-            let inner = Self::SQRT_2_OVER_PI * (x + Self::GELU_COEF * x3);
-            let tanh_inner = inner.tanh();
-            let sech2 = 1.0 - tanh_inner * tanh_inner;
-            let d_inner = Self::SQRT_2_OVER_PI * (1.0 + 3.0 * Self::GELU_COEF * x * x);
-            0.5 * (1.0 + tanh_inner) + 0.5 * x * sech2 * d_inner
-        });
+        // Exact derivative: d/dx gelu(x) = Phi(x) + x * phi(x)
+        // Phi(x) = gelu(x) / x (limit 0.5 at x=0)
+        // phi(x) = exp(-x^2/2) / sqrt(2*pi)
+        let gelu_out = input.gelu();
+        let phi = input
+            .sqr()
+            .scale(-0.5)
+            .exp()
+            .scale(0.3989422804014327_f32); // 1/sqrt(2π)
 
+        let abs = input.abs();
+        let small = abs.lt_scalar(1e-6);
+        let ones = Tensor::ones(input.shape());
+        let safe = input.add(&small.scale(1e-6));
+        let mut phi_cdf = gelu_out.div(&safe);
+        phi_cdf = phi_cdf.mul(&ones.sub(&small)).add(&small.scale(0.5));
+
+        let grad_multiplier = phi_cdf.add(&input.mul(&phi));
         Ok(grad.mul(&grad_multiplier))
     }
 
@@ -326,8 +601,9 @@ impl Default for LeakyReLU {
 
 impl Layer for LeakyReLU {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
-        let alpha = self.alpha;
-        Ok(input.map(|x| if x > 0.0 { x } else { alpha * x }))
+        let relu = input.relu();
+        let neg = input.sub(&relu);
+        Ok(relu.add(&neg.scale(self.alpha)))
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
@@ -336,8 +612,10 @@ impl Layer for LeakyReLU {
             .as_ref()
             .ok_or(LayerError::NotInitialized)?;
 
-        let alpha = self.alpha;
-        let mask = input.map(|x| if x > 0.0 { 1.0 } else { alpha });
+        let pos_mask = input.gt_scalar(0.0);
+        let ones = Tensor::ones(input.shape());
+        let neg_mask = ones.sub(&pos_mask);
+        let mask = pos_mask.add(&neg_mask.scale(self.alpha));
         Ok(grad.mul(&mask))
     }
 
@@ -406,8 +684,11 @@ impl Default for ELU {
 
 impl Layer for ELU {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
-        let alpha = self.alpha;
-        Ok(input.map(|x| if x > 0.0 { x } else { alpha * (x.exp() - 1.0) }))
+        let relu = input.relu();
+        let neg = input.sub(&relu);
+        let ones = Tensor::ones(input.shape());
+        let neg_out = neg.exp().sub(&ones).scale(self.alpha);
+        Ok(relu.add(&neg_out))
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
@@ -416,9 +697,12 @@ impl Layer for ELU {
             .as_ref()
             .ok_or(LayerError::NotInitialized)?;
 
-        let alpha = self.alpha;
         // ELU gradient: 1 if x > 0, else alpha * exp(x) = output + alpha for x <= 0
-        let grad_multiplier = input.map(|x| if x > 0.0 { 1.0 } else { alpha * x.exp() });
+        let pos_mask = input.gt_scalar(0.0);
+        let ones = Tensor::ones(input.shape());
+        let neg_mask = ones.sub(&pos_mask);
+        let neg = input.exp().scale(self.alpha);
+        let grad_multiplier = pos_mask.add(&neg.mul(&neg_mask));
         Ok(grad.mul(&grad_multiplier))
     }
 
@@ -457,6 +741,18 @@ impl Layer for ELU {
 pub struct PReLU {
     /// Learnable alpha parameter (negative slope)
     alpha: Tensor,
+    /// Gradient of alpha
+    alpha_grad: Option<Tensor>,
+    /// Alpha initializer
+    alpha_initializer: Initializer,
+    /// Alpha regularizer
+    alpha_regularizer: Regularizer,
+    /// Alpha constraint
+    alpha_constraint: Constraint,
+    /// Shared axes for alpha (input axes excluding batch)
+    shared_axes: Vec<isize>,
+    /// Whether alpha has been built for input shape
+    built: bool,
     /// Cached input for backward pass
     cached_input: Option<Tensor>,
 }
@@ -464,21 +760,85 @@ pub struct PReLU {
 impl PReLU {
     /// Creates a new PReLU activation layer with the specified initial alpha.
     pub fn new(initial_alpha: f32) -> Self {
+        Self::with_params(
+            initial_alpha,
+            None,
+            None,
+            Some(Regularizer::None),
+            Some(Constraint::None),
+        )
+    }
+
+    /// Creates a new PReLU with optional initializer/shared_axes/regularizer/constraint.
+    pub fn with_params(
+        initial_alpha: f32,
+        initializer: Option<Initializer>,
+        shared_axes: Option<Vec<isize>>,
+        regularizer: Option<Regularizer>,
+        constraint: Option<Constraint>,
+    ) -> Self {
         Self {
             alpha: Tensor::from_data(&[1], vec![initial_alpha]),
+            alpha_grad: None,
+            alpha_initializer: initializer.unwrap_or(Initializer::Constant(initial_alpha)),
+            alpha_regularizer: regularizer.unwrap_or(Regularizer::None),
+            alpha_constraint: constraint.unwrap_or(Constraint::None),
+            shared_axes: shared_axes.unwrap_or_default(),
+            built: false,
             cached_input: None,
         }
     }
 
+    fn build_if_needed(&mut self, input: &Tensor) -> Result<(), LayerError> {
+        if self.built {
+            return Ok(());
+        }
+        if input.ndim() < 2 {
+            return Err(LayerError::ForwardError {
+                message: format!("PReLU expects >=2D input, got {}D", input.ndim()),
+            });
+        }
+        let ndim = input.ndim();
+        let mut shared = Vec::new();
+        for &axis in &self.shared_axes {
+            let ax = if axis < 0 {
+                (ndim as isize + axis) as usize
+            } else {
+                axis as usize
+            };
+            if ax != 0 && ax < ndim {
+                shared.push(ax);
+            }
+        }
+
+        let mut alpha_shape = Vec::with_capacity(ndim - 1);
+        for axis in 1..ndim {
+            if shared.contains(&axis) {
+                alpha_shape.push(1);
+            } else {
+                alpha_shape.push(input.shape()[axis]);
+            }
+        }
+        self.alpha = self.alpha_initializer.initialize(&alpha_shape);
+        self.built = true;
+        Ok(())
+    }
+
     /// Performs forward pass and caches input for backward pass.
     pub fn forward_train(&mut self, input: &Tensor) -> Result<Tensor, LayerError> {
+        self.build_if_needed(input)?;
         self.cached_input = Some(input.clone());
         self.forward(input)
     }
 
     /// Returns the current alpha value.
     pub fn alpha(&self) -> f32 {
-        self.alpha.data()[0]
+        self.alpha.data_ref()[0]
+    }
+
+    /// Returns the alpha gradient if computed.
+    pub fn alpha_grad(&self) -> Option<&Tensor> {
+        self.alpha_grad.as_ref()
     }
 }
 
@@ -490,19 +850,57 @@ impl Default for PReLU {
 
 impl Layer for PReLU {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
-        let alpha = self.alpha.data()[0];
-        Ok(input.map(|x| if x > 0.0 { x } else { alpha * x }))
+        let relu = input.relu();
+        let neg = input.sub(&relu);
+        let mut shape = self.alpha.shape().to_vec();
+        shape.insert(0, 1);
+        let alpha_b = self.alpha.reshape(&shape).broadcast_as(input.shape());
+        Ok(relu.add(&neg.mul(&alpha_b)))
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
         let input = self
             .cached_input
-            .as_ref()
+            .clone()
             .ok_or(LayerError::NotInitialized)?;
 
-        let alpha = self.alpha.data()[0];
-        let mask = input.map(|x| if x > 0.0 { 1.0 } else { alpha });
-        Ok(grad.mul(&mask))
+        self.build_if_needed(&input)?;
+
+        let relu = input.relu();
+        let neg = input.sub(&relu);
+        let mut shape = self.alpha.shape().to_vec();
+        shape.insert(0, 1);
+        let alpha_b = self.alpha.reshape(&shape).broadcast_as(input.shape());
+
+        let pos_mask = input.gt_scalar(0.0);
+        let ones = Tensor::ones(input.shape());
+        let neg_mask = ones.sub(&pos_mask);
+        let mask = pos_mask.add(&neg_mask.mul(&alpha_b));
+        let input_grad = grad.mul(&mask);
+
+        let mut reduce_axes = Vec::new();
+        for axis in 0..input.ndim() {
+            if axis == 0 {
+                reduce_axes.push(axis);
+                continue;
+            }
+            let alpha_axis = axis - 1;
+            if self.alpha.shape()[alpha_axis] == 1 {
+                reduce_axes.push(axis);
+            }
+        }
+
+        let mut alpha_grad = grad.mul(&neg);
+        if !reduce_axes.is_empty() {
+            alpha_grad = alpha_grad.sum_axes(&reduce_axes);
+        }
+
+        if let Some(reg_grad) = self.alpha_regularizer.grad(&self.alpha) {
+            alpha_grad = alpha_grad.add(&reg_grad);
+        }
+        self.alpha_grad = Some(alpha_grad);
+
+        Ok(input_grad)
     }
 
     fn parameters(&self) -> Vec<&Tensor> {
@@ -515,6 +913,14 @@ impl Layer for PReLU {
 
     fn name(&self) -> &str {
         "PReLU"
+    }
+
+    fn regularization_loss(&self) -> f32 {
+        self.alpha_regularizer.loss(&self.alpha)
+    }
+
+    fn apply_constraints(&mut self) {
+        self.alpha = self.alpha_constraint.apply(&self.alpha);
     }
 }
 
@@ -564,13 +970,11 @@ impl SELU {
 
 impl Layer for SELU {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
-        Ok(input.map(|x| {
-            if x > 0.0 {
-                Self::SCALE * x
-            } else {
-                Self::SCALE * Self::ALPHA * (x.exp() - 1.0)
-            }
-        }))
+        let relu = input.relu();
+        let neg = input.sub(&relu);
+        let ones = Tensor::ones(input.shape());
+        let neg_out = neg.exp().sub(&ones).scale(Self::ALPHA);
+        Ok(relu.add(&neg_out).scale(Self::SCALE))
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
@@ -580,13 +984,12 @@ impl Layer for SELU {
             .ok_or(LayerError::NotInitialized)?;
 
         // SELU gradient: scale if x > 0, else scale * alpha * exp(x)
-        let grad_multiplier = input.map(|x| {
-            if x > 0.0 {
-                Self::SCALE
-            } else {
-                Self::SCALE * Self::ALPHA * x.exp()
-            }
-        });
+        let pos_mask = input.gt_scalar(0.0);
+        let ones = Tensor::ones(input.shape());
+        let neg_mask = ones.sub(&pos_mask);
+        let pos = pos_mask.scale(Self::SCALE);
+        let neg = input.exp().scale(Self::SCALE * Self::ALPHA);
+        let grad_multiplier = pos.add(&neg.mul(&neg_mask));
         Ok(grad.mul(&grad_multiplier))
     }
 
@@ -641,16 +1044,11 @@ impl Swish {
         self.forward(input)
     }
 
-    /// Computes sigmoid(x)
-    #[inline]
-    fn sigmoid(x: f32) -> f32 {
-        1.0 / (1.0 + (-x).exp())
-    }
 }
 
 impl Layer for Swish {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
-        Ok(input.map(|x| x * Self::sigmoid(x)))
+        Ok(input.mul(&input.sigmoid()))
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
@@ -661,10 +1059,10 @@ impl Layer for Swish {
 
         // Swish gradient: swish(x) + sigmoid(x) * (1 - swish(x))
         // = sigmoid(x) + x * sigmoid(x) * (1 - sigmoid(x))
-        let grad_multiplier = input.map(|x| {
-            let sig = Self::sigmoid(x);
-            sig + x * sig * (1.0 - sig)
-        });
+        let sig = input.sigmoid();
+        let ones = Tensor::ones(input.shape());
+        let one_minus_sig = ones.sub(&sig);
+        let grad_multiplier = sig.add(&input.mul(&sig).mul(&one_minus_sig));
         Ok(grad.mul(&grad_multiplier))
     }
 
@@ -736,14 +1134,11 @@ impl Softplus {
 
 impl Layer for Softplus {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
-        let threshold = self.threshold;
-        Ok(input.map(|x| {
-            if x > threshold {
-                x // For numerical stability
-            } else {
-                (1.0 + x.exp()).ln()
-            }
-        }))
+        let relu = input.relu();
+        let abs = input.abs();
+        let ones = Tensor::ones(input.shape());
+        let log1p = abs.scale(-1.0).exp().add(&ones).log();
+        Ok(relu.add(&log1p))
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
@@ -754,13 +1149,11 @@ impl Layer for Softplus {
 
         let threshold = self.threshold;
         // Softplus gradient: sigmoid(x) = 1 / (1 + exp(-x))
-        let grad_multiplier = input.map(|x| {
-            if x > threshold {
-                1.0
-            } else {
-                1.0 / (1.0 + (-x).exp())
-            }
-        });
+        let sig = input.sigmoid();
+        let ones = Tensor::ones(input.shape());
+        let mask = input.gt_scalar(threshold);
+        let inv = ones.sub(&mask);
+        let grad_multiplier = mask.add(&sig.mul(&inv));
         Ok(grad.mul(&grad_multiplier))
     }
 
@@ -779,7 +1172,7 @@ impl Layer for Softplus {
 
 /// Hard Sigmoid activation function.
 ///
-/// Computes `f(x) = clip((x + 3) / 6, 0, 1)`.
+/// Computes `f(x) = clip(0.2 * x + 0.5, 0, 1)`.
 ///
 /// HardSigmoid is a piecewise linear approximation of the sigmoid function that
 /// is computationally cheaper while maintaining similar properties.
@@ -794,7 +1187,7 @@ impl Layer for Softplus {
 /// let hard_sigmoid = HardSigmoid::new();
 /// let input = Tensor::zeros(&[2, 2]);
 /// let output = hard_sigmoid.forward(&input).unwrap();
-/// // hard_sigmoid(0) = (0 + 3) / 6 = 0.5
+    /// // hard_sigmoid(0) = 0.2 * 0 + 0.5 = 0.5
 /// assert!((output.data()[0] - 0.5).abs() < 1e-6);
 /// ```
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -818,7 +1211,8 @@ impl HardSigmoid {
 
 impl Layer for HardSigmoid {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
-        Ok(input.map(|x| ((x + 3.0) / 6.0).clamp(0.0, 1.0)))
+        let scaled = input.scale(0.2).add(&Tensor::from_data(&[1], vec![0.5]));
+        Ok(scaled.clamp(0.0, 1.0))
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
@@ -827,14 +1221,10 @@ impl Layer for HardSigmoid {
             .as_ref()
             .ok_or(LayerError::NotInitialized)?;
 
-        // HardSigmoid gradient: 1/6 if -3 <= x <= 3, else 0
-        let grad_multiplier = input.map(|x| {
-            if (-3.0..=3.0).contains(&x) {
-                1.0 / 6.0
-            } else {
-                0.0
-            }
-        });
+        // HardSigmoid gradient: 0.2 if -2.5 <= x <= 2.5, else 0
+        let ge_low = input.ge_scalar(-2.5);
+        let le_high = input.le_scalar(2.5);
+        let grad_multiplier = ge_low.mul(&le_high).scale(0.2);
         Ok(grad.mul(&grad_multiplier))
     }
 
@@ -891,18 +1281,19 @@ impl Mish {
 
     /// Computes softplus(x) = log(1 + exp(x)) with numerical stability
     #[inline]
-    fn softplus(x: f32) -> f32 {
-        if x > 20.0 {
-            x
-        } else {
-            (1.0 + x.exp()).ln()
-        }
+    fn softplus_tensor(input: &Tensor) -> Tensor {
+        let relu = input.relu();
+        let abs = input.abs();
+        let ones = Tensor::ones(input.shape());
+        let log1p = abs.scale(-1.0).exp().add(&ones).log();
+        relu.add(&log1p)
     }
 }
 
 impl Layer for Mish {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
-        Ok(input.map(|x| x * Self::softplus(x).tanh()))
+        let sp = Self::softplus_tensor(input);
+        Ok(input.mul(&sp.tanh()))
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
@@ -914,13 +1305,12 @@ impl Layer for Mish {
         // Mish gradient: complex derivative
         // Let sp = softplus(x), sig = sigmoid(x)
         // d/dx mish(x) = tanh(sp) + x * sech^2(sp) * sig
-        let grad_multiplier = input.map(|x| {
-            let sp = Self::softplus(x);
-            let tanh_sp = sp.tanh();
-            let sech2_sp = 1.0 - tanh_sp * tanh_sp;
-            let sig = 1.0 / (1.0 + (-x).exp());
-            tanh_sp + x * sech2_sp * sig
-        });
+        let sp = Self::softplus_tensor(input);
+        let tanh_sp = sp.tanh();
+        let ones = Tensor::ones(input.shape());
+        let sech2 = ones.sub(&tanh_sp.sqr());
+        let sig = input.sigmoid();
+        let grad_multiplier = tanh_sp.add(&input.mul(&sech2).mul(&sig));
         Ok(grad.mul(&grad_multiplier))
     }
 
@@ -944,6 +1334,7 @@ impl Layer for Mish {
 pub struct Softmax {
     /// Cached output for backward pass
     cached_output: Option<Tensor>,
+    axis: isize,
 }
 
 impl Softmax {
@@ -951,6 +1342,14 @@ impl Softmax {
     pub fn new() -> Self {
         Self {
             cached_output: None,
+            axis: -1,
+        }
+    }
+
+    pub fn with_axis(axis: isize) -> Self {
+        Self {
+            cached_output: None,
+            axis,
         }
     }
 
@@ -964,38 +1363,18 @@ impl Softmax {
 
 impl Layer for Softmax {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
-        if input.ndim() != 2 {
+        let ndim = input.ndim();
+        if ndim == 0 {
             return Err(LayerError::ForwardError {
-                message: format!("Softmax expects 2D input, got {}D", input.ndim()),
+                message: "Softmax expects at least 1D input".to_string(),
             });
         }
-
-        let batch_size = input.shape()[0];
-        let dim = input.shape()[1];
-        let mut result = vec![0.0; input.numel()];
-
-        for i in 0..batch_size {
-            // Find max for numerical stability
-            let mut max_val = f32::NEG_INFINITY;
-            for j in 0..dim {
-                max_val = max_val.max(input.data()[i * dim + j]);
-            }
-
-            // Compute exp(x - max) and sum
-            let mut sum = 0.0;
-            for j in 0..dim {
-                let exp_val = (input.data()[i * dim + j] - max_val).exp();
-                result[i * dim + j] = exp_val;
-                sum += exp_val;
-            }
-
-            // Normalize
-            for j in 0..dim {
-                result[i * dim + j] /= sum;
-            }
-        }
-
-        Ok(Tensor::from_data(input.shape(), result))
+        let axis = if self.axis < 0 {
+            (ndim as isize + self.axis) as usize
+        } else {
+            self.axis as usize
+        };
+        Ok(input.softmax(axis))
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
@@ -1005,25 +1384,17 @@ impl Layer for Softmax {
             .ok_or(LayerError::NotInitialized)?;
 
         // Softmax backward: s_i * (grad_i - sum_j(s_j * grad_j))
-        let batch_size = output.shape()[0];
-        let dim = output.shape()[1];
-        let mut result = vec![0.0; output.numel()];
-
-        for i in 0..batch_size {
-            // Compute dot product: sum_j(s_j * grad_j)
-            let mut dot = 0.0;
-            for j in 0..dim {
-                dot += output.data()[i * dim + j] * grad.data()[i * dim + j];
-            }
-
-            // Compute gradient
-            for j in 0..dim {
-                let s = output.data()[i * dim + j];
-                result[i * dim + j] = s * (grad.data()[i * dim + j] - dot);
-            }
-        }
-
-        Ok(Tensor::from_data(output.shape(), result))
+        let ndim = output.ndim();
+        let axis = if self.axis < 0 {
+            (ndim as isize + self.axis) as usize
+        } else {
+            self.axis as usize
+        };
+        let dot = output.mul(grad).sum_axis(axis);
+        let mut dot_shape = dot.shape().to_vec();
+        dot_shape.insert(axis, 1);
+        let dot_b = dot.reshape(&dot_shape).broadcast_as(output.shape());
+        Ok(output.mul(&grad.sub(&dot_b)))
     }
 
     fn parameters(&self) -> Vec<&Tensor> {
@@ -1068,7 +1439,7 @@ mod tests {
         let input = Tensor::zeros(&[2, 2]);
         let output = sigmoid.forward(&input).unwrap();
 
-        for &val in output.data() {
+        for val in output.data() {
             assert!((val - 0.5).abs() < 1e-6);
         }
     }
@@ -1079,7 +1450,7 @@ mod tests {
         let input = Tensor::zeros(&[2, 2]);
         let output = tanh.forward(&input).unwrap();
 
-        for &val in output.data() {
+        for val in output.data() {
             assert!(val.abs() < 1e-6);
         }
     }
@@ -1090,7 +1461,7 @@ mod tests {
         let input = Tensor::zeros(&[2, 2]);
         let output = gelu.forward(&input).unwrap();
 
-        for &val in output.data() {
+        for val in output.data() {
             assert!(val.abs() < 1e-6);
         }
 
@@ -1133,7 +1504,7 @@ mod tests {
         // Should still be valid probabilities
         let sum: f32 = output.data().iter().sum();
         assert!((sum - 1.0).abs() < 1e-6);
-        for &val in output.data() {
+        for val in output.data() {
             assert!(val >= 0.0 && val <= 1.0);
         }
     }
@@ -1300,7 +1671,7 @@ mod tests {
         assert!((output.data()[1] - 0.693).abs() < 0.01);
 
         // All outputs should be positive
-        for &val in output.data() {
+        for val in output.data() {
             assert!(val > 0.0);
         }
 
@@ -1324,7 +1695,7 @@ mod tests {
         assert!((input_grad.data()[1] - 0.5).abs() < 1e-6);
 
         // All gradients should be in (0, 1)
-        for &val in input_grad.data() {
+        for val in input_grad.data() {
             assert!(val > 0.0 && val < 1.0);
         }
     }
@@ -1332,17 +1703,17 @@ mod tests {
     #[test]
     fn test_hard_sigmoid_forward() {
         let hard_sigmoid = HardSigmoid::new();
-        let input = Tensor::from_data(&[1, 5], vec![-5.0, -3.0, 0.0, 3.0, 5.0]);
+        let input = Tensor::from_data(&[1, 5], vec![-5.0, -2.5, 0.0, 2.5, 5.0]);
         let output = hard_sigmoid.forward(&input).unwrap();
 
-        // x <= -3: output = 0
+        // x <= -2.5: output = 0
         assert!((output.data()[0]).abs() < 1e-6);
         assert!((output.data()[1]).abs() < 1e-6);
 
         // x = 0: output = 0.5
         assert!((output.data()[2] - 0.5).abs() < 1e-6);
 
-        // x >= 3: output = 1
+        // x >= 2.5: output = 1
         assert!((output.data()[3] - 1.0).abs() < 1e-6);
         assert!((output.data()[4] - 1.0).abs() < 1e-6);
     }
@@ -1356,11 +1727,11 @@ mod tests {
         let grad = Tensor::ones(&[1, 5]);
         let input_grad = hard_sigmoid.backward(&grad).unwrap();
 
-        // Gradient is 1/6 for -3 <= x <= 3, else 0
+        // Gradient is 0.2 for -2.5 <= x <= 2.5, else 0
         assert!((input_grad.data()[0]).abs() < 1e-6); // x = -5
-        assert!((input_grad.data()[1] - 1.0 / 6.0).abs() < 1e-6); // x = -2
-        assert!((input_grad.data()[2] - 1.0 / 6.0).abs() < 1e-6); // x = 0
-        assert!((input_grad.data()[3] - 1.0 / 6.0).abs() < 1e-6); // x = 2
+        assert!((input_grad.data()[1] - 0.2).abs() < 1e-6); // x = -2
+        assert!((input_grad.data()[2] - 0.2).abs() < 1e-6); // x = 0
+        assert!((input_grad.data()[3] - 0.2).abs() < 1e-6); // x = 2
         assert!((input_grad.data()[4]).abs() < 1e-6); // x = 5
     }
 

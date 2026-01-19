@@ -24,8 +24,8 @@
 //!
 //! // Create a simple MLP
 //! let mlp = MLPConfig::new(128)
-//!     .add_layer(64, ActivationType::ReLU)
-//!     .add_layer(32, ActivationType::ReLU)
+//!     .add_layer(64, ActivationType::relu())
+//!     .add_layer(32, ActivationType::relu())
 //!     .add_layer(1, ActivationType::None)
 //!     .build()
 //!     .unwrap();
@@ -81,45 +81,71 @@
 #![warn(rustdoc::missing_crate_level_docs)]
 
 pub mod activation;
+pub mod activation_layer;
+pub mod add_bias;
 pub mod agru;
+pub mod constraint;
 pub mod dcn;
+pub mod dmr;
 pub mod dense;
 pub mod dien;
 pub mod din;
+pub mod feature_trans;
 pub mod embedding;
 pub mod error;
 pub mod ffm;
+pub mod feature_cross;
 pub mod group_interaction;
+pub mod initializer;
+pub mod regularizer;
 pub mod layer;
+pub mod lhuc;
+pub mod merge;
 pub mod mlp;
 pub mod mmoe;
 pub mod normalization;
+pub mod pooling;
+pub mod logit_correction;
+pub mod snr;
 pub mod senet;
 pub mod tensor;
 
 // Re-export main types at crate level
 pub use activation::{
-    HardSigmoid, LeakyReLU, Mish, PReLU, ReLU, Sigmoid, Softmax, Softplus, Swish, Tanh, ELU, GELU,
-    SELU,
+    ELU, Exponential, GELU, HardSigmoid, LeakyReLU, Linear, Mish, PReLU, ReLU, SELU, Sigmoid,
+    Sigmoid2, Softmax, Softplus, Softsign, Swish, Tanh, ThresholdedReLU,
 };
+pub use activation_layer::ActivationLayer;
+pub use add_bias::{AddBias, DataFormat};
 pub use agru::{AGRUConfig, AGRU};
+pub use constraint::Constraint;
 pub use dcn::{CrossLayer, CrossNetwork, DCNConfig, DCNMode};
+pub use dmr::{DMRU2I, DMRU2IConfig};
 pub use dense::Dense;
 pub use dien::{AUGRUCell, DIENConfig, DIENLayer, GRUCell, GRUType};
-pub use din::{DINAttention, DINConfig};
+pub use din::{DINAttention, DINConfig, DINOutputMode};
+pub use feature_trans::{AutoInt, AutoIntConfig, IRazor, IRazorConfig};
 pub use embedding::{
     EmbeddingHashTable, EmbeddingLookup, PooledEmbeddingLookup, PoolingMode,
     SequenceEmbeddingLookup,
 };
 pub use error::{LayerError, LayerResult};
 pub use ffm::{FFMConfig, FFMLayer};
+pub use feature_cross::{AllInt, CDot, CAN, CIN, GroupInt, GroupIntType};
 pub use group_interaction::{
     GroupInteractionConfig, GroupInteractionLayer, GroupInteractionWithProjection, InteractionType,
 };
+pub use initializer::Initializer;
+pub use regularizer::Regularizer;
+pub use lhuc::{LHUCConfig, LHUCOutputDims, LHUCTower, LHUCOverrides};
 pub use layer::Layer;
+pub use merge::{merge_tensor_list, merge_tensor_list_tensor, MergeOutput, MergeType};
 pub use mlp::{ActivationType, MLPConfig, MLP};
-pub use mmoe::{Expert, Gate, MMoE, MMoEConfig};
-pub use normalization::{BatchNorm, LayerNorm};
+pub use mmoe::{Expert, Gate, GateType, MMoE, MMoEConfig};
+pub use normalization::{BatchNorm, GradNorm, LayerNorm};
+pub use pooling::{AvgPooling, MaxPooling, Pooling, SumPooling};
+pub use logit_correction::LogitCorrection;
+pub use snr::{SNRConfig, SNRType, SNR};
 pub use senet::{SENetConfig, SENetLayer};
 pub use tensor::Tensor;
 
@@ -131,27 +157,40 @@ pub use tensor::Tensor;
 /// ```
 pub mod prelude {
     pub use crate::activation::{
-        HardSigmoid, LeakyReLU, Mish, PReLU, ReLU, Sigmoid, Softmax, Softplus, Swish, Tanh, ELU,
-        GELU, SELU,
+        ELU, Exponential, GELU, HardSigmoid, LeakyReLU, Linear, Mish, PReLU, ReLU, SELU, Sigmoid,
+        Sigmoid2, Softmax, Softplus, Softsign, Swish, Tanh, ThresholdedReLU,
     };
+    pub use crate::activation_layer::ActivationLayer;
+    pub use crate::add_bias::{AddBias, DataFormat};
     pub use crate::agru::{AGRUConfig, AGRU};
+    pub use crate::constraint::Constraint;
     pub use crate::dcn::{CrossLayer, CrossNetwork, DCNConfig, DCNMode};
+    pub use crate::dmr::{DMRU2I, DMRU2IConfig};
     pub use crate::dense::Dense;
     pub use crate::dien::{AUGRUCell, DIENConfig, DIENLayer, GRUCell, GRUType};
-    pub use crate::din::{DINAttention, DINConfig};
+    pub use crate::din::{DINAttention, DINConfig, DINOutputMode};
+    pub use crate::feature_trans::{AutoInt, AutoIntConfig, IRazor, IRazorConfig};
     pub use crate::embedding::{
         EmbeddingHashTable, EmbeddingLookup, PooledEmbeddingLookup, PoolingMode,
     };
     pub use crate::error::{LayerError, LayerResult};
     pub use crate::ffm::{FFMConfig, FFMLayer};
+    pub use crate::feature_cross::{AllInt, CDot, CAN, CIN, GroupInt, GroupIntType};
     pub use crate::group_interaction::{
         GroupInteractionConfig, GroupInteractionLayer, GroupInteractionWithProjection,
         InteractionType,
     };
+    pub use crate::initializer::Initializer;
+    pub use crate::regularizer::Regularizer;
+    pub use crate::lhuc::{LHUCConfig, LHUCOutputDims, LHUCTower, LHUCOverrides};
     pub use crate::layer::Layer;
+    pub use crate::merge::{merge_tensor_list, merge_tensor_list_tensor, MergeOutput, MergeType};
     pub use crate::mlp::{ActivationType, MLPConfig, MLP};
-    pub use crate::mmoe::{Expert, Gate, MMoE, MMoEConfig};
-    pub use crate::normalization::{BatchNorm, LayerNorm};
+    pub use crate::mmoe::{Expert, Gate, GateType, MMoE, MMoEConfig};
+    pub use crate::normalization::{BatchNorm, GradNorm, LayerNorm};
+    pub use crate::pooling::{AvgPooling, MaxPooling, Pooling, SumPooling};
+    pub use crate::logit_correction::LogitCorrection;
+    pub use crate::snr::{SNRConfig, SNRType, SNR};
     pub use crate::senet::{SENetConfig, SENetLayer};
     pub use crate::tensor::Tensor;
 }
@@ -185,8 +224,8 @@ mod tests {
     #[test]
     fn test_mlp_end_to_end() {
         let mlp = MLPConfig::new(10)
-            .add_layer(8, ActivationType::ReLU)
-            .add_layer(4, ActivationType::ReLU)
+            .add_layer(8, ActivationType::relu())
+            .add_layer(4, ActivationType::relu())
             .add_layer(2, ActivationType::None)
             .build()
             .unwrap();
@@ -246,7 +285,7 @@ mod tests {
 
     #[test]
     fn test_dien_integration() {
-        let dien = DIENConfig::new(8, 16)
+        let dien = DIENConfig::new(8, 8)
             .with_gru_type(GRUType::AUGRU)
             .with_use_auxiliary_loss(true)
             .build()
@@ -258,7 +297,7 @@ mod tests {
         let output = dien
             .forward_dien(&behavior_seq, &target_item, None)
             .unwrap();
-        assert_eq!(output.shape(), &[2, 16]);
+        assert_eq!(output.shape(), &[2, 8]);
     }
 
     #[test]

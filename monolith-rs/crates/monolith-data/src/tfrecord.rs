@@ -48,6 +48,8 @@ use prost::Message;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::path::{Path, PathBuf};
+use glob::glob;
+use crate::dataset::Dataset;
 use thiserror::Error;
 
 use crate::compression::{self, CompressionType};
@@ -97,6 +99,7 @@ pub type Result<T> = std::result::Result<T, TFRecordError>;
 ///
 /// Compression can be automatically detected from file extensions (`.gz`, `.snappy`, `.zlib`)
 /// or explicitly configured using [`with_compression`](Self::with_compression).
+#[derive(Clone)]
 pub struct TFRecordDataset {
     paths: Vec<PathBuf>,
     verify_crc: bool,
@@ -166,9 +169,23 @@ impl TFRecordDataset {
     /// This is a placeholder implementation. In a real implementation,
     /// this would use the `glob` crate.
     pub fn from_pattern(_pattern: &str) -> Result<Self> {
-        // Placeholder - in real implementation would use glob crate
+        let mut paths = Vec::new();
+        for entry in glob(_pattern).map_err(|e| TFRecordError::InvalidFormat(e.to_string()))? {
+            let path = entry.map_err(|e| TFRecordError::InvalidFormat(e.to_string()))?;
+            if !path.exists() {
+                continue;
+            }
+            paths.push(path);
+        }
+        if paths.is_empty() {
+            return Err(TFRecordError::Io(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("No files matched pattern: {}", _pattern),
+            )));
+        }
+        paths.sort();
         Ok(Self {
-            paths: Vec::new(),
+            paths,
             verify_crc: true,
             compression: None,
         })
@@ -228,6 +245,14 @@ impl TFRecordDataset {
     }
 }
 
+impl Dataset for TFRecordDataset {
+    type Iter = TFRecordIterator;
+
+    fn iter(self) -> Self::Iter {
+        TFRecordIterator::new(self.paths, self.verify_crc, self.compression)
+    }
+}
+
 /// Iterator over examples in TFRecord files.
 pub struct TFRecordIterator {
     paths: Vec<PathBuf>,
@@ -238,7 +263,11 @@ pub struct TFRecordIterator {
 }
 
 impl TFRecordIterator {
-    fn new(paths: Vec<PathBuf>, verify_crc: bool, compression: Option<CompressionType>) -> Self {
+    pub(crate) fn new(
+        paths: Vec<PathBuf>,
+        verify_crc: bool,
+        compression: Option<CompressionType>,
+    ) -> Self {
         Self {
             paths,
             current_file_index: 0,

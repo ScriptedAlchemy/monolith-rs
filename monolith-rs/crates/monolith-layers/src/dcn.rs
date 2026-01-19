@@ -49,7 +49,9 @@
 //! - [DCN V2: Improved Deep & Cross Network](https://arxiv.org/abs/2008.13535)
 
 use crate::error::LayerError;
+use crate::initializer::Initializer;
 use crate::layer::Layer;
+use crate::regularizer::Regularizer;
 use crate::tensor::Tensor;
 use serde::{Deserialize, Serialize};
 
@@ -68,6 +70,9 @@ pub enum DCNMode {
     ///
     /// This provides richer feature interaction modeling at the cost of more parameters.
     Matrix,
+
+    /// DCN-Mixed: mixture of low-rank experts with gating.
+    Mixed,
 }
 
 /// Configuration for the Deep & Cross Network.
@@ -93,6 +98,12 @@ pub struct DCNConfig {
 
     /// DCN mode (Vector or Matrix)
     pub mode: DCNMode,
+    /// Initializer for cross layer weights
+    pub initializer: Initializer,
+    /// Kernel regularizer for cross layer weights
+    pub regularizer: Regularizer,
+    /// Whether to enable kernel norm (weight normalization)
+    pub allow_kernel_norm: bool,
 }
 
 impl DCNConfig {
@@ -117,6 +128,9 @@ impl DCNConfig {
             input_dim,
             num_cross_layers,
             mode: DCNMode::default(),
+            initializer: Initializer::GlorotUniform,
+            regularizer: Regularizer::None,
+            allow_kernel_norm: false,
         }
     }
 
@@ -136,6 +150,24 @@ impl DCNConfig {
     /// ```
     pub fn with_mode(mut self, mode: DCNMode) -> Self {
         self.mode = mode;
+        self
+    }
+
+    /// Sets initializer for cross layer weights.
+    pub fn with_initializer(mut self, initializer: Initializer) -> Self {
+        self.initializer = initializer;
+        self
+    }
+
+    /// Sets kernel regularizer for cross layer weights.
+    pub fn with_regularizer(mut self, regularizer: Regularizer) -> Self {
+        self.regularizer = regularizer;
+        self
+    }
+
+    /// Enables kernel norm (weight normalization).
+    pub fn with_kernel_norm(mut self, allow: bool) -> Self {
+        self.allow_kernel_norm = allow;
         self
     }
 }
@@ -168,6 +200,14 @@ pub struct CrossLayer {
 
     /// Bias tensor of shape [d]
     bias: Tensor,
+    /// Whether to apply kernel norm (weight normalization)
+    allow_kernel_norm: bool,
+    /// Trainable kernel norm scale
+    kernel_norm: Option<Tensor>,
+    /// Gradient of kernel norm scale
+    kernel_norm_grad: Option<Tensor>,
+    /// Kernel regularizer
+    kernel_regularizer: Regularizer,
 
     /// Input dimension
     input_dim: usize,
@@ -209,24 +249,49 @@ impl CrossLayer {
     /// let layer = CrossLayer::new(64, DCNMode::Vector);
     /// ```
     pub fn new(input_dim: usize, mode: DCNMode) -> Self {
+        Self::new_with_options(
+            input_dim,
+            mode,
+            Initializer::GlorotUniform,
+            Regularizer::None,
+            false,
+        )
+    }
+
+    /// Creates a new cross layer with custom options.
+    pub fn new_with_options(
+        input_dim: usize,
+        mode: DCNMode,
+        initializer: Initializer,
+        kernel_regularizer: Regularizer,
+        allow_kernel_norm: bool,
+    ) -> Self {
         let weight = match mode {
-            DCNMode::Vector => {
-                // Xavier initialization for vector: [d, 1]
-                let std = (2.0 / (input_dim + 1) as f32).sqrt();
-                Tensor::randn(&[input_dim, 1], 0.0, std)
-            }
-            DCNMode::Matrix => {
-                // Xavier initialization for matrix: [d, d]
-                let std = (2.0 / (input_dim + input_dim) as f32).sqrt();
-                Tensor::randn(&[input_dim, input_dim], 0.0, std)
-            }
+            DCNMode::Vector => initializer.initialize(&[input_dim, 1]),
+            DCNMode::Matrix => initializer.initialize(&[input_dim, input_dim]),
+            DCNMode::Mixed => Tensor::zeros(&[input_dim, 1]),
         };
 
         let bias = Tensor::zeros(&[input_dim]);
+        let kernel_norm = if allow_kernel_norm {
+            let out_dim = weight.shape()[1];
+            let norm = weight
+                .sqr()
+                .sum_axis(0)
+                .add(&Tensor::from_data(&[out_dim], vec![1e-6; out_dim]))
+                .sqrt();
+            Some(norm)
+        } else {
+            None
+        };
 
         Self {
             weight,
             bias,
+            allow_kernel_norm,
+            kernel_norm,
+            kernel_norm_grad: None,
+            kernel_regularizer,
             input_dim,
             mode,
             weight_grad: None,
@@ -235,6 +300,32 @@ impl CrossLayer {
             cached_xl: None,
             training: true,
         }
+    }
+
+    fn normalized_weight(&self) -> (Tensor, Tensor) {
+        let out_dim = self.weight.shape()[1];
+        let eps = Tensor::from_data(&[out_dim], vec![1e-6; out_dim]);
+        let norm = self.weight.sqr().sum_axis(0).add(&eps).sqrt();
+        let norm_b = norm
+            .reshape(&[1, out_dim])
+            .broadcast_as(self.weight.shape());
+        let w_norm = self.weight.div(&norm_b);
+        (norm, w_norm)
+    }
+
+    fn effective_weight(&self) -> Tensor {
+        if !self.allow_kernel_norm {
+            return self.weight.clone();
+        }
+        let (_norm, mut w_norm) = self.normalized_weight();
+        if let Some(scale) = &self.kernel_norm {
+            let out_dim = self.weight.shape()[1];
+            let scale_b = scale
+                .reshape(&[1, out_dim])
+                .broadcast_as(self.weight.shape());
+            w_norm = w_norm.mul(&scale_b);
+        }
+        w_norm
     }
 
     /// Returns the input dimension.
@@ -252,9 +343,19 @@ impl CrossLayer {
         &self.weight
     }
 
+    /// Returns a mutable reference to the weight tensor.
+    pub fn weight_mut(&mut self) -> &mut Tensor {
+        &mut self.weight
+    }
+
     /// Returns a reference to the bias tensor.
     pub fn bias(&self) -> &Tensor {
         &self.bias
+    }
+
+    /// Returns a mutable reference to the bias tensor.
+    pub fn bias_mut(&mut self) -> &mut Tensor {
+        &mut self.bias
     }
 
     /// Returns the weight gradient if available.
@@ -273,6 +374,7 @@ impl CrossLayer {
         self.cached_xl = None;
         self.weight_grad = None;
         self.bias_grad = None;
+        self.kernel_norm_grad = None;
     }
 
     /// Performs forward pass with explicit x0 (base input).
@@ -339,6 +441,12 @@ impl CrossLayer {
 
         let batch_size = x0.shape()[0];
 
+        if self.mode == DCNMode::Mixed {
+            return Err(LayerError::ForwardError {
+                message: "CrossLayer does not support Mixed mode; use DCNLayer".to_string(),
+            });
+        }
+
         // Compute based on mode
         let output = match self.mode {
             DCNMode::Vector => {
@@ -348,18 +456,13 @@ impl CrossLayer {
                 // Then we need to broadcast multiply with x_0
 
                 // Step 1: xl @ w -> [batch, 1]
-                let xl_w = xl.matmul(&self.weight);
+                let weights = self.effective_weight();
+                let xl_w = xl.matmul(&weights);
 
-                // Step 2: Add bias (broadcast) -> [batch, d]
-                // xl_w is [batch, 1], need to broadcast to [batch, d] and add bias
-                let mut interaction = vec![0.0f32; batch_size * self.input_dim];
-                for i in 0..batch_size {
-                    let scalar = xl_w.data()[i];
-                    for j in 0..self.input_dim {
-                        interaction[i * self.input_dim + j] = scalar + self.bias.data()[j];
-                    }
-                }
-                let interaction = Tensor::from_data(&[batch_size, self.input_dim], interaction);
+                // Step 2: Broadcast and add bias -> [batch, d]
+                let interaction = xl_w
+                    .broadcast_as(&[batch_size, self.input_dim])
+                    .add(&self.bias);
 
                 // Step 3: x_0 * interaction (element-wise)
                 let cross = x0.mul(&interaction);
@@ -372,7 +475,8 @@ impl CrossLayer {
                 // W is [d, d]
 
                 // Step 1: xl @ W -> [batch, d]
-                let xl_w = xl.matmul(&self.weight);
+                let weights = self.effective_weight();
+                let xl_w = xl.matmul(&weights);
 
                 // Step 2: Add bias -> [batch, d]
                 let interaction = xl_w.add(&self.bias);
@@ -383,6 +487,7 @@ impl CrossLayer {
                 // Step 4: Add residual xl
                 cross.add(xl)
             }
+            DCNMode::Mixed => unreachable!("Mixed mode handled before match"),
         };
 
         Ok(output)
@@ -443,16 +548,11 @@ impl Layer for CrossLayer {
                 // d_xl_from_w = d_interaction_scalar @ w^T -> [batch, d]
 
                 // Recompute interaction for gradient
-                let xl_w = xl.matmul(&self.weight);
-                let mut interaction_data = vec![0.0f32; batch_size * self.input_dim];
-                for i in 0..batch_size {
-                    let scalar = xl_w.data()[i];
-                    for j in 0..self.input_dim {
-                        interaction_data[i * self.input_dim + j] = scalar + self.bias.data()[j];
-                    }
-                }
-                let interaction =
-                    Tensor::from_data(&[batch_size, self.input_dim], interaction_data);
+                let weights_eff = self.effective_weight();
+                let xl_w = xl.matmul(&weights_eff);
+                let interaction = xl_w
+                    .broadcast_as(&[batch_size, self.input_dim])
+                    .add(&self.bias);
 
                 // d_interaction = grad * x0
                 let d_interaction = grad.mul(x0);
@@ -464,11 +564,49 @@ impl Layer for CrossLayer {
                 let d_interaction_scalar_vec = d_interaction.sum_axis(1);
                 let d_interaction_scalar = d_interaction_scalar_vec.reshape(&[batch_size, 1]);
 
-                // d_weight = xl^T @ d_interaction_scalar -> [d, 1]
-                self.weight_grad = Some(xl.transpose().matmul(&d_interaction_scalar));
+                // d_weight for effective weight
+                let weights_grad_eff = xl.transpose().matmul(&d_interaction_scalar);
 
-                // d_xl from weight path = d_interaction_scalar @ w^T
-                let d_xl_w = d_interaction_scalar.matmul(&self.weight.transpose());
+                if !self.allow_kernel_norm {
+                    let mut weight_grad = weights_grad_eff.clone();
+                    if let Some(reg_grad) = self.kernel_regularizer.grad(&self.weight) {
+                        weight_grad = weight_grad.add(&reg_grad);
+                    }
+                    self.weight_grad = Some(weight_grad);
+                } else {
+                    let (norm, w_norm) = self.normalized_weight();
+                    let out_dim = self.weight.shape()[1];
+                    let norm_b = norm
+                        .reshape(&[1, out_dim])
+                        .broadcast_as(self.weight.shape());
+
+                    let weights_grad_norm = if let Some(scale) = &self.kernel_norm {
+                        let scale_b = scale
+                            .reshape(&[1, out_dim])
+                            .broadcast_as(self.weight.shape());
+                        weights_grad_eff.mul(&scale_b)
+                    } else {
+                        weights_grad_eff.clone()
+                    };
+
+                    let dot = weights_grad_norm.mul(&w_norm).sum_axis(0);
+                    let dot_b = dot
+                        .reshape(&[1, out_dim])
+                        .broadcast_as(self.weight.shape());
+                    let mut weight_grad =
+                        weights_grad_norm.sub(&w_norm.mul(&dot_b)).div(&norm_b);
+                    if let Some(reg_grad) = self.kernel_regularizer.grad(&self.weight) {
+                        weight_grad = weight_grad.add(&reg_grad);
+                    }
+                    self.weight_grad = Some(weight_grad);
+                    if self.kernel_norm.is_some() {
+                        let kernel_norm_grad = weights_grad_eff.mul(&w_norm).sum_axis(0);
+                        self.kernel_norm_grad = Some(kernel_norm_grad);
+                    }
+                }
+
+                // d_xl from weight path = d_interaction_scalar @ w_eff^T
+                let d_xl_w = d_interaction_scalar.matmul(&weights_eff.transpose());
 
                 // d_x0 = grad * interaction
                 let _d_x0 = grad.mul(&interaction);
@@ -494,7 +632,8 @@ impl Layer for CrossLayer {
                 // d_xl = grad (residual) + d_xl_from_w
 
                 // Recompute interaction
-                let xl_w = xl.matmul(&self.weight);
+                let weights_eff = self.effective_weight();
+                let xl_w = xl.matmul(&weights_eff);
                 let interaction = xl_w.add(&self.bias);
 
                 // d_interaction = grad * x0
@@ -503,11 +642,49 @@ impl Layer for CrossLayer {
                 // d_bias = sum(d_interaction, axis=0)
                 self.bias_grad = Some(d_interaction.sum_axis(0));
 
-                // d_weight = xl^T @ d_interaction
-                self.weight_grad = Some(xl.transpose().matmul(&d_interaction));
+                // d_weight for effective weight
+                let weights_grad_eff = xl.transpose().matmul(&d_interaction);
+
+                if !self.allow_kernel_norm {
+                    let mut weight_grad = weights_grad_eff.clone();
+                    if let Some(reg_grad) = self.kernel_regularizer.grad(&self.weight) {
+                        weight_grad = weight_grad.add(&reg_grad);
+                    }
+                    self.weight_grad = Some(weight_grad);
+                } else {
+                    let (norm, w_norm) = self.normalized_weight();
+                    let out_dim = self.weight.shape()[1];
+                    let norm_b = norm
+                        .reshape(&[1, out_dim])
+                        .broadcast_as(self.weight.shape());
+
+                    let weights_grad_norm = if let Some(scale) = &self.kernel_norm {
+                        let scale_b = scale
+                            .reshape(&[1, out_dim])
+                            .broadcast_as(self.weight.shape());
+                        weights_grad_eff.mul(&scale_b)
+                    } else {
+                        weights_grad_eff.clone()
+                    };
+
+                    let dot = weights_grad_norm.mul(&w_norm).sum_axis(0);
+                    let dot_b = dot
+                        .reshape(&[1, out_dim])
+                        .broadcast_as(self.weight.shape());
+                    let mut weight_grad =
+                        weights_grad_norm.sub(&w_norm.mul(&dot_b)).div(&norm_b);
+                    if let Some(reg_grad) = self.kernel_regularizer.grad(&self.weight) {
+                        weight_grad = weight_grad.add(&reg_grad);
+                    }
+                    self.weight_grad = Some(weight_grad);
+                    if self.kernel_norm.is_some() {
+                        let kernel_norm_grad = weights_grad_eff.mul(&w_norm).sum_axis(0);
+                        self.kernel_norm_grad = Some(kernel_norm_grad);
+                    }
+                }
 
                 // d_xl from weight path
-                let d_xl_w = d_interaction.matmul(&self.weight.transpose());
+                let d_xl_w = d_interaction.matmul(&weights_eff.transpose());
 
                 // d_x0 = grad * interaction
                 let _d_x0 = grad.mul(&interaction);
@@ -517,19 +694,34 @@ impl Layer for CrossLayer {
 
                 Ok(d_xl)
             }
+            DCNMode::Mixed => Err(LayerError::BackwardError {
+                message: "CrossLayer does not support Mixed mode; use DCNLayer".to_string(),
+            }),
         }
     }
 
     fn parameters(&self) -> Vec<&Tensor> {
-        vec![&self.weight, &self.bias]
+        let mut params = vec![&self.weight, &self.bias];
+        if let Some(kernel_norm) = &self.kernel_norm {
+            params.push(kernel_norm);
+        }
+        params
     }
 
     fn parameters_mut(&mut self) -> Vec<&mut Tensor> {
-        vec![&mut self.weight, &mut self.bias]
+        let mut params = vec![&mut self.weight, &mut self.bias];
+        if let Some(kernel_norm) = &mut self.kernel_norm {
+            params.push(kernel_norm);
+        }
+        params
     }
 
     fn name(&self) -> &str {
         "CrossLayer"
+    }
+
+    fn regularization_loss(&self) -> f32 {
+        self.kernel_regularizer.loss(&self.weight)
     }
 
     fn is_training(&self) -> bool {
@@ -600,7 +792,15 @@ impl CrossNetwork {
     /// ```
     pub fn from_config(config: &DCNConfig) -> Self {
         let layers: Vec<CrossLayer> = (0..config.num_cross_layers)
-            .map(|_| CrossLayer::new(config.input_dim, config.mode))
+            .map(|_| {
+                CrossLayer::new_with_options(
+                    config.input_dim,
+                    config.mode,
+                    config.initializer,
+                    config.regularizer.clone(),
+                    config.allow_kernel_norm,
+                )
+            })
             .collect();
 
         Self {
@@ -633,6 +833,9 @@ impl CrossNetwork {
             input_dim,
             num_cross_layers: num_layers,
             mode,
+            initializer: Initializer::GlorotUniform,
+            regularizer: Regularizer::None,
+            allow_kernel_norm: false,
         };
         Self::from_config(&config)
     }
@@ -997,5 +1200,682 @@ mod tests {
         let output = network.forward(&input).unwrap();
 
         assert_eq!(output.shape(), &[4, 16]);
+    }
+}
+
+/// Mixed cross layer (DCN-Mixed) with low-rank experts and gating.
+#[derive(Debug, Clone)]
+pub struct MixedCrossLayer {
+    input_dim: usize,
+    num_experts: usize,
+    low_rank: usize,
+    bias: Tensor,
+    allow_kernel_norm: bool,
+    kernel_regularizer: Regularizer,
+    u: Vec<Tensor>,
+    v: Vec<Tensor>,
+    c: Vec<Tensor>,
+    g: Vec<Tensor>,
+    u_norm: Vec<Option<Tensor>>,
+    v_norm: Vec<Option<Tensor>>,
+    c_norm: Vec<Option<Tensor>>,
+    g_norm: Vec<Option<Tensor>>,
+    u_norm_grad: Vec<Option<Tensor>>,
+    v_norm_grad: Vec<Option<Tensor>>,
+    c_norm_grad: Vec<Option<Tensor>>,
+    g_norm_grad: Vec<Option<Tensor>>,
+    u_grad: Vec<Option<Tensor>>,
+    v_grad: Vec<Option<Tensor>>,
+    c_grad: Vec<Option<Tensor>>,
+    g_grad: Vec<Option<Tensor>>,
+    bias_grad: Option<Tensor>,
+    cached_x0: Option<Tensor>,
+    cached_xl: Option<Tensor>,
+    cached_v: Vec<Tensor>,
+    cached_cv: Vec<Tensor>,
+    cached_ucv: Vec<Tensor>,
+    cached_g: Vec<Tensor>,
+    cached_out_stack: Option<Tensor>,
+    cached_weights: Option<Tensor>,
+}
+
+impl MixedCrossLayer {
+    pub fn new(
+        input_dim: usize,
+        num_experts: usize,
+        low_rank: usize,
+        initializer: Initializer,
+        kernel_regularizer: Regularizer,
+        allow_kernel_norm: bool,
+    ) -> Self {
+        let mut u = Vec::new();
+        let mut v = Vec::new();
+        let mut c = Vec::new();
+        let mut g = Vec::new();
+        let mut u_norm = Vec::new();
+        let mut v_norm = Vec::new();
+        let mut c_norm = Vec::new();
+        let mut g_norm = Vec::new();
+        for _ in 0..num_experts {
+            let u_w = initializer.initialize(&[input_dim, low_rank]);
+            let v_w = initializer.initialize(&[input_dim, low_rank]);
+            let c_w = initializer.initialize(&[low_rank, low_rank]);
+            let g_w = initializer.initialize(&[input_dim, 1]);
+
+            let u_scale = if allow_kernel_norm {
+                let norm = u_w
+                    .sqr()
+                    .sum_axis(0)
+                    .add(&Tensor::from_data(&[low_rank], vec![1e-6; low_rank]))
+                    .sqrt();
+                Some(norm)
+            } else {
+                None
+            };
+            let v_scale = if allow_kernel_norm {
+                let norm = v_w
+                    .sqr()
+                    .sum_axis(0)
+                    .add(&Tensor::from_data(&[low_rank], vec![1e-6; low_rank]))
+                    .sqrt();
+                Some(norm)
+            } else {
+                None
+            };
+            let c_scale = if allow_kernel_norm {
+                let norm = c_w
+                    .sqr()
+                    .sum_axis(0)
+                    .add(&Tensor::from_data(&[low_rank], vec![1e-6; low_rank]))
+                    .sqrt();
+                Some(norm)
+            } else {
+                None
+            };
+            let g_scale = if allow_kernel_norm {
+                let norm = g_w
+                    .sqr()
+                    .sum_axis(0)
+                    .add(&Tensor::from_data(&[1], vec![1e-6]))
+                    .sqrt();
+                Some(norm)
+            } else {
+                None
+            };
+
+            u.push(u_w);
+            v.push(v_w);
+            c.push(c_w);
+            g.push(g_w);
+            u_norm.push(u_scale);
+            v_norm.push(v_scale);
+            c_norm.push(c_scale);
+            g_norm.push(g_scale);
+        }
+        Self {
+            input_dim,
+            num_experts,
+            low_rank,
+            bias: Tensor::zeros(&[input_dim]),
+            allow_kernel_norm,
+            kernel_regularizer,
+            u,
+            v,
+            c,
+            g,
+            u_norm,
+            v_norm,
+            c_norm,
+            g_norm,
+            u_norm_grad: vec![None; num_experts],
+            v_norm_grad: vec![None; num_experts],
+            c_norm_grad: vec![None; num_experts],
+            g_norm_grad: vec![None; num_experts],
+            u_grad: vec![None; num_experts],
+            v_grad: vec![None; num_experts],
+            c_grad: vec![None; num_experts],
+            g_grad: vec![None; num_experts],
+            bias_grad: None,
+            cached_x0: None,
+            cached_xl: None,
+            cached_v: Vec::new(),
+            cached_cv: Vec::new(),
+            cached_ucv: Vec::new(),
+            cached_g: Vec::new(),
+            cached_out_stack: None,
+            cached_weights: None,
+        }
+    }
+
+    pub fn clear_cache(&mut self) {
+        self.cached_x0 = None;
+        self.cached_xl = None;
+        self.cached_v.clear();
+        self.cached_cv.clear();
+        self.cached_ucv.clear();
+        self.cached_g.clear();
+        self.cached_out_stack = None;
+        self.cached_weights = None;
+        self.bias_grad = None;
+        for g in &mut self.u_grad {
+            *g = None;
+        }
+        for g in &mut self.v_grad {
+            *g = None;
+        }
+        for g in &mut self.c_grad {
+            *g = None;
+        }
+        for g in &mut self.g_grad {
+            *g = None;
+        }
+        for g in &mut self.u_norm_grad {
+            *g = None;
+        }
+        for g in &mut self.v_norm_grad {
+            *g = None;
+        }
+        for g in &mut self.c_norm_grad {
+            *g = None;
+        }
+        for g in &mut self.g_norm_grad {
+            *g = None;
+        }
+    }
+
+    fn effective_weight(weight: &Tensor, scale: Option<&Tensor>) -> Tensor {
+        if let Some(scale) = scale {
+            let out_dim = weight.shape()[1];
+            let norm = weight
+                .sqr()
+                .sum_axis(0)
+                .add(&Tensor::from_data(&[out_dim], vec![1e-6; out_dim]))
+                .sqrt();
+            let norm_b = norm.reshape(&[1, out_dim]).broadcast_as(weight.shape());
+            let w_norm = weight.div(&norm_b);
+            let scale_b = scale
+                .reshape(&[1, out_dim])
+                .broadcast_as(weight.shape());
+            w_norm.mul(&scale_b)
+        } else {
+            weight.clone()
+        }
+    }
+
+    fn weight_grad_with_norm(
+        weight: &Tensor,
+        grad_eff: &Tensor,
+        scale: Option<&Tensor>,
+    ) -> (Tensor, Option<Tensor>) {
+        if let Some(scale) = scale {
+            let out_dim = weight.shape()[1];
+            let norm = weight
+                .sqr()
+                .sum_axis(0)
+                .add(&Tensor::from_data(&[out_dim], vec![1e-6; out_dim]))
+                .sqrt();
+            let norm_b = norm.reshape(&[1, out_dim]).broadcast_as(weight.shape());
+            let w_norm = weight.div(&norm_b);
+            let scale_b = scale
+                .reshape(&[1, out_dim])
+                .broadcast_as(weight.shape());
+            let grad_norm = grad_eff.mul(&scale_b);
+            let dot = grad_norm.mul(&w_norm).sum_axis(0);
+            let dot_b = dot.reshape(&[1, out_dim]).broadcast_as(weight.shape());
+            let weight_grad = grad_norm.sub(&w_norm.mul(&dot_b)).div(&norm_b);
+            let scale_grad = grad_eff.mul(&w_norm).sum_axis(0);
+            (weight_grad, Some(scale_grad))
+        } else {
+            (grad_eff.clone(), None)
+        }
+    }
+
+    fn regularization_loss(&self) -> f32 {
+        let mut loss = 0.0;
+        for u in &self.u {
+            loss += self.kernel_regularizer.loss(u);
+        }
+        for v in &self.v {
+            loss += self.kernel_regularizer.loss(v);
+        }
+        for c in &self.c {
+            loss += self.kernel_regularizer.loss(c);
+        }
+        for g in &self.g {
+            loss += self.kernel_regularizer.loss(g);
+        }
+        loss
+    }
+
+    fn forward_internal(&mut self, x0: &Tensor, xl: &Tensor, cache: bool) -> Result<Tensor, LayerError> {
+        let batch = x0.shape()[0];
+        let bias_b = self
+            .bias
+            .reshape(&[1, self.input_dim])
+            .broadcast_as(&[batch, self.input_dim]);
+
+        let mut g_list = Vec::with_capacity(self.num_experts);
+        let mut v_list = Vec::with_capacity(self.num_experts);
+        let mut cv_list = Vec::with_capacity(self.num_experts);
+        let mut ucv_list = Vec::with_capacity(self.num_experts);
+        let mut out_list = Vec::with_capacity(self.num_experts);
+
+        for i in 0..self.num_experts {
+            let g_w = Self::effective_weight(&self.g[i], self.g_norm[i].as_ref());
+            let v_w = Self::effective_weight(&self.v[i], self.v_norm[i].as_ref());
+            let c_w = Self::effective_weight(&self.c[i], self.c_norm[i].as_ref());
+            let u_w = Self::effective_weight(&self.u[i], self.u_norm[i].as_ref());
+
+            let g = xl.matmul(&g_w);
+            let v = xl.matmul(&v_w).tanh();
+            let cv = v.matmul(&c_w).tanh();
+            let ucv = cv.matmul(&u_w.transpose());
+            let out = x0.mul(&ucv.add(&bias_b));
+
+            g_list.push(g);
+            v_list.push(v);
+            cv_list.push(cv);
+            ucv_list.push(ucv);
+            out_list.push(out);
+        }
+
+        let g_stack = Tensor::stack(&g_list, 1); // [B, E, 1]
+        let weights = g_stack.softmax(1);
+        let out_stack = Tensor::stack(&out_list, 2); // [B, D, E]
+        let mixed = out_stack.matmul(&weights).reshape(&[batch, self.input_dim]);
+        let output = mixed.add(xl);
+
+        if cache {
+            self.cached_x0 = Some(x0.clone());
+            self.cached_xl = Some(xl.clone());
+            self.cached_g = g_list;
+            self.cached_v = v_list;
+            self.cached_cv = cv_list;
+            self.cached_ucv = ucv_list;
+            self.cached_out_stack = Some(out_stack);
+            self.cached_weights = Some(weights);
+        }
+
+        Ok(output)
+    }
+
+    pub fn forward_with_x0(&mut self, x0: &Tensor, xl: &Tensor) -> Result<Tensor, LayerError> {
+        self.forward_internal(x0, xl, false)
+    }
+
+    pub fn forward_train_with_x0(&mut self, x0: &Tensor, xl: &Tensor) -> Result<Tensor, LayerError> {
+        self.forward_internal(x0, xl, true)
+    }
+
+    pub fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
+        let x0 = self.cached_x0.as_ref().ok_or(LayerError::NotInitialized)?;
+        let xl = self.cached_xl.as_ref().ok_or(LayerError::NotInitialized)?;
+        let out_stack = self.cached_out_stack.as_ref().ok_or(LayerError::NotInitialized)?;
+        let weights = self.cached_weights.as_ref().ok_or(LayerError::NotInitialized)?;
+
+        let batch = grad.shape()[0];
+        let grad_y = grad.reshape(&[batch, self.input_dim, 1]);
+
+        let weights_t = weights.transpose_dims(1, 2); // [B, 1, E]
+        let grad_out_stack = grad_y.matmul(&weights_t); // [B, D, E]
+
+        let out_stack_t = out_stack.transpose_dims(1, 2); // [B, E, D]
+        let grad_weights = out_stack_t.matmul(&grad_y); // [B, E, 1]
+        let dot = grad_weights.mul(weights).sum_axis(1); // [B, 1]
+        let dot_b = dot.reshape(&[batch, 1, 1]).broadcast_as(weights.shape());
+        let grad_g_stack = weights.mul(&grad_weights.sub(&dot_b)); // [B, E, 1]
+
+        let grad_out_list = grad_out_stack.unstack(2);
+        let grad_g_list = grad_g_stack.unstack(1);
+
+        let mut grad_xl = grad.clone();
+        let mut bias_grad = Tensor::zeros(&[self.input_dim]);
+
+        for i in 0..self.num_experts {
+            let grad_out = &grad_out_list[i];
+            let grad_g = &grad_g_list[i];
+            let v = &self.cached_v[i];
+            let cv = &self.cached_cv[i];
+            let u_eff = Self::effective_weight(&self.u[i], self.u_norm[i].as_ref());
+            let v_eff = Self::effective_weight(&self.v[i], self.v_norm[i].as_ref());
+            let c_eff = Self::effective_weight(&self.c[i], self.c_norm[i].as_ref());
+            let g_eff = Self::effective_weight(&self.g[i], self.g_norm[i].as_ref());
+
+            // out = x0 * (ucv + bias)
+            let grad_ucv = grad_out.mul(x0);
+            bias_grad = bias_grad.add(&grad_out.mul(x0).sum_axis(0));
+
+            // ucv = cv @ U^T
+            let grad_u_eff = grad_ucv.transpose().matmul(cv);
+            let grad_cv = grad_ucv.matmul(&u_eff);
+
+            // cv = tanh(v @ C)
+            let grad_t = grad_cv.mul(&Tensor::ones(cv.shape()).sub(&cv.sqr()));
+            let grad_c_eff = v.transpose().matmul(&grad_t);
+            let grad_v = grad_t.matmul(&c_eff.transpose());
+
+            // v = tanh(xl @ V)
+            let grad_t2 = grad_v.mul(&Tensor::ones(v.shape()).sub(&v.sqr()));
+            let grad_v_eff = xl.transpose().matmul(&grad_t2);
+            let grad_xl_v = grad_t2.matmul(&v_eff.transpose());
+
+            // g = xl @ G
+            let grad_g_eff = xl.transpose().matmul(grad_g);
+            let grad_xl_g = grad_g.matmul(&g_eff.transpose());
+
+            grad_xl = grad_xl.add(&grad_xl_v).add(&grad_xl_g);
+
+            let (mut grad_u, u_norm_grad) =
+                Self::weight_grad_with_norm(&self.u[i], &grad_u_eff, self.u_norm[i].as_ref());
+            if let Some(reg_grad) = self.kernel_regularizer.grad(&self.u[i]) {
+                grad_u = grad_u.add(&reg_grad);
+            }
+            self.u_grad[i] = Some(grad_u);
+            self.u_norm_grad[i] = u_norm_grad;
+
+            let (mut grad_v_w, v_norm_grad) =
+                Self::weight_grad_with_norm(&self.v[i], &grad_v_eff, self.v_norm[i].as_ref());
+            if let Some(reg_grad) = self.kernel_regularizer.grad(&self.v[i]) {
+                grad_v_w = grad_v_w.add(&reg_grad);
+            }
+            self.v_grad[i] = Some(grad_v_w);
+            self.v_norm_grad[i] = v_norm_grad;
+
+            let (mut grad_c_w, c_norm_grad) =
+                Self::weight_grad_with_norm(&self.c[i], &grad_c_eff, self.c_norm[i].as_ref());
+            if let Some(reg_grad) = self.kernel_regularizer.grad(&self.c[i]) {
+                grad_c_w = grad_c_w.add(&reg_grad);
+            }
+            self.c_grad[i] = Some(grad_c_w);
+            self.c_norm_grad[i] = c_norm_grad;
+
+            let (mut grad_g_w, g_norm_grad) =
+                Self::weight_grad_with_norm(&self.g[i], &grad_g_eff, self.g_norm[i].as_ref());
+            if let Some(reg_grad) = self.kernel_regularizer.grad(&self.g[i]) {
+                grad_g_w = grad_g_w.add(&reg_grad);
+            }
+            self.g_grad[i] = Some(grad_g_w);
+            self.g_norm_grad[i] = g_norm_grad;
+        }
+
+        self.bias_grad = Some(bias_grad);
+
+        Ok(grad_xl)
+    }
+
+    pub fn parameters(&self) -> Vec<&Tensor> {
+        let mut params = Vec::new();
+        params.push(&self.bias);
+        for i in 0..self.num_experts {
+            params.push(&self.u[i]);
+            params.push(&self.v[i]);
+            params.push(&self.c[i]);
+            params.push(&self.g[i]);
+            if let Some(norm) = &self.u_norm[i] {
+                params.push(norm);
+            }
+            if let Some(norm) = &self.v_norm[i] {
+                params.push(norm);
+            }
+            if let Some(norm) = &self.c_norm[i] {
+                params.push(norm);
+            }
+            if let Some(norm) = &self.g_norm[i] {
+                params.push(norm);
+            }
+        }
+        params
+    }
+
+    pub fn parameters_mut(&mut self) -> Vec<&mut Tensor> {
+        let mut params = Vec::new();
+        params.push(&mut self.bias);
+        for u in &mut self.u {
+            params.push(u);
+        }
+        for v in &mut self.v {
+            params.push(v);
+        }
+        for c in &mut self.c {
+            params.push(c);
+        }
+        for g in &mut self.g {
+            params.push(g);
+        }
+        for norm in &mut self.u_norm {
+            if let Some(norm) = norm {
+                params.push(norm);
+            }
+        }
+        for norm in &mut self.v_norm {
+            if let Some(norm) = norm {
+                params.push(norm);
+            }
+        }
+        for norm in &mut self.c_norm {
+            if let Some(norm) = norm {
+                params.push(norm);
+            }
+        }
+        for norm in &mut self.g_norm {
+            if let Some(norm) = norm {
+                params.push(norm);
+            }
+        }
+        params
+    }
+}
+
+/// DCN layer matching Python DCN (vector/matrix/mixed).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DCNLayerConfig {
+    pub input_dim: usize,
+    pub layer_num: usize,
+    pub dcn_type: DCNMode,
+    pub num_experts: usize,
+    pub low_rank: usize,
+    pub initializer: Initializer,
+    pub regularizer: Regularizer,
+    pub allow_kernel_norm: bool,
+    pub use_dropout: bool,
+    pub keep_prob: f32,
+    pub training: bool,
+}
+
+impl DCNLayerConfig {
+    pub fn new(input_dim: usize, layer_num: usize) -> Self {
+        Self {
+            input_dim,
+            layer_num,
+            dcn_type: DCNMode::Matrix,
+            num_experts: 1,
+            low_rank: 0,
+            initializer: Initializer::GlorotUniform,
+            regularizer: Regularizer::None,
+            allow_kernel_norm: false,
+            use_dropout: false,
+            keep_prob: 0.95,
+            training: true,
+        }
+    }
+
+    pub fn with_mode(mut self, mode: DCNMode) -> Self {
+        self.dcn_type = mode;
+        self
+    }
+
+    pub fn with_mixed(mut self, num_experts: usize, low_rank: usize) -> Self {
+        self.dcn_type = DCNMode::Mixed;
+        self.num_experts = num_experts;
+        self.low_rank = low_rank;
+        self
+    }
+
+    pub fn with_initializer(mut self, initializer: Initializer) -> Self {
+        self.initializer = initializer;
+        self
+    }
+
+    pub fn with_regularizer(mut self, regularizer: Regularizer) -> Self {
+        self.regularizer = regularizer;
+        self
+    }
+
+    pub fn with_kernel_norm(mut self, allow: bool) -> Self {
+        self.allow_kernel_norm = allow;
+        self
+    }
+
+    pub fn with_dropout(mut self, keep_prob: f32) -> Self {
+        self.use_dropout = true;
+        self.keep_prob = keep_prob;
+        self
+    }
+}
+
+#[derive(Debug, Clone)]
+enum DCNLayerKind {
+    Basic(CrossLayer),
+    Mixed(MixedCrossLayer),
+}
+
+/// DCN layer that supports vector/matrix/mixed.
+#[derive(Debug, Clone)]
+pub struct DCNLayer {
+    layers: Vec<DCNLayerKind>,
+    config: DCNLayerConfig,
+    cached_x0: Option<Tensor>,
+}
+
+impl DCNLayer {
+    pub fn from_config(config: DCNLayerConfig) -> Self {
+        let mut layers = Vec::new();
+        for _ in 0..config.layer_num {
+            let layer = match config.dcn_type {
+                DCNMode::Vector | DCNMode::Matrix => DCNLayerKind::Basic(
+                    CrossLayer::new_with_options(
+                        config.input_dim,
+                        config.dcn_type,
+                        config.initializer,
+                        config.regularizer.clone(),
+                        config.allow_kernel_norm,
+                    ),
+                ),
+                DCNMode::Mixed => DCNLayerKind::Mixed(MixedCrossLayer::new(
+                    config.input_dim,
+                    config.num_experts,
+                    config.low_rank,
+                    config.initializer,
+                    config.regularizer.clone(),
+                    config.allow_kernel_norm,
+                )),
+            };
+            layers.push(layer);
+        }
+        Self {
+            layers,
+            config,
+            cached_x0: None,
+        }
+    }
+
+    fn apply_dropout(&self, input: &Tensor) -> Tensor {
+        if !self.config.use_dropout || !self.config.training {
+            return input.clone();
+        }
+        let mask = Tensor::rand(input.shape()).ge_scalar(1.0 - self.config.keep_prob);
+        input.mul(&mask).scale(1.0 / self.config.keep_prob)
+    }
+
+    pub fn forward_train(&mut self, input: &Tensor) -> Result<Tensor, LayerError> {
+        self.cached_x0 = Some(input.clone());
+        let x0 = input;
+        let mut xl = input.clone();
+        let use_dropout = self.config.use_dropout && self.config.training;
+        let keep_prob = self.config.keep_prob;
+        for layer in &mut self.layers {
+            xl = match layer {
+                DCNLayerKind::Basic(l) => l.forward_train_with_x0(x0, &xl)?,
+                DCNLayerKind::Mixed(l) => l.forward_train_with_x0(x0, &xl)?,
+            };
+            if use_dropout {
+                let mask = Tensor::rand(xl.shape()).ge_scalar(1.0 - keep_prob);
+                xl = xl.mul(&mask).scale(1.0 / keep_prob);
+            }
+        }
+        Ok(xl)
+    }
+}
+
+impl Layer for DCNLayer {
+    fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
+        let x0 = input;
+        let mut xl = input.clone();
+        for layer in &self.layers {
+            xl = match layer {
+                DCNLayerKind::Basic(l) => l.forward_with_x0(x0, &xl)?,
+                DCNLayerKind::Mixed(l) => {
+                    let mut layer = l.clone();
+                    layer.forward_with_x0(x0, &xl)?
+                }
+            };
+        }
+        Ok(xl)
+    }
+
+    fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
+        let _x0 = self.cached_x0.as_ref().ok_or(LayerError::NotInitialized)?;
+        let mut current_grad = grad.clone();
+        for layer in self.layers.iter_mut().rev() {
+            current_grad = match layer {
+                DCNLayerKind::Basic(l) => l.backward(&current_grad)?,
+                DCNLayerKind::Mixed(l) => l.backward(&current_grad)?,
+            };
+        }
+        Ok(current_grad)
+    }
+
+    fn parameters(&self) -> Vec<&Tensor> {
+        let mut params = Vec::new();
+        for layer in &self.layers {
+            match layer {
+                DCNLayerKind::Basic(l) => params.extend(l.parameters()),
+                DCNLayerKind::Mixed(l) => params.extend(l.parameters()),
+            }
+        }
+        params
+    }
+
+    fn parameters_mut(&mut self) -> Vec<&mut Tensor> {
+        let mut params = Vec::new();
+        for layer in &mut self.layers {
+            match layer {
+                DCNLayerKind::Basic(l) => params.extend(l.parameters_mut()),
+                DCNLayerKind::Mixed(l) => params.extend(l.parameters_mut()),
+            }
+        }
+        params
+    }
+
+    fn name(&self) -> &str {
+        "DCNLayer"
+    }
+
+    fn regularization_loss(&self) -> f32 {
+        self.layers
+            .iter()
+            .map(|layer| match layer {
+                DCNLayerKind::Basic(l) => l.regularization_loss(),
+                DCNLayerKind::Mixed(l) => l.regularization_loss(),
+            })
+            .sum()
+    }
+
+    fn is_training(&self) -> bool {
+        self.config.training
+    }
+
+    fn set_training(&mut self, training: bool) {
+        self.config.training = training;
     }
 }

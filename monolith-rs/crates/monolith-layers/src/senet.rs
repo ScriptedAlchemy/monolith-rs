@@ -29,9 +29,13 @@
 //! assert_eq!(output.shape(), &[32, 64]);
 //! ```
 
+use crate::constraint::Constraint;
 use crate::dense::Dense;
 use crate::error::LayerError;
+use crate::initializer::Initializer;
 use crate::layer::Layer;
+use crate::merge::{merge_tensor_list, merge_tensor_list_tensor, MergeOutput, MergeType};
+use crate::regularizer::Regularizer;
 use crate::tensor::Tensor;
 use serde::{Deserialize, Serialize};
 
@@ -53,8 +57,24 @@ pub struct SENetConfig {
     /// Reduction ratio for the squeeze operation (default: 4).
     /// The bottleneck dimension will be input_dim / reduction_ratio.
     pub reduction_ratio: usize,
+    /// Explicit compression dimension (overrides reduction_ratio when set).
+    pub cmp_dim: Option<usize>,
     /// Whether to use bias in FC layers (default: true).
     pub use_bias: bool,
+    /// Initializer for FC layers.
+    pub initializer: Initializer,
+    /// Kernel regularizer for FC layers.
+    pub regularizer: Regularizer,
+    /// Merge output type (stack/concat/none).
+    pub out_type: MergeType,
+    /// Whether to keep list output (only used by forward_with_merge).
+    pub keep_list: bool,
+    /// Optional num_feature override for 2D inputs.
+    pub num_feature: Option<usize>,
+    /// Whether to use GPU-optimized path (kept for parity, no-op here).
+    pub on_gpu: bool,
+    /// Whether to use the compression tower (fc1/fc2). When false, weights are identity.
+    pub use_cmp_tower: bool,
 }
 
 impl SENetConfig {
@@ -71,7 +91,15 @@ impl SENetConfig {
         Self {
             input_dim,
             reduction_ratio: 4,
+            cmp_dim: None,
             use_bias: true,
+            initializer: Initializer::GlorotUniform,
+            regularizer: Regularizer::None,
+            out_type: MergeType::Concat,
+            keep_list: false,
+            num_feature: Some(input_dim),
+            on_gpu: false,
+            use_cmp_tower: true,
         }
     }
 
@@ -88,6 +116,12 @@ impl SENetConfig {
         self
     }
 
+    /// Sets an explicit compression dimension (overrides reduction_ratio).
+    pub fn with_cmp_dim(mut self, cmp_dim: usize) -> Self {
+        self.cmp_dim = Some(cmp_dim);
+        self
+    }
+
     /// Sets whether to use bias in the FC layers.
     ///
     /// # Arguments
@@ -95,6 +129,48 @@ impl SENetConfig {
     /// * `use_bias` - Whether to include bias terms
     pub fn with_bias(mut self, use_bias: bool) -> Self {
         self.use_bias = use_bias;
+        self
+    }
+
+    /// Sets initializer for FC layers.
+    pub fn with_initializer(mut self, initializer: Initializer) -> Self {
+        self.initializer = initializer;
+        self
+    }
+
+    /// Sets kernel regularizer for FC layers.
+    pub fn with_regularizer(mut self, regularizer: Regularizer) -> Self {
+        self.regularizer = regularizer;
+        self
+    }
+
+    /// Sets the merge output type.
+    pub fn with_out_type(mut self, out_type: MergeType) -> Self {
+        self.out_type = out_type;
+        self
+    }
+
+    /// Sets whether to keep list output.
+    pub fn with_keep_list(mut self, keep_list: bool) -> Self {
+        self.keep_list = keep_list;
+        self
+    }
+
+    /// Sets num_feature override for 2D inputs.
+    pub fn with_num_feature(mut self, num_feature: usize) -> Self {
+        self.num_feature = Some(num_feature);
+        self
+    }
+
+    /// Sets on_gpu flag (no-op, kept for parity).
+    pub fn with_on_gpu(mut self, on_gpu: bool) -> Self {
+        self.on_gpu = on_gpu;
+        self
+    }
+
+    /// Disables the compression tower (fc1/fc2); uses identity weights.
+    pub fn with_use_cmp_tower(mut self, use_cmp_tower: bool) -> Self {
+        self.use_cmp_tower = use_cmp_tower;
         self
     }
 
@@ -153,21 +229,39 @@ impl SENetConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SENetLayer {
     /// First FC layer for reduction (squeeze)
-    fc1: Dense,
+    fc1: Option<Dense>,
     /// Second FC layer for expansion (excitation)
-    fc2: Dense,
+    fc2: Option<Dense>,
     /// Input dimension (number of features)
     input_dim: usize,
-    /// Bottleneck dimension (input_dim / reduction_ratio)
+    /// Bottleneck dimension (input_dim / reduction_ratio or cmp_dim)
     bottleneck_dim: usize,
     /// Reduction ratio
     reduction_ratio: usize,
+    /// Explicit compression dimension (if set)
+    cmp_dim: Option<usize>,
+    /// Output merge type
+    out_type: MergeType,
+    /// Keep list output
+    keep_list: bool,
+    /// Optional num_feature override for 2D inputs
+    num_feature: Option<usize>,
+    /// Whether to use compression tower
+    use_cmp_tower: bool,
     /// Cached input for backward pass
     cached_input: Option<Tensor>,
+    /// Cached list inputs for backward pass
+    cached_list_inputs: Option<Vec<Tensor>>,
+    /// Cached list squeeze embedding
+    cached_list_squeeze: Option<Tensor>,
     /// Cached attention weights for backward pass
     cached_attention: Option<Tensor>,
     /// Cached intermediate activations for backward pass
     cached_fc1_output: Option<Tensor>,
+    /// Cached original input shape
+    cached_input_shape: Option<Vec<usize>>,
+    /// Whether input was reshaped to 3D
+    cached_input_was_reshaped: bool,
     /// Training mode flag
     training: bool,
 }
@@ -196,27 +290,48 @@ impl SENetLayer {
         assert!(reduction_ratio > 0, "reduction_ratio must be positive");
         let bottleneck_dim = (input_dim / reduction_ratio).max(1);
 
-        let fc1 = if use_bias {
-            Dense::new(input_dim, bottleneck_dim)
-        } else {
-            Dense::new_no_bias(input_dim, bottleneck_dim)
-        };
+        let fc1 = Dense::new_with_options(
+            input_dim,
+            bottleneck_dim,
+            Initializer::GlorotUniform,
+            Initializer::Zeros,
+            use_bias,
+            Regularizer::None,
+            Regularizer::None,
+            Constraint::None,
+            Constraint::None,
+        );
 
-        let fc2 = if use_bias {
-            Dense::new(bottleneck_dim, input_dim)
-        } else {
-            Dense::new_no_bias(bottleneck_dim, input_dim)
-        };
+        let fc2 = Dense::new_with_options(
+            bottleneck_dim,
+            input_dim,
+            Initializer::GlorotUniform,
+            Initializer::Zeros,
+            use_bias,
+            Regularizer::None,
+            Regularizer::None,
+            Constraint::None,
+            Constraint::None,
+        );
 
         Self {
-            fc1,
-            fc2,
+            fc1: Some(fc1),
+            fc2: Some(fc2),
             input_dim,
             bottleneck_dim,
             reduction_ratio,
+            cmp_dim: None,
+            out_type: MergeType::Concat,
+            keep_list: false,
+            num_feature: Some(input_dim),
+            use_cmp_tower: true,
             cached_input: None,
+            cached_list_inputs: None,
+            cached_list_squeeze: None,
             cached_attention: None,
             cached_fc1_output: None,
+            cached_input_shape: None,
+            cached_input_was_reshaped: false,
             training: true,
         }
     }
@@ -241,8 +356,17 @@ impl SENetLayer {
                 message: "input_dim must be positive".to_string(),
             });
         }
-        let bottleneck_dim = config.input_dim / config.reduction_ratio;
-        if bottleneck_dim == 0 {
+        let use_cmp_tower = config.use_cmp_tower;
+        let bottleneck_dim = if use_cmp_tower {
+            if let Some(cmp_dim) = config.cmp_dim {
+                cmp_dim
+            } else {
+                config.input_dim / config.reduction_ratio
+            }
+        } else {
+            config.input_dim
+        };
+        if use_cmp_tower && bottleneck_dim == 0 {
             return Err(LayerError::ConfigError {
                 message: format!(
                     "Bottleneck dimension is 0: input_dim={} / reduction_ratio={} = 0. \
@@ -251,12 +375,57 @@ impl SENetLayer {
                 ),
             });
         }
+        let fc1 = if use_cmp_tower {
+            Some(Dense::new_with_options(
+                config.input_dim,
+                bottleneck_dim,
+                config.initializer,
+                Initializer::Zeros,
+                config.use_bias,
+                config.regularizer.clone(),
+                Regularizer::None,
+                Constraint::None,
+                Constraint::None,
+            ))
+        } else {
+            None
+        };
+        let fc2 = if use_cmp_tower {
+            Some(Dense::new_with_options(
+                bottleneck_dim,
+                config.input_dim,
+                config.initializer,
+                Initializer::Zeros,
+                config.use_bias,
+                config.regularizer,
+                Regularizer::None,
+                Constraint::None,
+                Constraint::None,
+            ))
+        } else {
+            None
+        };
 
-        Ok(Self::new(
-            config.input_dim,
-            config.reduction_ratio,
-            config.use_bias,
-        ))
+        Ok(Self {
+            fc1,
+            fc2,
+            input_dim: config.input_dim,
+            bottleneck_dim,
+            reduction_ratio: config.reduction_ratio,
+            cmp_dim: config.cmp_dim,
+            out_type: config.out_type,
+            keep_list: config.keep_list,
+            num_feature: config.num_feature,
+            use_cmp_tower,
+            cached_input: None,
+            cached_list_inputs: None,
+            cached_list_squeeze: None,
+            cached_attention: None,
+            cached_fc1_output: None,
+            cached_input_shape: None,
+            cached_input_was_reshaped: false,
+            training: true,
+        })
     }
 
     /// Returns the input dimension.
@@ -281,11 +450,27 @@ impl SENetLayer {
         self.cached_attention.as_ref()
     }
 
+    /// Returns mutable references to the dense layers (fc1, fc2) if present.
+    pub fn layers_mut(&mut self) -> Vec<&mut Dense> {
+        let mut layers = Vec::new();
+        if let Some(fc1) = &mut self.fc1 {
+            layers.push(fc1);
+        }
+        if let Some(fc2) = &mut self.fc2 {
+            layers.push(fc2);
+        }
+        layers
+    }
+
     /// Clears cached values.
     pub fn clear_cache(&mut self) {
         self.cached_input = None;
+        self.cached_list_inputs = None;
+        self.cached_list_squeeze = None;
         self.cached_attention = None;
         self.cached_fc1_output = None;
+        self.cached_input_shape = None;
+        self.cached_input_was_reshaped = false;
     }
 
     /// Applies ReLU activation element-wise.
@@ -322,74 +507,300 @@ impl SENetLayer {
     ///
     /// Output tensor of the same shape as input, with features reweighted
     pub fn forward_train(&mut self, input: &Tensor) -> Result<Tensor, LayerError> {
-        // Validate input
-        if input.ndim() != 2 {
+        let (input3d, used_3d, original_shape) = if input.ndim() == 3 {
+            (input.clone(), true, input.shape().to_vec())
+        } else if input.ndim() == 2 {
+            if let Some(num_feature) = self.num_feature {
+                if num_feature > 1 {
+                    let emb_size = input.shape()[1] / num_feature;
+                    (
+                        input.reshape(&[input.shape()[0], num_feature, emb_size]),
+                        true,
+                        input.shape().to_vec(),
+                    )
+                } else {
+                    (input.clone(), false, input.shape().to_vec())
+                }
+            } else {
+                (input.clone(), false, input.shape().to_vec())
+            }
+        } else {
             return Err(LayerError::ForwardError {
-                message: format!("Expected 2D input, got {}D", input.ndim()),
+                message: format!("Expected 2D/3D input, got {}D", input.ndim()),
             });
-        }
-        if input.shape()[1] != self.input_dim {
-            return Err(LayerError::InvalidInputDimension {
-                expected: self.input_dim,
-                actual: input.shape()[1],
-            });
-        }
+        };
 
-        // Cache input
-        self.cached_input = Some(input.clone());
+        self.cached_input = Some(input3d.clone());
+        self.cached_input_shape = Some(original_shape.clone());
+        self.cached_input_was_reshaped = used_3d && input.ndim() == 2;
 
-        // Squeeze and Excitation
-        // For 2D feature input, we directly apply the excitation network
-        // FC1: input_dim -> bottleneck_dim, then ReLU
-        let fc1_out = self.fc1.forward(input)?;
-        let fc1_relu = Self::relu(&fc1_out);
-        self.cached_fc1_output = Some(fc1_out);
+        let (batch, num_feat, emb_dim) = if used_3d {
+            (input3d.shape()[0], input3d.shape()[1], input3d.shape()[2])
+        } else {
+            (input3d.shape()[0], input3d.shape()[1], 1)
+        };
 
-        // FC2: bottleneck_dim -> input_dim, then Sigmoid
-        let fc2_out = self.fc2.forward(&fc1_relu)?;
-        let attention = Self::sigmoid(&fc2_out);
+        let squeeze = if used_3d {
+            input3d.mean_axis(2)
+        } else {
+            input3d.clone()
+        };
+
+        let (attention, fc1_cache) = if let (Some(fc1), Some(fc2)) = (&mut self.fc1, &mut self.fc2) {
+            let fc1_out = fc1.forward_train(&squeeze)?;
+            let fc1_relu = Self::relu(&fc1_out);
+            let fc2_out = fc2.forward_train(&fc1_relu)?;
+            let attention = Self::sigmoid(&fc2_out);
+            (attention, Some(fc1_out))
+        } else {
+            (squeeze.clone(), None)
+        };
+        self.cached_fc1_output = fc1_cache;
         self.cached_attention = Some(attention.clone());
 
-        // Scale: element-wise multiplication
-        let output = self.scale_features(input, &attention);
+        let output = if used_3d {
+            let attn_b = attention
+                .reshape(&[batch, num_feat, 1])
+                .broadcast_as(&[batch, num_feat, emb_dim]);
+            input3d.mul(&attn_b)
+        } else {
+            input3d.mul(&attention)
+        };
 
-        Ok(output)
+        let merged = if used_3d {
+            match self.out_type {
+                MergeType::Concat => merge_tensor_list_tensor(vec![output], MergeType::Concat, None, 1),
+                MergeType::Stack => output,
+                MergeType::None => {
+                    return Err(LayerError::ForwardError {
+                        message: "SENet forward cannot return list when out_type is None".to_string(),
+                    })
+                }
+            }
+        } else {
+            output
+        };
+
+        Ok(merged)
     }
 
-    /// Scales input features by attention weights with broadcasting.
-    fn scale_features(&self, input: &Tensor, attention: &Tensor) -> Tensor {
-        input.mul(attention)
+    fn squeeze_list_inputs(inputs: &[Tensor]) -> Result<Tensor, LayerError> {
+        if inputs.is_empty() {
+            return Err(LayerError::ForwardError {
+                message: "SENet expects non-empty input list".to_string(),
+            });
+        }
+        let batch = inputs[0].shape()[0];
+        let mut parts = Vec::with_capacity(inputs.len());
+        for input in inputs {
+            if input.ndim() != 2 {
+                return Err(LayerError::ForwardError {
+                    message: "SENet list inputs must be 2D tensors".to_string(),
+                });
+            }
+            if input.shape()[0] != batch {
+                return Err(LayerError::ShapeMismatch {
+                    expected: vec![batch],
+                    actual: vec![input.shape()[0]],
+                });
+            }
+            let mean = input.mean_axis(1);
+            let mean = mean.reshape(&[batch, 1]);
+            parts.push(mean);
+        }
+        Ok(Tensor::cat(&parts, 1))
     }
+
+    fn split_attention_2d(attention: &Tensor, num_feat: usize) -> Result<Vec<Tensor>, LayerError> {
+        if attention.ndim() != 2 || attention.shape()[1] != num_feat {
+            return Err(LayerError::ShapeMismatch {
+                expected: vec![attention.shape()[0], num_feat],
+                actual: attention.shape().to_vec(),
+            });
+        }
+        let mut weights = Vec::with_capacity(num_feat);
+        for i in 0..num_feat {
+            weights.push(attention.narrow(1, i, 1));
+        }
+        Ok(weights)
+    }
+
+    fn broadcast_weight_2d(weight: &Tensor, target: &Tensor) -> Tensor {
+        let batch = target.shape()[0];
+        let mut shape = vec![1usize; target.ndim()];
+        shape[0] = batch;
+        if weight.ndim() == 2 {
+            shape[1] = weight.shape()[1];
+        }
+        let w = if weight.shape().len() == shape.len() {
+            weight.clone()
+        } else {
+            weight.reshape(&shape)
+        };
+        w.broadcast_as(target.shape())
+    }
+
+    /// Forward pass for list inputs (each tensor must be 2D).
+    pub fn forward_train_with_list(&mut self, inputs: &[Tensor]) -> Result<MergeOutput, LayerError> {
+        let squeeze = Self::squeeze_list_inputs(inputs)?;
+        self.cached_list_inputs = Some(inputs.to_vec());
+        self.cached_list_squeeze = Some(squeeze.clone());
+
+        let (attention, fc1_cache) = if let (Some(fc1), Some(fc2)) = (&mut self.fc1, &mut self.fc2) {
+            let fc1_out = fc1.forward_train(&squeeze)?;
+            let fc1_relu = Self::relu(&fc1_out);
+            let fc2_out = fc2.forward_train(&fc1_relu)?;
+            let attention = Self::sigmoid(&fc2_out);
+            (attention, Some(fc1_out))
+        } else {
+            (squeeze.clone(), None)
+        };
+
+        self.cached_fc1_output = fc1_cache;
+        self.cached_attention = Some(attention.clone());
+
+        let weights = Self::split_attention_2d(&attention, inputs.len())?;
+        let mut outputs = Vec::with_capacity(inputs.len());
+        for (input, weight) in inputs.iter().zip(weights.iter()) {
+            let weight_b = Self::broadcast_weight_2d(weight, input);
+            outputs.push(input.mul(&weight_b));
+        }
+
+        Ok(merge_tensor_list(
+            outputs,
+            self.out_type,
+            Some(inputs.len()),
+            1,
+            self.keep_list,
+        ))
+    }
+
+    /// Backward pass for list inputs (expects gradients for each output).
+    pub fn backward_with_list(&mut self, grads: &[Tensor]) -> Result<Vec<Tensor>, LayerError> {
+        let inputs = self
+            .cached_list_inputs
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
+        if grads.len() != inputs.len() {
+            return Err(LayerError::BackwardError {
+                message: "SENet backward expects one grad per input tensor".to_string(),
+            });
+        }
+        let attention = self
+            .cached_attention
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
+
+        let weights = Self::split_attention_2d(attention, inputs.len())?;
+
+        let mut grad_attention_parts = Vec::with_capacity(inputs.len());
+        let mut input_grads = Vec::with_capacity(inputs.len());
+        for ((grad, input), weight) in grads.iter().zip(inputs.iter()).zip(weights.iter()) {
+            if input.ndim() != 2 {
+                return Err(LayerError::BackwardError {
+                    message: "SENet list backward only supports 2D inputs".to_string(),
+                });
+            }
+            let weight_b = Self::broadcast_weight_2d(weight, input);
+            input_grads.push(grad.mul(&weight_b));
+
+            let grad_weight = grad.mul(input).sum_axis(1).reshape(&[input.shape()[0], 1]);
+            grad_attention_parts.push(grad_weight);
+        }
+
+        let grad_attention = Tensor::cat(&grad_attention_parts, 1);
+
+        let grad_squeeze = if let (Some(fc1), Some(fc2), Some(fc1_output)) =
+            (&mut self.fc1, &mut self.fc2, self.cached_fc1_output.as_ref())
+        {
+            let attention_grad = Self::sigmoid_grad(attention);
+            let grad_fc2 = grad_attention.mul(&attention_grad);
+            let grad_fc1_relu = fc2.backward(&grad_fc2)?;
+            let relu_grad = Self::relu_grad(fc1_output);
+            let grad_fc1 = grad_fc1_relu.mul(&relu_grad);
+            fc1.backward(&grad_fc1)?
+        } else {
+            grad_attention
+        };
+
+        // propagate squeeze gradient back to inputs (mean over axis 1)
+        for (idx, input) in inputs.iter().enumerate() {
+            let grad_slice = grad_squeeze.narrow(1, idx, 1);
+            let denom = input.shape()[1] as f32;
+            let grad_b = grad_slice
+                .reshape(&[input.shape()[0], 1])
+                .broadcast_as(&[input.shape()[0], input.shape()[1]])
+                .scale(1.0 / denom);
+            input_grads[idx] = input_grads[idx].add(&grad_b);
+        }
+
+        Ok(input_grads)
+    }
+
 }
 
 impl Layer for SENetLayer {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
-        // Validate input
-        if input.ndim() != 2 {
+        let (input3d, used_3d) = if input.ndim() == 3 {
+            (input.clone(), true)
+        } else if input.ndim() == 2 {
+            if let Some(num_feature) = self.num_feature {
+                if num_feature > 1 {
+                    let emb_size = input.shape()[1] / num_feature;
+                    (input.reshape(&[input.shape()[0], num_feature, emb_size]), true)
+                } else {
+                    (input.clone(), false)
+                }
+            } else {
+                (input.clone(), false)
+            }
+        } else {
             return Err(LayerError::ForwardError {
-                message: format!("Expected 2D input, got {}D", input.ndim()),
+                message: format!("Expected 2D/3D input, got {}D", input.ndim()),
             });
+        };
+
+        let (batch, num_feat, emb_dim) = if used_3d {
+            (input3d.shape()[0], input3d.shape()[1], input3d.shape()[2])
+        } else {
+            (input3d.shape()[0], input3d.shape()[1], 1)
+        };
+
+        let squeeze = if used_3d {
+            input3d.mean_axis(2)
+        } else {
+            input3d.clone()
+        };
+
+        let attention = if let (Some(fc1), Some(fc2)) = (&self.fc1, &self.fc2) {
+            let fc1_out = fc1.forward(&squeeze)?;
+            let fc1_relu = Self::relu(&fc1_out);
+            let fc2_out = fc2.forward(&fc1_relu)?;
+            Self::sigmoid(&fc2_out)
+        } else {
+            squeeze.clone()
+        };
+
+        let output = if used_3d {
+            let attn_b = attention
+                .reshape(&[batch, num_feat, 1])
+                .broadcast_as(&[batch, num_feat, emb_dim]);
+            input3d.mul(&attn_b)
+        } else {
+            input3d.mul(&attention)
+        };
+
+        if used_3d {
+            match self.out_type {
+                MergeType::Concat => Ok(merge_tensor_list_tensor(vec![output], MergeType::Concat, None, 1)),
+                MergeType::Stack => Ok(output),
+                MergeType::None => Err(LayerError::ForwardError {
+                    message: "SENet forward cannot return list when out_type is None".to_string(),
+                }),
+            }
+        } else {
+            Ok(output)
         }
-        if input.shape()[1] != self.input_dim {
-            return Err(LayerError::InvalidInputDimension {
-                expected: self.input_dim,
-                actual: input.shape()[1],
-            });
-        }
-
-        // Squeeze and Excitation
-        // FC1: input_dim -> bottleneck_dim, then ReLU
-        let fc1_out = self.fc1.forward(input)?;
-        let fc1_relu = Self::relu(&fc1_out);
-
-        // FC2: bottleneck_dim -> input_dim, then Sigmoid
-        let fc2_out = self.fc2.forward(&fc1_relu)?;
-        let attention = Self::sigmoid(&fc2_out);
-
-        // Scale: element-wise multiplication
-        let output = self.scale_features(input, &attention);
-
-        Ok(output)
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
@@ -401,66 +812,110 @@ impl Layer for SENetLayer {
             .cached_attention
             .as_ref()
             .ok_or(LayerError::NotInitialized)?;
-        let fc1_output = self
-            .cached_fc1_output
-            .as_ref()
-            .ok_or(LayerError::NotInitialized)?;
+        let fc1_output = self.cached_fc1_output.as_ref();
 
-        // Validate gradient shape
-        if grad.shape() != input.shape() {
-            return Err(LayerError::ShapeMismatch {
-                expected: input.shape().to_vec(),
-                actual: grad.shape().to_vec(),
-            });
+        let input_is_3d = input.ndim() == 3;
+        let (batch, num_feat, emb_dim) = if input_is_3d {
+            (input.shape()[0], input.shape()[1], input.shape()[2])
+        } else {
+            (input.shape()[0], input.shape()[1], 1)
+        };
+
+        let grad_out = if input_is_3d {
+            match self.out_type {
+                MergeType::Concat => {
+                    let shape = vec![batch, num_feat, emb_dim];
+                    grad.reshape(&shape)
+                }
+                MergeType::Stack => grad.clone(),
+                MergeType::None => {
+                    return Err(LayerError::BackwardError {
+                        message: "SENet backward cannot accept list output".to_string(),
+                    })
+                }
+            }
+        } else {
+            grad.clone()
+        };
+
+        let (grad_input_scale, grad_attention) = if input_is_3d {
+            let attn_b = attention
+                .reshape(&[batch, num_feat, 1])
+                .broadcast_as(&[batch, num_feat, emb_dim]);
+            let grad_input_scale = grad_out.mul(&attn_b);
+            let grad_attention = grad_out.mul(input).sum_axis(2);
+            (grad_input_scale, grad_attention)
+        } else {
+            (grad_out.mul(attention), grad_out.mul(input))
+        };
+
+        let grad_squeeze = if let (Some(fc1), Some(fc2), Some(fc1_output)) =
+            (&mut self.fc1, &mut self.fc2, fc1_output)
+        {
+            let attention_grad = Self::sigmoid_grad(attention);
+            let grad_fc2 = grad_attention.mul(&attention_grad);
+            let grad_fc1_relu = fc2.backward(&grad_fc2)?;
+            let relu_grad = Self::relu_grad(fc1_output);
+            let grad_fc1 = grad_fc1_relu.mul(&relu_grad);
+            fc1.backward(&grad_fc1)?
+        } else {
+            grad_attention.clone()
+        };
+
+        let grad_input_fc1 = if input_is_3d {
+            grad_squeeze
+                .reshape(&[batch, num_feat, 1])
+                .broadcast_as(&[batch, num_feat, emb_dim])
+                .scale(1.0 / emb_dim as f32)
+        } else {
+            grad_squeeze
+        };
+
+        let mut grad_input = grad_input_scale.add(&grad_input_fc1);
+        if self.cached_input_was_reshaped {
+            if let Some(orig_shape) = &self.cached_input_shape {
+                grad_input = grad_input.reshape(orig_shape);
+            }
         }
 
-        // Backward through scale: output = input * attention
-        // d_loss/d_input = d_loss/d_output * attention
-        // d_loss/d_attention = d_loss/d_output * input
-        let d_attention = grad.mul(input);
-        let d_input_from_scale = grad.mul(attention);
-
-        // Backward through sigmoid
-        let sigmoid_grad = Self::sigmoid_grad(attention);
-        let d_fc2_out = d_attention.mul(&sigmoid_grad);
-
-        // Backward through FC2
-        // We need to compute gradients for fc2's weights
-        let _fc1_relu = Self::relu(fc1_output);
-
-        // For proper backward, we would need to call fc2.backward()
-        // But since fc2 didn't cache inputs, we compute the input gradient manually
-        // d_loss/d_fc1_relu = d_fc2_out @ fc2.weights^T
-        let d_fc1_relu = d_fc2_out.matmul(&self.fc2.weights().transpose());
-
-        // Backward through ReLU
-        let relu_grad = Self::relu_grad(fc1_output);
-        let d_fc1_out = d_fc1_relu.mul(&relu_grad);
-
-        // Backward through FC1
-        // d_loss/d_input_from_excitation = d_fc1_out @ fc1.weights^T
-        let d_input_from_excitation = d_fc1_out.matmul(&self.fc1.weights().transpose());
-
-        // Total gradient is sum of gradients from both paths
-        let d_input = d_input_from_scale.add(&d_input_from_excitation);
-
-        Ok(d_input)
+        Ok(grad_input)
     }
 
     fn parameters(&self) -> Vec<&Tensor> {
-        let mut params = self.fc1.parameters();
-        params.extend(self.fc2.parameters());
+        let mut params = Vec::new();
+        if let Some(fc1) = &self.fc1 {
+            params.extend(fc1.parameters());
+        }
+        if let Some(fc2) = &self.fc2 {
+            params.extend(fc2.parameters());
+        }
         params
     }
 
     fn parameters_mut(&mut self) -> Vec<&mut Tensor> {
-        let mut params = self.fc1.parameters_mut();
-        params.extend(self.fc2.parameters_mut());
+        let mut params = Vec::new();
+        if let Some(fc1) = &mut self.fc1 {
+            params.extend(fc1.parameters_mut());
+        }
+        if let Some(fc2) = &mut self.fc2 {
+            params.extend(fc2.parameters_mut());
+        }
         params
     }
 
     fn name(&self) -> &str {
         "SENetLayer"
+    }
+
+    fn regularization_loss(&self) -> f32 {
+        let mut loss = 0.0;
+        if let Some(fc1) = &self.fc1 {
+            loss += fc1.regularization_loss();
+        }
+        if let Some(fc2) = &self.fc2 {
+            loss += fc2.regularization_loss();
+        }
+        loss
     }
 
     fn is_training(&self) -> bool {
@@ -469,6 +924,15 @@ impl Layer for SENetLayer {
 
     fn set_training(&mut self, training: bool) {
         self.training = training;
+    }
+
+    fn apply_constraints(&mut self) {
+        if let Some(fc1) = &mut self.fc1 {
+            fc1.apply_constraints();
+        }
+        if let Some(fc2) = &mut self.fc2 {
+            fc2.apply_constraints();
+        }
     }
 }
 
@@ -516,17 +980,15 @@ mod tests {
     fn test_senet_from_config_error() {
         // Test invalid reduction ratio
         let config = SENetConfig {
-            input_dim: 64,
             reduction_ratio: 0,
-            use_bias: true,
+            ..SENetConfig::new(64)
         };
         assert!(SENetLayer::from_config(config).is_err());
 
         // Test bottleneck dimension becoming 0
         let config = SENetConfig {
-            input_dim: 4,
             reduction_ratio: 8,
-            use_bias: true,
+            ..SENetConfig::new(4)
         };
         assert!(SENetLayer::from_config(config).is_err());
     }
@@ -584,7 +1046,7 @@ mod tests {
 
         if let Some(attention) = senet_train.last_attention_weights() {
             // All attention weights should be between 0 and 1 (sigmoid output)
-            for &val in attention.data() {
+            for val in attention.data() {
                 assert!(
                     val >= 0.0 && val <= 1.0,
                     "Attention weight {} out of range",

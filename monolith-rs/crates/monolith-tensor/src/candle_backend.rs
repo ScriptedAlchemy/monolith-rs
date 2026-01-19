@@ -136,10 +136,50 @@ impl CandleTensor {
         Self::from_candle(inner)
     }
 
+    /// Concatenates tensors along the specified dimension.
+    pub fn cat(args: &[Self], dim: usize) -> Self {
+        let refs: Vec<&CandleTensorInner> = args.iter().map(|t| &t.inner).collect();
+        let inner = CandleTensorInner::cat(&refs, dim).expect("Failed to cat tensors");
+        Self::from_candle(inner)
+    }
+
+    /// Narrows this tensor along the specified dimension.
+    pub fn narrow(&self, dim: usize, start: usize, len: usize) -> Self {
+        let inner = self
+            .inner
+            .narrow(dim, start, len)
+            .expect("Failed to narrow tensor");
+        Self::from_candle(inner)
+    }
+
+    /// Removes a dimension of size one.
+    pub fn squeeze(&self, dim: usize) -> Self {
+        let inner = self.inner.squeeze(dim).expect("Failed to squeeze tensor");
+        Self::from_candle(inner)
+    }
+
     /// Transposes a 2D tensor.
     pub fn transpose(&self) -> Self {
         assert_eq!(self.ndim(), 2, "transpose only works on 2D tensors");
         let inner = self.inner.t().expect("Failed to transpose");
+        Self::from_candle(inner)
+    }
+
+    /// Transposes two dimensions of the tensor.
+    pub fn transpose_dims(&self, dim1: usize, dim2: usize) -> Self {
+        let inner = self
+            .inner
+            .transpose(dim1, dim2)
+            .expect("Failed to transpose dims");
+        Self::from_candle(inner)
+    }
+
+    /// Permutes tensor dimensions.
+    pub fn permute(&self, dims: &[usize]) -> Self {
+        let inner = self
+            .inner
+            .permute(dims)
+            .expect("Failed to permute dims");
         Self::from_candle(inner)
     }
 
@@ -257,6 +297,51 @@ impl CandleTensor {
         Self::from_candle(inner)
     }
 
+    /// Clamps values to the range [min, max].
+    pub fn clamp(&self, min: f32, max: f32) -> Self {
+        let inner = self
+            .inner
+            .clamp(min, max)
+            .expect("Failed to clamp tensor");
+        Self::from_candle(inner)
+    }
+
+    /// Element-wise greater-than comparison with a scalar.
+    pub fn gt_scalar(&self, value: f32) -> Self {
+        let inner = self
+            .inner
+            .gt(value)
+            .expect("Failed to compare tensor (gt)");
+        Self::from_candle(inner)
+    }
+
+    /// Element-wise greater-than-or-equal comparison with a scalar.
+    pub fn ge_scalar(&self, value: f32) -> Self {
+        let inner = self
+            .inner
+            .ge(value)
+            .expect("Failed to compare tensor (ge)");
+        Self::from_candle(inner)
+    }
+
+    /// Element-wise less-than comparison with a scalar.
+    pub fn lt_scalar(&self, value: f32) -> Self {
+        let inner = self
+            .inner
+            .lt(value)
+            .expect("Failed to compare tensor (lt)");
+        Self::from_candle(inner)
+    }
+
+    /// Element-wise less-than-or-equal comparison with a scalar.
+    pub fn le_scalar(&self, value: f32) -> Self {
+        let inner = self
+            .inner
+            .le(value)
+            .expect("Failed to compare tensor (le)");
+        Self::from_candle(inner)
+    }
+
     /// Returns element-wise square root.
     pub fn sqrt(&self) -> Self {
         let inner = self.inner.sqrt().expect("Failed to compute sqrt");
@@ -281,6 +366,21 @@ impl CandleTensor {
         Self::from_candle(inner)
     }
 
+    /// Returns element-wise maximum between two tensors (broadcasting supported).
+    pub fn maximum(&self, other: &Self) -> Self {
+        let inner = self
+            .inner
+            .broadcast_maximum(&other.inner)
+            .expect("Failed to compute maximum");
+        Self::from_candle(inner)
+    }
+
+    /// Applies GELU (erf-based) activation.
+    pub fn gelu_erf(&self) -> Self {
+        let inner = self.inner.gelu_erf().expect("Failed to compute gelu_erf");
+        Self::from_candle(inner)
+    }
+
     /// Sums along the specified axis.
     pub fn sum_axis(&self, dim: usize) -> Self {
         let inner = self.inner.sum(dim).expect("Failed to sum");
@@ -290,6 +390,12 @@ impl CandleTensor {
     /// Computes mean along the specified axis.
     pub fn mean_axis(&self, dim: usize) -> Self {
         let inner = self.inner.mean(dim).expect("Failed to mean");
+        Self::from_candle(inner)
+    }
+
+    /// Computes max along the specified axis.
+    pub fn max_axis(&self, dim: usize) -> Self {
+        let inner = self.inner.max(dim).expect("Failed to max");
         Self::from_candle(inner)
     }
 

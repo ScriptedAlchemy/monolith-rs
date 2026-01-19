@@ -258,8 +258,9 @@ impl EmbeddingLookup {
         }
 
         let dim = self.dim();
+        let grad_data = grad.data_ref();
         for (i, &id) in ids.iter().enumerate() {
-            let grad_slice = &grad.data()[i * dim..(i + 1) * dim];
+            let grad_slice = &grad_data[i * dim..(i + 1) * dim];
 
             self.grad_accumulator
                 .entry(id)
@@ -313,11 +314,12 @@ impl Layer for EmbeddingLookup {
             });
         }
 
+        let input_data = input.data_ref();
         let ids: Vec<u64> = if input.ndim() == 1 {
-            input.data().iter().map(|&x| x as u64).collect()
+            input_data.iter().map(|&x| x as u64).collect()
         } else {
             // For 2D input, flatten
-            input.data().iter().map(|&x| x as u64).collect()
+            input_data.iter().map(|&x| x as u64).collect()
         };
 
         Ok(self.lookup(&ids))
@@ -405,10 +407,11 @@ impl PooledEmbeddingLookup {
             }
 
             let embeddings = self.lookup.lookup(ids);
+            let embeddings_data = embeddings.data_ref();
 
             match self.pooling {
                 PoolingMode::Sum => {
-                    for (j, emb) in embeddings.data().chunks(dim).enumerate() {
+                    for (j, emb) in embeddings_data.chunks(dim).enumerate() {
                         if j < ids.len() {
                             for (k, &val) in emb.iter().enumerate() {
                                 output[i * dim + k] += val;
@@ -417,7 +420,7 @@ impl PooledEmbeddingLookup {
                     }
                 }
                 PoolingMode::Mean => {
-                    for emb in embeddings.data().chunks(dim) {
+                    for emb in embeddings_data.chunks(dim) {
                         for (k, &val) in emb.iter().enumerate() {
                             output[i * dim + k] += val;
                         }
@@ -596,12 +599,13 @@ impl SequenceEmbeddingLookup {
         let dim = self.dim();
         let seq_len = self.max_seq_length;
 
+        let grad_data = grad.data_ref();
         for (batch_idx, ids) in id_lists.iter().enumerate() {
             let num_items = ids.len().min(seq_len);
 
             for (seq_idx, &id) in ids.iter().take(num_items).enumerate() {
                 let offset = batch_idx * seq_len * dim + seq_idx * dim;
-                let grad_slice = &grad.data()[offset..offset + dim];
+                let grad_slice = &grad_data[offset..offset + dim];
 
                 self.lookup
                     .grad_accumulator
