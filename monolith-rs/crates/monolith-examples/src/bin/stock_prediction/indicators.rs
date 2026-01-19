@@ -13,11 +13,11 @@ mod talib {
     use ta_lib_sys as sys;
 
     pub fn try_init() -> bool {
-        unsafe { sys::TA_Initialize() == sys::TA_RetCode::TA_SUCCESS }
+        unsafe { sys::Initialize() == sys::RetCode::SUCCESS }
     }
 
     pub fn shutdown() {
-        unsafe { sys::TA_Shutdown() };
+        let _ = unsafe { sys::Shutdown() };
     }
 
     fn fill_1out(len: usize, out_beg: i32, out_nb: i32, out: &[f64], dst: &mut [f64]) {
@@ -41,13 +41,16 @@ mod talib {
         let mut out_beg: i32 = 0;
         let mut out_nb: i32 = 0;
         let mut out = vec![0.0_f64; len];
+        let in_high: Vec<f32> = high[..len].iter().map(|v| *v as f32).collect();
+        let in_low: Vec<f32> = low[..len].iter().map(|v| *v as f32).collect();
+        let in_close: Vec<f32> = close[..len].iter().map(|v| *v as f32).collect();
         unsafe {
-            let _ = sys::TA_ADX(
+            let _ = sys::S_ADX(
                 0,
                 (len as i32) - 1,
-                high.as_ptr(),
-                low.as_ptr(),
-                close.as_ptr(),
+                in_high.as_ptr(),
+                in_low.as_ptr(),
+                in_close.as_ptr(),
                 14,
                 &mut out_beg,
                 &mut out_nb,
@@ -65,13 +68,16 @@ mod talib {
         let mut out_beg: i32 = 0;
         let mut out_nb: i32 = 0;
         let mut out = vec![0.0_f64; len];
+        let in_high: Vec<f32> = high[..len].iter().map(|v| *v as f32).collect();
+        let in_low: Vec<f32> = low[..len].iter().map(|v| *v as f32).collect();
+        let in_close: Vec<f32> = close[..len].iter().map(|v| *v as f32).collect();
         unsafe {
-            let _ = sys::TA_PLUS_DI(
+            let _ = sys::S_PLUS_DI(
                 0,
                 (len as i32) - 1,
-                high.as_ptr(),
-                low.as_ptr(),
-                close.as_ptr(),
+                in_high.as_ptr(),
+                in_low.as_ptr(),
+                in_close.as_ptr(),
                 14,
                 &mut out_beg,
                 &mut out_nb,
@@ -89,13 +95,16 @@ mod talib {
         let mut out_beg: i32 = 0;
         let mut out_nb: i32 = 0;
         let mut out = vec![0.0_f64; len];
+        let in_high: Vec<f32> = high[..len].iter().map(|v| *v as f32).collect();
+        let in_low: Vec<f32> = low[..len].iter().map(|v| *v as f32).collect();
+        let in_close: Vec<f32> = close[..len].iter().map(|v| *v as f32).collect();
         unsafe {
-            let _ = sys::TA_MINUS_DI(
+            let _ = sys::S_MINUS_DI(
                 0,
                 (len as i32) - 1,
-                high.as_ptr(),
-                low.as_ptr(),
-                close.as_ptr(),
+                in_high.as_ptr(),
+                in_low.as_ptr(),
+                in_close.as_ptr(),
                 14,
                 &mut out_beg,
                 &mut out_nb,
@@ -114,12 +123,14 @@ mod talib {
         let mut out_nb: i32 = 0;
         let mut up = vec![0.0_f64; len];
         let mut down = vec![0.0_f64; len];
+        let in_high: Vec<f32> = high[..len].iter().map(|v| *v as f32).collect();
+        let in_low: Vec<f32> = low[..len].iter().map(|v| *v as f32).collect();
         unsafe {
-            let _ = sys::TA_AROON(
+            let _ = sys::S_AROON(
                 0,
                 (len as i32) - 1,
-                high.as_ptr(),
-                low.as_ptr(),
+                in_high.as_ptr(),
+                in_low.as_ptr(),
                 14,
                 &mut out_beg,
                 &mut out_nb,
@@ -139,13 +150,16 @@ mod talib {
         let mut out_beg: i32 = 0;
         let mut out_nb: i32 = 0;
         let mut out = vec![0.0_f64; len];
+        let in_high: Vec<f32> = high[..len].iter().map(|v| *v as f32).collect();
+        let in_low: Vec<f32> = low[..len].iter().map(|v| *v as f32).collect();
+        let in_close: Vec<f32> = close[..len].iter().map(|v| *v as f32).collect();
         unsafe {
-            let _ = sys::TA_ULTOSC(
+            let _ = sys::S_ULTOSC(
                 0,
                 (len as i32) - 1,
-                high.as_ptr(),
-                low.as_ptr(),
-                close.as_ptr(),
+                in_high.as_ptr(),
+                in_low.as_ptr(),
+                in_close.as_ptr(),
                 7,
                 14,
                 28,
@@ -468,21 +482,21 @@ impl IndicatorCalculator {
             let low = bars[i].low as f64;
             let open = bars[i].open as f64;
 
-            let macd_histogram = macd_vals[i] - macd_signal_vals[i];
-            let bb_width = if sma_20_vals[i] > 0.0 {
+            let _macd_histogram = macd_vals[i] - macd_signal_vals[i];
+            let _bb_width = if sma_20_vals[i] > 0.0 {
                 (bb_upper[i] - bb_lower[i]) / sma_20_vals[i]
             } else {
                 0.0
             };
 
-            let vol_ratio = if vol_sma_20_vals[i] > 0.0 {
+            let _vol_ratio = if vol_sma_20_vals[i] > 0.0 {
                 bars[i].volume / vol_sma_20_vals[i]
             } else {
                 1.0
             };
 
             let price_range = max_14_vals[i] - min_14_vals[i];
-            let price_vs_range = if price_range > 0.0 {
+            let _price_vs_range = if price_range > 0.0 {
                 ((close - min_14_vals[i]) / price_range - 0.5) * 2.0
             } else {
                 0.0
@@ -561,8 +575,8 @@ impl IndicatorCalculator {
 
             // Pivot points
             let pivot_point = if i >= 14 {
-                let prev_high = max_14_vals[i-1];
-                let prev_low = min_14_vals[i-1];
+                let prev_high = max_14_vals[i - 1];
+                let prev_low = min_14_vals[i - 1];
                 let prev_close = bars[i-1].close as f64;
                 ((prev_high + prev_low + prev_close) / 3.0 / close - 1.0) as f32
             } else {
@@ -570,16 +584,16 @@ impl IndicatorCalculator {
             };
 
             let pivot_support = if i >= 14 {
-                let prev_high = max_14_vals[i-1];
-                let prev_low = min_14_vals[i-1];
-                ((prev_low * 2.0 + max_14_vals[i-1]) / 3.0 / close - 1.0) as f32
+                let prev_high = max_14_vals[i - 1];
+                let prev_low = min_14_vals[i - 1];
+                ((prev_low * 2.0 + prev_high) / 3.0 / close - 1.0) as f32
             } else {
                 0.0
             };
 
             let pivot_resistance = if i >= 14 {
-                let prev_high = max_14_vals[i-1];
-                let prev_low = min_14_vals[i-1];
+                let prev_high = max_14_vals[i - 1];
+                let prev_low = min_14_vals[i - 1];
                 ((prev_high * 2.0 + prev_low) / 3.0 / close - 1.0) as f32
             } else {
                 0.0
