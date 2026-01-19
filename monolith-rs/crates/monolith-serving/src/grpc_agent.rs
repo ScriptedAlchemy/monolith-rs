@@ -12,7 +12,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::oneshot;
 use tonic::{Request, Response, Status};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 use monolith_proto::monolith::serving::agent_service::agent_service_server::{
     AgentService, AgentServiceServer,
@@ -27,6 +27,7 @@ use monolith_proto::monolith::serving::agent_service::{
 /// This matches the proto surface area. Higher-level Monolith serving (model
 /// inference) lives elsewhere; the upstream `AgentService` is primarily for
 /// discovery/coordination.
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct AgentServiceRealImpl {
     start: Instant,
@@ -41,12 +42,20 @@ impl AgentServiceRealImpl {
             replicas: Arc::new(RwLock::new(HashMap::new())),
         }
     }
+}
 
+impl Default for AgentServiceRealImpl {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AgentServiceRealImpl {
     /// Register a replica address for a given server type.
     pub fn register_replica(&self, server_type: ServerType, address: impl Into<String>) {
         let mut map = self.replicas.write();
         let key = server_type as i32;
-        let addrs = map.entry(key).or_insert_with(Vec::new);
+        let addrs = map.entry(key).or_default();
         let addr = address.into();
         if !addrs.contains(&addr) {
             addrs.push(addr);

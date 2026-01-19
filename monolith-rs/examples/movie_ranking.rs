@@ -288,6 +288,7 @@ impl EmbeddingTable {
 // ============================================================================
 
 /// A fully-connected (dense) layer with GPU acceleration.
+#[allow(dead_code)]
 struct DenseLayer {
     /// Weight matrix [in_features, out_features]
     weights: CandleTensor,
@@ -483,7 +484,7 @@ impl MovieRankingModel {
     fn backward(
         &mut self,
         user_ids: &[u64],
-        movie_ids: &[u64],
+        _movie_ids: &[u64],
         loss_grad: &CandleTensor,
     ) -> (Vec<f32>, Vec<f32>) {
         let batch_size = user_ids.len();

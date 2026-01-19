@@ -249,7 +249,7 @@ impl ModelLoader {
             current
                 .as_ref()
                 .map(|m| m.path.clone())
-                .ok_or_else(|| ServingError::ModelNotLoaded)?
+                .ok_or(ServingError::ModelNotLoaded)?
         };
 
         info!("Reloading model from: {:?}", path);

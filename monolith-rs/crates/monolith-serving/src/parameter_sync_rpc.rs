@@ -44,14 +44,17 @@ pub struct ParameterSyncGrpcServer {
 }
 
 impl ParameterSyncGrpcServer {
+    /// Create a new gRPC server wrapper using the provided push sink.
     pub fn new(sink: Arc<dyn PushSink>) -> Self {
         Self { sink }
     }
 
+    /// Convert this wrapper into a tonic service.
     pub fn into_service(self) -> ParameterSyncRpcServer<Self> {
         ParameterSyncRpcServer::new(self)
     }
 
+    /// Serve the ParameterSync gRPC service at the given address.
     pub async fn serve(self, addr: SocketAddr) -> Result<(), tonic::transport::Error> {
         tonic::transport::Server::builder()
             .add_service(self.into_service())

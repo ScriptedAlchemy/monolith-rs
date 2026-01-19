@@ -501,7 +501,7 @@ impl DINAttention {
 
         // Check mask shape if provided
         if let Some(m) = mask {
-            if m.shape() != &[batch_size, keys.shape()[1]] {
+            if m.shape() != [batch_size, keys.shape()[1]] {
                 return Err(LayerError::ShapeMismatch {
                     expected: vec![batch_size, keys.shape()[1]],
                     actual: m.shape().to_vec(),

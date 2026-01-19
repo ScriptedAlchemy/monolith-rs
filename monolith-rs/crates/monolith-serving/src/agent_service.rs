@@ -157,6 +157,8 @@ pub struct ServiceStats {
 /// # Ok(())
 /// # }
 /// ```
+type EmbeddingCache = HashMap<i32, HashMap<i64, Vec<f32>>>;
+
 pub struct AgentServiceImpl {
     /// Model loader for accessing loaded models
     model_loader: Arc<ModelLoader>,
@@ -165,7 +167,7 @@ pub struct AgentServiceImpl {
     param_sync: Option<Arc<ParameterSyncClient>>,
 
     /// Embedding cache (slot_id -> fid -> embedding)
-    embedding_cache: Arc<RwLock<HashMap<i32, HashMap<i64, Vec<f32>>>>>,
+    embedding_cache: Arc<RwLock<EmbeddingCache>>,
 
     /// Service statistics
     stats: Arc<RwLock<ServiceStats>>,
@@ -338,7 +340,7 @@ impl AgentServiceImpl {
 
                 // Cache the fetched embeddings
                 let mut cache = self.embedding_cache.write();
-                let slot_cache = cache.entry(slot_id).or_insert_with(HashMap::new);
+                let slot_cache = cache.entry(slot_id).or_default();
 
                 for emb_data in &data {
                     slot_cache.insert(emb_data.fid, emb_data.embedding.clone());

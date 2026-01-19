@@ -19,7 +19,7 @@
 //! }
 //! ```
 
-use std::io::{self, Read, Write};
+use std::io;
 use thiserror::Error;
 
 /// Errors that can occur during compression/decompression operations.
@@ -217,9 +217,9 @@ fn decompress_zlib(_data: &[u8]) -> Result<Vec<u8>> {
 fn compress_snappy(data: &[u8]) -> Result<Vec<u8>> {
     let mut encoder = snap::write::FrameEncoder::new(Vec::new());
     encoder.write_all(data)?;
-    Ok(encoder.into_inner().map_err(|e| {
+    encoder.into_inner().map_err(|e| {
         CompressionError::DecompressionFailed(format!("Failed to finish snappy compression: {}", e))
-    })?)
+    })
 }
 
 #[cfg(not(feature = "snappy"))]

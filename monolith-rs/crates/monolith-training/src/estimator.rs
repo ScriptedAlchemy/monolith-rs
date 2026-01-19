@@ -3,7 +3,7 @@
 //! This module provides the `Estimator` abstraction, inspired by TensorFlow's
 //! Estimator API, which orchestrates training, evaluation, and prediction.
 
-use crate::hooks::{Hook, HookAction, HookList, HookResult};
+use crate::hooks::{Hook, HookAction, HookList};
 use crate::metrics::{Metrics, MetricsRecorder};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;

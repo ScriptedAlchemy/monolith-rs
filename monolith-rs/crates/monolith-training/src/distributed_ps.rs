@@ -685,7 +685,7 @@ impl PsClient {
 
         // Build per-shard gradient batches
         let mut shard_grads: HashMap<usize, Vec<f32>> = HashMap::new();
-        let mut fid_to_unique_idx: HashMap<i64, usize> = unique_fids
+        let fid_to_unique_idx: HashMap<i64, usize> = unique_fids
             .iter()
             .enumerate()
             .map(|(i, &fid)| (fid, i))

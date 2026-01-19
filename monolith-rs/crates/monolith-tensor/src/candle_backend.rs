@@ -127,24 +127,20 @@ impl CandleTensor {
 
     /// Returns the sum of all elements.
     pub fn sum(&self) -> f32 {
-        let sum = self
-            .inner
+        self.inner
             .sum_all()
             .expect("Failed to compute sum")
             .to_scalar::<f32>()
-            .expect("Failed to get scalar");
-        sum
+            .expect("Failed to get scalar")
     }
 
     /// Returns the mean of all elements.
     pub fn mean(&self) -> f32 {
-        let mean = self
-            .inner
+        self.inner
             .mean_all()
             .expect("Failed to compute mean")
             .to_scalar::<f32>()
-            .expect("Failed to get scalar");
-        mean
+            .expect("Failed to get scalar")
     }
 
     /// Returns the maximum value.

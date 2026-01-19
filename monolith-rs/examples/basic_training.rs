@@ -151,9 +151,7 @@ fn generate_synthetic_data(num_examples: usize, rng: &mut SimpleRng) -> Vec<Trai
 
         // Generate label based on a synthetic pattern
         // Higher feature IDs tend to lead to positive labels
-        let label = if feature_sum > (NUM_FIELDS * 2) as i64 {
-            1.0
-        } else if rng.next_f32() > 0.5 {
+        let label = if feature_sum > (NUM_FIELDS * 2) as i64 || rng.next_f32() > 0.5 {
             1.0
         } else {
             0.0
@@ -372,7 +370,7 @@ impl FFMLayer {
 
             // Binary cross entropy loss: -y*log(p) - (1-y)*log(1-p)
             // Clamp predictions to avoid log(0)
-            let pred_clamped = pred.max(1e-7).min(1.0 - 1e-7);
+            let pred_clamped = pred.clamp(1e-7, 1.0 - 1e-7);
             let loss = -label * pred_clamped.ln() - (1.0 - label) * (1.0 - pred_clamped).ln();
             total_loss += loss;
 
@@ -469,7 +467,7 @@ fn sigmoid(x: f32) -> f32 {
 fn binary_cross_entropy(predictions: &[f32], labels: &[f32]) -> f32 {
     let mut total_loss = 0.0f32;
     for (pred, label) in predictions.iter().zip(labels.iter()) {
-        let pred_clamped = pred.max(1e-7).min(1.0 - 1e-7);
+        let pred_clamped = pred.clamp(1e-7, 1.0 - 1e-7);
         let loss = -label * pred_clamped.ln() - (1.0 - label) * (1.0 - pred_clamped).ln();
         total_loss += loss;
     }

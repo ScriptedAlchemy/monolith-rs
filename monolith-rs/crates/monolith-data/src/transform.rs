@@ -242,6 +242,7 @@ impl TransformChain {
     /// # Arguments
     ///
     /// * `transform` - The transform to add
+    #[allow(clippy::should_implement_trait)]
     pub fn add<T: Transform + 'static>(mut self, transform: T) -> Self {
         self.transforms.push(Box::new(transform));
         self

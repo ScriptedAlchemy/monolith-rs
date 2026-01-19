@@ -40,9 +40,7 @@ impl EmbeddingStore {
         }
 
         let mut tables = self.tables.write();
-        let table = tables
-            .entry(unique_id.to_string())
-            .or_insert_with(HashMap::new);
+        let table = tables.entry(unique_id.to_string()).or_default();
 
         for (i, &fid) in fids.iter().enumerate() {
             let start = i * dim;

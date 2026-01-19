@@ -8,13 +8,19 @@ publish = false
 
 [dependencies]
 monolith-proto = { workspace = true }
-monolith-core = { workspace = true }
 monolith-data = { workspace = true, features = ["compression"] }
 monolith-hash-table = { workspace = true }
 monolith-layers = { workspace = true }
-monolith-training = { workspace = true }
+monolith-training = { workspace = true, optional = true }
 monolith-optimizer = { workspace = true }
 prost = { workspace = true }
+
+# CLI/runtime/logging used by demo/benchmark binaries.
+anyhow = { workspace = true }
+clap = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 # Technical analysis indicators
 ta = "0.5"
@@ -22,6 +28,10 @@ ta = "0.5"
 # Parallel processing
 rayon = { workspace = true }
 num_cpus = "1.16"
+
+[features]
+default = []
+training = ["dep:monolith-training"]
 
 [[bin]]
 name = "stock_prediction"
@@ -38,3 +48,22 @@ path = "src/bin/embedding_table.rs"
 [[bin]]
 name = "data_pipeline"
 path = "src/bin/data_pipeline.rs"
+
+[[bin]]
+name = "demo_train"
+path = "src/bin/demo_train.rs"
+required-features = ["training"]
+
+[[bin]]
+name = "distributed_ps_benchmark"
+path = "src/bin/distributed_ps_benchmark.rs"
+required-features = ["training"]
+
+[[bin]]
+name = "distribution_ops_benchmark"
+path = "src/bin/distribution_ops_benchmark.rs"
+required-features = ["training"]
+
+[[bin]]
+name = "hash_table_ops_benchmark"
+path = "src/bin/hash_table_ops_benchmark.rs"

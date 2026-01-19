@@ -19,6 +19,7 @@
 //! where:
 //! - `v_{i,fj}` is the embedding of feature i for interacting with field j
 //! - `v_{j,fi}` is the embedding of feature j for interacting with field i
+#![allow(clippy::needless_range_loop, clippy::manual_is_multiple_of)]
 //! - `<., .>` denotes the inner product
 //!
 //! # Example
@@ -230,11 +231,7 @@ impl FFMLayer {
             embeddings
         };
 
-        let bias = if config.use_bias {
-            Tensor::zeros(&[1])
-        } else {
-            Tensor::zeros(&[1])
-        };
+        let bias = Tensor::zeros(&[1]);
 
         Self {
             embeddings,

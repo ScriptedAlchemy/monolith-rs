@@ -164,46 +164,42 @@ impl NegativeSampler for UniformNegativeSampler {
             let mut attempts = 0;
             let max_attempts = 100;
 
-            loop {
-                if let Some(item) = self.sample_item() {
-                    // Skip if it's the positive item
-                    if Some(item) == positive_item {
-                        attempts += 1;
-                        if attempts >= max_attempts {
-                            break;
-                        }
-                        continue;
+            while let Some(item) = self.sample_item() {
+                // Skip if it's the positive item
+                if Some(item) == positive_item {
+                    attempts += 1;
+                    if attempts >= max_attempts {
+                        break;
                     }
-
-                    // Skip if already sampled (when not sampling with replacement)
-                    if !self.sample_with_replacement && sampled_items.contains(&item) {
-                        attempts += 1;
-                        if attempts >= max_attempts {
-                            break;
-                        }
-                        continue;
-                    }
-
-                    // Create negative example
-                    let mut negative = clone_example(positive);
-                    // Remove existing item feature and add new one
-                    remove_feature(&mut negative, &self.item_feature_name);
-                    add_feature(
-                        &mut negative,
-                        &self.item_feature_name,
-                        vec![item],
-                        vec![1.0],
-                    );
-                    // Remove existing label and add new one
-                    remove_feature(&mut negative, "label");
-                    add_feature(&mut negative, "label", vec![0], vec![0.0]);
-
-                    negatives.push(negative);
-                    sampled_items.push(item);
-                    break;
-                } else {
-                    break;
+                    continue;
                 }
+
+                // Skip if already sampled (when not sampling with replacement)
+                if !self.sample_with_replacement && sampled_items.contains(&item) {
+                    attempts += 1;
+                    if attempts >= max_attempts {
+                        break;
+                    }
+                    continue;
+                }
+
+                // Create negative example
+                let mut negative = clone_example(positive);
+                // Remove existing item feature and add new one
+                remove_feature(&mut negative, &self.item_feature_name);
+                add_feature(
+                    &mut negative,
+                    &self.item_feature_name,
+                    vec![item],
+                    vec![1.0],
+                );
+                // Remove existing label and add new one
+                remove_feature(&mut negative, "label");
+                add_feature(&mut negative, "label", vec![0], vec![0.0]);
+
+                negatives.push(negative);
+                sampled_items.push(item);
+                break;
             }
         }
 
@@ -545,20 +541,15 @@ impl NegativeSampler for InBatchNegativeSampler {
 }
 
 /// Sampling strategy enumeration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum SamplingStrategy {
     /// Uniform random sampling.
+    #[default]
     Uniform,
     /// Frequency-based sampling.
     Frequency,
     /// In-batch negative sampling.
     InBatch,
-}
-
-impl Default for SamplingStrategy {
-    fn default() -> Self {
-        Self::Uniform
-    }
 }
 
 /// Configuration for negative sampling.

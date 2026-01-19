@@ -1,3 +1,4 @@
+#![allow(clippy::needless_range_loop)]
 //! Tensor type for neural network computations.
 //!
 //! This module provides a placeholder Tensor type that will be replaced

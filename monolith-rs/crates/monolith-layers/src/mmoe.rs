@@ -83,6 +83,7 @@ pub struct Expert {
 }
 
 /// Internal wrapper for activation functions.
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone)]
 enum ActivationWrapper {
     ReLU(ReLU),
@@ -899,13 +900,12 @@ impl MMoE {
             let gate_weights = &self.cached_gate_outputs[task_idx];
 
             // Gradient w.r.t. expert outputs: d_expert_e = gate_weight_e * d_output
-            for expert_idx in 0..self.num_experts {
+            for (expert_idx, expert_grad) in expert_grads.iter_mut().enumerate() {
                 for b in 0..batch_size {
                     let weight = gate_weights.data()[b * self.num_experts + expert_idx];
                     for d in 0..self.expert_output_dim {
                         let grad_val = grad.data()[b * self.expert_output_dim + d];
-                        expert_grads[expert_idx].data_mut()[b * self.expert_output_dim + d] +=
-                            weight * grad_val;
+                        expert_grad.data_mut()[b * self.expert_output_dim + d] += weight * grad_val;
                     }
                 }
             }

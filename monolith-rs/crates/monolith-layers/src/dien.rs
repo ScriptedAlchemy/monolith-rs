@@ -57,18 +57,13 @@ use crate::tensor::Tensor;
 use serde::{Deserialize, Serialize};
 
 /// Type of GRU cell to use in the interest evolution layer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum GRUType {
     /// Standard GRU cell
     Standard,
     /// Attention-based GRU (AUGRU) - modifies update gate with attention
+    #[default]
     AUGRU,
-}
-
-impl Default for GRUType {
-    fn default() -> Self {
-        GRUType::AUGRU
-    }
 }
 
 /// Configuration for DIEN layer.
@@ -969,7 +964,7 @@ impl DIENLayer {
         }
 
         if let Some(m) = mask {
-            if m.shape() != &[batch_size, seq_len] {
+            if m.shape() != [batch_size, seq_len] {
                 return Err(LayerError::ShapeMismatch {
                     expected: vec![batch_size, seq_len],
                     actual: m.shape().to_vec(),
@@ -1167,8 +1162,8 @@ impl DIENLayer {
                 let neg_prob = 1.0 / (1.0 + (-neg_score).exp());
 
                 // Clamp for numerical stability
-                let pos_prob = pos_prob.max(1e-7).min(1.0 - 1e-7);
-                let neg_prob = neg_prob.max(1e-7).min(1.0 - 1e-7);
+                let pos_prob = pos_prob.clamp(1e-7, 1.0 - 1e-7);
+                let neg_prob = neg_prob.clamp(1e-7, 1.0 - 1e-7);
 
                 total_loss += -pos_prob.ln() - (1.0 - neg_prob).ln();
                 count += 1;

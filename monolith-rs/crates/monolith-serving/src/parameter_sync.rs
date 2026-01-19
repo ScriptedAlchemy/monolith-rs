@@ -138,6 +138,7 @@ pub struct ParameterSyncClient {
 }
 
 /// State of a connection to a parameter server.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 struct ConnectionState {
     /// Server address
@@ -205,7 +206,8 @@ impl ParameterSyncClient {
         info!("Disconnecting from parameter servers");
 
         // Send shutdown signal if background sync is running
-        if let Some(tx) = self.shutdown_tx.write().take() {
+        let tx = self.shutdown_tx.write().take();
+        if let Some(tx) = tx {
             let _ = tx.send(()).await;
         }
 
@@ -428,6 +430,7 @@ impl ParameterSyncClient {
     }
 
     /// Mark a connection as unhealthy after a failure.
+    #[allow(dead_code)]
     fn mark_unhealthy(&self, address: &str) {
         if let Some(state) = self.connections.write().get_mut(address) {
             state.healthy = false;
@@ -440,6 +443,7 @@ impl ParameterSyncClient {
     }
 
     /// Mark a connection as healthy after a successful operation.
+    #[allow(dead_code)]
     fn mark_healthy(&self, address: &str) {
         if let Some(state) = self.connections.write().get_mut(address) {
             state.healthy = true;

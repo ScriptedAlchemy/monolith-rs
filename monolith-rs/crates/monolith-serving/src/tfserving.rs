@@ -12,8 +12,7 @@
 
 use crate::error::{ServingError, ServingResult};
 use monolith_proto::tensorflow_serving::apis::{
-    model_service_client::ModelServiceClient,
-    prediction_service_client::PredictionServiceClient,
+    model_service_client::ModelServiceClient, prediction_service_client::PredictionServiceClient,
     GetModelStatusRequest, PredictRequest, ReloadConfigRequest,
 };
 use monolith_proto::tensorflow_serving::config::ModelServerConfig;
@@ -51,9 +50,7 @@ impl TfServingClient {
     ) -> ServingResult<monolith_proto::tensorflow_serving::apis::GetModelStatusResponse> {
         let spec = monolith_proto::tensorflow_serving::apis::ModelSpec {
             name: model_name.to_string(),
-            // `ModelSpec` in TF Serving uses wrappers.Int64Value for version.
-            version: None,
-            version_label: "".to_string(),
+            version_choice: None,
             signature_name: signature_name.unwrap_or_default().to_string(),
         };
 
@@ -87,12 +84,17 @@ impl TfServingClient {
         &mut self,
         config: ModelServerConfig,
     ) -> ServingResult<monolith_proto::tensorflow_serving::apis::ReloadConfigResponse> {
-        let request = ReloadConfigRequest { config: Some(config) };
+        let request = ReloadConfigRequest {
+            config: Some(config),
+            metric_names: vec![],
+        };
         let resp = self
             .model
             .handle_reload_config_request(request)
             .await
-            .map_err(|e| ServingError::GrpcError(format!("HandleReloadConfigRequest failed: {e}")))?;
+            .map_err(|e| {
+                ServingError::GrpcError(format!("HandleReloadConfigRequest failed: {e}"))
+            })?;
         Ok(resp.into_inner())
     }
 }
@@ -120,6 +122,8 @@ pub fn parse_model_server_config_pbtxt(
 
     let bytes = dynamic.encode_to_vec();
     ModelServerConfig::decode(bytes.as_slice()).map_err(|e| {
-        ServingError::ConfigError(format!("Failed to decode ModelServerConfig from pbtxt: {e}"))
+        ServingError::ConfigError(format!(
+            "Failed to decode ModelServerConfig from pbtxt: {e}"
+        ))
     })
 }

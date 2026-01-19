@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Note: Some protos import `idl/matrix/proto/{feature,line_id}.proto`.
     // We provide those paths via symlinks under `proto/idl/matrix/proto/`.
-    let includes = vec![proto_root.clone()];
+    let includes = [proto_root.clone()];
 
     let protos = vec![
         // Core feature/instance formats
@@ -95,9 +95,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_server(true)
         // Emit a descriptor set so other crates can do reflection-based pbtxt parsing.
         .file_descriptor_set_path(std::env::var("OUT_DIR")? + "/descriptor.bin")
-        // Use prost-types for WKTs (Any, wrappers, etc) so we don't generate duplicate types.
-        .compile_well_known_types(true)
-        .extern_path(".google.protobuf", "::prost_types")
+        // Generate WKTs locally so wrapper types like BoolValue exist.
+        .compile_well_known_types(false)
         // Keep compilation robust even if proto3 optional appears.
         .protoc_arg("--experimental_allow_proto3_optional")
         .compile(&proto_strs, &include_strs)?;

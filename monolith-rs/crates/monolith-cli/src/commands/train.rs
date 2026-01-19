@@ -5,10 +5,15 @@
 
 use anyhow::{Context, Result};
 use clap::Args;
+use monolith_checkpoint::{Checkpointer, JsonCheckpointer, ModelState};
+use monolith_data::example::total_fid_count;
+use monolith_data::{CompressionType, TFRecordReader};
 use monolith_training::discovery::ServiceDiscoveryAsync;
 use monolith_training::runner::{run_distributed, DistributedRunConfig, Role};
+use std::fs::File;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::time::Instant;
 use tracing::{info, warn};
 
 /// Train a model using distributed training
@@ -34,6 +39,14 @@ pub struct TrainCommand {
     /// Path to the training configuration file (JSON format)
     #[arg(long, short = 'c', env = "MONOLITH_CONFIG_PATH")]
     pub config_path: Option<PathBuf>,
+
+    /// Optional TFRecord file to read training data from.
+    #[arg(long, env = "MONOLITH_TFRECORD_PATH")]
+    pub tfrecord_path: Option<PathBuf>,
+
+    /// Train from CSV lines on stdin (mov,uid,label).
+    #[arg(long, default_value = "false")]
+    pub stdin: bool,
 
     /// Number of training steps to run
     #[arg(long, short = 's', default_value = "10000")]
@@ -195,39 +208,16 @@ impl TrainCommand {
             info!("Created model directory: {:?}", self.model_dir);
         }
 
-        // Load configuration if provided
-        let _config = if let Some(config_path) = &self.config_path {
+        // Load configuration if provided (JSON is parsed for parity, but we use CLI args here).
+        if let Some(config_path) = &self.config_path {
             info!("Loading config from: {:?}", config_path);
             let config_str =
                 std::fs::read_to_string(config_path).context("Failed to read config file")?;
-            let config: serde_json::Value =
+            let _config: serde_json::Value =
                 serde_json::from_str(&config_str).context("Failed to parse config JSON")?;
-            Some(config)
         } else {
             warn!("No config file provided, using default configuration");
-            None
-        };
-
-        // TODO: Initialize estimator with configuration
-        // let estimator = Estimator::new(config)?;
-
-        // TODO: Load training data
-        // let train_data = DataLoader::new(&self.data_path, self.batch_size)?;
-
-        // TODO: Run training loop
-        // for step in 0..self.train_steps {
-        //     let batch = train_data.next_batch()?;
-        //     let loss = estimator.train_step(batch)?;
-        //
-        //     if step % self.save_steps == 0 {
-        //         estimator.save_checkpoint(&self.model_dir, step)?;
-        //     }
-        //
-        //     if step % self.eval_steps == 0 {
-        //         let metrics = estimator.evaluate()?;
-        //         info!("Step {}: loss={:.4}, auc={:.4}", step, loss, metrics.auc);
-        //     }
-        // }
+        }
 
         info!(
             "Training configuration: batch_size={}, lr={}, workers={}",
@@ -275,6 +265,20 @@ impl TrainCommand {
 
             let discovery = self.build_discovery().await?;
             run_distributed(discovery, cfg).await?;
+            info!("Distributed training completed successfully");
+            return Ok(());
+        }
+
+        if self.stdin {
+            run_stdin_training(self)?;
+            info!("Training completed successfully");
+            return Ok(());
+        }
+
+        if let Some(path) = &self.tfrecord_path {
+            run_tfrecord_training(self, path)?;
+            info!("Training completed successfully");
+            return Ok(());
         }
 
         info!("Training completed successfully");
@@ -321,15 +325,181 @@ impl TrainCommand {
     }
 }
 
+struct SimpleModel {
+    weight: f32,
+    bias: f32,
+    lr: f32,
+}
+
+impl SimpleModel {
+    fn new(lr: f32) -> Self {
+        Self {
+            weight: 0.01,
+            bias: 0.0,
+            lr,
+        }
+    }
+
+    fn restore_from(state: &ModelState, lr: f32) -> Self {
+        let weight = state
+            .dense_params
+            .get("linear.weight")
+            .and_then(|v| v.first().copied())
+            .unwrap_or(0.01);
+        let bias = state
+            .dense_params
+            .get("linear.bias")
+            .and_then(|v| v.first().copied())
+            .unwrap_or(0.0);
+        Self { weight, bias, lr }
+    }
+
+    fn predict(&self, feature_count: f32) -> f32 {
+        self.weight * feature_count + self.bias
+    }
+
+    fn train_step(&mut self, feature_count: f32, label: f32) -> f32 {
+        let pred = self.predict(feature_count);
+        let err = pred - label;
+        let loss = err * err;
+        let grad_w = 2.0 * err * feature_count;
+        let grad_b = 2.0 * err;
+        self.weight -= self.lr * grad_w;
+        self.bias -= self.lr * grad_b;
+        loss
+    }
+
+    fn to_state(&self, step: u64) -> ModelState {
+        let mut state = ModelState::new(step);
+        state.add_dense_param("linear.weight", vec![self.weight]);
+        state.add_dense_param("linear.bias", vec![self.bias]);
+        state
+    }
+}
+
+fn run_tfrecord_training(cmd: &TrainCommand, path: &PathBuf) -> Result<()> {
+    let file = File::open(path).context("Failed to open TFRecord file")?;
+    let compression = CompressionType::from_extension(path.to_string_lossy().as_ref());
+    let mut reader = TFRecordReader::new(file, true).with_compression(compression);
+
+    let checkpointer = JsonCheckpointer::new();
+    let mut step = 0u64;
+    let mut model = if cmd.resume {
+        let latest = checkpointer
+            .latest(&cmd.model_dir)
+            .context("No checkpoint found to resume")?;
+        let state = checkpointer.restore(&latest)?;
+        step = state.global_step;
+        SimpleModel::restore_from(&state, cmd.learning_rate as f32)
+    } else {
+        SimpleModel::new(cmd.learning_rate as f32)
+    };
+
+    let start = Instant::now();
+    let mut batch_loss = 0.0f32;
+    let mut batch_count = 0u64;
+
+    while step < cmd.train_steps {
+        let example = match reader.read_example()? {
+            Some(ex) => ex,
+            None => {
+                let file = File::open(path).context("Failed to reopen TFRecord file")?;
+                reader = TFRecordReader::new(file, true).with_compression(compression);
+                continue;
+            }
+        };
+
+        let feature_count = total_fid_count(&example) as f32;
+        let label = example.label.first().copied().unwrap_or(0.0);
+        let loss = model.train_step(feature_count, label);
+        batch_loss += loss;
+        batch_count += 1;
+        step += 1;
+
+        if step % cmd.eval_steps == 0 {
+            let avg_loss = batch_loss / batch_count.max(1) as f32;
+            info!("Step {}: loss={:.6}", step, avg_loss);
+            batch_loss = 0.0;
+            batch_count = 0;
+        }
+
+        if step % cmd.save_steps == 0 {
+            let state = model.to_state(step);
+            let path = cmd.model_dir.join(format!("checkpoint-{}.json", step));
+            checkpointer.save(&path, &state)?;
+            info!("Saved checkpoint to {:?}", path);
+        }
+    }
+
+    let state = model.to_state(step);
+    let path = cmd.model_dir.join(format!("checkpoint-{}.json", step));
+    checkpointer.save(&path, &state)?;
+    info!(
+        "Training finished at step {} in {:.2}s",
+        step,
+        start.elapsed().as_secs_f32()
+    );
+    Ok(())
+}
+
+fn run_stdin_training(cmd: &TrainCommand) -> Result<()> {
+    let checkpointer = JsonCheckpointer::new();
+    let mut step = 0u64;
+    let mut model = SimpleModel::new(cmd.learning_rate as f32);
+    let start = Instant::now();
+
+    for line in std::io::stdin().lines() {
+        let line = line.context("Failed to read stdin")?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let tokens: Vec<_> = line.trim().split(',').collect();
+        if tokens.len() != 3 {
+            continue;
+        }
+        let label: f32 = tokens[2].parse().unwrap_or(0.0);
+        let feature_count = 2.0;
+        let _loss = model.train_step(feature_count, label);
+        step += 1;
+
+        if step % cmd.save_steps == 0 {
+            let state = model.to_state(step);
+            let path = cmd.model_dir.join(format!("checkpoint-{}.json", step));
+            checkpointer.save(&path, &state)?;
+            info!("Saved checkpoint to {:?}", path);
+        }
+
+        if step >= cmd.train_steps {
+            break;
+        }
+    }
+
+    let state = model.to_state(step);
+    let path = cmd.model_dir.join(format!("checkpoint-{}.json", step));
+    checkpointer.save(&path, &state)?;
+    info!(
+        "Stdin training finished at step {} in {:.2}s",
+        step,
+        start.elapsed().as_secs_f32()
+    );
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use monolith_data::example::{add_feature, create_example};
+    use monolith_data::TFRecordWriter;
+    use std::fs::File;
+    use tempfile::tempdir;
 
     #[test]
     fn test_train_command_defaults() {
         let cmd = TrainCommand {
             model_dir: PathBuf::from("/tmp/model"),
             config_path: None,
+            tfrecord_path: None,
+            stdin: false,
             train_steps: 10000,
             batch_size: 128,
             learning_rate: 0.001,
@@ -365,5 +535,64 @@ mod tests {
         assert_eq!(cmd.train_steps, 10000);
         assert_eq!(cmd.batch_size, 128);
         assert!(cmd.resume);
+    }
+
+    #[test]
+    fn test_tfrecord_training_creates_checkpoint() {
+        let dir = tempdir().unwrap();
+        let model_dir = dir.path().join("model");
+        std::fs::create_dir_all(&model_dir).unwrap();
+
+        let tfrecord_path = dir.path().join("train.tfrecord");
+        let mut writer = TFRecordWriter::new(File::create(&tfrecord_path).unwrap());
+        for i in 0..5 {
+            let mut ex = create_example();
+            add_feature(&mut ex, "user_id", vec![i], vec![1.0]);
+            ex.label = vec![1.0];
+            writer.write_example(&ex).unwrap();
+        }
+        writer.flush().unwrap();
+
+        let cmd = TrainCommand {
+            model_dir: model_dir.clone(),
+            config_path: None,
+            tfrecord_path: Some(tfrecord_path),
+            stdin: false,
+            train_steps: 3,
+            batch_size: 1,
+            learning_rate: 0.1,
+            save_steps: 2,
+            eval_steps: 2,
+            resume: false,
+            num_workers: 1,
+            distributed: false,
+            role: TrainRole::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers_cluster: 1,
+            bind_addr: "127.0.0.1:0".to_string(),
+            discovery: DiscoveryBackend::InMemory,
+            zk_hosts: None,
+            zk_base_path: "/monolith/default".to_string(),
+            consul_addr: None,
+            consul_service_name: "monolith".to_string(),
+            discovery_service_type_ps: "ps".to_string(),
+            discovery_service_type_worker: "worker".to_string(),
+            table_name: "emb".to_string(),
+            dim: 64,
+            connect_retries: 6,
+            retry_backoff_ms: 500,
+            disable_heartbeat: false,
+            heartbeat_interval_secs: 10,
+            parameter_sync_targets: Vec::new(),
+            parameter_sync_interval_ms: 200,
+            parameter_sync_model_name: "default".to_string(),
+            parameter_sync_signature_name: "serving_default".to_string(),
+        };
+
+        run_tfrecord_training(&cmd, cmd.tfrecord_path.as_ref().unwrap()).unwrap();
+
+        let checkpoint = model_dir.join("checkpoint-3.json");
+        assert!(checkpoint.exists());
     }
 }

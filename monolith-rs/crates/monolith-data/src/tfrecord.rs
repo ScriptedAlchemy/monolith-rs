@@ -293,9 +293,7 @@ impl Iterator for TFRecordIterator {
             }
 
             // Try to open next file
-            if self.open_next_file().is_none() {
-                return None;
-            }
+            self.open_next_file()?;
         }
     }
 }
@@ -427,7 +425,7 @@ impl<R: Read> TFRecordReader<R> {
 /// The mask is: `((crc >> 15) | (crc << 17)) + 0xa282ead8`
 fn masked_crc32c(data: &[u8]) -> u32 {
     let crc = crc32c(data);
-    ((crc >> 15) | (crc << 17)).wrapping_add(0xa282ead8)
+    crc.rotate_right(15).wrapping_add(0xa282ead8)
 }
 
 /// Computes CRC32C checksum.

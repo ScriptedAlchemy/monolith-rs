@@ -7,16 +7,15 @@ description = "gRPC serving infrastructure for Monolith"
 
 [dependencies]
 monolith-proto = { workspace = true }
-monolith-core = { workspace = true }
-monolith-hash-table = { workspace = true }
-monolith-layers = { workspace = true }
-monolith-checkpoint = { workspace = true }
 monolith-tensor = { workspace = true }
+monolith-data = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true }
+prost = { workspace = true }
+prost-reflect = { workspace = true }
 tracing = { workspace = true }
 parking_lot = { workspace = true }
 candle-core = { workspace = true }

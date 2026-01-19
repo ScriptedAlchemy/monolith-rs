@@ -1,3 +1,4 @@
+#![allow(clippy::needless_range_loop)]
 //! Normalization layers.
 //!
 //! This module provides normalization layers including Layer Normalization

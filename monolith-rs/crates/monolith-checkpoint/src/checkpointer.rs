@@ -95,6 +95,7 @@ impl JsonCheckpointer {
     }
 
     /// Get the checkpoint filename for a given step.
+    #[allow(dead_code)]
     fn checkpoint_filename(step: u64) -> String {
         format!("checkpoint-{}.json", step)
     }
@@ -211,6 +212,7 @@ impl BinaryCheckpointer {
     }
 
     /// Get the checkpoint filename for a given step.
+    #[allow(dead_code)]
     fn checkpoint_filename(step: u64) -> String {
         format!("checkpoint-{}.bin", step)
     }

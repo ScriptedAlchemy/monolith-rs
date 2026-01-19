@@ -210,8 +210,8 @@ impl InferenceModel for MlpModel {
                 })?;
             }
         }
-        Ok(x.to_device(&self.device)
-            .map_err(|e| ServingError::PredictionError(format!("device move failed: {e}")))?)
+        x.to_device(&self.device)
+            .map_err(|e| ServingError::PredictionError(format!("device move failed: {e}")))
     }
 }
 
@@ -332,8 +332,8 @@ impl InferenceModel for DcnModel {
             cross_out
         };
         let y = linear(&head_in, &self.out_w, Some(&self.out_b))?;
-        Ok(y.to_device(&self.device)
-            .map_err(|e| ServingError::PredictionError(format!("device move failed: {e}")))?)
+        y.to_device(&self.device)
+            .map_err(|e| ServingError::PredictionError(format!("device move failed: {e}")))
     }
 }
 
@@ -496,7 +496,7 @@ impl InferenceModel for MmoeModel {
             .next()
             .ok_or_else(|| ServingError::PredictionError("MMoE has no tasks".into()))?;
 
-        Ok(y.to_device(&self.device)
-            .map_err(|e| ServingError::PredictionError(format!("device move failed: {e}")))?)
+        y.to_device(&self.device)
+            .map_err(|e| ServingError::PredictionError(format!("device move failed: {e}")))
     }
 }

@@ -481,7 +481,7 @@ impl AgentServiceGrpcImpl {
     /// Register a replica for a server type.
     pub fn register_replica(&self, server_type: ServerType, address: String) {
         let mut replicas = self.replicas.write();
-        let addresses = replicas.entry(server_type).or_insert_with(Vec::new);
+        let addresses = replicas.entry(server_type).or_default();
         if !addresses.contains(&address) {
             addresses.push(address.clone());
             info!("Registered replica {:?}: {}", server_type, address);
@@ -940,6 +940,7 @@ impl AgentServiceTonicAdapter {
         ServerType::from(st)
     }
 
+    #[allow(dead_code)]
     fn to_proto_server_type(st: ServerType) -> i32 {
         // Generated proto enum is encoded as i32 in messages.
         i32::from(st)

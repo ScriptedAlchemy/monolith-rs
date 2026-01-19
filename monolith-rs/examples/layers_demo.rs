@@ -625,7 +625,7 @@ fn senet_demo() {
             &attention.data()[0..5.min(attention.numel())]
         );
         // Verify sigmoid output range [0, 1]
-        let in_range = attention.data().iter().all(|&v| v >= 0.0 && v <= 1.0);
+        let in_range = attention.data().iter().all(|&v| (0.0..=1.0).contains(&v));
         println!("All attention weights in [0,1]: {}", in_range);
     }
 

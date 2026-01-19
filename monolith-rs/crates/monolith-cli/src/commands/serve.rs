@@ -5,9 +5,12 @@
 
 use anyhow::{Context, Result};
 use clap::Args;
+use monolith_proto::tensorflow_serving::apis::prediction_service_server::PredictionServiceServer;
 use monolith_serving::embedding_store::EmbeddingStore;
 use monolith_serving::parameter_sync_rpc::{ParameterSyncGrpcServer, PushSink};
 use monolith_serving::parameter_sync_sink::EmbeddingStorePushSink;
+use monolith_serving::tfserving_server::TfServingPredictionServer;
+use monolith_serving::{AgentServiceImpl, ModelLoader, ModelLoaderConfig};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{info, warn};
@@ -74,6 +77,12 @@ pub struct ServeCommand {
     /// embedding deltas from training parameter servers.
     #[arg(long)]
     pub parameter_sync_bind_addr: Option<String>,
+
+    /// Bind address for TF Serving PredictionService (Predict RPC).
+    ///
+    /// If set, the server will host `tensorflow.serving.PredictionService`.
+    #[arg(long)]
+    pub tfserving_bind_addr: Option<String>,
 }
 
 impl ServeCommand {
@@ -135,6 +144,30 @@ impl ServeCommand {
             None
         };
 
+        let _tfserving_handle = if let Some(bind) = &self.tfserving_bind_addr {
+            let addr: std::net::SocketAddr = bind
+                .parse()
+                .context("Invalid --tfserving-bind-addr (expected host:port)")?;
+
+            let loader = Arc::new(ModelLoader::new(ModelLoaderConfig::default()));
+            loader.load(&self.model_dir).await?;
+            let agent = Arc::new(AgentServiceImpl::new(loader, None));
+            let svc = TfServingPredictionServer::new(agent);
+
+            info!("Starting TF Serving PredictionService on {}", addr);
+            Some(tokio::spawn(async move {
+                if let Err(e) = tonic::transport::Server::builder()
+                    .add_service(PredictionServiceServer::new(svc))
+                    .serve(addr)
+                    .await
+                {
+                    tracing::error!("TF Serving PredictionService failed: {}", e);
+                }
+            }))
+        } else {
+            None
+        };
+
         info!("Server started successfully (serve command is still a stub for AgentService/model inference)");
 
         // Keep the process running.
@@ -170,6 +203,7 @@ mod tests {
             enable_logging: false,
             model_version: None,
             parameter_sync_bind_addr: None,
+            tfserving_bind_addr: None,
         };
 
         assert_eq!(cmd.port, 8500);
@@ -191,6 +225,7 @@ mod tests {
             enable_logging: true,
             model_version: Some("v1".to_string()),
             parameter_sync_bind_addr: None,
+            tfserving_bind_addr: None,
         };
 
         assert_eq!(cmd.bind_address(), "127.0.0.1:9000");

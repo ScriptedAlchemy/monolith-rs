@@ -8,9 +8,10 @@ use serde::{Deserialize, Serialize};
 /// - SGD: No additional state
 /// - Adam: First and second moment estimates
 /// - Adagrad: Sum of squared gradients
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum OptimizerState {
     /// No optimizer state (used for SGD without momentum).
+    #[default]
     None,
 
     /// State for Adam optimizer.
@@ -85,12 +86,6 @@ impl OptimizerState {
             Self::Momentum { velocity } => velocity.len() * std::mem::size_of::<f32>(),
             Self::Ftrl { z, n } => (z.len() + n.len()) * std::mem::size_of::<f32>(),
         }
-    }
-}
-
-impl Default for OptimizerState {
-    fn default() -> Self {
-        Self::None
     }
 }
 

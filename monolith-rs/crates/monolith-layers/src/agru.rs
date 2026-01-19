@@ -156,7 +156,7 @@ impl AGRU {
             });
         }
 
-        if attention.shape() != &[batch_size, seq_len] {
+        if attention.shape() != [batch_size, seq_len] {
             return Err(LayerError::ShapeMismatch {
                 expected: vec![batch_size, seq_len],
                 actual: attention.shape().to_vec(),

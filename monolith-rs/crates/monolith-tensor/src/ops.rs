@@ -193,7 +193,7 @@ pub fn tanh(tensor: &NdArrayTensor) -> NdArrayTensor {
 pub fn gelu(tensor: &NdArrayTensor) -> NdArrayTensor {
     // Using the tanh approximation:
     // GELU(x) ≈ 0.5 * x * (1 + tanh(sqrt(2/π) * (x + 0.044715 * x^3)))
-    const SQRT_2_OVER_PI: f32 = 0.7978845608; // sqrt(2/π)
+    const SQRT_2_OVER_PI: f32 = 0.797_884_6; // sqrt(2/π)
     const COEFF: f32 = 0.044715;
 
     tensor.map(|x| {

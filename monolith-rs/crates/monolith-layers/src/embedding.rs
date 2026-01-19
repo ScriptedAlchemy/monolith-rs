@@ -349,20 +349,15 @@ impl Layer for EmbeddingLookup {
 }
 
 /// Configuration for pooled embedding lookup.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum PoolingMode {
     /// Sum pooling
+    #[default]
     Sum,
     /// Mean pooling
     Mean,
     /// Max pooling
     Max,
-}
-
-impl Default for PoolingMode {
-    fn default() -> Self {
-        Self::Sum
-    }
 }
 
 /// Pooled embedding lookup for variable-length feature lists.

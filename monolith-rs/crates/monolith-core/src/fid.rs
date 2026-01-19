@@ -127,11 +127,11 @@ pub fn extract_feature(fid: Fid) -> i64 {
 /// ```
 #[inline]
 pub fn make_fid(slot: SlotId, feature: i64) -> Result<Fid> {
-    if slot < 0 || slot > MAX_SLOT_ID {
+    if !(0..=MAX_SLOT_ID).contains(&slot) {
         return Err(MonolithError::InvalidSlotId { slot_id: slot });
     }
 
-    if feature < 0 || feature > MAX_FEATURE_VALUE {
+    if !(0..=MAX_FEATURE_VALUE).contains(&feature) {
         return Err(MonolithError::InvalidFid { fid: feature });
     }
 
@@ -176,7 +176,7 @@ pub fn make_fid_unchecked(slot: SlotId, feature: i64) -> Fid {
 #[inline]
 pub fn is_valid_fid(fid: Fid) -> bool {
     let slot = extract_slot(fid);
-    slot >= 0 && slot <= MAX_SLOT_ID
+    (0..=MAX_SLOT_ID).contains(&slot)
 }
 
 /// Validates a slot ID.
@@ -192,7 +192,7 @@ pub fn is_valid_fid(fid: Fid) -> bool {
 /// `true` if the slot ID is valid, `false` otherwise.
 #[inline]
 pub fn is_valid_slot(slot: SlotId) -> bool {
-    slot >= 0 && slot <= MAX_SLOT_ID
+    (0..=MAX_SLOT_ID).contains(&slot)
 }
 
 #[cfg(test)]

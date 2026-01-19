@@ -9,6 +9,10 @@
 
 #![allow(clippy::derive_partial_eq_without_eq)]
 #![allow(clippy::large_enum_variant)]
+#![allow(clippy::doc_lazy_continuation)]
+#![allow(clippy::doc_overindented_list_items)]
+
+extern crate prost_types;
 
 // NOTE: The generated modules are keyed by `package` in the `.proto` files and
 // mapped to snake_case module paths by prost/tonic.
@@ -81,6 +85,7 @@ pub mod parser {
     }
 }
 
+#[allow(clippy::doc_lazy_continuation, clippy::doc_overindented_list_items)]
 pub mod tensorflow {
     pub mod monolith_tf {
         tonic::include_proto!("tensorflow.monolith_tf");
@@ -89,13 +94,28 @@ pub mod tensorflow {
 
 pub mod descriptor_pool;
 
-// TensorFlow / TF Serving APIs (gRPC) for compatibility with Python's TF Serving clients.
+// TensorFlow core protos + error codes (needed by TF Serving protos).
+pub mod tensorflow_core {
+    tonic::include_proto!("tensorflow");
+}
+
+pub mod tensorflow_error {
+    tonic::include_proto!("tensorflow.error");
+}
+
+// TF Serving APIs (gRPC) for compatibility with Python's TF Serving clients.
 pub mod tensorflow_serving {
+    pub mod error {
+        pub use crate::tensorflow_error::*;
+    }
+    pub use crate::tensorflow_core::{Example, SignatureDef, TensorProto};
+
     pub mod apis {
         tonic::include_proto!("tensorflow.serving");
     }
     pub mod config {
-        tonic::include_proto!("tensorflow.serving.config");
+        // TF Serving config protos are in package `tensorflow.serving` as well.
+        pub use super::apis::*;
     }
 }
 

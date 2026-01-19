@@ -1,0 +1,303 @@
+use num_cpus;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    Train,
+    Evaluate,
+    Predict,
+    Backtest,
+}
+
+impl Mode {
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "train" => Some(Mode::Train),
+            "evaluate" | "eval" => Some(Mode::Evaluate),
+            "predict" => Some(Mode::Predict),
+            "backtest" => Some(Mode::Backtest),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StockPredictorConfig {
+    pub num_tickers: usize,
+    pub days_of_history: usize,
+    pub lookback_window: usize,
+
+    pub use_synthetic_data: bool,
+    pub intraday_file: Option<String>,
+    pub intraday_ticker: Option<String>,
+    pub intraday_aggregate: usize,
+
+    pub ticker_embedding_dim: usize,
+    pub sector_embedding_dim: usize,
+    pub dien_hidden_size: usize,
+    pub dcn_cross_layers: usize,
+
+    pub batch_size: usize,
+    pub learning_rate: f32,
+    pub train_ratio: f32,
+    pub num_epochs: usize,
+    pub log_every_n_steps: usize,
+    pub early_stopping_patience: usize,
+    pub early_stopping_min_delta: f32,
+
+    pub mode: Mode,
+    pub seed: u64,
+    pub verbose: bool,
+
+    pub data_dir: Option<String>,
+
+    pub num_workers: usize,
+    pub gpu_mode: bool,
+
+    // Data volume controls
+    pub max_bars_per_ticker: usize,
+    pub bar_stride: usize,
+
+    // Feature timeframes in minutes (must include 1)
+    pub timeframes: Vec<usize>,
+}
+
+pub const DEFAULT_FUTURESHARKS_REPO_DIR: &str = "data/financial-data";
+pub const DEFAULT_FUTURESHARKS_DATA_DIR: &str = "data/financial-data/data/stocks/oanda";
+
+impl Default for StockPredictorConfig {
+    fn default() -> Self {
+        Self {
+            num_tickers: 50,
+            days_of_history: 252,
+            lookback_window: 20,
+
+            use_synthetic_data: false,
+            intraday_file: None,
+            intraday_ticker: None,
+            intraday_aggregate: 5,
+
+            ticker_embedding_dim: 32,
+            sector_embedding_dim: 16,
+            dien_hidden_size: 128,
+            dcn_cross_layers: 4,
+
+            batch_size: 64,
+            learning_rate: 0.0003,
+            train_ratio: 0.8,
+            num_epochs: 100,
+            log_every_n_steps: 50,
+            early_stopping_patience: 20,
+            early_stopping_min_delta: 1e-4,
+
+            mode: Mode::Train,
+            seed: 42,
+            verbose: true,
+
+            data_dir: Some(DEFAULT_FUTURESHARKS_DATA_DIR.to_string()),
+
+            num_workers: 0,
+            gpu_mode: false,
+
+            max_bars_per_ticker: 50_000,
+            bar_stride: 5,
+
+            timeframes: vec![1, 5, 15],
+        }
+    }
+}
+
+pub fn parse_args() -> StockPredictorConfig {
+    let args: Vec<String> = std::env::args().collect();
+    let mut config = StockPredictorConfig::default();
+
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--mode" | "-m" => {
+                if i + 1 < args.len() {
+                    if let Some(mode) = Mode::from_str(&args[i + 1]) {
+                        config.mode = mode;
+                    }
+                    i += 1;
+                }
+            }
+            "--num-tickers" | "-t" => {
+                if i + 1 < args.len() {
+                    config.num_tickers = args[i + 1].parse().unwrap_or(50);
+                    i += 1;
+                }
+            }
+            "--days" | "-d" => {
+                if i + 1 < args.len() {
+                    config.days_of_history = args[i + 1].parse().unwrap_or(252);
+                    i += 1;
+                }
+            }
+            "--lookback" | "-l" => {
+                if i + 1 < args.len() {
+                    config.lookback_window = args[i + 1].parse().unwrap_or(20);
+                    i += 1;
+                }
+            }
+            "--synthetic" => {
+                config.use_synthetic_data = true;
+            }
+            "--intraday-file" => {
+                if i + 1 < args.len() {
+                    config.intraday_file = Some(args[i + 1].clone());
+                    i += 1;
+                }
+            }
+            "--intraday-ticker" => {
+                if i + 1 < args.len() {
+                    config.intraday_ticker = Some(args[i + 1].clone());
+                    i += 1;
+                }
+            }
+            "--intraday-agg" | "--intraday-aggregate" => {
+                if i + 1 < args.len() {
+                    config.intraday_aggregate = args[i + 1].parse().unwrap_or(5);
+                    i += 1;
+                }
+            }
+            "--batch-size" | "-b" => {
+                if i + 1 < args.len() {
+                    config.batch_size = args[i + 1].parse().unwrap_or(32);
+                    i += 1;
+                }
+            }
+            "--learning-rate" | "-lr" => {
+                if i + 1 < args.len() {
+                    config.learning_rate = args[i + 1].parse().unwrap_or(0.001);
+                    i += 1;
+                }
+            }
+            "--epochs" | "-e" => {
+                if i + 1 < args.len() {
+                    config.num_epochs = args[i + 1].parse().unwrap_or(10);
+                    i += 1;
+                }
+            }
+            "--patience" | "--early-stopping-patience" => {
+                if i + 1 < args.len() {
+                    config.early_stopping_patience = args[i + 1].parse().unwrap_or(20);
+                    i += 1;
+                }
+            }
+            "--min-delta" | "--early-stopping-min-delta" => {
+                if i + 1 < args.len() {
+                    config.early_stopping_min_delta = args[i + 1].parse().unwrap_or(1e-4);
+                    i += 1;
+                }
+            }
+            "--seed" | "-s" => {
+                if i + 1 < args.len() {
+                    config.seed = args[i + 1].parse().unwrap_or(42);
+                    i += 1;
+                }
+            }
+            "--data-dir" | "--data" => {
+                if i + 1 < args.len() {
+                    config.data_dir = Some(args[i + 1].clone());
+                    i += 1;
+                }
+            }
+            "--quiet" | "-q" => {
+                config.verbose = false;
+            }
+            "--workers" | "-w" => {
+                if i + 1 < args.len() {
+                    config.num_workers = args[i + 1].parse().unwrap_or(0);
+                    i += 1;
+                }
+            }
+            "--gpu" => {
+                config.gpu_mode = true;
+            }
+            "--max-bars" => {
+                if i + 1 < args.len() {
+                    config.max_bars_per_ticker = args[i + 1].parse().unwrap_or(50_000);
+                    i += 1;
+                }
+            }
+            "--bar-stride" => {
+                if i + 1 < args.len() {
+                    config.bar_stride = args[i + 1].parse().unwrap_or(5);
+                    i += 1;
+                }
+            }
+            "--timeframes" => {
+                if i + 1 < args.len() {
+                    let parsed: Vec<usize> = args[i + 1]
+                        .split(',')
+                        .filter_map(|s| s.trim().parse::<usize>().ok())
+                        .filter(|&v| v > 0)
+                        .collect();
+                    if !parsed.is_empty() {
+                        config.timeframes = parsed;
+                    }
+                    i += 1;
+                }
+            }
+            "--help" | "-h" => {
+                print_usage();
+                std::process::exit(0);
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+
+    if !config.timeframes.contains(&1) {
+        config.timeframes.push(1);
+    }
+    config.timeframes.sort_unstable();
+    config.timeframes.dedup();
+
+    if config.num_workers == 0 {
+        config.num_workers = num_cpus::get();
+    }
+
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(config.num_workers)
+        .build_global()
+        .ok();
+
+    config
+}
+
+pub fn print_usage() {
+    println!(
+        r#"Monolith-RS Stock Prediction Example
+
+USAGE:
+    stock_prediction [OPTIONS]
+
+OPTIONS:
+    -m, --mode <MODE>           Operation mode: train, evaluate, predict, backtest
+                                [default: train]
+    -t, --num-tickers <N>       Number of tickers to load/simulate [default: 50]
+    -d, --days <N>              Days of historical data [default: 252]
+    -l, --lookback <N>          Lookback window size [default: 20]
+    --synthetic                 Generate synthetic data instead of reading CSVs
+    --intraday-file <PATH>      Load a single intraday CSV (FutureSharks / Yahoo)
+    --intraday-ticker <SYMBOL>  Override ticker symbol for --intraday-file
+    --intraday-agg <MIN>        Aggregate intraday minutes before feature calc [default: 5]
+    -b, --batch-size <N>        Training batch size [default: 32]
+    -lr, --learning-rate <LR>   Learning rate [default: 0.001]
+    -e, --epochs <N>            Number of training epochs [default: 10]
+    --patience <N>              Early stopping patience (epochs without improvement) [default: 20]
+    --min-delta <X>             Minimum eval loss improvement to reset patience [default: 1e-4]
+    -s, --seed <SEED>           Random seed [default: 42]
+    --data-dir <PATH>           Load real stock data from CSV files in directory
+                                [default: data/financial-data/data/stocks/oanda]
+    -w, --workers <N>           Number of parallel workers [default: auto-detect]
+    --gpu                       Enable GPU acceleration mode
+    --max-bars <N>              Max bars per ticker after load [default: 50000]
+    --bar-stride <N>            Downsample bars by stride [default: 5]
+    --timeframes <LIST>         Comma-separated minutes (pre-stride) [default: 1,5,15]
+    -q, --quiet                 Suppress verbose output
+    -h, --help                  Print help information
+"#
+    );
+}

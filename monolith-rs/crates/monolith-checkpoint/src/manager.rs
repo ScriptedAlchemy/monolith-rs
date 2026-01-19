@@ -273,10 +273,9 @@ impl<C: Checkpointer> CheckpointManager<C> {
                     .and_then(|f| f.to_str())
                     .map(|f| f.starts_with("checkpoint-") && f.ends_with(".json"))
                     .unwrap_or(false)
+                    && !checkpoints.contains(&path)
                 {
-                    if !checkpoints.contains(&path) {
-                        checkpoints.push(path);
-                    }
+                    checkpoints.push(path);
                 }
             }
         }
@@ -309,7 +308,7 @@ impl<C: Checkpointer> CheckpointManager<C> {
         if self.config.checkpoint_interval == 0 {
             return false;
         }
-        step > 0 && step % self.config.checkpoint_interval == 0
+        step > 0 && step.is_multiple_of(self.config.checkpoint_interval)
     }
 
     /// Initialize the manager by scanning the checkpoint directory.

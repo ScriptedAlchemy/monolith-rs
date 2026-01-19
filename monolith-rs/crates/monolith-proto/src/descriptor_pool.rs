@@ -12,4 +12,3 @@ pub fn descriptor_pool() -> DescriptorPool {
     DescriptorPool::decode(include_bytes!(concat!(env!("OUT_DIR"), "/descriptor.bin")) as &[u8])
         .expect("failed to decode FileDescriptorSet for monolith-proto")
 }
-

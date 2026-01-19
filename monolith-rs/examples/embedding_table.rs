@@ -154,7 +154,7 @@ fn demonstrate_initializers() {
     );
     println!(
         "  Values in range [-0.1, 0.1): {}",
-        uniform_embedding.iter().all(|&v| v >= -0.1 && v < 0.1)
+        uniform_embedding.iter().all(|&v| (-0.1..0.1).contains(&v))
     );
 
     // 5. RandomNormalInitializer - Normal/Gaussian distribution
@@ -175,7 +175,9 @@ fn demonstrate_initializers() {
         "TruncatedNormalInitializer(mean=0, stddev=0.1): {:?}",
         truncated_embedding
     );
-    let within_bounds = truncated_embedding.iter().all(|&v| v >= -0.2 && v <= 0.2);
+    let within_bounds = truncated_embedding
+        .iter()
+        .all(|&v| (-0.2..=0.2).contains(&v));
     println!("  All values within 2 stddev: {}", within_bounds);
 
     // 7. XavierUniformInitializer - Xavier/Glorot uniform initialization

@@ -6,7 +6,5 @@ license.workspace = true
 description = "Core traits, types, and feature abstractions for Monolith"
 
 [dependencies]
-monolith-proto = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
-hashbrown = { workspace = true }

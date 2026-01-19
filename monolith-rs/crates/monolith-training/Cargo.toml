@@ -12,10 +12,6 @@ consul = ["dep:rs-consul"]
 
 [dependencies]
 monolith-proto = { workspace = true }
-monolith-core = { workspace = true }
-monolith-data = { workspace = true }
-monolith-layers = { workspace = true }
-monolith-checkpoint = { workspace = true }
 monolith-serving = { workspace = true }
 monolith-hash-table = { workspace = true }
 thiserror = { workspace = true }

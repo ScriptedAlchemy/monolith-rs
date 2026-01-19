@@ -231,7 +231,7 @@ pub struct OneBitCompressor;
 
 impl Compressor for OneBitCompressor {
     fn compress(&self, embedding: &[f32]) -> Vec<u8> {
-        let num_bytes = (embedding.len() + 7) / 8;
+        let num_bytes = embedding.len().div_ceil(8);
         let mut bytes = vec![0u8; num_bytes];
 
         for (i, &value) in embedding.iter().enumerate() {
@@ -264,7 +264,7 @@ impl Compressor for OneBitCompressor {
     }
 
     fn compressed_size(&self, dim: usize) -> usize {
-        (dim + 7) / 8
+        dim.div_ceil(8)
     }
 }
 

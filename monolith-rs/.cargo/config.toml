@@ -1,0 +1,6 @@
+[alias]
+# Check for unused dependencies across the workspace (default scope is all members).
+unused-deps = "shear"
+# Apply fixes/removals suggested by cargo-shear.
+unused-deps-fix = "shear --fix"
+

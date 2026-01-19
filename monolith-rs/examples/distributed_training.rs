@@ -111,6 +111,7 @@ struct Args {
 // ============================================================================
 
 /// Health status of a service.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum HealthStatus {
     Healthy,
@@ -177,6 +178,7 @@ impl InMemoryDiscovery {
         }
     }
 
+    #[allow(dead_code)]
     fn get_healthy_ps(&self) -> Vec<ServiceInfo> {
         self.discover("ps")
             .into_iter()
@@ -190,6 +192,7 @@ impl InMemoryDiscovery {
 // ============================================================================
 
 /// Request types from workers to parameter servers.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 enum PsRequest {
     /// Request embeddings for given IDs
@@ -207,6 +210,7 @@ enum PsRequest {
 }
 
 /// Response types from parameter servers to workers.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 enum PsResponse {
     /// Embeddings for requested IDs
@@ -222,6 +226,7 @@ enum PsResponse {
 // ============================================================================
 
 /// A single shard of the embedding table.
+#[allow(dead_code)]
 struct EmbeddingShard {
     /// Embeddings stored as id -> vector
     embeddings: HashMap<i64, Vec<f32>>,
@@ -398,6 +403,7 @@ impl ParameterServer {
 // ============================================================================
 
 /// Training metrics collected by a worker.
+#[allow(dead_code)]
 #[derive(Debug, Default, Clone)]
 struct WorkerMetrics {
     steps_completed: u64,
@@ -410,6 +416,7 @@ struct WorkerMetrics {
 }
 
 /// A training worker that computes gradients.
+#[allow(dead_code)]
 struct Worker {
     worker_id: usize,
     batch_size: usize,
@@ -545,6 +552,7 @@ impl SyncCoordinator {
         std::mem::take(&mut *buffer)
     }
 
+    #[allow(dead_code)]
     fn all_workers_ready(&self) -> bool {
         self.workers_ready.load(Ordering::SeqCst) >= self.num_workers as u64
     }
@@ -781,7 +789,6 @@ fn run_worker_async(
 
     let num_ps = ps_channels.len();
     let dim = args.embedding_dim;
-    let mut local_step = 0u64;
 
     while !shutdown.load(Ordering::Relaxed) {
         let current_global = global_step.load(Ordering::Relaxed);
@@ -864,7 +871,6 @@ fn run_worker_async(
             let _ = resp_rx.recv();
         }
 
-        local_step += 1;
         let step = global_step.fetch_add(1, Ordering::SeqCst) + 1;
 
         worker.record_step(loss, batch.len(), batch.len());

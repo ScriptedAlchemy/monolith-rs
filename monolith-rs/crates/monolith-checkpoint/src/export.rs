@@ -232,7 +232,7 @@ fn write_model_spec_if_present(output_dir: &Path, state: &ModelState) -> Result<
 pub type Result<T> = std::result::Result<T, CheckpointError>;
 
 /// Export format for the model.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ExportFormat {
     /// JSON-based export format (human-readable).
     Json,
@@ -241,13 +241,8 @@ pub enum ExportFormat {
     Binary,
 
     /// SavedModel-like directory structure.
+    #[default]
     SavedModel,
-}
-
-impl Default for ExportFormat {
-    fn default() -> Self {
-        Self::SavedModel
-    }
 }
 
 /// Configuration for model export.

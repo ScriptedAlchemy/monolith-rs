@@ -781,12 +781,11 @@ impl InstanceBatch {
                 if let Some(feature) = instance.get_sparse_feature(name) {
                     all_fids.extend_from_slice(&feature.fids);
                     if feature.values.is_empty() {
-                        all_values.extend(std::iter::repeat(1.0f32).take(feature.fids.len()));
+                        all_values.extend(std::iter::repeat_n(1.0f32, feature.fids.len()));
                     } else {
                         all_values.extend_from_slice(&feature.values);
                     }
-                    batch_indices
-                        .extend(std::iter::repeat(batch_idx as i64).take(feature.fids.len()));
+                    batch_indices.extend(std::iter::repeat_n(batch_idx as i64, feature.fids.len()));
                 }
             }
 

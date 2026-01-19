@@ -226,6 +226,7 @@ pub mod parameter_sync_rpc;
 pub mod parameter_sync_sink;
 pub mod server;
 pub mod tfserving;
+pub mod tfserving_server;
 
 // Re-export main types at crate root for convenience
 pub use agent_service::{AgentServiceImpl, FeatureInput, PredictRequest, PredictResponse};
@@ -243,6 +244,9 @@ pub use parameter_sync_rpc::{ParameterSyncGrpcServer, ParameterSyncRpcClient};
 pub use parameter_sync_sink::EmbeddingStorePushSink;
 pub use server::{HealthStatus, Server, ServerState};
 pub use tfserving::{parse_model_server_config_pbtxt, TfServingClient};
+pub use tfserving_server::{
+    TfServingPredictionServer, INPUT_EXAMPLE, INPUT_EXAMPLE_BATCH, OUTPUT_SCORES,
+};
 
 /// Crate version.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

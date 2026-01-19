@@ -195,7 +195,7 @@ impl Server {
         *self.agent_service.write() = Some(agent_service);
 
         // Create shutdown channel
-        let (shutdown_tx, mut shutdown_rx) = mpsc::channel::<()>(1);
+        let (shutdown_tx, _shutdown_rx) = mpsc::channel::<()>(1);
         *self.shutdown_tx.write() = Some(shutdown_tx);
 
         // Record start time
@@ -247,7 +247,8 @@ impl Server {
         *self.state.write() = ServerState::ShuttingDown;
 
         // Send shutdown signal
-        if let Some(tx) = self.shutdown_tx.write().take() {
+        let tx = self.shutdown_tx.write().take();
+        if let Some(tx) = tx {
             let _ = tx.send(()).await;
         }
 
@@ -375,11 +376,13 @@ impl Server {
     }
 
     /// Increment the active connection counter.
+    #[allow(dead_code)]
     pub(crate) fn increment_connections(&self) {
         self.active_connections.fetch_add(1, Ordering::SeqCst);
     }
 
     /// Decrement the active connection counter.
+    #[allow(dead_code)]
     pub(crate) fn decrement_connections(&self) {
         self.active_connections.fetch_sub(1, Ordering::SeqCst);
     }

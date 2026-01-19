@@ -6,12 +6,9 @@ license.workspace = true
 description = "Hash table implementations for embedding storage"
 
 [dependencies]
-monolith-proto = { workspace = true }
 monolith-core = { workspace = true }
-monolith-optimizer = { workspace = true }
 thiserror = { workspace = true }
 hashbrown = { workspace = true }
-parking_lot = { workspace = true }
 serde = { workspace = true }
 rand = { workspace = true }
 rand_distr = { workspace = true }

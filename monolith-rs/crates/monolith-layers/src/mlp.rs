@@ -11,9 +11,11 @@ use crate::tensor::Tensor;
 use serde::{Deserialize, Serialize};
 
 /// Activation function types supported by MLP.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[allow(clippy::upper_case_acronyms)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ActivationType {
     /// Rectified Linear Unit
+    #[default]
     ReLU,
     /// Sigmoid function
     Sigmoid,
@@ -23,12 +25,6 @@ pub enum ActivationType {
     GELU,
     /// No activation (identity)
     None,
-}
-
-impl Default for ActivationType {
-    fn default() -> Self {
-        Self::ReLU
-    }
 }
 
 /// Configuration for building an MLP.
@@ -127,6 +123,7 @@ impl MLPConfig {
 }
 
 /// Internal enum to hold different activation layer types.
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone)]
 enum ActivationLayer {
     ReLU(ReLU),
