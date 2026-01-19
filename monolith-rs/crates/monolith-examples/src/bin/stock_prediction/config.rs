@@ -62,7 +62,8 @@ pub struct StockPredictorConfig {
 }
 
 pub const DEFAULT_FUTURESHARKS_REPO_DIR: &str = "data/financial-data";
-pub const DEFAULT_FUTURESHARKS_DATA_DIR: &str = "data/financial-data/data/stocks/oanda";
+pub const DEFAULT_FUTURESHARKS_DATA_DIR: &str =
+    "data/financial-data/pyfinancialdata/data/stocks/histdata";
 
 impl Default for StockPredictorConfig {
     fn default() -> Self {
@@ -290,7 +291,7 @@ OPTIONS:
     --min-delta <X>             Minimum eval loss improvement to reset patience [default: 1e-4]
     -s, --seed <SEED>           Random seed [default: 42]
     --data-dir <PATH>           Load real stock data from CSV files in directory
-                                [default: data/financial-data/data/stocks/oanda]
+                                [default: data/financial-data/pyfinancialdata/data/stocks/histdata]
     -w, --workers <N>           Number of parallel workers [default: auto-detect]
     --gpu                       Enable GPU acceleration mode
     --max-bars <N>              Max bars per ticker after load [default: 50000]

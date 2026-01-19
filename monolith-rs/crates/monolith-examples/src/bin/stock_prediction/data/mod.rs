@@ -525,35 +525,13 @@ impl CsvDataLoader {
 pub struct IntradayDataSources;
 
 impl IntradayDataSources {
-    pub fn futuresharks_urls() -> Vec<(&'static str, &'static str)> {
-        vec![
-            ("SPX500", "https://raw.githubusercontent.com/FutureSharks/financial-data/master/data/stocks/oanda/SPX500_USD_M1.csv.gz"),
-            ("NAS100", "https://raw.githubusercontent.com/FutureSharks/financial-data/master/data/stocks/oanda/NAS100_USD_M1.csv.gz"),
-            ("JP225", "https://raw.githubusercontent.com/FutureSharks/financial-data/master/data/stocks/oanda/JP225_USD_M1.csv.gz"),
-            ("DE30", "https://raw.githubusercontent.com/FutureSharks/financial-data/master/data/stocks/oanda/DE30_EUR_M1.csv.gz"),
-            ("UK100", "https://raw.githubusercontent.com/FutureSharks/financial-data/master/data/stocks/oanda/UK100_GBP_M1.csv.gz"),
-        ]
-    }
-
     pub fn print_download_instructions() {
         println!("\n=== Intraday Data Download Instructions ===\n");
-        println!("Option 1: FutureSharks financial-data (1-minute bars, 2010-2018)");
+        println!("FutureSharks financial-data (1-minute bars, 2010-2018)");
         println!("  git clone https://github.com/FutureSharks/financial-data.git");
-        println!("  # Default path is data/financial-data/data/stocks/oanda\n");
-
-        println!("Option 2: Download individual files:");
-        for (name, url) in Self::futuresharks_urls() {
-            println!("  # {}", name);
-            println!("  curl -L {} | gunzip > {}.csv", url, name);
-        }
-
-        println!("\nOption 3: Yahoo Finance intraday (last 60 days, via Python):");
-        println!("  pip install yfinance");
-        println!("  python -c \"import yfinance as yf; yf.download('AAPL', period='60d', interval='1m').to_csv('AAPL_1m.csv')\"");
-
-        println!("\nOption 4: Alpha Vantage API (free key required):");
-        println!("  curl 'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=AAPL&interval=1min&outputsize=full&apikey=YOUR_KEY&datatype=csv' > AAPL_intraday.csv");
-
+        println!(
+            "  # Default path is data/financial-data/pyfinancialdata/data/stocks/histdata\n"
+        );
         println!("\n===========================================\n");
     }
 }
@@ -858,6 +836,7 @@ impl FutureSharksHistdataLoader {
 }
 
 pub fn ensure_futuresharks_dataset_present(data_dir: Option<&str>) {
+    use std::fs;
     use std::path::Path;
     use std::process::Command;
 
@@ -869,12 +848,44 @@ pub fn ensure_futuresharks_dataset_present(data_dir: Option<&str>) {
         return;
     }
 
-    if Path::new(DEFAULT_FUTURESHARKS_REPO_DIR).exists() {
+    if data_dir != DEFAULT_FUTURESHARKS_DATA_DIR {
         return;
     }
 
-    if data_dir == DEFAULT_FUTURESHARKS_DATA_DIR
-    {
+    let repo_dir = Path::new(DEFAULT_FUTURESHARKS_REPO_DIR);
+    let git_dir = repo_dir.join(".git");
+
+    let mut attempted = false;
+    if repo_dir.exists() {
+        if git_dir.exists() {
+            eprintln!(
+                "Default intraday dataset not found at `{}`. Updating `{}` ...",
+                DEFAULT_FUTURESHARKS_DATA_DIR, DEFAULT_FUTURESHARKS_REPO_DIR
+            );
+            let _ = Command::new("git")
+                .args(["-C", DEFAULT_FUTURESHARKS_REPO_DIR, "pull", "--ff-only"])
+                .status();
+            attempted = true;
+        } else if fs::read_dir(repo_dir)
+            .map(|mut it| it.next().is_none())
+            .unwrap_or(false)
+        {
+            let _ = fs::remove_dir_all(repo_dir);
+        } else {
+            eprintln!(
+                "Default intraday dataset not found at `{}` and `{}` is not a git repo.",
+                DEFAULT_FUTURESHARKS_DATA_DIR, DEFAULT_FUTURESHARKS_REPO_DIR
+            );
+            eprintln!("Remove it or set --data-dir to the dataset location.");
+            return;
+        }
+    }
+
+    if Path::new(DEFAULT_FUTURESHARKS_DATA_DIR).exists() {
+        return;
+    }
+
+    if !attempted {
         eprintln!(
             "Default intraday dataset not found at `{}`. Cloning into `{}` ...",
             DEFAULT_FUTURESHARKS_DATA_DIR, DEFAULT_FUTURESHARKS_REPO_DIR

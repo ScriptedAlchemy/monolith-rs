@@ -248,7 +248,7 @@ fn run_training(
     tickers: &[TickerInfo],
 ) {
     println!("\nSection 5: Training (with momentum, LR decay, weight decay)");
-    let mut trainer = Trainer::new(config);
+    let mut trainer = Trainer::new(config, features.indicator_dim());
 
     for epoch in 0..config.num_epochs {
         if epoch > 0 {
@@ -327,7 +327,7 @@ fn run_evaluation(
     features: &FeatureIndex,
 ) {
     println!("\nRunning Evaluation Mode");
-    let model = StockPredictionModel::new(config);
+    let model = StockPredictionModel::new(config, features.indicator_dim());
 
     let batches = create_batches(eval_instances, config.batch_size);
     let mut total_correct = 0;
@@ -359,7 +359,7 @@ fn run_prediction(
     tickers: &[TickerInfo],
 ) {
     println!("\nRunning Prediction Mode");
-    let model = StockPredictionModel::new(config);
+    let model = StockPredictionModel::new(config, features.indicator_dim());
 
     let mut latest_instances = Vec::new();
     for ticker in tickers {
@@ -384,7 +384,7 @@ fn run_backtesting(
     features: &FeatureIndex,
 ) {
     println!("\nRunning Backtest Mode");
-    let model = StockPredictionModel::new(config);
+    let model = StockPredictionModel::new(config, features.indicator_dim());
     let backtester = Backtester::new();
 
     let metrics = backtester.run(&model, instances, features);

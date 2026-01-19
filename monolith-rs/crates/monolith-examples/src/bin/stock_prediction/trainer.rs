@@ -33,8 +33,8 @@ pub struct Trainer {
 }
 
 impl Trainer {
-    pub fn new(config: &StockPredictorConfig) -> Self {
-        let mut model = StockPredictionModel::new(config);
+    pub fn new(config: &StockPredictorConfig, indicator_dim: usize) -> Self {
+        let mut model = StockPredictionModel::new(config, indicator_dim);
 
         let optimizers: Vec<Amsgrad> = model
             .parameters_mut()

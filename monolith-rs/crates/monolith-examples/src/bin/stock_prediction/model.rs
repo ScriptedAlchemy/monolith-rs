@@ -99,7 +99,7 @@ pub struct StockPredictionModel {
 }
 
 impl StockPredictionModel {
-    pub fn new(config: &StockPredictorConfig) -> Self {
+    pub fn new(config: &StockPredictorConfig, indicator_dim: usize) -> Self {
         let embeddings = EmbeddingTables::new(
             config.num_tickers,
             config.ticker_embedding_dim,
@@ -107,7 +107,6 @@ impl StockPredictionModel {
             config.sector_embedding_dim,
         );
 
-        let indicator_dim = TechnicalIndicators::NUM_FEATURES * config.timeframes.len();
         let seq_feature_dim = 4 + indicator_dim;
         let senet = SENetLayer::new(indicator_dim, 4, true);
 

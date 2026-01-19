@@ -75,7 +75,8 @@ fn test_model_forward() {
         ..Default::default()
     };
 
-    let model = StockPredictionModel::new(&config);
+    let indicator_dim = TechnicalIndicators::NUM_FEATURES * config.timeframes.len();
+    let model = StockPredictionModel::new(&config, indicator_dim);
 
     let mut generator = StockDataGenerator::new(42);
     generator.generate_tickers(1);
