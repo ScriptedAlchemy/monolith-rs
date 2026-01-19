@@ -1,4 +1,4 @@
-use super::instances::{create_batches, FeatureIndex, StockInstance};
+use super::instances::{FeatureIndex, StockInstance};
 use super::model::StockPredictionModel;
 
 #[derive(Debug, Clone, Default)]
@@ -37,7 +37,14 @@ impl Backtester {
         instances: &[StockInstance],
         features: &FeatureIndex,
     ) -> FinancialMetrics {
-        let batches = create_batches(instances, 32);
+        // Backtests must be chronological; otherwise metrics are meaningless.
+        let mut ordered: Vec<&StockInstance> = instances.iter().collect();
+        ordered.sort_by_key(|i| (i.t, i.ticker_idx));
+
+        let batches: Vec<Vec<&StockInstance>> = ordered
+            .chunks(32)
+            .map(|c| c.to_vec())
+            .collect();
 
         let mut capital = self.initial_capital;
         let mut peak_capital = capital;
@@ -55,11 +62,31 @@ impl Backtester {
             for (i, instance) in batch.iter().enumerate() {
                 let direction_pred = output.direction[i];
                 let magnitude_pred = output.magnitude[i];
+                let profitable_pred = output.profitable[i];
 
-                if !(0.4..=0.6).contains(&direction_pred) {
+                // Confidence in [0,1] where 0.0 ~ neutral, 1.0 ~ very confident
+                let edge = ((direction_pred - 0.5).abs() * 2.0).clamp(0.0, 1.0);
+
+                // Risk estimate from indicators (0..1)
+                let indicators = features.indicator_at(instance, instance.t, 0);
+                let risk_score = indicators
+                    .map(|ind| {
+                        // atr_14 is already normalized by close in our indicators implementation
+                        (ind.atr_14.abs() + ind.bollinger_width.abs()) * 0.5
+                    })
+                    .unwrap_or(0.0)
+                    .clamp(0.0, 1.0);
+
+                // Only trade when direction is confident AND "profitable" head agrees
+                if edge > 0.2 && profitable_pred > 0.55 && risk_score < 0.85 {
+                    // Size down in high risk regimes; size up with confidence.
+                    let risk_mult = (1.0 - risk_score).clamp(0.1, 1.0);
                     let magnitude_multiplier = (magnitude_pred.abs() / 2.0).clamp(0.5, 2.0);
-                    let position_value =
-                        capital * self.position_size as f64 * magnitude_multiplier as f64;
+                    let position_value = capital
+                        * self.position_size as f64
+                        * edge as f64
+                        * risk_mult as f64
+                        * magnitude_multiplier as f64;
                     let is_long = direction_pred > 0.5;
 
                     let actual_return = instance.magnitude_label / 100.0;

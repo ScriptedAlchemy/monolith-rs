@@ -11,15 +11,17 @@ use super::data::{
 use super::data::IntradayCsvLoader;
 use super::indicators::{IndicatorCalculator, TechnicalIndicators};
 use super::instances::{
-    create_batches, create_instances_parallel, train_eval_split, FeatureIndex, InstanceCreator,
-    StockInstance,
+    create_batches, create_instances_parallel, train_eval_split_time_by_ticker, FeatureIndex,
+    InstanceCreator, StockInstance,
 };
 use super::model::StockPredictionModel;
 use super::report::{generate_recommendations, print_recommendation_report};
 use super::trainer::Trainer;
+use monolith_layers::tensor::set_gpu_enabled;
 
 pub fn run() {
     let config = parse_args();
+    set_gpu_enabled(config.gpu_mode);
 
     println!("{}", "=".repeat(80));
     println!("Monolith-RS Stock Prediction Example");
@@ -36,6 +38,24 @@ pub fn run() {
         },
         config.batch_size,
         config.learning_rate
+    );
+    println!(
+        "Features: timeframes={} | lookbacks={} (seq={}) | stride={} | max-bars={}",
+        config
+            .timeframes
+            .iter()
+            .map(|v| v.to_string())
+            .collect::<Vec<_>>()
+            .join(","),
+        config
+            .lookbacks
+            .iter()
+            .map(|v| v.to_string())
+            .collect::<Vec<_>>()
+            .join(","),
+        config.lookback_window,
+        config.bar_stride,
+        config.max_bars_per_ticker
     );
     println!();
 
@@ -172,15 +192,30 @@ pub fn run() {
     let instance_creator = InstanceCreator::new(config.lookback_window);
     let all_instances = create_instances_parallel(&feature_index, &instance_creator);
 
-    let (train_instances, eval_instances) = train_eval_split(&all_instances, config.train_ratio);
+    let (train_instances, eval_instances) =
+        train_eval_split_time_by_ticker(&all_instances, config.train_ratio);
+
+    // Show coverage by ticker so it's obvious we're not accidentally evaluating on unseen tickers.
+    let mut train_tickers = std::collections::HashSet::new();
+    let mut eval_tickers = std::collections::HashSet::new();
+    for i in &train_instances {
+        train_tickers.insert(i.ticker_idx);
+    }
+    for i in &eval_instances {
+        eval_tickers.insert(i.ticker_idx);
+    }
+    let overlap = train_tickers.intersection(&eval_tickers).count();
 
     println!(
-        "  Train: {} ({:.0}%) | Eval: {} ({:.0}%) | Lookback: {} bars",
+        "  Train: {} ({:.0}%) | Eval: {} ({:.0}%) | Lookback: {} bars | Tickers train/eval/overlap: {}/{}/{}",
         train_instances.len(),
         config.train_ratio * 100.0,
         eval_instances.len(),
         (1.0 - config.train_ratio) * 100.0,
-        config.lookback_window
+        config.lookback_window,
+        train_tickers.len(),
+        eval_tickers.len(),
+        overlap
     );
 
     println!("\nSection 4: Model Architecture");

@@ -17,7 +17,6 @@ use monolith_layers::{
 
 use super::config::StockPredictorConfig;
 use super::data::Sector;
-use super::indicators::TechnicalIndicators;
 use super::instances::{FeatureIndex, StockInstance};
 
 pub struct EmbeddingTables {
@@ -91,6 +90,7 @@ pub struct StockPredictionModel {
     din: DINAttention,
     dcn: CrossNetwork,
     layer_norm: LayerNorm,
+    residual_norm: LayerNorm,
     mmoe: MMoE,
     direction_head: MLP,
     magnitude_head: MLP,
@@ -108,13 +108,18 @@ impl StockPredictionModel {
         );
 
         let seq_feature_dim = 4 + indicator_dim;
+        let pooled_dim = seq_feature_dim * config.lookbacks.len().max(1);
+
+        // SENet for feature recalibration
         let senet = SENetLayer::new(indicator_dim, 4, true);
 
+        // DIEN for sequential modeling
         let dien = DIENConfig::new(seq_feature_dim, config.dien_hidden_size)
             .with_use_auxiliary_loss(false)
             .build()
             .unwrap();
 
+        // DIN for attention-based sequence modeling
         let din = DINConfig::new(seq_feature_dim)
             .with_attention_hidden_units(vec![64, 32])
             .with_activation(ActivationType::Sigmoid)
@@ -122,36 +127,43 @@ impl StockPredictionModel {
             .build()
             .unwrap();
 
+        // Calculate combined feature dimension
         let combined_dim = config.ticker_embedding_dim
             + config.sector_embedding_dim
             + config.dien_hidden_size
             + seq_feature_dim
             + indicator_dim;
 
+        // Deep cross network with residual connections
         let dcn = CrossNetwork::new(combined_dim, config.dcn_cross_layers, DCNMode::Matrix);
         let layer_norm = LayerNorm::new(combined_dim);
+        let residual_norm = LayerNorm::new(combined_dim);
 
+        // MMoE for multi-task learning
         let mmoe = MMoEConfig::new(combined_dim, 4, 3)
-            .with_expert_hidden_units(vec![64, 32])
+            .with_expert_hidden_units(vec![128, 64, 32])  // Deeper experts
             .with_expert_activation(ActivationType::GELU)
-            .with_expert_output_dim(32)
+            .with_expert_output_dim(48)  // Larger output dimension
             .build()
             .unwrap();
 
-        let mmoe_output_dim = 32;
+        let mmoe_output_dim = 48;  // Updated to match MMoE output
         let direction_head = MLPConfig::new(mmoe_output_dim)
+            .add_layer(32, ActivationType::GELU)
             .add_layer(16, ActivationType::GELU)
             .add_layer(1, ActivationType::Sigmoid)
             .build()
             .unwrap();
 
         let magnitude_head = MLPConfig::new(mmoe_output_dim)
+            .add_layer(32, ActivationType::GELU)
             .add_layer(16, ActivationType::GELU)
             .add_layer(1, ActivationType::None)
             .build()
             .unwrap();
 
         let profitable_head = MLPConfig::new(mmoe_output_dim)
+            .add_layer(32, ActivationType::GELU)
             .add_layer(16, ActivationType::GELU)
             .add_layer(1, ActivationType::Sigmoid)
             .build()
@@ -164,6 +176,7 @@ impl StockPredictionModel {
             din,
             dcn,
             layer_norm,
+            residual_norm,
             mmoe,
             direction_head,
             magnitude_head,
@@ -206,7 +219,38 @@ impl StockPredictionModel {
             .for_each(|(chunk, instance)| {
                 features.write_sequence_features(instance, lookback, chunk);
             });
-        let seq_tensor = Tensor::from_data(&[batch_size, lookback, seq_feature_dim], seq_data);
+        let mut seq_tensor = Tensor::from_data(&[batch_size, lookback, seq_feature_dim], seq_data);
+
+        // Multi-lookback pooled features: for each configured lookback L, compute a mean pool
+        // over the last L steps of the sequence tensor. This gives multi-horizon context without
+        // storing extra sequences.
+        let lookbacks = if self.config.lookbacks.is_empty() {
+            vec![lookback]
+        } else {
+            self.config.lookbacks.clone()
+        };
+        let pooled_dim = seq_feature_dim * lookbacks.len();
+        let mut pooled_data = vec![0.0; batch_size * pooled_dim];
+        let seq_flat = seq_tensor.data();
+        pooled_data
+            .par_chunks_mut(pooled_dim)
+            .enumerate()
+            .for_each(|(b, out)| {
+                let base = b * lookback * seq_feature_dim;
+                for (li, &l_raw) in lookbacks.iter().enumerate() {
+                    let l = l_raw.min(lookback).max(1);
+                    let start_step = lookback - l;
+                    let out_off = li * seq_feature_dim;
+                    for d in 0..seq_feature_dim {
+                        let mut sum = 0.0f32;
+                        for step in start_step..lookback {
+                            sum += seq_flat[base + step * seq_feature_dim + d];
+                        }
+                        out[out_off + d] = sum / l as f32;
+                    }
+                }
+            });
+        let pooled_tensor = Tensor::from_data(&[batch_size, pooled_dim], pooled_data);
 
         let mut target_data = vec![0.0; batch_size * seq_feature_dim];
         for b in 0..batch_size {
@@ -233,10 +277,14 @@ impl StockPredictionModel {
             &dien_output,
             &din_output,
             &senet_indicators,
+            &pooled_tensor,
         );
 
+        // Residual connection through DCN
         let dcn_output = self.dcn.forward(&combined).unwrap();
-        let normalized = self.layer_norm.forward(&dcn_output).unwrap();
+        let residual_combined = self.add_residual(&combined, &dcn_output);
+        let normalized = self.layer_norm.forward(&residual_combined).unwrap();
+
         let mmoe_outputs = self.mmoe.forward_multi(&normalized).unwrap();
 
         let direction_pred = self.direction_head.forward(&mmoe_outputs[0]).unwrap();
@@ -257,13 +305,15 @@ impl StockPredictionModel {
         dien: &Tensor,
         din: &Tensor,
         senet_indicators: &Tensor,
+        pooled: &Tensor,
     ) -> Tensor {
         let batch_size = ticker.shape()[0];
         let total_dim = ticker.shape()[1]
             + sector.shape()[1]
             + dien.shape()[1]
             + din.shape()[1]
-            + senet_indicators.shape()[1];
+            + senet_indicators.shape()[1]
+            + pooled.shape()[1];
 
         let mut data = vec![0.0; batch_size * total_dim];
 
@@ -293,9 +343,29 @@ impl StockPredictionModel {
             for i in 0..senet_indicators.shape()[1] {
                 data[offset + i] = senet_indicators.data()[b * senet_indicators.shape()[1] + i];
             }
+            offset += senet_indicators.shape()[1];
+
+            for i in 0..pooled.shape()[1] {
+                data[offset + i] = pooled.data()[b * pooled.shape()[1] + i];
+            }
         }
 
         Tensor::from_data(&[batch_size, total_dim], data)
+    }
+
+    fn add_residual(&self, input: &Tensor, residual: &Tensor) -> Tensor {
+        let batch_size = input.shape()[0];
+        let dim = input.shape()[1];
+        let mut data = vec![0.0; batch_size * dim];
+
+        for b in 0..batch_size {
+            for d in 0..dim {
+                let idx = b * dim + d;
+                data[idx] = input.data()[idx] + residual.data()[idx];
+            }
+        }
+
+        Tensor::from_data(&[batch_size, dim], data)
     }
 
     pub fn compute_loss(
@@ -305,6 +375,7 @@ impl StockPredictionModel {
     ) -> (f32, f32, f32, f32) {
         let batch_size = batch.len() as f32;
 
+        // Direction loss (binary cross-entropy)
         let mut direction_loss = 0.0;
         for (i, instance) in batch.iter().enumerate() {
             let pred = output.direction[i].clamp(1e-7, 1.0 - 1e-7);
@@ -313,28 +384,47 @@ impl StockPredictionModel {
         }
         direction_loss /= batch_size;
 
+        // Magnitude loss (improved Huber loss with dynamic scaling)
         let mut magnitude_loss = 0.0;
-        let delta = 5.0;
+        let mut magnitude_mae = 0.0;
         for (i, instance) in batch.iter().enumerate() {
             let diff = (output.magnitude[i] - instance.magnitude_label).abs();
+            magnitude_mae += diff;
+
+            // Adaptive delta based on label magnitude
+            let delta = (instance.magnitude_label.abs() * 0.5).max(0.01).min(2.0);
             if diff <= delta {
-                magnitude_loss += 0.5 * diff * diff;
+                magnitude_loss += 0.5 * diff * diff / delta;  // Normalized L2
             } else {
-                magnitude_loss += delta * (diff - 0.5 * delta);
+                magnitude_loss += diff - 0.5 * delta;  // L1 for outliers
             }
         }
         magnitude_loss /= batch_size;
-        magnitude_loss /= 10.0;
+        magnitude_mae /= batch_size;
 
+        // Scale magnitude loss based on current MAE to prevent vanishing gradients
+        let magnitude_scale = (magnitude_mae * 10.0).max(0.1).min(5.0);
+        magnitude_loss *= magnitude_scale;
+
+        // Profitable loss (binary cross-entropy with label smoothing)
         let mut profitable_loss = 0.0;
+        let label_smoothing = 0.1;
         for (i, instance) in batch.iter().enumerate() {
             let pred = output.profitable[i].clamp(1e-7, 1.0 - 1e-7);
             let label = instance.profitable_label;
-            profitable_loss += -label * pred.ln() - (1.0 - label) * (1.0 - pred).ln();
+            let smooth_label = label * (1.0 - label_smoothing) + 0.5 * label_smoothing;
+            profitable_loss += -smooth_label * pred.ln() - (1.0 - smooth_label) * (1.0 - pred).ln();
         }
         profitable_loss /= batch_size;
 
-        let total_loss = 0.4 * direction_loss + 0.4 * magnitude_loss + 0.2 * profitable_loss;
+        // Balanced total loss with adaptive weighting
+        let direction_weight = 0.5;
+        let magnitude_weight = 0.3;
+        let profitable_weight = 0.2;
+
+        let total_loss = direction_weight * direction_loss +
+                        magnitude_weight * magnitude_loss +
+                        profitable_weight * profitable_loss;
 
         (total_loss, direction_loss, magnitude_loss, profitable_loss)
     }
@@ -346,6 +436,7 @@ impl StockPredictionModel {
         params.extend(self.din.parameters_mut());
         params.extend(self.dcn.parameters_mut());
         params.extend(self.layer_norm.parameters_mut());
+        params.extend(self.residual_norm.parameters_mut());
         params.extend(self.mmoe.parameters_mut());
         params.extend(self.direction_head.parameters_mut());
         params.extend(self.magnitude_head.parameters_mut());

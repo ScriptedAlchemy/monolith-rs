@@ -14,3 +14,10 @@ description = "Neural network layers for Monolith"
 # External dependencies
 thiserror = { workspace = true }
 serde = { workspace = true }
+rayon = { workspace = true }
+monolith-tensor = { workspace = true, optional = true }
+
+[features]
+default = []
+metal = ["monolith-tensor/metal"]
+cuda = ["monolith-tensor/cuda"]

@@ -4,7 +4,12 @@
 //! This module provides a placeholder Tensor type that will be replaced
 //! by the actual implementation from monolith-tensor once available.
 
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+#[cfg(any(feature = "metal", feature = "cuda"))]
+use monolith_tensor::{CandleTensor, Device};
 
 /// A multi-dimensional array for neural network computations.
 ///
@@ -16,6 +21,18 @@ pub struct Tensor {
     shape: Vec<usize>,
     /// The underlying data in row-major order
     data: Vec<f32>,
+}
+
+static GPU_ENABLED: AtomicBool = AtomicBool::new(false);
+
+/// Enable or disable GPU acceleration for supported ops (matmul).
+pub fn set_gpu_enabled(enabled: bool) {
+    GPU_ENABLED.store(enabled, Ordering::Relaxed);
+}
+
+#[cfg(any(feature = "metal", feature = "cuda"))]
+fn gpu_enabled() -> bool {
+    GPU_ENABLED.load(Ordering::Relaxed)
 }
 
 impl Tensor {
@@ -176,13 +193,46 @@ impl Tensor {
         let n = other.shape[1];
 
         let mut result = vec![0.0; m * n];
-        for i in 0..m {
-            for j in 0..n {
-                let mut sum = 0.0;
-                for l in 0..k {
-                    sum += self.data[i * k + l] * other.data[l * n + j];
+
+        #[cfg(any(feature = "metal", feature = "cuda"))]
+        {
+            if gpu_enabled() {
+                let device = CandleTensor::best_device();
+                if !matches!(device, Device::Cpu) {
+                    let a = CandleTensor::from_slice_on(&self.data, &self.shape, &device);
+                    let b = CandleTensor::from_slice_on(&other.data, &other.shape, &device);
+                    let c = a.matmul(&b);
+                    return Tensor::from_data(&[m, n], c.to_vec());
                 }
-                result[i * n + j] = sum;
+            }
+        }
+
+        let work = m.saturating_mul(n).saturating_mul(k);
+        if work >= 32_768 && m > 1 {
+            let a = &self.data;
+            let b = &other.data;
+            result
+                .par_chunks_mut(n)
+                .enumerate()
+                .for_each(|(i, row)| {
+                    let row_base = i * k;
+                    for j in 0..n {
+                        let mut sum = 0.0;
+                        for l in 0..k {
+                            sum += a[row_base + l] * b[l * n + j];
+                        }
+                        row[j] = sum;
+                    }
+                });
+        } else {
+            for i in 0..m {
+                for j in 0..n {
+                    let mut sum = 0.0;
+                    for l in 0..k {
+                        sum += self.data[i * k + l] * other.data[l * n + j];
+                    }
+                    result[i * n + j] = sum;
+                }
             }
         }
 

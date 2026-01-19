@@ -25,6 +25,9 @@ pub struct StockPredictorConfig {
     pub num_tickers: usize,
     pub days_of_history: usize,
     pub lookback_window: usize,
+    /// Additional pooled lookback horizons (in bars) to provide multi-horizon context.
+    /// `lookback_window` is automatically set to `max(lookbacks)` when parsing args.
+    pub lookbacks: Vec<usize>,
 
     pub use_synthetic_data: bool,
     pub intraday_file: Option<String>,
@@ -70,7 +73,8 @@ impl Default for StockPredictorConfig {
         Self {
             num_tickers: 50,
             days_of_history: 252,
-            lookback_window: 20,
+            lookback_window: 120,
+            lookbacks: vec![20, 60, 120],
 
             use_synthetic_data: false,
             intraday_file: None,
@@ -99,10 +103,10 @@ impl Default for StockPredictorConfig {
             num_workers: 0,
             gpu_mode: false,
 
-            max_bars_per_ticker: 50_000,
+            max_bars_per_ticker: 0,
             bar_stride: 5,
 
-            timeframes: vec![1, 5, 15],
+            timeframes: vec![1, 5, 15, 30, 60],
         }
     }
 }
@@ -136,7 +140,22 @@ pub fn parse_args() -> StockPredictorConfig {
             }
             "--lookback" | "-l" => {
                 if i + 1 < args.len() {
-                    config.lookback_window = args[i + 1].parse().unwrap_or(20);
+                    let v = args[i + 1].parse().unwrap_or(120);
+                    config.lookbacks = vec![v.max(1)];
+                    config.lookback_window = v.max(1);
+                    i += 1;
+                }
+            }
+            "--lookbacks" => {
+                if i + 1 < args.len() {
+                    let parsed: Vec<usize> = args[i + 1]
+                        .split(',')
+                        .filter_map(|s| s.trim().parse::<usize>().ok())
+                        .filter(|&v| v > 0)
+                        .collect();
+                    if !parsed.is_empty() {
+                        config.lookbacks = parsed;
+                    }
                     i += 1;
                 }
             }
@@ -255,6 +274,18 @@ pub fn parse_args() -> StockPredictorConfig {
     config.timeframes.sort_unstable();
     config.timeframes.dedup();
 
+    if config.lookbacks.is_empty() {
+        config.lookbacks = vec![config.lookback_window.max(1)];
+    }
+    config.lookbacks.iter_mut().for_each(|v| {
+        if *v == 0 {
+            *v = 1;
+        }
+    });
+    config.lookbacks.sort_unstable();
+    config.lookbacks.dedup();
+    config.lookback_window = *config.lookbacks.last().unwrap_or(&config.lookback_window).max(&1);
+
     if config.num_workers == 0 {
         config.num_workers = num_cpus::get();
     }
@@ -263,6 +294,12 @@ pub fn parse_args() -> StockPredictorConfig {
         .num_threads(config.num_workers)
         .build_global()
         .ok();
+
+    if config.gpu_mode && !cfg!(any(feature = "metal", feature = "cuda")) {
+        eprintln!("Warning: --gpu requested but metal/cuda features are not enabled.");
+        eprintln!("         Rebuild with: --features metal (macOS) or --features cuda (Linux/Windows)");
+        config.gpu_mode = false;
+    }
 
     config
 }
@@ -279,7 +316,8 @@ OPTIONS:
                                 [default: train]
     -t, --num-tickers <N>       Number of tickers to load/simulate [default: 50]
     -d, --days <N>              Days of historical data [default: 252]
-    -l, --lookback <N>          Lookback window size [default: 20]
+    -l, --lookback <N>          Lookback window size (sets --lookbacks to this single value) [default: 120]
+    --lookbacks <LIST>          Comma-separated pooled lookbacks (bars) [default: 20,60,120]
     --synthetic                 Generate synthetic data instead of reading CSVs
     --intraday-file <PATH>      Load a single intraday CSV (FutureSharks / Yahoo)
     --intraday-ticker <SYMBOL>  Override ticker symbol for --intraday-file
@@ -293,10 +331,10 @@ OPTIONS:
     --data-dir <PATH>           Load real stock data from CSV files in directory
                                 [default: data/financial-data/pyfinancialdata/data/stocks/histdata]
     -w, --workers <N>           Number of parallel workers [default: auto-detect]
-    --gpu                       Enable GPU acceleration mode
-    --max-bars <N>              Max bars per ticker after load [default: 50000]
+    --gpu                       Enable GPU acceleration mode (requires metal/cuda feature)
+    --max-bars <N>              Max bars per ticker after load [default: 0=all]
     --bar-stride <N>            Downsample bars by stride [default: 5]
-    --timeframes <LIST>         Comma-separated minutes (pre-stride) [default: 1,5,15]
+    --timeframes <LIST>         Comma-separated minutes (pre-stride) [default: 1,5,15,30,60]
     -q, --quiet                 Suppress verbose output
     -h, --help                  Print help information
 "#

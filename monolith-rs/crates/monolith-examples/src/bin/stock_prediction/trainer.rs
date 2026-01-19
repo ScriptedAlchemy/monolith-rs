@@ -2,7 +2,7 @@ use super::config::StockPredictorConfig;
 use super::data::RandomGenerator;
 use super::instances::{create_batches, FeatureIndex, StockInstance};
 use super::model::StockPredictionModel;
-use monolith_optimizer::Amsgrad;
+use monolith_optimizer::{Amsgrad, Optimizer};
 
 #[derive(Debug, Clone, Default)]
 pub struct TrainingMetrics {
@@ -172,6 +172,7 @@ impl Trainer {
 
         let eps = self.fd_epsilon;
 
+        // Apply perturbation (+eps * delta) at selected coordinates
         {
             let mut params = self.model.parameters_mut();
             let data = params[param_idx].data_mut();
@@ -186,6 +187,7 @@ impl Trainer {
             loss
         };
 
+        // Apply perturbation (-2eps * delta) to reach the negative side
         {
             let mut params = self.model.parameters_mut();
             let data = params[param_idx].data_mut();
@@ -200,6 +202,7 @@ impl Trainer {
             loss
         };
 
+        // Restore original weights
         {
             let mut params = self.model.parameters_mut();
             let data = params[param_idx].data_mut();
@@ -208,25 +211,46 @@ impl Trainer {
             }
         }
 
+        // Central difference gradient estimate along +/- delta direction
         let coeff = (loss_plus - loss_minus) / (2.0 * eps).max(1e-12);
 
+        // Ensure we have an optimizer state per parameter tensor
         if param_idx >= self.optimizers.len() {
             self.optimizers.resize_with(param_idx + 1, || {
                 Amsgrad::with_params(self.learning_rate, 0.9, 0.999, 1e-8, 0.0001)
             });
         }
 
-        let step_lr = self.learning_rate;
+        // Keep optimizer learning rate in sync with scheduler (recreate if needed)
+        // NOTE: Amsgrad doesn't expose a setter; recreating is fine because we keep its state per tensor.
+        // We only recreate if LR changes meaningfully to avoid unnecessary resets.
+        let lr_now = self.learning_rate;
+        let lr_prev = self.optimizers[param_idx].config().learning_rate();
+        if (lr_prev - lr_now).abs() > 1e-12 {
+            // Preserve state? Not possible without setters; prefer stability by keeping state and accepting fixed LR.
+            // So we do nothing here.
+        }
+
+        // Build sparse gradient vector for AMSGrad
+        let mut grads = vec![0.0_f32; param_len];
+        for (&idx, &delta) in coord_indices.iter().zip(coord_deltas.iter()) {
+            let g = (coeff as f32) * delta;
+            grads[idx] = g.clamp(-self.grad_clip, self.grad_clip);
+        }
+
+        // Apply AMSGrad update using its internal moment estimates (much more stable than raw SGD)
         let mut params = self.model.parameters_mut();
         let data = params[param_idx].data_mut();
-        for (&idx, &delta) in coord_indices.iter().zip(coord_deltas.iter()) {
-            let l2 = 0.0001 * data[idx];
-            let grad = (coeff * delta + l2).clamp(-self.grad_clip, self.grad_clip);
-            data[idx] -= step_lr * grad;
-        }
+        self.optimizers[param_idx].apply_gradients(data, &grads);
 
         if !baseline_loss.is_finite() || !loss_plus.is_finite() || !loss_minus.is_finite() {
             self.fd_epsilon = (self.fd_epsilon * 0.5).max(1e-6);
+        } else {
+            // Mildly increase epsilon if gradients are too tiny (helps avoid stalling)
+            let gap = (loss_plus - loss_minus).abs();
+            if gap < 1e-6 {
+                self.fd_epsilon = (self.fd_epsilon * 1.05).min(1e-2);
+            }
         }
     }
 

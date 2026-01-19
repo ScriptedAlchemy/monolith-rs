@@ -139,3 +139,60 @@ fn test_sector() {
     assert_eq!(Sector::Technology.id(), 0);
     assert_eq!(Sector::Technology.name(), "Technology");
 }
+
+#[test]
+fn test_feature_index_indicator_dim_multi_tf() {
+    let mut generator = StockDataGenerator::new(42);
+    generator.generate_tickers(1);
+    generator.generate_bars(40);
+    let ticker = generator.tickers()[0].clone();
+    let bars = generator.bars().to_vec();
+
+    let mut calc = IndicatorCalculator::new();
+    let indicators = calc.compute_indicators(&bars);
+
+    let feature_index = FeatureIndex::new(
+        vec![ticker],
+        vec![bars],
+        vec![vec![indicators.clone(), indicators]],
+        vec![1, 5],
+    );
+
+    assert_eq!(
+        feature_index.indicator_dim(),
+        TechnicalIndicators::NUM_FEATURES * 2
+    );
+}
+
+#[test]
+fn test_sequence_features_are_finite() {
+    let mut generator = StockDataGenerator::new(7);
+    generator.generate_tickers(1);
+    generator.generate_bars(60);
+    let ticker = generator.tickers()[0].clone();
+    let bars = generator.bars().to_vec();
+
+    let mut calc = IndicatorCalculator::new();
+    let indicators = calc.compute_indicators(&bars);
+    let feature_index = FeatureIndex::new(
+        vec![ticker.clone()],
+        vec![bars.clone()],
+        vec![vec![indicators.clone()]],
+        vec![1],
+    );
+
+    let creator = InstanceCreator::new(10);
+    let instances = creator.create_instances(0, &ticker, &bars, &indicators);
+    let instance = instances.first().expect("instance").clone();
+
+    let seq_dim = 4 + feature_index.indicator_dim();
+    let mut buf = vec![0.0; seq_dim * 10];
+    feature_index.write_sequence_features(&instance, 10, &mut buf);
+
+    assert!(buf.iter().all(|v| v.is_finite()));
+    assert!(instances.iter().all(|inst| {
+        inst.direction_label.is_finite()
+            && inst.magnitude_label.is_finite()
+            && inst.profitable_label.is_finite()
+    }));
+}

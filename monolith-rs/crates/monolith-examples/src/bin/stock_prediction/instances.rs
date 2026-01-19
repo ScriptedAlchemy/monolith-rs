@@ -1,4 +1,5 @@
 use rayon::prelude::*;
+use std::collections::HashMap;
 
 use super::data::{StockBar, TickerInfo};
 use super::indicators::TechnicalIndicators;
@@ -63,7 +64,9 @@ impl FeatureIndex {
                 let vals = indicators.to_vec();
                 let end = offset + vals.len();
                 if end <= out.len() {
-                    out[offset..end].copy_from_slice(&vals);
+                    for (dst, v) in out[offset..end].iter_mut().zip(vals.iter()) {
+                        *dst = if v.is_finite() { *v } else { 0.0 };
+                    }
                 }
                 offset = end;
             } else {
@@ -85,16 +88,19 @@ impl FeatureIndex {
             let bar = self.bar_at(inst, t);
             let base = i * seq_feature_dim;
             let close = bar.close.max(1e-6);
-            out[base] = bar.open / close - 1.0;
-            out[base + 1] = bar.high / close - 1.0;
-            out[base + 2] = bar.low / close - 1.0;
+            let open = if bar.open.is_finite() { bar.open } else { 0.0 };
+            let high = if bar.high.is_finite() { bar.high } else { 0.0 };
+            let low = if bar.low.is_finite() { bar.low } else { 0.0 };
+            out[base] = (open / close - 1.0).clamp(-10.0, 10.0);
+            out[base + 1] = (high / close - 1.0).clamp(-10.0, 10.0);
+            out[base + 2] = (low / close - 1.0).clamp(-10.0, 10.0);
             out[base + 3] = 1.0;
             let mut offset = base + 4;
             for tf_idx in 0..self.timeframes.len() {
                 if let Some(indicators) = self.indicator_at(inst, t, tf_idx) {
                     let ind_vals = indicators.to_vec();
                     for (j, v) in ind_vals.iter().enumerate() {
-                        out[offset + j] = *v;
+                        out[offset + j] = if v.is_finite() { *v } else { 0.0 };
                     }
                 }
                 offset += TechnicalIndicators::NUM_FEATURES;
@@ -119,6 +125,8 @@ pub struct InstanceCreator {
     lookback_window: usize,
     forward_horizon: usize,
     profit_threshold: f32,
+    profit_atr_mult: f32,
+    magnitude_clip: f32,
 }
 
 impl InstanceCreator {
@@ -127,6 +135,11 @@ impl InstanceCreator {
             lookback_window,
             forward_horizon: 5,
             profit_threshold: 0.02,
+            // For intraday bars, a fixed threshold is often wrong; ATR-scaled threshold adapts.
+            // Profit threshold used is max(profit_threshold, profit_atr_mult * atr_14).
+            profit_atr_mult: 1.0,
+            // Clip extreme forward returns to reduce label noise/outliers dominating the loss.
+            magnitude_clip: 0.20,
         }
     }
 
@@ -147,11 +160,29 @@ impl InstanceCreator {
         for i in self.lookback_window..(n - self.forward_horizon) {
             let future_price = bars[i + self.forward_horizon].close;
             let current_price = bars[i].close;
+            if !current_price.is_finite() || current_price.abs() < 1e-9 {
+                continue;
+            }
+            if !future_price.is_finite() {
+                continue;
+            }
             let forward_return = (future_price - current_price) / current_price;
+            if !forward_return.is_finite() {
+                continue;
+            }
 
             let direction_label = if forward_return > 0.0 { 1.0 } else { 0.0 };
-            let magnitude_label = forward_return * 100.0;
-            let profitable_label = if forward_return > self.profit_threshold {
+            let clipped_return = forward_return.clamp(-self.magnitude_clip, self.magnitude_clip);
+            // Keep magnitude in "percent-ish" units but avoid huge outliers.
+            let magnitude_label = clipped_return * 100.0;
+
+            // Volatility-aware profitable threshold (ratio units)
+            let atr_rel = indicators[i].atr_14.abs().clamp(0.0, 1.0);
+            let dyn_threshold = self
+                .profit_threshold
+                .max(self.profit_atr_mult * atr_rel);
+
+            let profitable_label = if forward_return > dyn_threshold {
                 1.0
             } else {
                 0.0
@@ -172,13 +203,37 @@ impl InstanceCreator {
     }
 }
 
-pub fn train_eval_split(
+/// Time-based split per ticker: for each ticker we keep the earliest `train_ratio` portion
+/// in train, and the latest portion in eval. This avoids evaluating on entirely different
+/// tickers (which can happen if you split the flattened list).
+pub fn train_eval_split_time_by_ticker(
     instances: &[StockInstance],
     train_ratio: f32,
 ) -> (Vec<StockInstance>, Vec<StockInstance>) {
-    let split_idx = (instances.len() as f32 * train_ratio) as usize;
-    let train = instances[..split_idx].to_vec();
-    let eval = instances[split_idx..].to_vec();
+    let mut by_ticker: HashMap<usize, Vec<&StockInstance>> = HashMap::new();
+    for inst in instances {
+        by_ticker.entry(inst.ticker_idx).or_default().push(inst);
+    }
+
+    let mut train = Vec::new();
+    let mut eval = Vec::new();
+
+    for (_ticker, mut group) in by_ticker {
+        group.sort_by_key(|i| i.t);
+        let n = group.len();
+        if n < 2 {
+            continue;
+        }
+        let mut split_idx = (n as f32 * train_ratio) as usize;
+        split_idx = split_idx.clamp(1, n - 1);
+
+        train.extend(group[..split_idx].iter().map(|i| (*i).clone()));
+        eval.extend(group[split_idx..].iter().map(|i| (*i).clone()));
+    }
+
+    // Deterministic ordering for reproducibility
+    train.sort_by_key(|i| (i.ticker_idx, i.t));
+    eval.sort_by_key(|i| (i.ticker_idx, i.t));
     (train, eval)
 }
 

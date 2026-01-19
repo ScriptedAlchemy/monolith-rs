@@ -32,6 +32,8 @@ num_cpus = "1.16"
 [features]
 default = []
 training = ["dep:monolith-training"]
+metal = ["monolith-layers/metal"]
+cuda = ["monolith-layers/cuda"]
 
 [[bin]]
 name = "stock_prediction"
