@@ -24,16 +24,18 @@ tracing-subscriber = { workspace = true }
 
 # Technical analysis indicators
 ta = "0.5"
+ta-lib-sys = { version = "0.1.2", optional = true }
 
 # Parallel processing
 rayon = { workspace = true }
 num_cpus = "1.16"
 
 [features]
-default = []
+default = ["talib"]
 training = ["dep:monolith-training"]
 metal = ["monolith-layers/metal"]
 cuda = ["monolith-layers/cuda"]
+talib = ["dep:ta-lib-sys"]
 
 [[bin]]
 name = "stock_prediction"

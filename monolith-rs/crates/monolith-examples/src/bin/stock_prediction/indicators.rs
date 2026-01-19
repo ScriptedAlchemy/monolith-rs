@@ -7,6 +7,157 @@ use ta::Next;
 
 use super::data::StockBar;
 
+#[cfg(feature = "talib")]
+mod talib {
+    // Raw FFI bindings to TA-Lib (C). The `ta-lib-sys` crate vendors/links TA-Lib.
+    use ta_lib_sys as sys;
+
+    pub fn try_init() -> bool {
+        unsafe { sys::TA_Initialize() == sys::TA_RetCode::TA_SUCCESS }
+    }
+
+    pub fn shutdown() {
+        unsafe { sys::TA_Shutdown() };
+    }
+
+    fn fill_1out(len: usize, out_beg: i32, out_nb: i32, out: &[f64], dst: &mut [f64]) {
+        if out_nb <= 0 || out.is_empty() || dst.is_empty() {
+            return;
+        }
+        let start = out_beg.max(0) as usize;
+        let count = out_nb.max(0) as usize;
+        let end = (start + count).min(len).min(dst.len());
+        let copy_len = end.saturating_sub(start).min(out.len());
+        if copy_len > 0 {
+            dst[start..start + copy_len].copy_from_slice(&out[..copy_len]);
+        }
+    }
+
+    pub fn adx_14(high: &[f64], low: &[f64], close: &[f64], dst: &mut [f64]) {
+        let len = high.len().min(low.len()).min(close.len()).min(dst.len());
+        if len == 0 {
+            return;
+        }
+        let mut out_beg: i32 = 0;
+        let mut out_nb: i32 = 0;
+        let mut out = vec![0.0_f64; len];
+        unsafe {
+            let _ = sys::TA_ADX(
+                0,
+                (len as i32) - 1,
+                high.as_ptr(),
+                low.as_ptr(),
+                close.as_ptr(),
+                14,
+                &mut out_beg,
+                &mut out_nb,
+                out.as_mut_ptr(),
+            );
+        }
+        fill_1out(len, out_beg, out_nb, &out, dst);
+    }
+
+    pub fn plus_di_14(high: &[f64], low: &[f64], close: &[f64], dst: &mut [f64]) {
+        let len = high.len().min(low.len()).min(close.len()).min(dst.len());
+        if len == 0 {
+            return;
+        }
+        let mut out_beg: i32 = 0;
+        let mut out_nb: i32 = 0;
+        let mut out = vec![0.0_f64; len];
+        unsafe {
+            let _ = sys::TA_PLUS_DI(
+                0,
+                (len as i32) - 1,
+                high.as_ptr(),
+                low.as_ptr(),
+                close.as_ptr(),
+                14,
+                &mut out_beg,
+                &mut out_nb,
+                out.as_mut_ptr(),
+            );
+        }
+        fill_1out(len, out_beg, out_nb, &out, dst);
+    }
+
+    pub fn minus_di_14(high: &[f64], low: &[f64], close: &[f64], dst: &mut [f64]) {
+        let len = high.len().min(low.len()).min(close.len()).min(dst.len());
+        if len == 0 {
+            return;
+        }
+        let mut out_beg: i32 = 0;
+        let mut out_nb: i32 = 0;
+        let mut out = vec![0.0_f64; len];
+        unsafe {
+            let _ = sys::TA_MINUS_DI(
+                0,
+                (len as i32) - 1,
+                high.as_ptr(),
+                low.as_ptr(),
+                close.as_ptr(),
+                14,
+                &mut out_beg,
+                &mut out_nb,
+                out.as_mut_ptr(),
+            );
+        }
+        fill_1out(len, out_beg, out_nb, &out, dst);
+    }
+
+    pub fn aroon_14(high: &[f64], low: &[f64], out_up: &mut [f64], out_down: &mut [f64]) {
+        let len = high.len().min(low.len()).min(out_up.len()).min(out_down.len());
+        if len == 0 {
+            return;
+        }
+        let mut out_beg: i32 = 0;
+        let mut out_nb: i32 = 0;
+        let mut up = vec![0.0_f64; len];
+        let mut down = vec![0.0_f64; len];
+        unsafe {
+            let _ = sys::TA_AROON(
+                0,
+                (len as i32) - 1,
+                high.as_ptr(),
+                low.as_ptr(),
+                14,
+                &mut out_beg,
+                &mut out_nb,
+                down.as_mut_ptr(),
+                up.as_mut_ptr(),
+            );
+        }
+        fill_1out(len, out_beg, out_nb, &up, out_up);
+        fill_1out(len, out_beg, out_nb, &down, out_down);
+    }
+
+    pub fn ultosc(high: &[f64], low: &[f64], close: &[f64], dst: &mut [f64]) {
+        let len = high.len().min(low.len()).min(close.len()).min(dst.len());
+        if len == 0 {
+            return;
+        }
+        let mut out_beg: i32 = 0;
+        let mut out_nb: i32 = 0;
+        let mut out = vec![0.0_f64; len];
+        unsafe {
+            let _ = sys::TA_ULTOSC(
+                0,
+                (len as i32) - 1,
+                high.as_ptr(),
+                low.as_ptr(),
+                close.as_ptr(),
+                7,
+                14,
+                28,
+                &mut out_beg,
+                &mut out_nb,
+                out.as_mut_ptr(),
+            );
+        }
+        fill_1out(len, out_beg, out_nb, &out, dst);
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct TechnicalIndicators {
     // Trend Indicators
@@ -73,12 +224,21 @@ pub struct TechnicalIndicators {
     pub pivot_support: f32,
     pub pivot_resistance: f32,
     pub pivot_point: f32,
+    pub pivot_range: f32, // (resistance - support) relative to price
     
     // Advanced Features
     pub trend_strength: f32,
     pub volatility_regime: f32,
     pub volume_profile_high: f32,
     pub volume_profile_low: f32,
+
+    // TA-Lib extras (computed only when the `talib` Cargo feature is enabled)
+    pub talib_adx_14: f32,
+    pub talib_plus_di_14: f32,
+    pub talib_minus_di_14: f32,
+    pub talib_aroon_up_14: f32,
+    pub talib_aroon_down_14: f32,
+    pub talib_ultosc: f32,
 }
 
 impl TechnicalIndicators {
@@ -111,15 +271,23 @@ impl TechnicalIndicators {
             
             // Market Microstructure (6)
             self.vwap, self.vwap_deviation, self.pivot_support, self.pivot_resistance,
-            self.pivot_point,
+            self.pivot_point, self.pivot_range,
             
             // Advanced Features (4)
             self.trend_strength, self.volatility_regime, self.volume_profile_high,
             self.volume_profile_low,
+
+            // TA-Lib extras (6)
+            self.talib_adx_14,
+            self.talib_plus_di_14,
+            self.talib_minus_di_14,
+            self.talib_aroon_up_14,
+            self.talib_aroon_down_14,
+            self.talib_ultosc,
         ]
     }
 
-    pub const NUM_FEATURES: usize = 56; // Updated feature count
+    pub const NUM_FEATURES: usize = 62; // Updated feature count
 }
 
 pub struct IndicatorCalculator;
@@ -255,6 +423,37 @@ impl IndicatorCalculator {
             min_14_vals[i] = min_14.next(low);
         }
 
+        // TA-Lib extras (batch computed; useful for "advanced" features without having to
+        // hand-implement each indicator). These remain zeros unless the `talib` feature is enabled.
+        let mut talib_adx_vals = vec![0.0_f64; n];
+        let mut talib_plus_di_vals = vec![0.0_f64; n];
+        let mut talib_minus_di_vals = vec![0.0_f64; n];
+        let mut talib_aroon_up_vals = vec![0.0_f64; n];
+        let mut talib_aroon_down_vals = vec![0.0_f64; n];
+        let mut talib_ultosc_vals = vec![0.0_f64; n];
+
+        #[cfg(feature = "talib")]
+        {
+            if talib::try_init() {
+                let highs: Vec<f64> = bars.iter().map(|b| b.high as f64).collect();
+                let lows: Vec<f64> = bars.iter().map(|b| b.low as f64).collect();
+                let closes: Vec<f64> = bars.iter().map(|b| b.close as f64).collect();
+
+                talib::adx_14(&highs, &lows, &closes, &mut talib_adx_vals);
+                talib::plus_di_14(&highs, &lows, &closes, &mut talib_plus_di_vals);
+                talib::minus_di_14(&highs, &lows, &closes, &mut talib_minus_di_vals);
+                talib::aroon_14(
+                    &highs,
+                    &lows,
+                    &mut talib_aroon_up_vals,
+                    &mut talib_aroon_down_vals,
+                );
+                talib::ultosc(&highs, &lows, &closes, &mut talib_ultosc_vals);
+
+                talib::shutdown();
+            }
+        }
+
         let mut macd_vals = vec![0.0_f64; n];
         let mut macd_signal_vals = vec![0.0_f64; n];
 
@@ -386,6 +585,8 @@ impl IndicatorCalculator {
                 0.0
             };
 
+            let pivot_range = (pivot_resistance - pivot_support).clamp(-1.0, 1.0);
+
             // Trend strength (SMA alignment)
             let trend_strength = if sma_20_vals[i] > 0.0 && sma_50_vals[i] > 0.0 {
                 ((sma_20_vals[i] / sma_50_vals[i] - 1.0) * 2.0).clamp(-1.0, 1.0) as f32
@@ -485,12 +686,21 @@ impl IndicatorCalculator {
                 pivot_support,
                 pivot_resistance,
                 pivot_point,
+                pivot_range,
 
                 // Advanced Features
                 trend_strength,
                 volatility_regime,
                 volume_profile_high: (bb_upper[i] / close - 1.0) as f32,
                 volume_profile_low: (bb_lower[i] / close - 1.0) as f32,
+
+                // TA-Lib extras (scaled into roughly [-1, 1] / [0, 1] ranges)
+                talib_adx_14: (talib_adx_vals[i] / 100.0).clamp(0.0, 1.0) as f32,
+                talib_plus_di_14: (talib_plus_di_vals[i] / 100.0).clamp(0.0, 1.0) as f32,
+                talib_minus_di_14: (talib_minus_di_vals[i] / 100.0).clamp(0.0, 1.0) as f32,
+                talib_aroon_up_14: (talib_aroon_up_vals[i] / 100.0).clamp(0.0, 1.0) as f32,
+                talib_aroon_down_14: (talib_aroon_down_vals[i] / 100.0).clamp(0.0, 1.0) as f32,
+                talib_ultosc: ((talib_ultosc_vals[i] - 50.0) / 50.0).clamp(-1.0, 1.0) as f32,
             };
         }
 

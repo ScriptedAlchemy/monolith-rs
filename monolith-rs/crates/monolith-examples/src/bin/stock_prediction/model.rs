@@ -127,12 +127,14 @@ impl StockPredictionModel {
             .build()
             .unwrap();
 
-        // Calculate combined feature dimension
+        // Calculate combined feature dimension (must match `concatenate_enhanced_features`)
+        // combined = ticker + sector + dien + din(seq_feature_dim) + senet_indicators(indicator_dim) + pooled(pooled_dim)
         let combined_dim = config.ticker_embedding_dim
             + config.sector_embedding_dim
             + config.dien_hidden_size
             + seq_feature_dim
-            + indicator_dim;
+            + indicator_dim
+            + pooled_dim;
 
         // Deep cross network with residual connections
         let dcn = CrossNetwork::new(combined_dim, config.dcn_cross_layers, DCNMode::Matrix);

@@ -73,8 +73,8 @@ impl Default for StockPredictorConfig {
         Self {
             num_tickers: 50,
             days_of_history: 252,
-            lookback_window: 120,
-            lookbacks: vec![20, 60, 120],
+            lookback_window: 20,
+            lookbacks: vec![20],
 
             use_synthetic_data: false,
             intraday_file: None,

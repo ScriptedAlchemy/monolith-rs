@@ -115,6 +115,28 @@ fn test_technical_indicators_to_vec() {
 }
 
 #[test]
+#[cfg(feature = "talib")]
+fn test_talib_features_are_finite() {
+    let mut generator = StockDataGenerator::new(42);
+    generator.generate_tickers(1);
+    generator.generate_bars(120);
+    let bars = generator.bars().to_vec();
+
+    let mut calc = IndicatorCalculator::new();
+    let indicators = calc.compute_indicators(&bars);
+
+    // After warm-up, TA-Lib features should be finite (may be 0.0 early due to lookback).
+    for ind in indicators.iter().skip(50) {
+        assert!(ind.talib_adx_14.is_finite());
+        assert!(ind.talib_plus_di_14.is_finite());
+        assert!(ind.talib_minus_di_14.is_finite());
+        assert!(ind.talib_aroon_up_14.is_finite());
+        assert!(ind.talib_aroon_down_14.is_finite());
+        assert!(ind.talib_ultosc.is_finite());
+    }
+}
+
+#[test]
 fn test_random_generator() {
     let mut rng = RandomGenerator::new(42);
     let u = rng.uniform();
