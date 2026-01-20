@@ -5058,15 +5058,39 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: creates summary writers and writes scalar/text summaries.
 
 **Required Behavior (Detailed)**
-- Similar tensor collection/compression logic to `BaseHostCall`:
-  - Global step tensor is always first.
-  - Tensors grouped by dtype, concatenated, expanded to batch dimension.
+- Initialization mirrors `BaseHostCall`:
+  - `tensor_names=["global_step"]`, `tensors=[reshape(global_step, [-1])]`, `_lists_tensor_sizes=[]`.
+- `record_summary_tensor(name, tensor)`:
+  - Asserts name unique and tensor rank <=1.
+  - Reshapes to `[-1]` and appends (no enable_host_call guard here).
+- `compress_tensors()` / `decompress_tensors()`:
+  - Same dtype grouping and concat/expand logic as `BaseHostCall`.
+  - Uses `tensor.shape[0].value` for sizes and `tf.split(..., axis=1)` for decompression.
+  - Asserts first name is `"global_step"` (same message quirk with `[0][0]`).
+- `_verify_shape_and_dtype(tensor, shape_list, dtype)`:
+  - Asserts tensor is not None, shape matches, dtype matches.
+- `_serialize_messages(labels, y_preds, sample_rates, req_times, gs)`:
+  - Expects each tensor shape `[num_cores, batch]` (rank 2).
+  - Verifies y_preds/sample_rates float32 and req_times int64.
+  - Flattens each to 1D via `tf.reshape(..., [-1])`.
+  - Writes serialized tensors as text summaries with keys:
+    - `di_example_sample_rates`, `di_labels`, `di_preds`, `di_req_times`.
 - `generate_host_call_hook()`:
-  - If disabled, returns None.
-  - Otherwise returns `_host_call` and compressed tensors.
-  - `_host_call` decompresses tensors, writes scalar summaries and AUC; optional deepinsight text summaries via `_serialize_messages`.
-- `_serialize_messages`:
-  - Verifies shapes/dtypes, flattens tensors, writes serialized tensors as text summaries.
+  - If `_enable_host_call` True:
+    - Calls `compress_tensors()` then returns `(_host_call, self._tensors)`.
+  - Else logs "host_call has been disabled" and returns `None`.
+  - `_host_call(*args)`:
+    - `gs, tensors = decompress_tensors(args)`.
+    - Creates summary writer at `{output_dir}/host_call` with `flush_millis=10000`, `max_queue=5000`.
+    - Iterates over tensors (skips index 0):
+      - If name contains `_avg`: `reduce_mean`.
+      - If name contains `_max`: `reduce_max`.
+      - If name contains labels/preds/req_time/sample_rate keys: capture in local variables.
+      - Else uses `t[0]` as scalar.
+      - Writes scalar summary for any `data`.
+    - If labels and preds present: adds `tf.metrics.auc` and summary `auc`.
+    - If `enable_deepinsight` and labels present: calls `_serialize_messages(...)`.
+    - Returns `tf.group(all_v2_summary_ops, auc_op)` if auc_op exists, else `all_v2_summary_ops`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/src/host_call.rs`.
