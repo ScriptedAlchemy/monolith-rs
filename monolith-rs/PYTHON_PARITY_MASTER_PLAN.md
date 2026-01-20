@@ -634,10 +634,10 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/signal_utils_test.py`](#monolith-native-training-signal-utils-test-py) | 30 | IN PROGRESS | monolith-rs/crates/monolith-core/src |  |
 | [`monolith/native_training/static_reshape_op.py`](#monolith-native-training-static-reshape-op-py) | 58 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/static_reshape_op_test.py`](#monolith-native-training-static-reshape-op-test-py) | 79 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
-| [`monolith/native_training/summary/summary_ops.py`](#monolith-native-training-summary-summary-ops-py) | 78 | TODO | TODO (manual) |  |
-| [`monolith/native_training/summary/summary_ops_test.py`](#monolith-native-training-summary-summary-ops-test-py) | 122 | TODO | TODO (manual) |  |
-| [`monolith/native_training/summary/utils.py`](#monolith-native-training-summary-utils-py) | 114 | TODO | TODO (manual) |  |
-| [`monolith/native_training/summary/utils_test.py`](#monolith-native-training-summary-utils-test-py) | 43 | TODO | TODO (manual) |  |
+| [`monolith/native_training/summary/summary_ops.py`](#monolith-native-training-summary-summary-ops-py) | 78 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
+| [`monolith/native_training/summary/summary_ops_test.py`](#monolith-native-training-summary-summary-ops-test-py) | 122 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
+| [`monolith/native_training/summary/utils.py`](#monolith-native-training-summary-utils-py) | 114 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
+| [`monolith/native_training/summary/utils_test.py`](#monolith-native-training-summary-utils-test-py) | 43 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/sync_hooks.py`](#monolith-native-training-sync-hooks-py) | 176 | TODO | TODO (manual) |  |
 | [`monolith/native_training/sync_hooks_test.py`](#monolith-native-training-sync-hooks-test-py) | 119 | TODO | TODO (manual) |  |
 | [`monolith/native_training/sync_training_hooks.py`](#monolith-native-training-sync-training-hooks-py) | 355 | TODO | TODO (manual) |  |
@@ -20674,50 +20674,49 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/summary/summary_ops.py`
 <a id="monolith-native-training-summary-summary-ops-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 78
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Summary ops for NAS and feature insight data with custom metadata.
+- Key symbols/classes/functions: `nas_data`, `feature_insight_data`.
+- External dependencies: TensorFlow summary APIs, `summary.utils`, `feature_insight` op.
+- Side effects: Adds tensor summaries to graph collections.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`nas_data(weight, segment_names=None, segment_sizes=None, group_info=None, raw_tag=None, collections=None, description=None, name=None)`**
+  - Uses `utils.prepare_head(..., out_type='bytes')` to build metadata.
+  - Creates `tf.summary.tensor_summary` with tag `MONOLITH_NAS_DATA`.
+  - Name defaults to `{summaty_type}` or `{name}_{summaty_type}`.
+  - Description defaults to summary type.
+- **`feature_insight_data(input_tensor, segment_names, segment_sizes, weight=None, group_info=None, label=None, collections=None, description=None, name=None)`**
+  - If `weight` is provided, calls `feature_insight` op to aggregate, and adjusts `segment_sizes` to uniform dimension.
+  - Determines `raw_tag`: direct vs train based on `label`.
+  - If label provided:
+    - Casts to float32, ensures rank 2, sets `label_size` in metadata.
+    - Concatenates label to summary_data.
+  - Writes `tf.summary.tensor_summary` with tag `MONOLITH_FI_DATA` and JSON metadata.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tf/src`.
+- Rust public API surface: summary helpers for NAS and feature insight.
+- Data model mapping: summary metadata proto + tensor data.
+- Feature gating: requires TensorBoard summary APIs; feature_insight op if used.
+- Integration points: training summaries and analysis tooling.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port `prepare_head` and metadata creation.
+2. Implement summary writer helpers with matching tags and metadata.
+3. Bind or reimplement `feature_insight` op if needed.
+4. Add tests to validate metadata and tensor shapes.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/summary/summary_ops_test.py`.
+- Rust tests: add metadata and shape validation tests.
+- Cross-language parity test: compare serialized summary metadata.
 
 **Gaps / Notes**
-- TODO (manual)
+- Summary metadata uses JSON content; ensure exact formatting and ordering.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -20734,50 +20733,45 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/summary/summary_ops_test.py`
 <a id="monolith-native-training-summary-summary-ops-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 122
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests summary metadata and tensor outputs for NAS and feature insight summaries.
+- Key symbols/classes/functions: `SummaryTest`.
+- External dependencies: TensorBoard data provider APIs, `summary_ops`.
+- Side effects: Writes summary logs to `demo_logs_v1` and reads them back.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `setUpClass`:
+  - Builds summary ops (`nas_data`, `feature_insight_data`), writes summaries for 10 steps.
+  - Initializes `EventMultiplexer` and `MultiplexerDataProvider`.
+- `test_nas_data`:
+  - Reads summary metadata and tensor values for tag `gating/monolith_nas_weight`.
+  - Asserts plugin content JSON matches expected string and values equal weights.
+- `test_feature_insight_data`:
+  - Reads tag `fi_train/monolith_feature_insight`.
+  - Asserts plugin content JSON (including `label_size`) matches expected.
+  - Validates tensor shape `(3, 7)` when label_size=1.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tf/src` (tests).
+- Rust public API surface: summary ops and metadata.
+- Data model mapping: TensorBoard summary metadata content.
+- Feature gating: TensorBoard event parsing required.
+- Integration points: summary writers and readers.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add tests that emit summary data and read via event parsing.
+2. Validate plugin metadata JSON and tensor shapes.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `SummaryTest` in this file.
+- Rust tests: mirror event log parsing if supported.
+- Cross-language parity test: compare plugin metadata content.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses TensorBoard data provider APIs; Rust may need alternative test approach.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -20794,50 +20788,55 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/summary/utils.py`
 <a id="monolith-native-training-summary-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 114
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Summary metadata helpers and NAS weight extraction.
+- Key symbols/classes/functions: `SummaryType`, `create_summary_metadata`, `prepare_head`, `get_nas_weight_json`.
+- External dependencies: TensorFlow, TensorBoard summary protos.
+- Side effects: None (pure helpers).
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Constants:
+  - `PLUGIN_NAME = 'monolith'`
+  - `MONOLITH_NAS_DATA`, `MONOLITH_FI_DATA`, `KTYPE`, `KMETA`, `KDATA`.
+- `SummaryType` values: `gating`, `selecting`, `mixed`, `simple`, `fi_direct`, `fi_train`.
+- `create_summary_metadata(description=None, meta_content=b'')`:
+  - Returns `SummaryMetadata` with plugin data and `DATA_CLASS_TENSOR`.
+  - Accepts `meta_content` as bytes or str; encodes to UTF-8 if str.
+- `_name_to_group_id(segment_names, group_info)`:
+  - Builds mapping of segment names to group indices based on group_info.
+  - Reorders group IDs by sorted group id.
+- `prepare_head(segment_names, segment_sizes, group_info=None, raw_tag=None, out_type='tensor')`:
+  - If no segments: returns empty tensor/bytes with raw_tag.
+  - Determines `raw_tag`:
+    - `gating` when all sizes are ints, else `selecting`.
+  - Builds data dict with tag type, names, sizes, and optional `group_index`.
+  - Returns tensor/JSON/bytes depending on out_type.
+- `get_nas_weight_json(ckpt_dir_or_file, prefix=None)`:
+  - Loads checkpoint, finds variable containing `prefix` (defaults to `ARCH_TENSOR_PREFIX`), returns list of values as strings.
+  - Raises Exception if not found.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tf/src`.
+- Rust public API surface: metadata builder + NAS weight extraction.
+- Data model mapping: Summary metadata proto and JSON content.
+- Feature gating: checkpoint reader required for `get_nas_weight_json`.
+- Integration points: summary ops.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port constants and summary metadata creation.
+2. Implement `prepare_head` with identical JSON ordering.
+3. Implement checkpoint reader helper (or stub) for NAS weights.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/summary/utils_test.py`.
+- Rust tests: add tests for `prepare_head` outputs.
+- Cross-language parity test: compare JSON metadata strings.
 
 **Gaps / Notes**
-- TODO (manual)
+- `ARCH_TENSOR_PREFIX` is referenced but not defined in this file; locate source before porting.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -20854,50 +20853,40 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/summary/utils_test.py`
 <a id="monolith-native-training-summary-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 43
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests `prepare_head` output for gating and selecting cases.
+- Key symbols/classes/functions: `UtilsTest`.
+- External dependencies: `summary.utils`.
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_read_head_gating`:
+  - `segment_sizes` are ints → SummaryType.GATING.
+  - Asserts returned tensor equals expected JSON bytes with `group_index`.
+- `test_read_head_selecting`:
+  - `segment_sizes` are lists → SummaryType.SELECTING.
+  - Asserts returned tensor equals expected JSON bytes without `group_index`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tf/src` (tests).
+- Rust public API surface: `prepare_head` output.
+- Data model mapping: JSON bytes in tensor.
+- Feature gating: none.
+- Integration points: summary metadata.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add tests for gating/selecting outputs and expected JSON ordering.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `UtilsTest` in this file.
+- Rust tests: mirror gating/selecting cases.
+- Cross-language parity test: compare JSON bytes.
 
 **Gaps / Notes**
-- TODO (manual)
+- JSON ordering must match Python `json.dumps` output.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
