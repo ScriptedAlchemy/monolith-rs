@@ -3188,16 +3188,181 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 **Python Summary**
 - Lines: ~1000+
 - Purpose/role: Core config + helper utilities for agent service, TF Serving configs, TensorProto creation, network utilities, and config file generation.
-- Key symbols/classes/functions: `AgentConfig`, `DeployType`, `TFSServerType`, `gen_model_spec`, `gen_model_config`, `make_tensor_proto`, `get_local_ip`, many helpers.
+- Key symbols/classes/functions: `TfServingConfig`, `AgentConfig`, `DeployType`, `TFSServerType`, `RoughSortModel*`, `conf_parser`, `find_free_port`, `gen_model_spec`, `gen_model_config`, `make_tensor_proto`, `InstanceFormater`, `ZKPath`, `get_local_ip`, many helpers.
 - External dependencies: `tensorflow`, `tensorflow_serving` protos, `protobuf.text_format`, `json`, `socket`, `os`.
 - Side effects: overrides `os.path.isabs`; writes platform config files; reads/writes files; inspects env; opens sockets.
 
 **Required Behavior (Detailed)**
-- Must preserve ALL defaults in `AgentConfig` and flag parsing (`flags.DEFINE_string('conf', ...)`).
-- `AgentConfig.__post_init__` logic is critical for port allocation and layout config.
-- `gen_model_spec` and `gen_model_config` must match TF Serving proto semantics.
-- `make_tensor_proto` must mirror TF string tensor encoding for PredictRequest inputs.
-- `get_local_ip` and port helpers must match network selection logic (IPv4/IPv6).
+- Module globals:
+  - Defines `flags.DEFINE_string("conf", "", "agent conf file")`.
+  - `TFS_HOME="/opt/tiger/monolith_serving"`.
+  - `DEFAULT_PLATFORM_CONFIG_FILE = "{TFS_HOME}/conf/platform_config_file.cfg"`.
+  - Overrides `os.path.isabs` to treat paths starting with `hdfs:/` as absolute.
+  - `DEFAULT_MODEL_CONFIG` computed via `gen_model_config` with name `default` and base_path `${TFS_HOME}/dat/saved_models/entry`.
+  - `FeatureKeys` set used by `InstanceFormater.from_dump`.
+- Small helpers:
+  - `conf_parser(file_name, args)`:
+    - Ignores missing file.
+    - Strips comments/blank lines.
+    - Supports `include <path>` directive (recursive parse).
+    - Parses `key=value` or `key value` via regex split `SEQ`.
+    - If key repeats: first value becomes list; subsequent appended.
+  - `find_free_port()` binds `('localhost', 0)` and returns ephemeral port.
+  - `check_port_open(port)` connects to `127.0.0.1:port`; logs and returns bool.
+  - `write_to_tmp_file(content)` writes `str(content)` to tempfile and returns path.
+  - `replica_id_from_pod_name()`:
+    - If `MY_POD_NAME` set: MD5 hash, take hex `[10:20]` slice, parse base16.
+    - Else returns `-1`; any exception returns `-1`.
+- Type helpers and enums:
+  - `TFSServerType` constants: `ps`, `entry`, `dense`, `unified`.
+  - `DeployType` wraps server type; validates type; equality works vs string or DeployType.
+  - `DeployType.compat_server_type(server_type)`:
+    - If `server_type` None or `mixed`:
+      - If self is `mixed`, raises RuntimeError.
+      - Else returns self type.
+    - If self is `mixed`, returns server_type.
+    - Else asserts equality and returns server_type.
+  - Rough sort enums: `RoughSortModelLoadedServer` and `RoughSortModelPrefix`.
+- `TfServingConfig` dataclass defaults:
+  - `enable_batching=False`, `allow_version_labels_for_unavailable_models=False`, `batching_parameters_file=None`.
+  - `num_load_threads=0`, `num_unload_threads=0`, `max_num_load_retries=5`, `load_retry_interval_micros=60*1000*1000`.
+  - `file_system_poll_wait_seconds=1`, `flush_filesystem_caches=True`.
+  - `tensorflow_session_parallelism=0`, `tensorflow_intra_op_parallelism=0`, `tensorflow_inter_op_parallelism=0`.
+  - `ssl_config_file=None`, `platform_config_file=None`.
+  - `per_process_gpu_memory_fraction=0`, `allow_growth=True`, `saved_model_tags=None`.
+  - `grpc_channel_arguments=None`, `grpc_max_threads=0`, `enable_model_warmup=True`, `version=None`.
+  - `remove_unused_fields_from_bundle_metagraph=True`, `enable_signature_method_name_check=False`.
+  - `xla_cpu_compilation_enabled=False`, `enable_profiler=True`.
+- `AgentConfig` dataclass defaults (in addition to `TfServingConfig`):
+  - `bzid=None`, `base_name=None`, `base_path=None`, `num_ps=1`, `num_shard=None`, `deploy_type=None`.
+  - `replica_id=None`, `stand_alone_serving=False`, `zk_servers=None`.
+  - `proxy_port=None`, `tfs_entry_port=None`, `tfs_entry_http_port=None`, `tfs_entry_archon_port=None`.
+  - `tfs_ps_port=None`, `tfs_ps_http_port=None`, `tfs_ps_archon_port=None`.
+  - `dense_alone=False`, `dense_service_num=3`, `tfs_dense_port=None`, `tfs_dense_http_port=None`, `tfs_dense_archon_port=None`.
+  - `agent_port=None`, `update_model_status_interval=1`, `model_config_file=None`, `agent_version=1`.
+  - `max_waiting_sec=1200`, `preload_jemalloc=True`.
+  - `version_policy='latest'`, `version_data=1`.
+  - `fetch_ps_timeout_ms=200`, `fetch_ps_long_conn_num=100`, `fetch_ps_long_conn_enable=True`, `fetch_ps_retry=2`, `aio_thread_num=30`.
+  - `file_system_poll_wait_seconds_ps=0`.
+  - Rough sort: `rough_sort_model_name=None`, `rough_sort_model_local_path=None`, `rough_sort_model_loaded_server=entry`, `rough_sort_model_p2p_path=None`, `rough_sort_resource_constrained=False`.
+  - `dc_aware=False`.
+  - Unified: `layout_pattern=None`, `layout_filters=None`, `tfs_port_archon=None`, `tfs_port_grpc=None`, `tfs_port_http=None`, `use_metrics=True`.
+- `AgentConfig.__post_init__`:
+  - Updates `zk_servers` via `_update_zk_servers(self.zk_servers, is_ipv6_only())`.
+  - If `stand_alone_serving`: `deploy_type = DeployType(mixed)`; else requires `deploy_type` and wraps in `DeployType`.
+  - `num_shard` defaults to `num_tce_shard`; otherwise asserts equal to `num_tce_shard`.
+  - Port allocation (uses `find_free_port` and env overrides):
+    - Mixed: proxy + entry/ps ports from `PORT`, `PORT3..PORT7`; dense ports from `PORT8..PORT10` if `dense_alone` and `DENSE_SERVICE_IDX==0`, else free ports.
+    - Entry: proxy + ps ports free; entry ports from `PORT`, `PORT3`, `PORT4`; optional dense free ports.
+    - PS: proxy + entry ports free; ps ports from `PORT`, `PORT3`, `PORT4`; optional dense free ports.
+    - Dense: requires `dense_alone=True`; entry/ps ports free; dense ports from `PORT`, `PORT3`, `PORT4` if `DENSE_SERVICE_IDX==0`, else free.
+    - Unified: `tfs_port_archon/ grpc / http` from `PORT`, `PORT3`, `PORT4`.
+  - `agent_port` from `PORT2` or free.
+  - `replica_id`: if `agent_version==1`, use `replica_id_from_pod_name`; else env `REPLICA_ID` or fallback to pod hash.
+  - If `platform_config_file` unset, use `DEFAULT_PLATFORM_CONFIG_FILE`.
+  - Calls `generate_platform_config_file()`.
+- `generate_platform_config_file()`:
+  - Builds `ConfigProto` with `intra_op_parallelism_threads` and `inter_op_parallelism_threads`:
+    - Use configured values or `MY_CPU_LIMIT` or default `16`.
+  - `allow_soft_placement=True`, `gpu_options.allow_growth=allow_growth`.
+  - If `dense_alone` and `enable_batching`:
+    - Build `BatchingParameters` with `max_batch_size=1024`, `batch_timeout_micros=800`, `max_enqueued_batches=100000`, `num_batch_threads=8`, `support_diff_dim_size_inputs=True`.
+    - Build `SessionBundleConfig` with session+batching.
+  - Else `SessionBundleConfig` with session only.
+  - Set `enable_model_warmup`.
+  - Wrap in `SavedModelBundleSourceAdapterConfig`, pack into `PlatformConfigMap` under key `tensorflow`.
+  - Serialize to text and write to `platform_config_file`.
+  - On exception: logs and attempts to remove file if it exists.
+- AgentConfig properties:
+  - `num_tce_shard`: `HOST_SHARD_ENV` or `1`.
+  - `shard_id`: env `SHARD_ID` or `-1`.
+  - `idc`: env `TCE_INTERNAL_IDC` lowercased.
+  - `cluster`: env `TCE_LOGICAL_CLUSTER` or `TCE_CLUSTER` or `TCE_PHYSICAL_CLUSTER` lowercased.
+  - `location`: `"{idc}:{cluster}"` if both; else None.
+  - `path_prefix`: `/bzid/service/base_name[/idc:cluster]` if `dc_aware` else without location.
+  - `layout_path`: if `layout_pattern` absolute, use it; else `/{bzid}/layouts/{layout_pattern}`.
+  - `container_cluster`: `"{TCE_PSM};{idc};{cluster}"`.
+  - `container_id`: env `MY_POD_NAME` or `get_local_ip()`.
+- Command helpers:
+  - `get_cmd_and_port(binary, server_type=None, config_file=None)`:
+    - Normalizes `server_type` via `compat_server_type`.
+    - If `config_file` None, generates model server config and writes to temp file.
+    - Adds flags: `--model_config_file`, archon psm/cluster, metrics prefix, log_conf.
+    - For mixed and non-entry: suffix psm with `_ps`/`_dense`, change log conf.
+    - Adds port/rest/archon flags per server type.
+    - ENTRY/DENSE add `archon_entry_to_ps_*` flags and `archon_async_dispatcher_threads`.
+    - DENSE adds `--enable_batching=true` if enabled.
+    - `agent_version != 1` adds `--model_config_file_poll_wait_seconds=0`.
+    - Iterates `TfServingConfig` fields: if value differs from default, emit flag; special case `file_system_poll_wait_seconds`:
+      - If `agent_version==1` and server_type==PS, use `file_system_poll_wait_seconds_ps`.
+      - Else use configured value if not default.
+    - Returns command string and chosen gRPC port.
+  - `get_cmd` returns command only.
+  - `get_server_schedule_iter(server_type)`:
+    - Mixed/PS: for PS yields indices where `i % num_shard == shard_id`; else yields None.
+    - Dense: if server_type dense, yields `replica_id` (commented TODO about bug).
+    - Else yields None.
+- Model config generation:
+  - `_gen_model_server_config(server_type)`:
+    - Uses `version_policy` and `version_data`, `compat_server_type`.
+    - PS: create config per schedule index `ps_i`, base_path = `base_path/ps_i`.
+      - If `rough_sort_model_name` and loaded_server=PS: add `ps_item_embedding_i` with base_path `${rough_sort_model_local_path}/${rough_sort_model_name}/${name}`.
+    - Entry/Dense: add `entry` or `dense_0` model with base_path `${base_path}/{name}`.
+      - If `rough_sort_resource_constrained` and loaded_server=ENTRY: add `entry_item_embedding_0` with base_path `${base_path}/{name}`.
+      - Else if `rough_sort_model_name` and loaded_server in ENTRY/DENSE: add `{entry|dense}_item_embedding_0` with base_path `${rough_sort_model_local_path}/${rough_sort_model_name}/${name}`.
+- Config parsing:
+  - `AgentConfig.from_file(fname)`:
+    - Calls `conf_parser` to build `kwarg`.
+    - For each annotated field: convert strings to bool/int/float/str/List; `str == "none"` -> `None`; `int/float` uses `eval`.
+    - If missing `deploy_type`, uses legacy `server_type`.
+    - Returns `AgentConfig(**args)` (triggers `__post_init__`).
+  - `_update_zk_servers(zk_servers, use_ipv6)`:
+    - If `use_ipv6` and `zk_servers` contains IPv4 hosts:
+      - If equals `default_zk_servers_ipv4` (constructed from `_HOSTS` + `_PORT`), return `default_zk_servers(True)` with warning.
+      - Else raise exception.
+    - Else returns original `zk_servers`.
+- ZK path parser:
+  - `ZKPath.PAT` regex supports `/bzid/service/base[/idc:cluster]/server_type:index[/replica_id]`.
+  - `__init__`: if `path is None or len(path) != 0` then attempts match; sets `_group_dict` or logs "path not matched".
+  - `__getattr__` returns captured group or None.
+  - `task`: `"server_type:index"` if both present.
+  - `location`: `"idc:cluster"` if both present.
+  - `ship_in(idc, cluster)`: if either arg None, returns True; else compares to parsed idc/cluster.
+- Pattern helpers:
+  - `parse_pattern` splits string by `{}` (or `[]` in `expand_pattern`) and combines via `comb_fn`.
+  - `normalize_regex` replaces `{name}` with named capture group `(?P<name>\\d+)`.
+  - `expand_pattern` expands bracket ranges like `[1-3]` or `[1,2]` into list; uses `range(int(s), int(e))` for dash.
+- Model spec/config helpers:
+  - `gen_model_spec(name, version=None, signature_name=None)`:
+    - Sets `version.value` if int; else `version_label` if str.
+    - Adds `signature_name` if provided.
+  - `gen_model_config(name, base_path, version_policy='latest', version_data=1, model_platform='tensorflow', version_labels=None)`:
+    - `latest`, `latest_once` set `num_versions`.
+    - `all` sets `ServableVersionPolicy.All()`.
+    - `specific` accepts int or list and extends versions.
+    - Else raises ValueError.
+    - `version_labels` applied if provided.
+  - `gen_status_proto` and `gen_model_version_status` wrap TF Serving status proto fields.
+  - `make_tensor_proto(instances)` builds DT_STRING TensorProto with `dim.size=len(instances)` and `string_val` set.
+- InstanceFormater:
+  - `to_tensor_proto(batch_size)` repeats serialized instance `batch_size` times.
+  - `to_pb(fname=None)` writes serialized bytes to temp file or given path.
+  - `to_json(fname=None)` uses `MessageToJson` and `write_to_tmp_file` or writes to `fname`.
+  - `to_pb_text(fname=None)` writes text format via `write_to_tmp_file` or to `fname`.
+  - `from_json(fname)` reads JSON and `ParseDict` to Instance.
+  - `from_pb_text(fname)` reads file, strips lines, `text_format.Parse`.
+  - `from_dump(fname)`:
+    - Parses key/value lines into nested dict/list structure (`kwargs`) with `stack` control.
+    - Interprets numeric keys as list indices.
+    - Handles feature-level merging using `FeatureKeys` and stack lookback.
+    - Converts numeric values to int.
+    - Parses resulting dict into Instance via `ParseDict`.
+- Misc:
+  - `pasre_sub_model_name(sub_model_name)` (typo in name) splits by `_`, returns `(lower, index)` with default `0`.
+  - `get_local_ip()`:
+    - First tries `MY_HOST_IP` or `socket.gethostbyname(hostname)`.
+    - Falls back to UDP socket connect to `8.8.8.8:80` to infer local IP.
+    - Returns `'localhost'` if no usable IP found.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/config.rs` + new `utils.rs`.
@@ -3244,14 +3409,37 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: reads config and test data files.
 
 **Required Behavior (Detailed)**
-- `gen_model_spec` and `gen_model_config` must set fields correctly (name, version, signature).
-- `gen_status_proto` should preserve error_code and message.
-- `gen_model_version_status` should match version and state.
-- `AgentConfig.from_file` should load `agent.conf` and expose values (e.g., `stand_alone_serving`, `layout_filters`).
-- `InstanceFormater` should parse json/pbtext/dump and produce TensorProto of correct dtype and shape.
-- `get_cmd_and_port` should include `model_config_file_poll_wait_seconds` for agent_version 2.
-- `ZKPath` parsing:
-  - Full dc-aware path, partial path, and old (non-dc) paths must parse bzid/base_name/idc/cluster/server_type/index/replica_id correctly.
+- `setUpClass`: sets `MY_HOST_IP=127.0.0.1`.
+- `test_gen_model_spec`:
+  - `gen_model_spec('model', 1, 'predict')` -> name, version.value, signature_name set.
+- `test_gen_model_config`:
+  - `gen_model_config` with `version_data=2` and version_labels.
+  - Asserts `name`, `base_path`, and `latest.num_versions == 2`.
+- `test_gen_status_proto`:
+  - `gen_status_proto(ErrorCode.CANCELLED, 'CANCELLED')` sets fields.
+- `test_gen_model_version_status`:
+  - `gen_model_version_status(version=1, state=START, error_code=NOT_FOUND, error_message="NOT_FOUND")`.
+  - Asserts version and state match.
+- `test_gen_from_file`:
+  - `AgentConfig.from_file('monolith/agent_service/agent.conf')` sets `stand_alone_serving=True`.
+- `test_list_field`:
+  - Same config file; asserts `layout_filters == ['ps_0', 'ps_1']`.
+- `test_instance_wrapper_from_json`:
+  - `InstanceFormater.from_json('monolith/agent_service/test_data/inst.json')`.
+  - `to_tensor_proto(5)` yields dtype 7, dim[0].size 5.
+- `test_instance_wrapper_from_pbtext`:
+  - `from_pb_text('monolith/agent_service/test_data/inst.pbtext')`; same tensor checks.
+- `test_instance_wrapper_from_dump`:
+  - `from_dump('monolith/agent_service/test_data/inst.dump')`; same tensor checks.
+- `test_get_cmd_and_port`:
+  - `AgentConfig.from_file(...); conf.agent_version=2; conf.get_cmd_and_port(binary='tensorflow_model_server', server_type='ps')`.
+  - Asserts `'model_config_file_poll_wait_seconds'` is in cmd string.
+- `ZKPath` tests:
+  - Full dc-aware: `/bzid/service/base_name/idc:cluster/server_type:0/1` -> bzid/base_name/idc/cluster/server_type/index/replica_id; `location='idc:cluster'`, `task='server_type:0'`, `ship_in(None,None)` True.
+  - Partial dc-aware: `/bzid/service/base_name/idc:cluster/server_type:0` -> replica_id None, `ship_in('idc','cluster')` True.
+  - Old full: `/bzid/service/base_name/server_type:0/1` -> idc/cluster None, replica_id `1`, `ship_in(None,None)` True.
+  - Old partial: `/bzid/service/base_name/server_type:0` -> replica_id None.
+  - Old partial 2: `/1_20001223_.../service/20001223_.../ps:1` -> bzid/base_name parsed, server_type `ps`, index `1`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/utils.rs`.
