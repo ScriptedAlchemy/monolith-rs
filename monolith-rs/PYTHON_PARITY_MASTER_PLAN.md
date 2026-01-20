@@ -591,7 +591,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/model_export/saved_model_exporters.py`](#monolith-native-training-model-export-saved-model-exporters-py) | 739 | IN PROGRESS | N/A (SavedModel exporters) |  |
 | [`monolith/native_training/model_export/saved_model_exporters_test.py`](#monolith-native-training-model-export-saved-model-exporters-test-py) | 153 | IN PROGRESS | N/A (exporter tests) |  |
 | [`monolith/native_training/model_export/saved_model_visulizer.py`](#monolith-native-training-model-export-saved-model-visulizer-py) | 89 | IN PROGRESS | N/A (tensorboard visualizer) |  |
-| [`monolith/native_training/model_export/warmup_data_decoder.py`](#monolith-native-training-model-export-warmup-data-decoder-py) | 55 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model_export/warmup_data_decoder.py`](#monolith-native-training-model-export-warmup-data-decoder-py) | 55 | IN PROGRESS | N/A (warmup decoder) |  |
 | [`monolith/native_training/model_export/warmup_data_gen.py`](#monolith-native-training-model-export-warmup-data-gen-py) | 253 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/warmup_example_batch.py`](#monolith-native-training-model-export-warmup-example-batch-py) | 57 | TODO | TODO (manual) |  |
 | [`monolith/native_training/monolith_export.py`](#monolith-native-training-monolith-export-py) | 18 | TODO | TODO (manual) |  |
@@ -17426,50 +17426,44 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_export/warmup_data_decoder.py`
 <a id="monolith-native-training-model-export-warmup-data-decoder-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 55
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: CLI tool to decode TF Serving warmup TFRecord files and print sanitized requests.
+- Key symbols/classes/functions: `main`.
+- External dependencies: TensorFlow, TF Serving PredictionLog proto, `env_utils`.
+- Side effects: Reads TFRecord file, logs decoded model specs.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Flag `file_name` specifies input TFRecord path.
+- `main`:
+  - Attempts `env_utils.setup_hdfs_env()`; ignores errors.
+  - Enables eager execution and sets TF logging verbosity.
+  - Defines `decode_fn` to parse `PredictionLog` from record bytes.
+  - Iterates TFRecordDataset over `file_name`, decodes each log.
+  - Extracts PredictRequest, replaces `string_val:.*` with `string_val: ...` in printed output.
+  - Logs index and sanitized request string.
+- Uses `app.run(main)`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A.
+- Rust public API surface: none.
+- Data model mapping: TF Serving PredictionLog proto.
+- Feature gating: TF Serving protos required.
+- Integration points: tooling for warmup verification.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. If Rust needs a decoder, parse TFRecord PredictionLogs and print sanitized requests.
+2. Mirror regex sanitization for `string_val` fields.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: none.
+- Cross-language parity test: not applicable.
 
 **Gaps / Notes**
-- TODO (manual)
+- Eager execution is required; script is for inspection only.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
