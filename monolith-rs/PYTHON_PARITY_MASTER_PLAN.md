@@ -1018,13 +1018,21 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: resolves binary paths, builds shell commands, changes CWD in context manager.
 
 **Required Behavior (Detailed)**
-- `get_cmd_path()` returns the absolute path to this Python file.
-- `get_cmd_and_port(...)`:
-  - For PS/ENTRY/DENSE: delegates to `AgentConfig.get_cmd_and_port` with `tfs_binary`.
-  - Else (proxy): builds proxy command string, uses `proxy.conf` if present.
+- Constants:
+  - `TFS_BINARY = {TFS_HOME}/bin/tensorflow_model_server`.
+  - `PROXY_BINARY = {TFS_HOME}/bin/server`.
+- `get_cmd_path()` returns `os.path.abspath(__file__)`.
+- `get_cmd_and_port(config, conf_path=None, server_type=None, config_file=None, tfs_binary=TFS_BINARY, proxy_binary=PROXY_BINARY)`:
+  - For `server_type` in `{PS, ENTRY, DENSE}`: delegates to `config.get_cmd_and_port(tfs_binary, server_type=..., config_file=...)`.
+  - Else (proxy): uses `{conf_path}/proxy.conf` if present.
+    - Command string: `{proxy_binary} --port={config.proxy_port} --grpc_target=localhost:{config.tfs_entry_port} [--conf_file=proxy.conf] &`.
+    - Returns `(cmd, config.proxy_port)`.
 - `ServingLog` context manager:
-  - Builds log filename prefixed with `log_prefix` and switches CWD to `$TFS_HOME/bin`.
-- `AgentBase` abstract base with `start()` and `wait_for_termination()`.
+  - On enter: builds `log_filename = dirname(tfs_log)/{log_prefix}_{basename(tfs_log)}`.
+  - Saves current cwd, `chdir` to `{TFS_HOME}/bin`, returns `open(log_filename, 'a')`.
+  - On exit: `chdir` back to previous cwd (does not close file handle itself).
+- `AgentBase`:
+  - Stores `config` and defines abstract `start()` and `wait_for_termination()`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: new module in `monolith-rs/crates/monolith-serving/src/agent_base.rs` (or similar).
