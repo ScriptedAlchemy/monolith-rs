@@ -5675,11 +5675,80 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: enforces key validation on set.
 
 **Required Behavior (Detailed)**
-- Keys must be valid identifiers (regex `[A-Za-z_][A-Za-z0-9_]*`) and not reserved dict attributes.
-- Attribute access maps to items; missing keys raise AttributeError listing available attributes.
-- `GetItem` and `Get` support dotted key paths; no list indexing.
-- `Set` creates nested maps along dotted path; raises if intermediate is not map/dict.
-- `Flatten`, `FlattenItems`, `Pack`, `Transform`, `IsCompatible`, `Filter`, `FilterKeyVal`, `DebugString`, `VLog` mirror Lingvo-style NestedMap.
+- `_NAME_PATTERN` is compiled from `'[A-Za-z_][A-Za-z0-9_]*'`.
+- `NestedMap` is a `dict` subclass with:
+  - `_HAS_DYNAMIC_ATTRIBUTES = True`.
+  - `_RESERVED_KEYS = set(dir(dict))` (reserved attributes disallowed as keys).
+  - `_DELETE = object()` sentinel used for filter/delete in `_RecursiveMap`.
+- `__init__`:
+  - Calls `dict.__init__` then validates every existing key.
+  - Asserts keys are `six.string_types`, match `_NAME_PATTERN`, and are not reserved.
+- `__setitem__`:
+  - Same validation as `__init__`.
+  - Uses `super().__setitem__` after validation.
+- `__setattr__` delegates to `__setitem__` (attribute assignment adds/overwrites a key).
+- `__getattr__`:
+  - Returns `self[name]`.
+  - On `KeyError`, raises `AttributeError` with message that includes sorted available keys.
+- `__delattr__`:
+  - Deletes `self[name]`.
+  - On `KeyError`, raises `AttributeError` with sorted available keys.
+- `copy()` returns `NestedMap(self)` (not a raw dict copy).
+- `__deepcopy__` and `DeepCopy`:
+  - Deep-copy the structure but **not** leaf objects.
+  - Implemented as `self.Pack(self.Flatten())`.
+- `FromNestedDict(x)`:
+  - Recursively converts **dicts** into `NestedMap`.
+  - Recurses through **lists/tuples**, preserving container type.
+  - Leaves other values unchanged.
+- `CheckKey(key)`:
+  - Raises `ValueError("Invalid NestedMap key '...'" )` if not a string or regex mismatch.
+- `GetItem(key)`:
+  - Splits `key` on `.` and traverses nested maps.
+  - **No list indexing support** (explicitly documented).
+  - Raises `KeyError` if a key is missing.
+- `Get(key, default=None)`:
+  - Returns `GetItem(key)` or `default` on `KeyError` **or** `TypeError`
+    (TypeError occurs when an intermediate is a list and a string key is used).
+- `Set(key, value)`:
+  - Splits on `.` and validates each sub-key.
+  - Creates nested `NestedMap()` as needed.
+  - Raises `ValueError` if a sub-key exists but is **not** `dict` or `NestedMap`.
+  - Sets terminal value at the last sub-key.
+- `_RecursiveMap(fn, flatten=False)`:
+  - Recurses through **NestedMap** (sorted keys) and **list** (index order only).
+  - Builds key paths like `foo.bar[10].baz`.
+  - If `fn` returns `_DELETE`, that entry is dropped.
+  - If all children of a container are deleted, returns `_DELETE`.
+  - If root resolves to `_DELETE`, returns `[]` (flatten) or empty `NestedMap`.
+- `Flatten()`:
+  - Returns a flat list of leaf values.
+  - Descends only into `NestedMap` and `list` (NOT dicts/tuples/namedtuples).
+- `FlattenItems()`:
+  - Returns list of `(key_path, value)` tuples using dotted paths and `[i]`.
+- `Pack(lst)`:
+  - Asserts `len(self.FlattenItems()) == len(lst)`.
+  - Iterates through `lst` in order, replacing each leaf value.
+  - If `lst` is too short, `StopIteration` will propagate.
+- `Transform(fn)`:
+  - Applies `fn(value)` to each leaf; preserves structure.
+- `IsCompatible(other)`:
+  - Flattens **keys only** for self and other and compares for equality.
+- `Filter(fn)`:
+  - Keeps entries for which `fn(entry)` is True (delegates to `FilterKeyVal`).
+- `FilterKeyVal(fn)`:
+  - Applies `fn(key, value)`.
+  - Uses `_DELETE` to prune entries; can delete entire subtrees.
+- `_ToStrings()`:
+  - Builds a list of strings `"key<spaces>value"` with padding based on max key length.
+  - Uses 4 spaces of padding after the longest key.
+  - Returns lexicographically sorted list of strings.
+- `DebugString()` returns `'\n'.join(_ToStrings())`.
+- `VLog(level=None, prefix=None)`:
+  - Defaults `level=0`, `prefix='nmap: '`.
+  - Logs each `_ToStrings()` line via `tf.logging.vlog(level, '%s %s', prefix, l)`.
+  - Note: `tf` is **not imported** in this module; if `VLog` is called without
+    external injection of `tf`, it will raise `NameError`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/src/py_utils.rs`.
@@ -5696,6 +5765,8 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Gaps / Notes**
 - Python uses dynamic attributes; Rust should expose explicit methods.
+- `_RecursiveMap` only descends into `NestedMap` + `list`; any dict/tuple stored
+  as a value is treated as a leaf (parity requires that behavior).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
