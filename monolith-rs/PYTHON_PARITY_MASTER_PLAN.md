@@ -4738,18 +4738,37 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: creates TF variables (kernel/bias/trainable norms).
 
 **Required Behavior (Detailed)**
-- `params()`:
-  - Defines units, activation, use_bias, kernel/bias initializers, kernel norm options, and partitioner.
-- `__init__`:
-  - Initializes BaseLayer and tf.keras.layers.Dense with given params.
-  - Sets attributes: `allow_kernel_norm`, `kernel_norm_trainable`, `var_name_prefix`, `partitioner`.
+- `params()` defaults:
+  - `units=512`, `activation=None`, `use_bias=True`.
+  - `kernel_initializer=VarianceScaling(mode='fan_avg', distribution='uniform')`.
+  - `bias_initializer='zeros'`.
+  - `allow_kernel_norm=True`, `kernel_norm_trainable=True`.
+  - `partitioner=None`.
+- `__init__(params, **kwargs)`:
+  - If `input_dim` provided and `input_shape` missing, sets `input_shape=(input_dim,)`.
+  - Calls `BaseLayer.__init__`, then `tf.keras.layers.Dense.__init__` with params (no regularizers/constraints).
+  - Sets `self.p=params`, `self.units=int(params.units)` (forces int), activation via `activations.get`.
+  - Resolves `bias_initializer` via `initializers.get`.
+  - Sets `supports_masking=True`, `input_spec=InputSpec(min_ndim=2)`.
+  - Sets `allow_kernel_norm`, `kernel_norm_trainable`, `var_name_prefix=params.name`, `partitioner`.
 - `build(input_shape)`:
-  - Validates dtype (float/complex).
-  - Uses `VarianceScaling` initializer to create kernel; uses `tf.compat.v1.get_variable` (partitioner optional).
-  - If `allow_kernel_norm`: L2-normalizes kernel and optionally multiplies by trainable norm variable.
-  - Creates bias if `use_bias`.
-- `get_config()` merges base config with custom fields.
-- `fprop(inputs)` calls `self.call(inputs)`.
+  - Ensures dtype is floating/complex, else `TypeError`.
+  - Requires last_dim defined; else `ValueError`.
+  - `kernel_shape=[last_dim, units]`; `init_kernel = kernel_initializer(shape, dtype)`.
+  - If `partitioner is None`: `kernel_initializer = lambda shape,dtype: init_kernel` (constant init); else use `init_kernel` directly.
+  - Creates `self.kernel` via `tf.compat.v1.get_variable` with name `{var_name_prefix}/kernel`, partitioner optional.
+  - If `allow_kernel_norm`:
+    - L2-normalize kernel along axis 0 with `epsilon=1e-6`.
+    - If `kernel_norm_trainable`:
+      - `init_trainable_kernel_norm = np.linalg.norm(init_kernel, axis=0)`.
+      - If no partitioner: `norm_initializer = lambda shape,dtype: init_trainable_kernel_norm`; else use array directly.
+      - Creates `trainable_kernel_norm` variable `{var_name_prefix}/trainable_kernel_norm`.
+      - `kernel = kernel * trainable_kernel_norm`.
+  - If `use_bias`: `self.bias = add_weight(name='{prefix}/bias', shape=[units], initializer=bias_initializer)`, else `None`.
+  - Sets `self.built = True`.
+- `get_config()`:
+  - Adds custom fields (`allow_kernel_norm`, `kernel_norm_trainable`, `partitioner`) and serialized initializers/activation.
+- `fprop(inputs)` simply calls `self.call(inputs)`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-layers/src/dense.rs`.
@@ -4792,10 +4811,19 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: creates TF variables and runs sessions.
 
 **Required Behavior (Detailed)**
-- `test_dense_instantiate`: runs `layer_test` for different input shapes.
-- `test_dense_dtype`: ensures output dtype is float32 when specified.
-- `test_dense`: checks output shape and runs session to initialize vars.
-- `test_dense_with_partitioner`: ensures Dense works with variable partitioner.
+- `test_dense_instantiate`:
+  - Uses `Dense.params()` template; creates four params with names `test_dense0..3`, `units=3`.
+  - `testing_utils.layer_test(Dense, kwargs={'params': p}, input_shape=...)` for shapes `(3,2)`, `(3,4,2)`, `(None,None,2)`, `(3,4,5,2)`.
+- `test_dense_dtype`:
+  - Builds Dense with `dtype='float32'`, input tensor from random ints.
+  - Asserts `outputs.dtype == 'float32'`.
+- `test_dense`:
+  - Creates Dense with `units=3`, feeds `(2,4)` ones.
+  - Asserts output shape `(2,3)`.
+  - Runs session with global variable init.
+- `test_dense_with_partitioner`:
+  - Sets `partitioner = tf.compat.v1.variable_axis_size_partitioner(1024)`, units=5.
+  - Input `(2,4096)` ones; output shape `(2,5)`; runs session init + output.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-layers/tests/dense.rs`.
