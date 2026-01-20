@@ -455,7 +455,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/distribute/str_queue.py`](#monolith-native-training-distribute-str-queue-py) | 114 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/distribute/str_queue_test.py`](#monolith-native-training-distribute-str-queue-test-py) | 67 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/distributed_ps.py`](#monolith-native-training-distributed-ps-py) | 2108 | IN PROGRESS | monolith-rs/crates/monolith-training/src/ps |  |
-| [`monolith/native_training/distributed_ps_benchmark.py`](#monolith-native-training-distributed-ps-benchmark-py) | 168 | TODO | TODO (manual) |  |
+| [`monolith/native_training/distributed_ps_benchmark.py`](#monolith-native-training-distributed-ps-benchmark-py) | 168 | IN PROGRESS | monolith-rs/crates/monolith-training/benches |  |
 | [`monolith/native_training/distributed_ps_factory.py`](#monolith-native-training-distributed-ps-factory-py) | 262 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distributed_ps_factory_test.py`](#monolith-native-training-distributed-ps-factory-test-py) | 87 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distributed_ps_sync.py`](#monolith-native-training-distributed-ps-sync-py) | 531 | TODO | TODO (manual) |  |
@@ -8612,53 +8612,52 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distributed_ps_benchmark.py`
-
 <a id="monolith-native-training-distributed-ps-benchmark-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 168
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Benchmark tests for distributed hash table lookup and apply_gradients performance, optionally with profiling.
+- Key symbols/classes/functions: `_generate_config`, `_get_vocab_hash_table_factory`, `DistributedHashTableTest.lookup`, `DistributedHashTableTest.apply_gradients`.
+- External dependencies: TensorFlow local servers, `distributed_ps.DistributedHashTable`, `hash_filter_ops`, `hash_table_ops`, `embedding_hash_table_pb2`.
+- Side effects: creates local PS servers, may write profiler logs under `/tmp/distributed_ps_benchmark`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_generate_config(servers, job_name=utils.PS_JOB_NAME)`:
+  - Builds `ClusterDef` with job tasks derived from server targets; returns `ConfigProto`.
+- `_get_vocab_hash_table_factory(dim)`:
+  - Returns factory that builds a hash table with `EmbeddingHashTableConfig` using cuckoo + SGD(1.0) + zeros init and segment dim `dim`.
+- `DistributedHashTableTest.lookup(enable_dedup, real_run=True)`:
+  - Creates `ps_num=10` local servers; uses server0 with cluster config.
+  - Builds hash filters and a `DistributedHashTable`, assigns add for ids 0..num_elements-1.
+  - If `real_run`: lookup ids `x//2`, check values equal `x//2` repeated per dim; prints wall time; optional profiler.
+  - If `real_run=False`: just runs `hash_table.as_op()` to measure overhead.
+- `apply_gradients(real_run=True)`:
+  - Similar setup; assigns ones to embeddings, looks up, computes `loss=0.3*embeddings`, grads; applies gradients.
+  - If `real_run`: after apply, looks up and expects values `0.4` (1.0 + 0.3*?); prints timing.
+  - If `real_run=False`: checks grads equal `0.3` if not profiling.
+- Tests invoke both real and overhead modes.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/benches`.
+- Rust public API surface: benchmark harness for distributed PS table lookup/apply gradients.
+- Data model mapping: hash table config, embedding values.
+- Feature gating: requires distributed PS runtime and hash table ops.
+- Integration points: `distributed_ps` implementation.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a Rust benchmark that spins up local PS servers (or mock) and measures lookup/apply_gradients.
+2. Mirror data sizes (1e6 ids, dim=16) and expected outputs.
+3. Optionally add profiling hooks matching Python behavior.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: bench-only; optional correctness assertions for small sizes.
+- Cross-language parity test: compare outputs for small benchmark sizes.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses TF local servers and profiling; Rust may need a simplified harness.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8673,6 +8672,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distributed_ps_factory.py`
+
 <a id="monolith-native-training-distributed-ps-factory-py"></a>
 
 **Status:** TODO (manual review required)
