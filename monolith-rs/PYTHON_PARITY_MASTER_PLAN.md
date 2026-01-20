@@ -468,7 +468,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/distribution_ops_fused_benchmark.py`](#monolith-native-training-distribution-ops-fused-benchmark-py) | 61 | IN PROGRESS | monolith-rs/crates/monolith-training/benches |  |
 | [`monolith/native_training/distribution_ops_fused_test.py`](#monolith-native-training-distribution-ops-fused-test-py) | 148 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/distribution_ops_test.py`](#monolith-native-training-distribution-ops-test-py) | 536 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests |  |
-| [`monolith/native_training/distribution_utils.py`](#monolith-native-training-distribution-utils-py) | 443 | TODO | TODO (manual) |  |
+| [`monolith/native_training/distribution_utils.py`](#monolith-native-training-distribution-utils-py) | 443 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/embedding_combiners.py`](#monolith-native-training-embedding-combiners-py) | 102 | TODO | TODO (manual) |  |
 | [`monolith/native_training/embedding_combiners_test.py`](#monolith-native-training-embedding-combiners-test-py) | 47 | TODO | TODO (manual) |  |
 | [`monolith/native_training/entry.py`](#monolith-native-training-entry-py) | 630 | TODO | TODO (manual) |  |
@@ -9450,50 +9450,97 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/distribution_utils.py`
 <a id="monolith-native-training-distribution-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 443
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: BytePS/Horovod initialization, MPI helpers, sync training config updates, GPU session config tweaks, and BytePS micro-benchmarks.
+- Key symbols/classes/functions: `bps_init`, `byteps_benchmark_ar`, `byteps_benchmark_a2a`, `bps_comm_benchmark`, `init_sync_train_and_update_conf`, `get_mpi_rank`, `get_mpi_local_rank`, `get_mpi_size`, `get_mpi_local_size`, `enable_sync_training`, `try_init_cuda`, `get_device_str`, `get_sync_run_hooks`, `update_session_config_for_gpu`.
+- External dependencies: `absl.flags`, `absl.logging`, `tensorflow`, `byteps.tensorflow` (optional), `horovod.tensorflow` (optional), `monolith.native_training.metric.metric_hook.ByteCCLTelemetryHook`.
+- Side effects: Sets many env vars, creates `/tmp/bps_<uuid>_socket_<id>` dir, runs `ip addr show` via shell, enables eager execution in benchmark funcs, initializes BytePS/Horovod, mutates config object fields.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Global state:
+  - `_SYNC_TRAIN_INITED` gate to avoid repeated init.
+  - `enable_bps = int(os.getenv("MONOLITH_WITH_BYTEPS", "0"))` evaluated at import time.
+- `bps_init(uuid)`:
+  - Ensures `BYTEPS_ALLTOALL_SESSION_SIZE` default `3`.
+  - Mirrors `OMPI_COMM_WORLD_*` into `BYTEPS_LOCAL_SIZE`, uses `BYTEPS_LOCAL_SIZE` to compute `local_rank` and `phy_node_id`.
+  - Computes `socket_path = /tmp/bps_<uuid>_socket_<phy_node_id>` and creates it.
+  - Chooses network interface:
+    - If `BYTEPS_GPU_NIC_BINDING_MODE=0`, uses `DMLC_INTERFACE` (default `eth0`).
+    - Else, binds NIC by GPU index (`NUM_GPU_PER_NIC=2`), sets `CUDA_VISIBLE_DEVICES` and UCX/GDR envs when `MONOLITH_WITH_BYTEPS_FWD_GDR` or `MONOLITH_WITH_BYTEPS_BWD_GDR` is enabled.
+    - If `BYTEPS_WITH_ALL_NICS=1`, sets `UCX_NET_DEVICES` to a list of mlx5 + eth; else only `mlx5_<nic_id>:1`.
+  - Runs `ip addr show <interface>` to compute host IP; exports as `UCX_RDMA_CM_SOURCE_ADDRESS` and `DMLC_NODE_HOST`.
+  - Sets required BytePS/PSLite env vars (role, worker/server counts, UUID, ranks, telemetry, log levels, perf knobs, partition sizes).
+  - Ensures `BYTEPS_P2P_PARTITION_BYTES` and `BYTEPS_PARTITION_BYTES` defaults computed from `size`.
+  - Imports `byteps.tensorflow` and calls `bps.init(lazy=False)`.
+- `byteps_benchmark_ar(total_len, total_niter=10000, use_cpu=False, op='pushpull')`:
+  - Enables eager execution; uses `bps.push_pull` by default.
+  - Creates tensor of shape `[total_len, 1]` on CPU/GPU.
+  - Runs `total_niter` iterations, logs latency/Goodput every 20 iterations, returns `goodputs[1:]`.
+- `byteps_benchmark_a2a(total_len, total_niter=10000, dst_gpu=True, src_gpu=True)`:
+  - Enables eager execution; if CPU-only (`dst_gpu=False` and `src_gpu=False`) reduces `total_len` by 8.
+  - Builds splits and recv_splits; selects correct BytePS alltoall variant (`alltoall`, `alltoall_cpu2gpu`, `alltoall_gpu2cpu`).
+  - Runs loop and returns `goodputs[1:]`.
+- `bps_comm_benchmark()`:
+  - Reads `MONOLITH_BENCHMARK_BPS`, `MONOLITH_BENCHMARK_ITERS`, and length env vars; sets TF memory growth for all GPUs.
+  - Runs selected benchmarks and prints summary tuples `(total_len, avg_goodput)`.
+- `init_sync_train_and_update_conf(dct_config)`:
+  - Logs entry; imports BytePS or Horovod as needed; initializes once.
+  - If not `merge_sync_training_ckpt`, updates `dct_config.model_dir` with `index-<rank>` suffix under `model_dir/uuid/`.
+  - Sets `num_ps=0`, `reorder_fids_in_data_pipeline=True`, `index=hvd.rank()`, `num_workers=hvd.size()`, `enable_variable_partition=False`.
+  - Catches ImportError/NotFoundError and logs warning.
+- MPI helpers:
+  - `get_mpi_rank/local_rank/size/local_size` pull from `OMPI_COMM_WORLD_*` envs; warn and use defaults (0/1) when missing.
+- `enable_sync_training()`:
+  - Returns `FLAGS.enable_sync_training and 'OMPI_COMM_WORLD_LOCAL_RANK' in os.environ`; returns False on exception.
+- `try_init_cuda()`:
+  - If `CUDA_VISIBLE_DEVICES` not set but MPI local rank present, set `CUDA_DEVICE_ORDER=PCI_BUS_ID` and `CUDA_VISIBLE_DEVICES=<local_rank>`.
+  - If sync training enabled and not initialized, tries to import BytePS or Horovod (based on `MONOLITH_WITH_BYTEPS`/`MONOLITH_WITH_HOROVOD`) and `hvd.init()`; logs exceptions.
+- `get_device_str(force_on_cpu=False)`:
+  - Uses `FLAGS.enable_gpu_training` or `device_utils._GPU_PLACEMENT_ALLOWED` to choose GPU vs CPU.
+  - For MPI + sync training:
+    - In PS mode (`FLAGS.num_ps > 0`): returns `/job:chief` for rank 0 else `/job:worker` with `task` offsets and `/device:{GPU|CPU}:0`.
+    - Without PS mode: returns empty string.
+  - Otherwise returns `/device:{GPU|CPU}:0`.
+- `get_sync_run_hooks(is_full_sync=False)`:
+  - Returns empty list when not in sync mode.
+  - Uses BytePS `BroadcastGlobalVariablesHook` when `MONOLITH_WITH_BYTEPS` and `MONOLITH_WITH_BYTEPS_BCAST` are set.
+  - If `MONOLITH_WITH_BYTEPS_BCAST == -1`, returns empty list.
+  - Adds `ByteCCLTelemetryHook(50)` when `is_full_sync` and using BytePS broadcast.
+  - Falls back to Horovod `BroadcastGlobalVariablesHook` when not using BytePS.
+- `update_session_config_for_gpu(session_config)`:
+  - When sync training is enabled, sets `gpu_options.visible_device_list` to local rank.
+  - If `MONOLITH_FORCE_GPU_COMPATIBLE=1`, sets `force_gpu_compatible=True`.
+  - If BytePS GDR alltoall enabled (`MONOLITH_WITH_BYTEPS_FWD_GDR` or `MONOLITH_WITH_BYTEPS_BWD_GDR`), disables `allow_growth`, sets `per_process_gpu_memory_fraction=0.4` and visible device list to local rank.
+  - Otherwise enables `allow_growth`.
+  - When not in sync training, still sets `allow_growth=True`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: new `monolith-rs/crates/monolith-training/src/distribution_utils.rs` (sync training env + device helpers) and `monolith-rs/crates/monolith-training/src/distributed.rs` for MPI helpers.
+- Rust public API surface: `init_sync_train_and_update_conf`, `get_mpi_*`, `enable_sync_training`, `try_init_cuda`, `get_device_str`, `get_sync_run_hooks`, `update_session_config_for_gpu` equivalents; optional TF-specific BytePS/Horovod bridge behind feature flags.
+- Data model mapping: map Python `dct_config` mutation to Rust config struct (likely in `monolith-training` or `monolith-cli`).
+- Feature gating: `tf-runtime` (BytePS/Horovod) and `cuda` (GPU-specific paths); default Candle backend should no-op or provide safe fallbacks.
+- Integration points: `monolith/native_training/estimator.py`, `cpu_training.py`, `device_utils.py`, `model_export/saved_model_exporters.py`, and `data/datasets.py` equivalents in Rust.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Define a Rust config struct that mirrors `dct_config` fields used here (`uuid`, `model_dir`, `merge_sync_training_ckpt`, `num_ps`, `reorder_fids_in_data_pipeline`, `index`, `num_workers`, `enable_variable_partition`).
+2. Implement env parsing for MPI (`OMPI_COMM_WORLD_*`) and BytePS/Horovod gating (`MONOLITH_WITH_BYTEPS`, `MONOLITH_WITH_HOROVOD`).
+3. Add `get_device_str` logic to Rust; plumb in `enable_gpu_training` and `num_ps` flags (from CLI or config).
+4. For TF runtime, implement BytePS/Horovod initialization and broadcast hooks; otherwise return empty hooks and log warnings.
+5. Implement `try_init_cuda` that sets env vars before GPU runtime init (Rust side); keep `_SYNC_TRAIN_INITED` equivalent.
+6. Implement `update_session_config_for_gpu` only when using TF sessions; in Candle backend, document as no-op.
+7. Port benchmark helpers only if TF BytePS runtime is supported; otherwise document as unsupported.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none in-tree specific to this file.
+- Rust tests: add unit tests for env parsing and `get_device_str` permutations; integration tests for config updates and no-op behavior when BytePS/Horovod missing.
+- Cross-language parity test: compare outputs of MPI helpers and device string formatting for a matrix of env/flag combinations.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses shell command `ip addr show` to resolve interface IP; Rust port should use OS APIs or run the command for parity.
+- Heavy BytePS/Horovod coupling means full parity likely only under TF runtime with custom ops.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
