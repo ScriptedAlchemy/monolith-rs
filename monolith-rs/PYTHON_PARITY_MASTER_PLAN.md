@@ -523,7 +523,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/add_bias_test.py`](#monolith-native-training-layers-add-bias-test-py) | 65 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/add_bias_test.rs |  |
 | [`monolith/native_training/layers/advanced_activations.py`](#monolith-native-training-layers-advanced-activations-py) | 217 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/activation.rs |  |
 | [`monolith/native_training/layers/advanced_activations_test.py`](#monolith-native-training-layers-advanced-activations-test-py) | 84 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/advanced_activations_test.rs |  |
-| [`monolith/native_training/layers/agru.py`](#monolith-native-training-layers-agru-py) | 295 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/agru.py`](#monolith-native-training-layers-agru-py) | 295 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/agru.rs |  |
 | [`monolith/native_training/layers/agru_test.py`](#monolith-native-training-layers-agru-test-py) | 112 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/dense.py`](#monolith-native-training-layers-dense-py) | 307 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/dense_test.py`](#monolith-native-training-layers-dense-test-py) | 147 | TODO | TODO (manual) |  |
@@ -12649,50 +12649,92 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/agru.py`
 <a id="monolith-native-training-layers-agru-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 295
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Implements an Attention GRU (AGRU/AUGRU) cell and helper functions for static/dynamic RNN with attention scores.
+- Key symbols/classes/functions: `AGRUCell`, `create_ta`, `static_rnn_with_attention`, `dynamic_rnn_with_attention`.
+- External dependencies: TensorFlow internals (`rnn_cell_impl`, `tensor_array_ops`, `control_flow_ops`, `array_ops`, `math_ops`, `nn_ops`), Keras `Layer`, `InputSpec`, activations/initializers/regularizers, Monolith utils (`with_params`, `check_dim`, `dim_size`).
+- Side effects: Creates trainable weights (`gates/*`, `candidate/*`) with initializer/regularizer; uses TensorArray and TF while_loop for dynamic RNN.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `AGRUCell` initialization:
+  - `units` required; `att_type` must be `"AGRU"` or `"AUGRU"` (case-insensitive).
+  - `activation = activations.get(activation or math_ops.tanh)`.
+  - `initializer = tf.initializers.get(initializer) or tf.initializers.HeNormal()`.
+  - `regularizer = regularizers.get(regularizer)`.
+  - `input_spec` requires 3 inputs: `(x, state, att_score)`; `x` and `state` are 2D, `att_score` max_ndim=2.
+- `build(inputs_shape)`:
+  - `input_shape, state_shape, att_shape = inputs_shape`.
+  - Assert `state_shape[-1] == units`.
+  - `input_depth = check_dim(input_shape[-1])`; if `input_shape[-1] == -1`, raise `ValueError("Expected inputs.shape[-1] to be known, saw shape: ...")`.
+  - Create weights:
+    - `_gate_kernel`: shape `[input_depth + units, 2 * units]`.
+    - `_gate_bias`: shape `[2 * units]`, initializer `Ones`.
+    - `_candidate_kernel`: shape `[input_depth + units, units]`.
+    - `_candidate_bias`: shape `[units]`, initializer `Ones`.
+- `call((x, state, att_score))`:
+  - `gate_inputs = matmul(concat([x, state], 1), _gate_kernel)`, bias add.
+  - `value = sigmoid(gate_inputs)`; split into `r, u`.
+  - `candidate = matmul(concat([x, r * state], 1), _candidate_kernel)`; bias add; `c = activation(candidate)`.
+  - If `att_score is None`: standard GRU update: `(1 - u) * state + u * c`.
+  - Else if `att_type == "AUGRU"`:
+    - `u = (1 - att_score) * u`.
+    - `new_h = u * state + (1 - u) * c`.
+  - Else (`AGRU`):
+    - `new_h = (1 - att_score) * state + att_score * c`.
+  - Returns `(new_h, new_h)` (output and new state).
+- `zero_state(batch_size, dtype)`:
+  - In eager mode, caches last zero state to avoid recomputation.
+  - Uses `_zero_state_tensors` from TF rnn_cell_impl with `backend.name_scope`.
+- `get_config()` serializes `units`, `att_type`, `initializer`, `activation`, `regularizer`.
+- `create_ta(name, size, dtype)` returns `TensorArray`.
+- `static_rnn_with_attention(cell, inputs, att_scores, init_state=None)`:
+  - `cell` must be `AGRUCell`.
+  - If `init_state` is None, uses `cell.get_initial_state` if available, else `cell.zero_state`.
+  - Transposes inputs to time-major, loops in Python, calls cell per time step with `att_scores[:, time]` reshaped to `(-1, 1)`.
+  - Returns stacked outputs `(batch, time, hidden)` and final state.
+  - Note: uses `dtype` variable in `get_initial_state` branch, but `dtype` is undefined (bug in Python).
+- `dynamic_rnn_with_attention(cell, inputs, att_scores, parallel_iterations=1, swap_memory=True, init_state=None)`:
+  - Same initialization rules as static (same undefined `dtype` issue).
+  - Uses TensorArray + `control_flow_ops.while_loop`.
+  - Outputs stacked and transposed back to batch-major.
+  - Sets static shape `[None, time_steps, dim_size(outputs, -1)]`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/src/agru.rs`.
+- Rust public API surface:
+  - Rust `AGRU` struct exists but is not a TF-style cell; needs parity with `AGRUCell` and with sequence outputs.
+  - Add `AGRUCell`-like API (`forward_step`, `zero_state`, `state_size`, `output_size`).
+  - Add `static_rnn_with_attention` / `dynamic_rnn_with_attention` helpers (pure Rust loops).
+- Data model mapping:
+  - Python `att_type` (`AGRU`/`AUGRU`) → Rust enum.
+  - Python `activation` → Rust activation layer or function.
+  - Python `initializer`/`regularizer` → Rust `Initializer`/`Regularizer`.
+- Feature gating: None (pure Rust implementation).
+- Integration points: DIEN/sequence models that expect AGRU outputs.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Extend `monolith_layers::agru` to support both AGRU and AUGRU update formulas and optional `att_score=None` (standard GRU).
+2. Add `AGRUCell` struct mirroring Python weight shapes and bias initialization (gate/candidate splits).
+3. Implement `static_rnn_with_attention`:
+   - Accept inputs `[batch, time, dim]`, attention `[batch, time]`, optional initial state.
+   - Return outputs for all timesteps and final state.
+4. Implement `dynamic_rnn_with_attention`:
+   - In Rust, this is a loop, but preserve behavior and output shape.
+5. Match error semantics for unknown input depth; enforce input_dim known at build.
+6. Add config serialization for `AGRUCell` (units, att_type, initializer, activation, regularizer).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/agru_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/agru_test.rs` (new).
+- Cross-language parity test:
+  - Fix weights, input, attention; compare per-timestep outputs for AGRU and AUGRU modes.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python `static_rnn_with_attention` and `dynamic_rnn_with_attention` reference `dtype` without definition; decide whether to mimic or correct in Rust.
+- Rust `AGRU` currently returns only final hidden state and uses a different attention update formula; needs alignment.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
