@@ -5793,14 +5793,54 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: builds models, runs predict, validates shapes/dtypes.
 
 **Required Behavior (Detailed)**
-- `layer_test`:
-  - Generates `input_data` if not provided; uses `input_shape` and `input_dtype` defaults.
-  - Instantiates layer with `kwargs`; optionally calls `adapt`.
-  - Tests `get_weights`/`set_weights` and re-instantiation with `weights` kwarg.
-  - Builds functional model `y = layer(x)` and checks output dtype.
-  - Checks expected output shape and computed output signature.
-  - Runs `model.predict` and compares output to expected if provided.
-  - Chooses assertion method based on dtype (string vs numeric).
+- Decorator: `@test_util.disable_cudnn_autotune` wraps `layer_test`.
+- `layer_test(...)`:
+  - If `input_data is None`:
+    - Requires `input_shape` or raises `ValueError('input_shape is None')`.
+    - Default `input_dtype = 'float32'`.
+    - Replaces `None` dimensions in `input_shape` with random ints in `[1, 3]`.
+    - Creates `input_data = 10 * np.random.random(input_data_shape)`.
+    - If dtype starts with `'float'`, subtracts `0.5`.
+    - Casts to `input_dtype`.
+  - If `input_data` provided and `input_shape is None`, sets `input_shape = input_data.shape`.
+  - If `input_dtype is None`, sets to `input_data.dtype`.
+  - If `expected_output_dtype is None`, sets to `input_dtype`.
+  - Selects assertion:
+    - If `expected_output_dtype` is `string` (`dtypes.as_dtype(...) == dtypes.string`):
+      - If `test_harness` provided: uses `test_harness.assertAllEqual`.
+      - Else: uses `string_test` (not defined in this file; assumed TF test util).
+    - Else (numeric):
+      - If `test_harness` provided: uses `test_harness.assertAllClose`.
+      - Else: uses `tensorflow.python.keras.testing_utils.numeric_test`.
+  - Instantiation: `kwargs = kwargs or {}` then `layer = layer_cls(**kwargs)`.
+  - If `adapt_data` provided: `layer.adapt(adapt_data)` is called.
+  - Weights round-trip:
+    - `weights = layer.get_weights()`, `layer.set_weights(weights)`.
+    - If `'weights'` is in `layer_cls.__init__` signature:
+      - Adds `weights` to `kwargs` and re-instantiates `layer = layer_cls(**kwargs)`.
+  - Functional API:
+    - `x = layers.Input(shape=input_shape[1:], dtype=input_dtype)` (drops batch dim).
+    - `y = layer(x)`.
+    - If `backend.dtype(y) != expected_output_dtype`, raises `AssertionError`
+      including layer name, input, actual dtype, expected dtype, kwargs.
+  - Output shape check (if `expected_output_shape` provided):
+    - Uses helper `assert_shapes_equal`:
+      - Checks rank equality.
+      - For each dim, if `tensor_shape.Dimension`, uses `.value`.
+      - If expected is not None and differs, raises `AssertionError`.
+    - Compares `tensor_shape.TensorShape(expected_output_shape)` vs `y.shape`.
+  - Shape inference checks:
+    - `model = models.Model(x, y)`.
+    - `computed_output_shape = tuple(layer.compute_output_shape(TensorShape(input_shape)).as_list())`.
+    - `computed_output_signature = layer.compute_output_signature(TensorSpec(shape=input_shape, dtype=input_dtype))`.
+    - `actual_output = model.predict(input_data)`.
+    - Asserts `computed_output_shape` == `actual_output.shape`.
+    - Asserts `computed_output_signature.shape` == `actual_output.shape`.
+    - If `computed_output_signature.dtype != actual_output.dtype`, raises `AssertionError`.
+  - If `expected_output` provided: `assert_equal(actual_output, expected_output)`.
+  - NOTE: `validate_training`, `custom_objects`, and `test_harness` params are mostly unused
+    (only `test_harness` affects assertions).
+  - NOTE: Despite docstring, the function **does not return** `actual_output`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/tests/testing_utils.rs`.
@@ -5816,6 +5856,8 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Gaps / Notes**
 - TF internal APIs used here are not available in Rust; might require simplified harness.
+- `string_test` is referenced but not defined in this file (relies on TF test utils).
+- `validate_training` is unused in this implementation.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -5842,13 +5884,54 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: registers tensor conversion function globally.
 
 **Required Behavior (Detailed)**
-- `_enclosing_tpu_context()` walks control flow contexts to find XLA TPU context.
-- `ReplicatedVariable`:
-  - Wraps list of per-replica variables; exposes `handle` that is replicated in TPU context.
-  - Implements `assign`, `assign_add`, `assign_sub`, `read_value` using resource ops.
-  - Provides `initializer`, `dtype`, `shape`, `get_shape`, `to_proto` by delegating to primary var.
-  - `_should_act_as_resource_variable` is a no-op placeholder.
-- Registers tensor conversion function and dense tensor like type (pre-TF2.3).
+- TF version detection:
+  - Tries `from tensorflow.python.types import core`; if import succeeds `TF_23=True`.
+  - If `TF_23`: `VariableBase = core.Tensor`, else `VariableBase = object`.
+- `_handle_graph(handle)` context manager:
+  - Enters `handle.graph.as_default()` to run assign ops in the handle’s graph.
+- `_enclosing_tpu_context()`:
+  - Starts at `ops.get_default_graph()._get_control_flow_context()`.
+  - Walks `outer_context` until `control_flow_ops.XLAControlFlowContext` or `None`.
+- `ReplicatedVariable(name, variables)`:
+  - Stores `_name`, `_vars`, `_primary_var = variables[0]`, `_cached_value = None`,
+    `_dtype = variables[0].dtype`.
+  - `handle` property:
+    - If no TPU context: returns `_primary_var.handle`.
+    - Else: `tpu_context.get_replicated_var_handle(self._name, self._vars)`.
+  - `_assign_dependencies()`:
+    - If `_cached_value` is not None, wraps ops in `control_dependencies([_cached_value])`.
+  - `initializer`: `control_flow_ops.group([v.initializer for v in self._vars])`.
+  - `graph`: `_primary_var.graph`.
+  - `_shared_name`: returns `_common_name` (attribute never defined here).
+  - `_unique_id`: delegates to `_primary_var._unique_id` (protected access).
+  - `name`, `dtype`, `shape`, `get_shape`, `to_proto` delegate to primary var.
+  - `constraint`: always `None`.
+  - `op`: `self.get().op`.
+  - `_read_variable_op()`:
+    - If no TPU context: `self._primary_var.read_value()`.
+    - Else: `gen_resource_variable_ops.read_variable_op(self.handle, self._dtype)`.
+  - `read_value()` returns `_read_variable_op()`.
+  - `assign(value, use_locking=None, name=None, read_value=False)`:
+    - Ignores `use_locking`.
+    - Converts value to tensor with `dtype=self.dtype`.
+    - Uses `assign_variable_op(self.handle, value_tensor)`.
+    - If `read_value` True returns `_read_variable_op()`, else returns assign op.
+  - `assign_add(delta, ..., read_value=True)` / `assign_sub(...)`:
+    - Same pattern using `assign_add_variable_op` / `assign_sub_variable_op`.
+    - Defaults `read_value=True`.
+  - `get()` returns `_primary_var`.
+  - `_in_graph_mode` delegates to `_primary_var._in_graph_mode`.
+  - `_should_act_as_resource_variable()` is a no-op `pass`.
+  - `_dense_var_to_tensor(dtype=None, name=None, as_ref=False)`:
+    - If no TPU context:
+      - If `_primary_var` has `_dense_var_to_tensor`, call it.
+      - Else `ops.convert_to_tensor(_primary_var)`.
+    - If dtype is not None and differs from `self.dtype`, returns `NotImplemented`.
+    - If `as_ref` True: return `self.handle`; else return `self.read_value()`.
+- Tensor conversion registration:
+  - `_tensor_conversion` calls `var._dense_var_to_tensor(...)`.
+  - `ops.register_tensor_conversion_function(ReplicatedVariable, _tensor_conversion)`.
+  - If `not TF_23`: `ops.register_dense_tensor_like_type(ReplicatedVariable)`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-tf/src/tpu_variable.rs`.
@@ -5865,6 +5948,8 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Gaps / Notes**
 - TF TPU context is highly specific; Rust likely needs a bridge or stubs.
+- `_shared_name` references `_common_name` which is never set in this class.
+- `_cached_value` is never assigned within this module; only affects ordering if set externally.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -5891,18 +5976,74 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: network calls to GCS, subprocess execution, logging.
 
 **Required Behavior (Detailed)**
-- `get_bucket_name_and_relavite_path(gs_file_path)` parses `gs://bucket/path` into bucket + relative path.
-- `download_gcs_file` and `download_gcs_file_with_relative_path` fetch blobs to local filename.
-- `list_gcs_files_with_prefix` returns bucket and blob iterator for prefix.
-- `parse_example_number_meta_file` reads `file,count` lines (comma separated) and ensures file names are ascending.
-- `calculate_shard_skip_file_number` computes per-shard skip counts based on completed steps and batch sizes.
-- `get_checkpoint_completed_step_number` scans GCS checkpoint `.meta` files to find max step.
-- `update_params`:
-  - Computes batch sizes based on shard count (TPU workers) and validates consistency.
-  - Uses checkpoint step to compute `shard_skip_file_number` based on meta file.
-- `get_per_file_example_numbers_for_checkpoint_reload`:
-  - Uses `gsutil ls` on dataset path, checks ordering, and matches against meta list.
-- `range_dateset` filters dataset elements by date substring between start/end dates.
+- Constants:
+  - `_GS_PREFIX = "gs://"`; `_CORE_NUMBER_PER_HOST = 8`.
+  - `_DATE_FORMAT_LEN = 8`, `_MIN_DATE = "00000000"`, `_MAX_DATE = "99999999"`.
+- `get_bucket_name_and_relavite_path(gs_file_path)`:
+  - Asserts input contains `_GS_PREFIX`.
+  - Parses bucket between `gs://` and first `/`.
+  - Returns `(bucket_name, relative_path_after_bucket)`.
+- `download_gcs_file(gs_file_path, local_file_name)`:
+  - Logs start; calls `get_bucket_name_and_relavite_path`.
+  - Delegates to `download_gcs_file_with_relative_path`.
+- `download_gcs_file_with_relative_path(bucket, relative_path, local_file_name)`:
+  - Uses `google.cloud.storage.Client()`.
+  - `bucket = storage_client.bucket(bucket_name)`.
+  - `blob = bucket.blob(relative_path)` then `blob.download_to_filename(local_file_name)`.
+- `list_gcs_files_with_prefix(gs_path_prefix)`:
+  - Uses storage client + `list_blobs(bucket_name, prefix=relative_path_prefix)`.
+  - Returns `(bucket_name, blob_iterator)`.
+- `parse_example_number_meta_file(meta_file, seperator)`:
+  - Reads all lines, ignores any line without a comma.
+  - Splits on **comma** (the `seperator` arg is unused).
+  - Enforces lexicographic ascending `file_name` via `assert previous_file_name < file_name`.
+  - Parses `count = int(split_str[1])` and appends `(file_name, count)` list.
+- `calculate_shard_skip_file_number(file_example_number, shard_num, completed_steps_number, batch_size_per_core)`:
+  - `processed_example_number_per_host = batch_size_per_core * completed_steps_number * _CORE_NUMBER_PER_HOST`.
+  - Iterates counts in round-robin shard order (`shard_index = (shard_index + 1) % shard_num`).
+  - If `example_number + shard_accumulated_example_count[shard_index] <= processed_example_number_per_host`:
+    - Accumulates count and increments `shard_skip_file_number` for that shard.
+  - Returns `shard_skip_file_number` list length `shard_num`.
+- `get_checkpoint_completed_step_number(checkpoint_path)`:
+  - Lists blobs with prefix `path.join(checkpoint_path, "model.ckpt")`.
+  - Considers only `*.meta` files.
+  - Extracts step from blob name between `"-"` and `".meta"`.
+  - Returns max step (0 if none).
+- `update_params(params, tpu_cluster_resolver)`:
+  - `shard_num = tpu_cluster_resolver.cluster_spec().num_tasks("worker")`.
+  - Requires either `batch_size_per_core` or `global_batch_size` not None.
+  - If only `global_batch_size`: sets `batch_size_per_core = global_batch_size / shard_num / _CORE_NUMBER_PER_HOST`.
+  - If only `batch_size_per_core`: sets `global_batch_size = batch_size_per_core * shard_num * _CORE_NUMBER_PER_HOST`.
+  - If both: asserts equality.
+  - Logs batch sizes.
+  - Calls `get_checkpoint_completed_step_number(params["model_dir"])`.
+  - If `completed_step_number > 0`:
+    - Calls `get_per_file_example_numbers_for_checkpoint_reload(...)`.
+    - Computes `shard_skip_file_number` and stores in `params["shard_skip_file_number"]`.
+    - Logs the computed list.
+  - NOTE: uses Python `/` for division, so `batch_size_per_core` may be float.
+- `get_per_file_example_numbers_for_checkpoint_reload(train_dataset_path, file_example_number_meta, seperator)`:
+  - Runs `gsutil ls train_dataset_path` via `subprocess.Popen`.
+  - Reads stdout lines; for each:
+    - Decodes UTF-8, strips newline.
+    - Uses `get_bucket_name_and_relavite_path` to get `relative_path`.
+    - Enforces lexicographic ascending relative path.
+  - Loads `file_example_number_list` via `parse_example_number_meta_file(...)`.
+  - Asserts `train_file_path_list` non-empty.
+  - Finds first index in meta list where `train_file_path_list[0] <= file_path` (lexicographic).
+  - Asserts remaining meta length can cover training list.
+  - Iterates training list:
+    - Asserts each train file matches meta file name at current index.
+    - Appends the corresponding count to `example_number_list`.
+  - Logs completion and returns `example_number_list` (list of counts).
+- `range_dateset(dataset, root_path, start_date=None, end_date=None)`:
+  - Defaults `start_date` to `_MIN_DATE`, `end_date` to `_MAX_DATE`.
+  - Logs start/end.
+  - `filter_fn(x)`:
+    - `path_prefix_len = len(root_path)`.
+    - Extracts `date_str = tf.strings.substr(x, path_prefix_len, _DATE_FORMAT_LEN)`.
+    - Converts to `int32` and compares with `start_date`/`end_date` (inclusive).
+  - Returns `dataset.filter(filter_fn)`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/src/util.rs`.
@@ -5945,8 +6086,31 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: none.
 
 **Required Behavior (Detailed)**
-- Tests that `range_dateset` filters dataset elements based on date substring in path.
-- Covers single date, multiple dates, out-of-bound ranges, missing start or end date.
+- Uses TF1 graph/session APIs (`tf.compat.v1`, `self.session()`).
+- `root_path = "gs://test_folder/unzipped_tf_records_corrected_repartitioned/"`.
+- `test_range_dataset_single`:
+  - Input dataset has dates 20200501, 20200502, 20200503 (single part each).
+  - Filters start/end = "20200502".
+  - Expects only the 20200502 item.
+- `test_range_dataset_multiple`:
+  - Input dataset includes 20200501, 20200502, 20200503 (two parts), 20200504.
+  - Filters start="20200502", end="20200503".
+  - Expects 20200502 and both 20200503 parts.
+- `test_range_dataset_out_of_boundary`:
+  - Input dataset contains 20200501, 20200502.
+  - Filters start="20200401", end="20200505".
+  - Expects both items (range fully covers).
+- `test_range_dataset_no_start_date`:
+  - Filters with `start_date=None`, `end_date="20200505"`.
+  - Expects all items (uses `_MIN_DATE`).
+- `test_range_dataset_no_end_date`:
+  - Filters with `start_date="20200502"`, `end_date=None`.
+  - Expects only 20200502 (uses `_MAX_DATE`).
+- Each test:
+  - Uses `tf.compat.v1.data.make_one_shot_iterator(dataset)`.
+  - Iterates `next_element` in a `try` loop; catches `tf.errors.OutOfRangeError`.
+  - Asserts each output equals expected list; verifies count matches.
+- `__main__` path disables eager execution then `tf.test.main()`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/tests/util.rs`.
@@ -5988,15 +6152,44 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: uses NumPy RNG (seeded per call).
 
 **Required Behavior (Detailed)**
-- `_compute_fans(shape, data_format)` computes fan_in/fan_out for dense or conv shapes; supports `channels_first/last`.
-- `VarianceScaling.__init__` validates `scale > 0`, `mode` in `fan_in/fan_out/fan_avg`, distribution in `truncated_normal/untruncated_normal/uniform`.
-- `__call__(shape, dtype)`:
-  - Computes scaled variance based on mode.
-  - Seeds NumPy RNG with `self.seed` each call.
-  - For `truncated_normal`: uses scipy truncnorm with cutoff ±2 stddev, stddev adjusted by constant 0.87962566103423978.
-  - For `untruncated_normal`: uses `np.random.normal`.
-  - For `uniform`: uses `np.random.uniform` with limit `sqrt(3*scale)`.
-- `get_config()` returns dict with scale/mode/distribution/seed.
+- `_compute_fans(shape, data_format='channels_last')`:
+  - `len(shape)==2`: `fan_in = shape[0]`, `fan_out = shape[1]`.
+  - `len(shape) in {3,4,5}` (conv kernels):
+    - If `channels_first`:
+      - `receptive_field_size = np.prod(shape[2:])`.
+      - `fan_in = shape[1] * receptive_field_size`.
+      - `fan_out = shape[0] * receptive_field_size`.
+    - If `channels_last`:
+      - `receptive_field_size = np.prod(shape[:-2])`.
+      - `fan_in = shape[-2] * receptive_field_size`.
+      - `fan_out = shape[-1] * receptive_field_size`.
+    - Else raises `ValueError('Invalid data_format: ' + data_format)`.
+  - Else: `fan_in = fan_out = np.sqrt(np.prod(shape))`.
+- `VarianceScaling.__init__(scale=1.0, mode='fan_in', distribution='truncated_normal', seed=None)`:
+  - Validates `scale > 0` else `ValueError`.
+  - `mode = mode.lower()` and must be in `{'fan_in','fan_out','fan_avg'}` else `ValueError`.
+  - `distribution = distribution.lower()` and must be in
+    `{'truncated_normal','untruncated_normal','uniform'}` else `ValueError`.
+  - Stores `scale/mode/distribution/seed`.
+- `__call__(shape, dtype=np.float32)`:
+  - Computes `fan_in, fan_out = _compute_fans(shape)`.
+  - Adjusts `scale`:
+    - `fan_in`: `scale /= max(1., fan_in)`.
+    - `fan_out`: `scale /= max(1., fan_out)`.
+    - `fan_avg`: `scale /= max(1., float(fan_in + fan_out) / 2)`.
+  - Seeds NumPy RNG with `np.random.seed(self.seed)` on every call.
+  - `distribution == 'truncated_normal'`:
+    - `mean = 0.0`.
+    - `stddev = sqrt(scale) / 0.87962566103423978` (constant from truncnorm std).
+    - Clips at ±2*stddev; computes `a`, `b` for `stats.truncnorm`.
+    - Returns `stats.truncnorm.rvs(..., size=shape).astype(dtype)`.
+  - `distribution == 'untruncated_normal'`:
+    - Uses `np.random.normal(loc=0, scale=sqrt(scale), size=shape)`.
+    - **Always** casts to `'float32'` (ignores `dtype` parameter).
+  - `distribution == 'uniform'`:
+    - `limit = sqrt(3. * scale)`.
+    - `np.random.uniform(low=-limit, high=limit, size=shape).astype(dtype)`.
+- `get_config()` returns dict with `scale`, `mode`, `distribution`, `seed`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/src/variance_scaling.rs`.
@@ -6013,6 +6206,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Gaps / Notes**
 - Matching SciPy truncnorm exactly may require careful implementation.
+- `untruncated_normal` ignores `dtype` and forces `'float32'`; parity should preserve.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
