@@ -446,7 +446,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/debugging/debugging_client.py`](#monolith-native-training-debugging-debugging-client-py) | 98 | IN PROGRESS | monolith-rs/crates/monolith-training/src/debugging |  |
 | [`monolith/native_training/debugging/debugging_server.py`](#monolith-native-training-debugging-debugging-server-py) | 217 | IN PROGRESS | monolith-rs/crates/monolith-training/src/debugging |  |
 | [`monolith/native_training/demo.py`](#monolith-native-training-demo-py) | 57 | IN PROGRESS | monolith-rs/crates/monolith-training/examples |  |
-| [`monolith/native_training/dense_reload_utils.py`](#monolith-native-training-dense-reload-utils-py) | 457 | TODO | TODO (manual) |  |
+| [`monolith/native_training/dense_reload_utils.py`](#monolith-native-training-dense-reload-utils-py) | 457 | IN PROGRESS | monolith-rs/crates/monolith-training/src/checkpoint |  |
 | [`monolith/native_training/dense_reload_utils_test.py`](#monolith-native-training-dense-reload-utils-test-py) | 192 | TODO | TODO (manual) |  |
 | [`monolith/native_training/device_utils.py`](#monolith-native-training-device-utils-py) | 231 | TODO | TODO (manual) |  |
 | [`monolith/native_training/device_utils_test.py`](#monolith-native-training-device-utils-test-py) | 104 | TODO | TODO (manual) |  |
@@ -7980,53 +7980,90 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/dense_reload_utils.py`
-
 <a id="monolith-native-training-dense-reload-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 457
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Custom checkpoint restore logic for dense variables, including aliasing/mapping between old and new variable names and partitioned variable splitting.
+- Key symbols/classes/functions: `CustomRestoreListener`, `add_mapping_rules`, `node_name`, `get_new_name`, `get_guess_name`, `split_name`, `calc_reorder_info`, `get_full_prefix`, `update_var_name_mapping_for_dense`, `infer_variable_name`, `calc_feed_dict`.
+- External dependencies: TensorFlow checkpoint reader, `CheckpointRestorerListener`, `is_exporting`, numpy, regex patterns.
+- Side effects: inspects checkpoint files, builds custom restore ops in graph collections, logs extensive info, may create `clear_nn` flag file logic.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Globals/regex:
+  - `CUSTOM_RESTORE_OP` collection key and `CustomRestoreListenerKey` name.
+  - `PAT` matches `.../part_<num>/...` for partitioned vars.
+  - `DensePat` matches dense layer names for bias/kernel/trainable_kernel_norm.
+  - `_NameMapping` regex rules for special-case name conversions; `add_mapping_rules` merges additional regex patterns.
+- `node_name(name)`:
+  - Strips whitespace, trailing `/`, leading `^`, and `:0` suffix if numeric.
+- `get_new_name(name)`:
+  - Deduplicates repeated path terms in a name (preserving order) and rejoins with `/`.
+- `get_guess_name(name)`:
+  - Applies `_NameMapping` regex patterns; returns formatted guess if matched, else original.
+- `split_name(name)`:
+  - Splits trailing digits; returns `(base, int_suffix)` or `(name, 0)` if none.
+- `calc_reorder_info(names, is_ordered=True)`:
+  - Optionally sorts by numeric suffix.
+  - Returns `(need_reorder, base)` where base is `dense_` for base name `dense` else base name; `need_reorder` when suffix sequence isn't contiguous starting at 0/1 or when multiple names.
+- `get_full_prefix(short_prefix, prefix_set)`:
+  - Chooses the longest prefix in `prefix_set` that ends with `short_prefix`.
+- `update_var_name_mapping_for_dense(var_name_mapping)`:
+  - Groups dense layer vars by prefix/dense_name/bias; uses `DensePat` to normalize names.
+  - For dense layers with multiple indices, may reorder and rename to `dense_{i}` or base name.
+  - Ensures bias entries are present; fills missing entries into `var_name_mapping`.
+- `CustomRestoreListener`:
+  - `__init__`: accepts `alias_map`, `clear_nn`, `continue_training`, `model_dir`, `enable_alias_map_auto_gen` (defaults True).
+  - `begin()`:
+    - Skip if `is_exporting()`.
+    - Loads checkpoint state from `model_dir`; sets `ckpt_name`.
+    - If `clear_nn`:
+      - Uses `clear_nn` flag file to skip if present.
+      - Adds `global_variables_initializer` to `CUSTOM_RESTORE_OP`; if `continue_training`, adds placeholder + assign op for global_step.
+    - Else if `_need_build_custom_init_graph(variables)`:
+      - Creates placeholders and assign ops for each variable; stores placeholders + alias map into `CUSTOM_RESTORE_OP`.
+  - `_need_build_custom_init_graph(variables)`:
+    - Auto-generates alias_map when not provided and enabled:
+      - Reads ckpt var names; checks compatibility by removing `/part_<n>`.
+      - Builds `var_name_mapping` from `get_new_name(old_name)` to `old_name` and refines via `update_var_name_mapping_for_dense`.
+      - Builds `alias_map` for each variable; handles missing dense names with `miss_dense_names` / `miss_dense_map`.
+      - For unresolved names, uses `get_guess_name` or `miss_dense_map`; if still missing, logs warning and returns False.
+    - Returns True if any variable name is not covered by alias_map values.
+- `infer_variable_name(names)`:
+  - Removes `/part_<n>` segments to infer merged variable names.
+- `calc_feed_dict(ckpt, alias_map, placeholders)`:
+  - Builds reverse map old_name → list of new variable names.
+  - If inferred new names all exist in checkpoint, returns None (no alias restore needed).
+  - Otherwise, builds feed dict mapping placeholders to ckpt tensors.
+  - For partitioned vars (multiple new names):
+    - Handles dense name grouping and ordering.
+    - Sorts by partition index extracted via `PAT`.
+    - Splits old tensor by first-dimension sizes from placeholders (`np.split`) and assigns each split to its placeholder.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/checkpoint` (restore hooks) + `monolith-checkpoint` utilities.
+- Rust public API surface: custom restore listener/hook that can build alias maps and feed dicts.
+- Data model mapping: checkpoint variable names → current graph variable names, including partitioned tensors.
+- Feature gating: requires TensorFlow checkpoint reader or compatible reader in Rust.
+- Integration points: `basic_restore_hook` and training session initialization.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement name normalization helpers (`node_name`, `get_new_name`, `split_name`, `get_guess_name`) in Rust.
+2. Port dense name mapping logic (`update_var_name_mapping_for_dense`) including reorder rules and prefix resolution.
+3. Implement alias-map auto generation using checkpoint metadata and dense mappings.
+4. Build custom restore ops/feeds with placeholders and assign ops; support `clear_nn` + `continue_training` global step update.
+5. Implement partitioned variable splitting logic equivalent to `calc_feed_dict`.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `dense_reload_utils_test.py`.
+- Rust tests: unit tests for name mapping, alias generation, and feed dict splitting.
+- Cross-language parity test: use a sample ckpt with renamed vars and ensure alias restore works identically.
 
 **Gaps / Notes**
-- TODO (manual)
+- Heavy TF internals: requires checkpoint reader and graph variable manipulation in Rust.
+- Auto alias mapping may be fragile; parity requires matching regex and reorder heuristics exactly.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8041,6 +8078,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/dense_reload_utils_test.py`
+
 <a id="monolith-native-training-dense-reload-utils-test-py"></a>
 
 **Status:** TODO (manual review required)
