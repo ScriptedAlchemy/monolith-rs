@@ -560,8 +560,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/losses/inbatch_auc_loss_test.py`](#monolith-native-training-losses-inbatch-auc-loss-test-py) | 71 | IN PROGRESS | N/A (TF custom op) |  |
 | [`monolith/native_training/losses/ltr_losses.py`](#monolith-native-training-losses-ltr-losses-py) | 1233 | IN PROGRESS | N/A (no Rust ranking losses yet) |  |
 | [`monolith/native_training/metric/cli.py`](#monolith-native-training-metric-cli-py) | 28 | IN PROGRESS | N/A (stub) |  |
-| [`monolith/native_training/metric/deep_insight_ops.py`](#monolith-native-training-metric-deep-insight-ops-py) | 134 | TODO | TODO (manual) |  |
-| [`monolith/native_training/metric/deep_insight_ops_test.py`](#monolith-native-training-metric-deep-insight-ops-test-py) | 33 | TODO | TODO (manual) |  |
+| [`monolith/native_training/metric/deep_insight_ops.py`](#monolith-native-training-metric-deep-insight-ops-py) | 134 | IN PROGRESS | N/A (TF custom ops) |  |
+| [`monolith/native_training/metric/deep_insight_ops_test.py`](#monolith-native-training-metric-deep-insight-ops-test-py) | 33 | IN PROGRESS | N/A (empty test) |  |
 | [`monolith/native_training/metric/exit_hook.py`](#monolith-native-training-metric-exit-hook-py) | 48 | TODO | TODO (manual) |  |
 | [`monolith/native_training/metric/kafka_utils.py`](#monolith-native-training-metric-kafka-utils-py) | 119 | TODO | TODO (manual) |  |
 | [`monolith/native_training/metric/metric_hook.py`](#monolith-native-training-metric-metric-hook-py) | 563 | TODO | TODO (manual) |  |
@@ -15198,50 +15198,65 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/metric/deep_insight_ops.py`
 <a id="monolith-native-training-metric-deep-insight-ops-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 134
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Thin wrappers around custom Monolith Deep Insight TF ops (create client, write metrics).
+- Key symbols/classes/functions: `deep_insight_client`, `write_deep_insight`, `write_deep_insight_v2`, `deep_insight_ops`.
+- External dependencies: TensorFlow, `gen_monolith_ops` (custom ops), `socket.gethostname()`.
+- Side effects: Custom ops create a Deep Insight client resource and emit metrics to a databus; may dump to file if `dump_filename` is provided by the op.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Constants: `_FEATURE_REQ_TIME`, `_SAMPLE_RATE`, `_UID` are defined but unused in this file.
+- `deep_insight_client(enable_metrics_counter=False, is_fake=False, dump_filename=None, container=socket.gethostname())`:
+  - Default `container` is evaluated at import time (module load), not at call time.
+  - Calls `deep_insight_ops.monolith_create_deep_insight_client(enable_metrics_counter, is_fake, dump_filename, container)`.
+  - Returns a `tf.Tensor` handle to the client resource.
+- `write_deep_insight(...)`:
+  - Args:
+    - `deep_insight_client_tensor`: handle from `deep_insight_client`.
+    - `uids`: 1-D int64 tensor.
+    - `req_times`: 1-D int64 tensor.
+    - `labels`, `preds`, `sample_rates`: 1-D float tensors.
+    - `model_name`, `target`: strings.
+    - `sample_ratio` float (default 0.01).
+    - `return_msgs` bool: whether op returns serialized messages.
+    - `use_zero_train_time` bool: if True uses 0 as train time (tests).
+  - Calls `monolith_write_deep_insight` op with named args and returns 1-D string tensor.
+- `write_deep_insight_v2(...)`:
+  - Args:
+    - `req_times`: 1-D int64 tensor (batch_size).
+    - `labels`, `preds`, `sample_rates`: 2-D float tensors of shape `(num_targets, batch_size)`.
+    - `extra_fields_values`: list of 1-D tensors (each batch_size).
+    - `extra_fields_keys`: list of strings, same length as `extra_fields_values`.
+    - `targets`: list of strings (num_targets).
+  - Calls `monolith_write_deep_insight_v2` op with named args and returns 1-D string tensor.
+- No Python-side validation of shapes/dtypes; relies on op validation.
+- Threading/concurrency: op-level; Python wrapper is pure.
+- Determinism: depends on external Deep Insight system; no RNG here.
+- Logging/metrics: metrics emission happens inside the custom op.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (custom TF ops not bound in Rust).
+- Rust public API surface: optional wrappers when TF-runtime backend is present.
+- Data model mapping: Tensor handles and string vectors must map to TF runtime types.
+- Feature gating: TF-runtime + custom ops only.
+- Integration points: training metrics pipeline, databus output.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Expose `monolith_create_deep_insight_client` and write ops in Rust TF-runtime backend (FFI).
+2. Mirror function signatures and defaults (especially container default semantics).
+3. Add validation if desired, but preserve op behavior for parity.
+4. Add tests using fake client mode (`is_fake=True`) to avoid external dependencies.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/metric/deep_insight_ops_test.py`.
+- Rust tests: N/A until TF custom ops are bound.
+- Cross-language parity test: compare returned messages (if `return_msgs=True`) and shape/dtype.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires custom TF ops; no Rust bindings exist today.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -15258,50 +15273,37 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/metric/deep_insight_ops_test.py`
 <a id="monolith-native-training-metric-deep-insight-ops-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 33
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Placeholder test module for Deep Insight ops; currently no assertions.
+- Key symbols/classes/functions: `DeepInsightOpsTest.dummy_test`.
+- External dependencies: TensorFlow test harness, `absl.logging`, `json`, `time` (unused).
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `DeepInsightOpsTest.dummy_test`: no-op; test does nothing.
+- `__main__` block disables eager execution and runs `tf.test.main()`.
+- No validation of deep insight ops; effectively a stub.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (empty test).
+- Rust public API surface: none.
+- Data model mapping: none.
+- Feature gating: none.
+- Integration points: none.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. If Deep Insight ops are implemented in Rust, add real tests; otherwise keep as stub-equivalent.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/metric/deep_insight_ops_test.py` (no assertions).
+- Rust tests: none.
+- Cross-language parity test: not applicable until ops exist.
 
 **Gaps / Notes**
-- TODO (manual)
+- Tests are effectively empty; add real assertions when ops are implemented.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
