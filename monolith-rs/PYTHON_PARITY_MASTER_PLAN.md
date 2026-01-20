@@ -618,7 +618,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/ps_benchmark_test.py`](#monolith-native-training-ps-benchmark-test-py) | 57 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/ragged_utils.py`](#monolith-native-training-ragged-utils-py) | 29 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
 | [`monolith/native_training/ragged_utils_test.py`](#monolith-native-training-ragged-utils-test-py) | 32 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
-| [`monolith/native_training/remote_predict_ops.py`](#monolith-native-training-remote-predict-ops-py) | 0 | TODO | TODO (manual) |  |
+| [`monolith/native_training/remote_predict_ops.py`](#monolith-native-training-remote-predict-ops-py) | 0 | IN PROGRESS | N/A (empty stub) |  |
 | [`monolith/native_training/restore_test.py`](#monolith-native-training-restore-test-py) | 240 | TODO | TODO (manual) |  |
 | [`monolith/native_training/runner_utils.py`](#monolith-native-training-runner-utils-py) | 396 | TODO | TODO (manual) |  |
 | [`monolith/native_training/runner_utils_test.py`](#monolith-native-training-runner-utils-test-py) | 108 | TODO | TODO (manual) |  |
@@ -19610,50 +19610,35 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/remote_predict_ops.py`
 <a id="monolith-native-training-remote-predict-ops-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 0
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Empty placeholder module.
+- Key symbols/classes/functions: none.
+- External dependencies: none.
+- Side effects: none.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- This module is empty; importing it should have no side effects.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: none required.
+- Rust public API surface: none.
+- Data model mapping: none.
+- Feature gating: none.
+- Integration points: none.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. No implementation needed unless future Python adds content.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: none.
+- Cross-language parity test: not applicable.
 
 **Gaps / Notes**
-- TODO (manual)
+- Keep stub to preserve import paths if referenced elsewhere.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
