@@ -452,7 +452,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/device_utils_test.py`](#monolith-native-training-device-utils-test-py) | 104 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/distribute/distributed_dataset.py`](#monolith-native-training-distribute-distributed-dataset-py) | 81 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/distribute/distributed_dataset_test.py`](#monolith-native-training-distribute-distributed-dataset-test-py) | 124 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
-| [`monolith/native_training/distribute/str_queue.py`](#monolith-native-training-distribute-str-queue-py) | 114 | TODO | TODO (manual) |  |
+| [`monolith/native_training/distribute/str_queue.py`](#monolith-native-training-distribute-str-queue-py) | 114 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/distribute/str_queue_test.py`](#monolith-native-training-distribute-str-queue-test-py) | 67 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distributed_ps.py`](#monolith-native-training-distributed-ps-py) | 2108 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distributed_ps_benchmark.py`](#monolith-native-training-distributed-ps-benchmark-py) | 168 | TODO | TODO (manual) |  |
@@ -8387,53 +8387,57 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distribute/str_queue.py`
-
 <a id="monolith-native-training-distribute-str-queue-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 114
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: A TF-based string queue with save/restore support, critical section synchronization, and optional auto-enqueue when empty.
+- Key symbols/classes/functions: `StrQueue`, `enqueue_many`, `dequeue`, `_raw_enqueue_many`, `_raw_dequeue`.
+- External dependencies: TensorFlow `CriticalSection`, variables, tf.function.
+- Side effects: maintains internal TF variables (`_arr`, `_offset`, `_arr_size`), uses critical section for synchronization.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `StrQueue.__init__(initial_elements, critical_section, auto_enqueue_fn, capacity, name)`:
+  - Creates a shared `CriticalSection` (or reuses provided).
+  - Initializes `_arr` (string array of size `capacity`), `_offset`, `_arr_size` as variables.
+  - Enqueues `initial_elements` during initialization via control deps.
+  - Uses `_var_for_init` dummy variable to ensure initial enqueue runs.
+- `enqueue_many(elements)`:
+  - Converts to string tensor and calls `_raw_enqueue_many` inside critical section.
+- `dequeue()`:
+  - Executes `_raw_dequeue` inside critical section; returns `(element, out_of_range)`.
+- `_raw_enqueue_many(elements)` (tf.function):
+  - Computes `old_arr_size = _arr_size - _offset`, `new_arr_size = old_arr_size + size(elements)`.
+  - Asserts `new_arr_size <= capacity`.
+  - Compacts array by shifting remaining elements to front, appends new elements, resets `_offset` to 0, updates `_arr_size`.
+- `_raw_dequeue()` (tf.function):
+  - Asserts `_offset <= _arr_size`.
+  - If `auto_enqueue_fn` provided, loops while empty: calls auto fn to get `(elements, out_of_range)`; enqueues elements unless out_of_range.
+  - If still empty, returns `("", True)`.
+  - Else returns element at `_offset` and increments `_offset`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/src` (distributed queues).
+- Rust public API surface: string queue with enqueue/dequeue and optional auto-fill.
+- Data model mapping: TF variables → Rust in-memory or shared queue state.
+- Feature gating: requires distributed synchronization if used across workers.
+- Integration points: `distributed_dataset.create_dynamic_sharding_dataset`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a thread-safe queue with capacity and offset/size semantics.
+2. Provide auto-enqueue hook that is called when empty.
+3. Match out_of_range behavior and empty return value (`""`).
+4. If using TF runtime, preserve CriticalSection semantics for shared state.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `str_queue_test.py`.
+- Rust tests: queue enqueue/dequeue, auto-enqueue loop, capacity assert.
+- Cross-language parity test: compare sequence of dequeued elements for the same auto-enqueue function.
 
 **Gaps / Notes**
-- TODO (manual)
+- TF CriticalSection semantics may need a custom mutex + barrier if implemented in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8448,6 +8452,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distribute/str_queue_test.py`
+
 <a id="monolith-native-training-distribute-str-queue-test-py"></a>
 
 **Status:** TODO (manual review required)
