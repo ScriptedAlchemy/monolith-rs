@@ -267,20 +267,20 @@ This is the first incremental mapping pass. It will be expanded **file-by-file**
 
 | Python File | Rust Target | Status | Notes |
 |---|---|---|---|
-| `monolith/agent_service/agent_service.py` | `monolith-rs/crates/monolith-serving/src/grpc_agent.rs` (gRPC), `monolith-rs/crates/monolith-serving/src/server.rs` (runtime) | TODO | Split responsibilities between coordination gRPC and serving runtime. |
-| `monolith/agent_service/agent_controller.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Needs model layout/config orchestration parity. |
-| `monolith/agent_service/agent_v1.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Defines agent logic; map to server + manager abstractions. |
-| `monolith/agent_service/agent_v3.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Advanced routing / layout logic; likely new Rust module. |
-| `monolith/agent_service/backends.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Backend abstraction for layout + storage. |
-| `monolith/agent_service/replica_manager.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Replica discovery + updates. |
-| `monolith/agent_service/model_manager.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Model lifecycle + watcher loops. |
-| `monolith/agent_service/tfs_client.py` | `monolith-rs/crates/monolith-serving/src/tfserving.rs` | TODO | Map client utilities to Rust TF Serving client. |
-| `monolith/agent_service/tfs_wrapper.py` | `monolith-rs/crates/monolith-serving/src/tfserving.rs` | TODO | Wrapper logic around Predict/ModelStatus. |
-| `monolith/agent_service/tfs_monitor.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Monitoring + metrics; may need new module. |
-| `monolith/agent_service/utils.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Config parsing, model specs, helper utilities. |
-| `monolith/agent_service/constants.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Constants + enums. |
-| `monolith/agent_service/data_def.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Data definition structures. |
-| Tests in `monolith/agent_service/*_test.py` | `monolith-rs/crates/monolith-serving/tests/*` | TODO | Port test cases and fixtures. |
+| `monolith/agent_service/agent_service.py` | `monolith-rs/crates/monolith-serving/src/grpc_agent.rs` (gRPC), `monolith-rs/crates/monolith-serving/src/server.rs` (runtime) | IN PROGRESS | Split responsibilities between coordination gRPC and serving runtime. |
+| `monolith/agent_service/agent_controller.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Needs model layout/config orchestration parity. |
+| `monolith/agent_service/agent_v1.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Defines agent logic; map to server + manager abstractions. |
+| `monolith/agent_service/agent_v3.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Advanced routing / layout logic; likely new Rust module. |
+| `monolith/agent_service/backends.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Backend abstraction for layout + storage. |
+| `monolith/agent_service/replica_manager.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Replica discovery + updates. |
+| `monolith/agent_service/model_manager.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Model lifecycle + watcher loops. |
+| `monolith/agent_service/tfs_client.py` | `monolith-rs/crates/monolith-serving/src/tfserving.rs` | IN PROGRESS | Map client utilities to Rust TF Serving client. |
+| `monolith/agent_service/tfs_wrapper.py` | `monolith-rs/crates/monolith-serving/src/tfserving.rs` | IN PROGRESS | Wrapper logic around Predict/ModelStatus. |
+| `monolith/agent_service/tfs_monitor.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Monitoring + metrics; may need new module. |
+| `monolith/agent_service/utils.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Config parsing, model specs, helper utilities. |
+| `monolith/agent_service/constants.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Constants + enums. |
+| `monolith/agent_service/data_def.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Data definition structures. |
+| Tests in `monolith/agent_service/*_test.py` | `monolith-rs/crates/monolith-serving/tests/*` | IN PROGRESS | Port test cases and fixtures. |
 
 ---
 
@@ -495,7 +495,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/hash_filter_ops.py`](#monolith-native-training-hash-filter-ops-py) | 326 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/hash_filter_ops_test.py`](#monolith-native-training-hash-filter-ops-test-py) | 228 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests |  |
 | [`monolith/native_training/hash_table_ops.py`](#monolith-native-training-hash-table-ops-py) | 738 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
-| [`monolith/native_training/hash_table_ops_benchmark.py`](#monolith-native-training-hash-table-ops-benchmark-py) | 148 | IN PROGRESS | TODO (manual) |  |
+| [`monolith/native_training/hash_table_ops_benchmark.py`](#monolith-native-training-hash-table-ops-benchmark-py) | 148 | IN PROGRESS | monolith-rs/crates/monolith-examples/src/bin/hash_table_ops_benchmark.rs (new) |  |
 | [`monolith/native_training/hash_table_ops_test.py`](#monolith-native-training-hash-table-ops-test-py) | 1200 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests |  |
 | [`monolith/native_training/hash_table_utils.py`](#monolith-native-training-hash-table-utils-py) | 50 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/src |  |
 | [`monolith/native_training/hash_table_utils_test.py`](#monolith-native-training-hash-table-utils-test-py) | 45 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/tests |  |
@@ -1439,59 +1439,72 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/agent_service/agent_v3.py`
 <a id="monolith-agent-service-agent-v3-py"></a>
 
-**Status:** IN PROGRESS (manual)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 210
-- Purpose/role: v3 unified agent that manages TFS config via layouts, registers service info, and serves AgentService addrs.
-- Key symbols/classes/functions: `AgentV3`, `gen_empty_model_config_file`
-- External dependencies: `TFSWrapper`, `ZKBackend`, `Container`, protobuf text/json, `tensorflow_serving.config`.
-- Side effects: writes model_config file, starts TFS process, registers ZK service info, background threads.
+- Purpose/role: v3 unified agent that manages TFS model config via layout updates, registers service info, and serves address maps via AgentService.
+- Key symbols/classes/functions: `gen_empty_model_config_file`, `AgentV3`.
+- External dependencies: `TFSWrapper`, `ZKBackend`, `Container`, `ContainerServiceInfo`, protobuf text/json, `model_server_config_pb2`.
+- Side effects: writes model_config file, starts/stops TFS process, registers ZK service info, background threads, SIGKILL on exit.
 
 **Required Behavior (Detailed)**
-- Enforces `DeployType.UNIFIED` and `agent_version == 3`.
-- Generates empty model config file with `model_config_list {}`.
-- Creates `TFSWrapper` with archon/grpc/http ports and config file; used to query model status.
-- Layout filters:
-  - `config.layout_filters` strings may include `${shard_id}` and `${shard_num}` substitutions.
-  - Each filter is `match;cond`, where `match` becomes regex via `normalize_regex`.
-  - `cond` is evaluated with regex groupdict values cast to int.
-- Builds `ContainerServiceInfo` using local IP and ports; includes debug JSON with layout path + filters.
+- `gen_empty_model_config_file()`:
+  - Uses `tempfile.mktemp()` and writes `model_config_list {}`.
+- `AgentV3.__init__`:
+  - Asserts `deploy_type == UNIFIED` and `agent_version == 3`.
+  - Installs SIGTERM/SIGINT handlers to set `_exit_event`.
+  - Creates `_model_config_path` and initializes `TFSWrapper` with ports + config path.
+  - Builds `_layout_filters` from `config.layout_filters`:
+    - Replaces `${shard_id}` and `${shard_num}`.
+    - Splits `match;cond`, normalizes regex via `normalize_regex`.
+  - Builds `ContainerServiceInfo` with local IP and ports; `debug_info` JSON includes layout path + filters.
+  - Initializes `ZKBackend` and `AgentService(AgentDataProvider(_gen_addrs_map))`.
 - `_gen_addrs_map()`:
-  - Reads `backend.get_service_map()` and returns `{model:sub_graph: [grpc/archon addrs]}`.
-  - Uses gRPC addr if `TFSWrapper.is_grpc_remote_op` else archon addr.
-- `layout_update_callback(saved_models)`:
-  - Applies layout filters to SavedModel list.
-  - Writes new `ModelServerConfig` protobuf text to `_model_config_path`.
+  - Reads `backend.get_service_map()` and returns `{model:sub_graph: [addr...]}`.
+  - Uses `grpc` addr if `tfs_wrapper.is_grpc_remote_op`, else `archon` addr.
 - `sync_available_saved_models()`:
-  - Reads `TFSWrapper.list_saved_models_status()` and syncs AVAILABLE models to backend.
+  - Calls `tfs_wrapper.list_saved_models_status()`.
+  - For `State.AVAILABLE`, converts `model_name:sub_graph` into `SavedModel` and syncs via backend.
+- `layout_update_callback(saved_models)`:
+  - Builds `ModelServerConfig` with `model_config_list.SetInParent()`.
+  - Applies layout filters: `re.match(match, sub_graph)` + `eval(cond, None, {groupdict as int})`.
+  - Adds `ModelConfig` generated by `gen_model_config(name, base_path, version_policy)`.
+  - Writes protobuf text to `_model_config_path`.
+- `start_bg_thread(fn, interval)`:
+  - Runs `fn()` in loop until `_exit_event` set; logs exceptions; sleeps `interval`.
 - `start()`:
   - Starts TFSWrapper, ZKBackend, AgentService.
-  - Background thread every 60s: `report_service_info`.
-  - Background thread every 30s: `sync_available_saved_models`.
+  - Starts background threads:
+    - `backend.report_service_info(container, service_info)` every 60s.
+    - `sync_available_saved_models` every 30s.
   - Registers layout callback on `config.layout_path`.
-- `wait_for_termination()` polls TFS process; if exit, stops and kills self.
+- `stop()`:
+  - Sets exit event, joins threads, stops AgentService, backend, and TFSWrapper (logs warnings on error).
+- `wait_for_termination()`:
+  - Polls `tfs_wrapper.poll()`; if exit, sets `_exit_event`, stops, sleeps 1s, and `SIGKILL`s self.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/agent_v3.rs`.
 - Rust public API surface: `AgentV3` implementing `AgentBase` with background tasks.
-- Data model mapping: `Container`, `SavedModel`, `SavedModelDeployConfig`, `ContainerServiceInfo`.
-- Feature gating: `tf-runtime` and `zk` features (TFS process and ZK backend).
+- Data model mapping: `Container`, `SavedModel`, `SavedModelDeployConfig`, `ContainerServiceInfo`, layout filters, service map.
+- Feature gating: `tf-runtime` (TFSWrapper), `zk` (ZKBackend), gRPC for AgentService.
 
 **Implementation Steps (Detailed)**
-1. Port layout filter parsing + evaluation semantics (regex + eval).
-2. Implement model_config file generation for TensorFlow Serving.
-3. Port service info reporting and available saved_model syncing to ZK.
-4. Implement addrs map provider for AgentService v3.
-5. Ensure shutdown semantics (set exit event, join threads, kill process).
+1. Port layout filter parsing and evaluation (regex + safe expression engine).
+2. Implement model_config protobuf text writer (matching TF Serving config).
+3. Port service info reporting + available model syncing to ZK.
+4. Implement address map provider for AgentService v3.
+5. Preserve shutdown semantics (exit event, thread joins, SIGKILL).
 
 **Tests (Detailed)**
 - Python tests: `monolith/agent_service/agent_v3_test.py`
-- Rust tests: use FakeTFSWrapper + FakeZK to verify model publishing and service map updates.
-- Cross-language parity test: run layout update and verify config file contents.
+- Rust tests: FakeTFSWrapper + FakeZK to verify layout updates + service map.
+- Cross-language parity test: generate identical config updates and compare model_config text.
 
 **Gaps / Notes**
-- Requires Rust implementation of ZKBackend and TFSWrapper equivalents.
+- Python uses `tempfile.mktemp()` (unsafe); Rust should use secure temp files but preserve behavior.
+- Layout filter `cond` uses `eval` on regex groupdict (needs a safe Rust equivalent).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
