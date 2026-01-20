@@ -3,6 +3,9 @@
 fid_mapping/.DS_Store
 fid_analysis/.DS_Store
 
+# Local agent cache (generated)
+.unpack-cache/
+
 # Ignore some test data files
 fid_mapping/test_data.gz
 fid_mapping/downloaded/*
@@ -77,4 +80,3 @@ target/
 
 # go
 vendor/
-
