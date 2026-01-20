@@ -1431,24 +1431,50 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: starts and kills subprocesses; registers signal handlers; logs to files.
 
 **Required Behavior (Detailed)**
+- `ProcessType` enum: `PS=1`, `ENTRY=2`, `PROXY=3`, `UNKONWN=4`, `DENSE=5`.
 - `ProcessNode.__init__`:
-  - Chooses command and port via `get_cmd_and_port` based on process type.
-  - For ENTRY sets env `PORT2` to agent port.
+  - Stores config, replica_mgr, proc_type, tfs_log, env, etc; `_shell=False`, `_stderr=STDOUT`.
+  - For `PS/ENTRY/DENSE`: uses `get_cmd_and_port` with server_type and `tfs_binary`.
+  - For ENTRY: `_env = os.environ.copy()` and sets `PORT2` to `agent_port`.
+  - For other types: `get_cmd_and_port` without server_type (proxy command).
   - Tracks `_sub_procs` map and `_popen` handle.
 - `ProcessNode.run()`:
-  - If ENTRY: waits for PS replicas (and dense if `dense_alone`) via `ReplicaManager` before starting; timeout 3600s.
-  - Launches subprocess with `ServingLog` output redirection (unless `MLP_POD_NAME` env set).
-  - Waits for port open; starts sub-procs recursively; returns success boolean.
-- `ProcessNode.wait_for_started()`: polls `check_port_open` every 10s up to 3600s; returns True on success.
-- `ProcessNode.kill()`: kills sub-procs then self with retries; uses `poll`/`returncode` guards.
+  - If ENTRY: waits for PS replicas to start:
+    - Sleeps `update_model_status_interval * 2` and loops while `!replica_mgr.is_ps_set_started()` up to `max_waiting_sec=3600`.
+    - If `dense_alone`: waits for `is_dense_set_started()` similarly.
+    - On timeout logs error and returns False.
+  - Launches subprocess via `ServingLog(proc_type.name.lower(), tfs_log)`:
+    - `Popen(self._cmd.split(), shell=False, stderr=STDOUT, stdout=log)` unless `MLP_POD_NAME` env is set (then stdout=None).
+  - Calls `wait_for_started()`; on failure logs and returns False.
+  - Starts each sub-proc via `proc.run()`, aborting on failure.
+- `ProcessNode.wait_for_started()`:
+  - If `_port==0` returns True.
+  - Polls `check_port_open(_port)` every 10s up to 3600s.
+- `ProcessNode.kill()`:
+  - Kills sub-procs first; for each, retries up to 3 times with `kill()` and 1s sleep.
+  - Kills self `_popen` with same retry loop.
+- `ProcessNode.poll/returncode`:
+  - If `_is_failover` True: return None; else delegates to `_popen.poll()/returncode`.
+- `ProcessNode.failover()`:
+  - Sets `_is_failover`; if not `is_tce_main` and proc_type in {PS,DENSE} -> `run()`; else `kill()`; resets flag.
 - `ProcessMgr`:
-  - Registers SIGTERM/SIGINT handler to kill all processes.
-  - Background `_poll` thread watches all processes; if any exits, kills all.
-  - `start()` runs `ProcessNode.run()` for each and starts poll thread.
-- `AgentV1`:
-  - Starts ZK client, ReplicaManager (watcher/updater), AgentService, and ProcessMgr in that order.
-  - Build process graph based on `DeployType` (MIXED/ENTRY/PS/DENSE) and `dense_alone`.
-  - `stop()` shuts down processes, AgentService, ReplicaManager, ZK.
+  - Class vars `_is_killed=False`, `_lock=RLock`.
+  - Registers SIGTERM/SIGINT handler that kills all and SIGKILLs self.
+  - `_poll` thread flattens process tree and checks `returncode`; if any exited, kills all (no failover).
+  - `start()` runs each subproc; starts poll thread; on failure kills all.
+  - `kill_all(include_self=True)` kills all subprocs and optionally `os.kill(self, SIGKILL)`.
+- `AgentV1.__init__`:
+  - Creates `MonolithKazooClient`, `ReplicaManager`, and `AgentService(replica_mgr.watcher, port=agent_port)`.
+  - Builds `ProcessMgr` and adds `ProcessNode`s based on `deploy_type`:
+    - MIXED: ps + (dense if `dense_alone`) + entry (entry marked `is_tce_main=True`).
+    - ENTRY: single ENTRY node (named `proxy_proc` in code).
+    - PS: single PS node (`is_tce_main=True`).
+    - Else: single DENSE node.
+- `AgentV1.start()`:
+  - Starts ZK, ReplicaManager, AgentService, then ProcessMgr (with logs for each).
+- `AgentV1.wait_for_termination()` delegates to AgentService.
+- `AgentV1.stop()`:
+  - `process_mgr.kill_all(include_self=False)`, stop AgentService, ReplicaManager, and ZK.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/agent_v1.rs` + process supervisor module.
@@ -1854,7 +1880,8 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: ZK reads/writes, prints status, env setup.
 
 **Required Behavior (Detailed)**
-- `LoadSate` dataclass: `portal: bool`, `publish: bool`, `service: dict`.
+- Flags: `cmd_type` enum (`hb`, `gr`, `addr`, `get`, `clean`, `load`, `unload`, `meta`, `status`, `profile`), `zk_servers`, `bzid`, `model_name`, `target`, `input_type`, `input_file`.
+- `LoadSate` dataclass: `portal: bool`, `publish: bool`, `service: dict` (default empty).
 - `ServingClient.__init__`:
   - Creates `MonolithKazooClient` and `ZKMirror(zk, bzid)`; starts mirror with `is_client=True`.
 - `load(model_name, model_dir, ckpt=None, num_shard=-1)`:
@@ -1864,12 +1891,15 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - `unload(model_name)`:
   - Delete portal node if exists; else log warning.
 - `get_status(model_name)`:
-  - `portal` True if `/bzid/portal/{model_name}` exists.
+  - `portal` True if `/bzid/portal/{model_name}` exists (via `kazoo.exists`).
   - `publish` True if any `/bzid/publish/{shard}:{replica}:{model_name}` exists.
-  - `service` map from `server_type:task:replica` to `ReplicaMeta.stat` for all replicas under `/bzid/service/{model_name}`.
+  - `service` map `{node}:{replica} -> ReplicaMeta.stat` for all replicas under `/bzid/service/{model_name}`.
 - `main`:
-  - Requires `zk_servers` and `bzid` flags.
-  - `cmd_type` `load` or `unload`, otherwise prints `get_status`.
+  - Calls `env_utils.setup_host_ip()`.
+  - Requires `zk_servers` and `bzid` flags; asserts `model_name` provided.
+  - `cmd_type == load`: requires `model_dir`; calls `client.load(model_name, model_dir, ckpt, num_shard)`.
+  - `cmd_type == unload`: calls `client.unload(model_name)`.
+  - Else: prints `client.get_status(model_name)`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-cli/src/bin/serving_client.rs`.
@@ -1914,7 +1944,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: none
 
 **Required Behavior (Detailed)**
-- Export string constant `MONOLITH_HOST_SHARD_N`.
+- Export `HOST_SHARD_ENV = "MONOLITH_HOST_SHARD_N"`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/constants.rs` (new) or existing config module.
@@ -2839,6 +2869,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
   - `agent_client` -> `monolith.agent_service.agent_client.main`
   - `tfs_client` -> `monolith.agent_service.tfs_client.main`
 - Unknown value raises `ValueError`.
+- Default `bin_name` is `"agent"`; `app.run(main)` invoked in `__main__`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-cli/src/bin/monolith.rs` (dispatcher) or separate binaries.
@@ -2885,9 +2916,9 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - `stub` property:
   - Uses `MY_HOST_IP` env or local hostname; connects to `{host}:{agent_port}`.
 - `get_server_type`:
-  - If input is string, maps `ps/entry/dense` to enum using `FLAGS.server_type` (note: uses global flags).
-- `heart_beat`: sends `HeartBeatRequest` and prints addresses.
-- `get_replicas`: sends `GetReplicasRequest` and prints address list.
+  - If input is string, ignores the value and maps **`FLAGS.server_type`** to enum (ps/entry/dense); else returns `st`.
+- `heart_beat`: sends `HeartBeatRequest` and prints `resp.addresses` (flush=True).
+- `get_replicas`: sends `GetReplicasRequest` and prints `resp.address_list.address` (flush=True).
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-cli/src/agent_svr_client.rs` or library module.
@@ -3669,27 +3700,57 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: ZK watch registration, ZK CRUD, background threads, queue events.
 
 **Required Behavior (Detailed)**
-- Maintains in-memory `_data` cache of ZK paths to bytes.
-- Defines base paths: `resource`, `portal`, `publish`, `service`, `locks`, `election`.
-- CRUD helpers (`create`, `set`, `delete`, `exists`, `ensure_path`) wrap ZK and fall back to cache on errors.
-- `report_resource`: writes ResourceSpec as ephemeral node.
-- `resources` property: returns list of ResourceSpec from cached paths.
-- `num_tce_replica`: waits until every replica id appears for all shards; returns count.
-- `tce_replica_id`: uses env `REPLICA_ID` or derives from pod name.
-- `publish_loadding`: writes PublishMeta entries to publish path; updates cache.
-- `expected_loading`:
-  - Groups PublishMeta by model_name; selects when all publish nodes have arrived.
-  - Adjusts shard_id/replica_id for autoscaler and entry cases; filters sub_models to entry when needed.
-- `update_service(replicas)`:
-  - Computes paths for local replicas; removes outdated nodes; creates/updates current replicas.
-- Replica queries: `get_all_replicas`, `get_model_replicas`, `get_task_replicas`, `get_replica` (AVAILABLE only).
-- Watchers:
-  - `watch_portal`: ensures portal/publish consistency; installs DataWatch for model meta; emits Event(PORTAL).
-  - `watch_publish`: installs watches on publish nodes; emits Event(PUBLISH) when all publish nodes arrive.
-  - `watch_resource`: watches resource nodes into cache.
-  - `watch_service`: watches service hierarchy into cache.
-- `election`: uses Kazoo Election to run leader function; handles reconnects.
-- `start(is_client=False)`: starts ZK, watches service, and optionally publish.
+- Core state:
+  - `_data` in-memory cache of `path -> bytes`.
+  - Base paths: `/bzid/resource`, `/bzid/portal`, `/bzid/publish`, `/bzid/service`, `/bzid/locks`, `/bzid/election`.
+  - `_local_host = get_local_ip()`, `_deploy_type` set from ctor.
+- CRUD:
+  - `create`: tries ZK create; on `NodeExistsError` sets value; rethrows other exceptions.
+  - `set`: `zk.set` with retry; on `NoNodeError` creates with `makepath=True`.
+  - `exists`: uses `zk.exists` (bool or stat); on `ZookeeperError` falls back to `_data`.
+  - `delete`: retries delete; on `NotEmptyError` deletes recursively; on `NoNodeError` logs.
+  - `get`: returns cached bytes; `get_children` returns child names by prefix (no dedupe).
+- Resource/reporting:
+  - `report_resource` writes `ResourceSpec` (ephemeral) under `/resource/{shard}:{replica}`.
+  - `resources` property deserializes all cached resource nodes.
+  - `tce_replica_id` from env `REPLICA_ID` or `replica_id_from_pod_name()`.
+  - `num_tce_replica` intends to wait for all shards to report; implementation currently buggy (inner helper does not return).
+- Publish/loading:
+  - `publish_loadding` (typo): creates publish nodes if cache differs; supports list or single.
+  - `expected_loading`:
+    - Reads publish nodes; counts per model; keeps PublishMeta with **fewest** sub_models.
+    - Selects model when count == `total_publish_num`.
+    - If local shard+replica match: use pm as-is.
+    - Else if same shard and `not is_spec`: override `replica_id` to local.
+    - Else: override shard_id/replica_id to local and **filter sub_models to entry only**.
+    - Skips non-LOAD ptypes.
+  - `get_published_path` returns publish paths ending with model_name.
+- Service updates/query:
+  - `update_service(replicas)`:
+    - Computes desired local paths via `ReplicaMeta.get_path`.
+    - Deletes local replicas not in desired set.
+    - Creates/updates remaining (ephemeral) when cache is missing or different.
+  - `local_replica_paths`: cached service nodes whose host matches `_local_host` and `replica == tce_replica_id`.
+  - `get_all_replicas(server_type)`: returns `{model:server_type:task -> [ReplicaMeta]}` for AVAILABLE only.
+  - `get_model_replicas(model_name, server_type)`: returns `{model:task -> [ReplicaMeta]}` for AVAILABLE only.
+  - `get_task_replicas(model_name, server_type, task)` returns list of AVAILABLE replicas.
+  - `get_replica` returns AVAILABLE replica or None.
+- Watches:
+  - `watch_portal`:
+    - Ensures portal/publish consistency; deletes publish entries not in portal.
+    - Installs DataWatch per portal node; on CREATED/DELETED emits `Event(PORTAL)` with ModelMeta/action.
+  - `watch_publish`:
+    - DataWatch per publish node; updates cache on CREATED/DELETED.
+    - When count is 0 or == total_publish_num, emits `Event(PUBLISH)`.
+  - `watch_resource`:
+    - Watches resource nodes; updates cache on CREATED/DELETED/CHANGED.
+  - `watch_service`:
+    - Watches model -> task -> replica hierarchy; caches data for each replica node.
+- Election:
+  - `election(leader, sched, identifier)` no-ops for ENTRY deploy.
+  - Uses Kazoo election; on `ConnectionClosedError` with disconnected state: clears cache/queue and restarts.
+- `start(is_client=False)`:
+  - Starts ZK, watches service, and if not client also watches publish.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/zk_mirror.rs`.
@@ -3735,16 +3796,36 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: ZK node creation, event queue handling.
 
 **Required Behavior (Detailed)**
+- `setUpClass`:
+  - Set `HOST_SHARD_ENV=10`, `SHARD_ID=2`, `REPLICA_ID=2`.
+  - Create `ZKMirror(zk=FakeKazooClient(), bzid='bzid', queue=Queue(), tce_shard_id=2, num_tce_shard=10)` and start.
+  - Build `ResourceSpec(address='{local_ip}:1234', shard_id=2, replica_id=2, memory=12345, cpu=5.6, network=3.2, work_load=0.7)`.
 - `test_crud`:
-  - `ensure_path`, `exists`, `create`, `get/set`, `delete` operations.
-  - Checks derived properties: `num_tce_shard`, `tce_replica_id`, `tce_shard_id`.
+  - `ensure_path('/model/crud')`, `exists` True.
+  - `create('/model/crud/data', b'test', makepath=True)`.
+  - `get/set` via underlying `_zk` to verify value change.
+  - `delete('/model/crud', recursive=False)` then `exists` False.
+  - Assert `num_tce_shard==10`, `tce_replica_id==2`, `tce_shard_id==2`.
 - `test_zk_mirror`:
-  - `watch_portal` + `watch_resource`.
-  - Portal event should be emitted for new ModelMeta.
-  - Scheduler simulation publishes PublishMeta to all shards/replicas.
-  - `expected_loading` selects correct PublishMeta for current shard.
-  - `update_service` writes ReplicaMeta nodes; verify replica query APIs.
-  - `report_resource` and `resources` should roundtrip ResourceSpec.
+  - Step0: `watch_portal()` and `watch_resource()`, then create portal node for `ModelMeta(model_name, model_dir, num_shard=5)`.
+  - Step1: dequeue `Event` from `queue`, assert `etype==PORTAL`, path matches, deserialize `ModelMeta`.
+  - Build scheduler PublishMeta list:
+    - `version=123456`, `num_ps=10`, `NUM_REPLICAS=3`.
+    - For each `i in range(mm.num_shard)`:
+      - `sub_models`: `ps_k` for `k % mm.num_shard == i`, plus `entry`.
+      - Choose `shard_id`: `self.shard_id` for `i==0`, else pop from shuffled shard list (avoiding current shard).
+      - For each replica_id 0..2, create `PublishMeta(shard_id, replica_id, model_name, num_ps, sub_models)`.
+    - Set `pm.total_publish_num = len(pms)` for all; call `publish_loadding(pms)`.
+  - Step2: `expected_loading()` returns map where:
+    - model_name == `MODEL_NAME`, `pm.shard_id == self.shard_id`, and `'entry'` in `pm.sub_models`.
+  - Step3: `update_service`:
+    - For each sub_model in expected `pm`, build `ReplicaMeta(address='{local_ip}:8080', model_name, server_type, task, replica=2, stat=AVAILABLE)`.
+    - Call `update_service(replicas)`.
+  - Step4: replica query checks:
+    - Build `entry_replica`, `ps0_replica`, `ps5_replica` with `stat=30`.
+    - Validate `get_all_replicas('ps')`, `get_model_replicas('entry')`, `get_task_replicas('ps',0)`, `get_replica('ps',5,2)`.
+    - `local_replica_paths` equals set of three expected paths.
+  - Step5/6: `report_resource(resource)` then `resources[0] == resource`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/zk_mirror.rs`.
@@ -3844,7 +3925,8 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
   - Sets env vars:
     - `HEAPPROFILE` path
     - `HEAP_PROFILE_INUSE_INTERVAL` and `HEAP_PROFILE_ALLOCATION_INTERVAL` scaled by `1/sample_ratio`
-    - `HEAP_PROFILE_SAMPLE_RATIO`, `HEAP_PROFILE_TIME_INTERVAL`, `HEAP_PROFILE_MMAP`.
+    - `HEAP_PROFILE_SAMPLE_RATIO`, `HEAP_PROFILE_TIME_INTERVAL`, `HEAP_PROFILE_MMAP` (lowercased bool).
+  - Defaults: `heap_profile_inuse_interval=104857600`, `heap_profile_allocation_interval=1073741824`, `heap_profile_time_interval=0`, `sample_ratio=1.0`, `heap_profile_mmap=False`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-training/src/mem_profiling.rs`.
