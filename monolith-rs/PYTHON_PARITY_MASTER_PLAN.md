@@ -596,7 +596,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/model_export/warmup_example_batch.py`](#monolith-native-training-model-export-warmup-example-batch-py) | 57 | IN PROGRESS | N/A (warmup example batch) |  |
 | [`monolith/native_training/monolith_export.py`](#monolith-native-training-monolith-export-py) | 18 | IN PROGRESS | N/A (decorator) |  |
 | [`monolith/native_training/multi_hash_table_ops.py`](#monolith-native-training-multi-hash-table-ops-py) | 695 | IN PROGRESS | N/A (TF custom ops) |  |
-| [`monolith/native_training/multi_hash_table_ops_test.py`](#monolith-native-training-multi-hash-table-ops-test-py) | 249 | TODO | TODO (manual) |  |
+| [`monolith/native_training/multi_hash_table_ops_test.py`](#monolith-native-training-multi-hash-table-ops-test-py) | 249 | IN PROGRESS | N/A (TF custom ops) |  |
 | [`monolith/native_training/multi_type_hash_table.py`](#monolith-native-training-multi-type-hash-table-py) | 435 | TODO | TODO (manual) |  |
 | [`monolith/native_training/multi_type_hash_table_test.py`](#monolith-native-training-multi-type-hash-table-test-py) | 326 | TODO | TODO (manual) |  |
 | [`monolith/native_training/native_model.py`](#monolith-native-training-native-model-py) | 1109 | TODO | TODO (manual) |  |
@@ -17714,50 +17714,48 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/multi_hash_table_ops_test.py`
 <a id="monolith-native-training-multi-hash-table-ops-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 249
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests for MultiHashTable operations (lookup, assign_add, reinitialize, apply_gradients, save/restore, hooks).
+- Key symbols/classes/functions: `MultiTypeHashTableTest.*`.
+- External dependencies: TensorFlow, multi_hash_table_ops custom ops, save_utils.
+- Side effects: Writes checkpoint and asset files under `TEST_TMPDIR`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_lookup_assign_add_reinitialize`:
+  - Builds table with slots; assign_add values; lookup matches expected.
+  - Reinitializes slot2 and slot3; slot3 returns status -1.
+- `test_apply_gradients`:
+  - Applies gradients and checks embeddings updated (negative values).
+- `test_save_restore`:
+  - Saves table to basename, restores into new graph with different slots.
+  - Restored values for overlapping slots match expected.
+- `test_save_restore_hook`:
+  - Uses saver and restorer hooks; ensures restore overwrites sub_op updates.
+  - Verifies values match initial add_op.
+- `test_meta_graph_export`:
+  - Ensures multi hash table collection appears in exported meta_graph.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A.
+- Rust public API surface: none.
+- Data model mapping: custom ops and checkpoint assets.
+- Feature gating: TF runtime + custom ops.
+- Integration points: embedding table subsystem.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. If Rust binds multi hash table ops, add tests for assign/lookup/save/restore.
+2. Mirror hook behavior in Rust checkpointing.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `multi_hash_table_ops_test.py`.
+- Rust tests: none.
+- Cross-language parity test: compare lookup outputs and restore behavior.
 
 **Gaps / Notes**
-- TODO (manual)
+- Heavily depends on custom ops; cannot run without TF runtime.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
