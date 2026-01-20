@@ -497,7 +497,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/hash_table_ops.py`](#monolith-native-training-hash-table-ops-py) | 738 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/hash_table_ops_benchmark.py`](#monolith-native-training-hash-table-ops-benchmark-py) | 148 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hash_table_ops_test.py`](#monolith-native-training-hash-table-ops-test-py) | 1200 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests |  |
-| [`monolith/native_training/hash_table_utils.py`](#monolith-native-training-hash-table-utils-py) | 50 | TODO | TODO (manual) |  |
+| [`monolith/native_training/hash_table_utils.py`](#monolith-native-training-hash-table-utils-py) | 50 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/src |  |
 | [`monolith/native_training/hash_table_utils_test.py`](#monolith-native-training-hash-table-utils-test-py) | 45 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hooks/ckpt_hooks.py`](#monolith-native-training-hooks-ckpt-hooks-py) | 193 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hooks/ckpt_hooks_test.py`](#monolith-native-training-hooks-ckpt-hooks-test-py) | 181 | TODO | TODO (manual) |  |
@@ -10914,50 +10914,43 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hash_table_utils.py`
 <a id="monolith-native-training-hash-table-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
-- Lines: 50
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Lines: 46
+- Purpose/role: Utility helpers to iterate hash tables and infer embedding dim sizes from config.
+- Key symbols/classes/functions: `iterate_table_and_apply`, `infer_dim_size`.
+- External dependencies: TensorFlow, `embedding_hash_table_pb2`.
+- Side effects: Iterates table via `save_as_tensor` and calls `apply_fn`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `iterate_table_and_apply(table, apply_fn, limit=1000, nshards=4, name="IterateTable")`:
+  - Runs in `tf.function`.
+  - Iterates `nshards` shards; for each shard, repeatedly calls `table.save_as_tensor(i, nshards, limit, offset)` until dump size < limit and offset != 0.
+  - Uses `tf.autograph.experimental.set_loop_options` with shape invariants to allow dynamic `dump` size.
+  - Calls `apply_fn(dump)` for each dump batch (serialized EntryDump strings).
+- `infer_dim_size(config)`:
+  - Sums `segment.dim_size` across `config.entry_config.segments`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-hash-table/src/utils.rs` (new) or `monolith-rs/crates/monolith-hash-table/src/lib.rs`.
+- Rust public API surface: iterator over table dumps and dim-size inference from proto config.
+- Data model mapping: `EmbeddingHashTableConfig` from `monolith-proto`.
+- Feature gating: table iteration requires TF runtime or native hash table implementation.
+- Integration points: model dump utilities and table export.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a Rust iterator that pages through table dumps with `limit` and `offset` semantics.
+2. Provide a safe callback API for applying functions to each batch.
+3. Implement `infer_dim_size` by summing segment dims from proto.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: add unit tests for `infer_dim_size` and mock iteration semantics.
+- Cross-language parity test: compare dim_size for a known config.
 
 **Gaps / Notes**
-- TODO (manual)
+- `iterate_table_and_apply` depends on `save_as_tensor` behavior; Rust must match sharding and offset semantics.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
