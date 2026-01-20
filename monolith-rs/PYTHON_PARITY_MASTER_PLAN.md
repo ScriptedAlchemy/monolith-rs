@@ -2316,34 +2316,102 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/agent_service/replica_manager.py`
 <a id="monolith-agent-service-replica-manager-py"></a>
 
-**Status:** IN PROGRESS (manual)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 835
-- Purpose/role: Maintains replica registration and status updates in ZK; watches for replica changes and exposes lookup APIs.
+- Purpose/role: Maintains replica registration and status updates in ZK, watches for replica changes, and exposes lookup APIs for serving + parameter sync.
 - Key symbols/classes/functions: `ReplicaWatcher`, `ReplicaUpdater`, `ZKListener`, `ReplicaManager`, `SyncBackendWrapper`.
-- External dependencies: `kazoo`, `TFSMonitor`, `AgentConfig`, `ReplicaMeta`, `ModelState`, metrics.
-- Side effects: ZK watches, ephemeral node creation, periodic polling, metrics emission.
+- External dependencies: `kazoo`, `TFSMonitor`, `AgentConfig`, `ReplicaMeta`, `ModelState`, `ClientConfig.TargetExtraInfo`, metrics CLI.
+- Side effects: ZK watches + ephemeral nodes, periodic polling, metrics emission.
 
 **Required Behavior (Detailed)**
 - `ReplicaWatcher`:
-  - Watches ZK paths under `/{bzid}/service/{base_name}`.
-  - Supports dc-aware paths (`idc:cluster/server_type:task`) and non-dc paths.
-  - Uses ChildrenWatch/DataWatch to maintain `replicas` dict: `{task_path: {replica_id: ReplicaMeta}}`.
-  - `_poll()` resyncs periodically (every 60s) and re-registers missing ephemeral nodes (when local replica was removed).
-  - `get_all_replicas`, `get_replicas`, `get_replica`, `get_replicas_with_extra_info` filter by server type, idc/cluster, and ModelState.AVAILABLE.
+  - Chooses `_zk_watch_address_family`:
+    - If requested IPv4 but `is_ipv6_only()` returns True, switches to IPv6.
+  - `path_prefix = /{bzid}/service/{base_name}`.
+  - `watch_data()`:
+    - DC-aware: watch `path_prefix` for `idc:cluster`, then tasks, then replicas.
+    - Non-DC: watch tasks directly.
+    - Starts `_poll` thread (daemon).
+  - `DataWatch` handler:
+    - If data empty: mark stat UNKNOWN if existing.
+    - Event `CREATED`/None: add/update.
+    - `CHANGED`: update.
+    - `DELETED`: remove replica; delete task path if empty.
+    - `NONE`: set UNKNOWN.
+  - `_poll()` every 60s:
+    - Rebuilds `replicas_tmp` by scanning ZK.
+    - Computes removed replicas; for PS/DENSE deploys, re-registers missing local replicas with correct grpc/archon ports.
+    - Updates `self.replicas = replicas_tmp`.
+  - Lookup helpers:
+    - `get_all_replicas`: returns `{task -> [addr...]}` for AVAILABLE replicas; dc-aware key includes `idc/cluster`.
+    - `get_replicas`: returns list for specific task.
+    - `get_replica`: returns single addr or list or None.
+    - `get_replicas_with_extra_info`: returns `{addr -> TargetExtraInfo(idc, cluster, replica_id)}`.
+  - `to_sync_wrapper()`: returns `SyncBackendWrapper`.
 - `ReplicaUpdater`:
-  - `register()` creates ephemeral nodes for entry/ps/dense; supports `replica_id == -1` (sequence node) for entry.
-  - `_do_update()` queries `TFSMonitor.get_model_status` and updates ZK with new ModelState.
-  - `_updater` loop updates each model_name; handles exceptions by setting UNKNOWN.
-  - `_check_version` emits metrics for latest model version and update timestamps.
-  - `_reregister` loop re-registers after ZK connection loss.
+  - Tracks `meta` map of `replica_path -> ReplicaMeta`.
+  - `model_names` includes:
+    - `ps_{task_id}` for PS shards owned by this shard id.
+    - `entry` if deploy_type MIXED or ENTRY.
+    - `dense_0` if dense_alone and deploy_type MIXED or DENSE.
+  - `_do_register(replica_path, grpc_port, archon_port)`:
+    - Builds host from `MY_HOST_IP` or hostname; IPv6 from `MY_HOST_IPV6` or getaddrinfo.
+    - Creates ReplicaMeta with UNKNOWN state and addresses (ipv4/ipv6 + archon).
+    - Creates ephemeral znode; for ENTRY with replica_id == -1 uses `sequence=True` and updates config.replica_id.
+    - If node exists, updates value if different.
+  - `register()`:
+    - Registers entry, ps shards, and dense based on deploy_type and shard assignment.
+  - `_do_update(name)`:
+    - Calls `TFSMonitor.get_model_status(name)`.
+    - If error: set stat UNKNOWN and update/create znode.
+    - Else: select latest AVAILABLE version (or latest version); if error_code != OK, raise.
+    - If state changed, update znode.
+  - `_updater()`:
+    - Loops every 1s; skips if `_should_update` is False.
+    - Updates all `model_names`; logs exceptions with traceback.
+  - `_check_version()`:
+    - Emits metrics:
+      - `serving_model.latest_version`
+      - `serving_model.since_last_update` (global metric)
+      - `serving_model.update_ts`
+    - Tags include model_name, idc/cluster, replica_id, shard_id, base_name.
+  - `_watch_update()` runs `_check_version()` every 60s.
+  - `_reregister()` every 10s: if `_should_reregister` True, calls `register()` and sets `_should_update=True`.
+  - `start()` starts TFSMonitor and threads; `stop()` joins threads and clears meta.
 - `ZKListener`:
-  - On LOST: disables polling and updating; on reconnect: triggers reregister.
+  - On `LOST`: disables watcher polling + updater updates, sets `_has_lost`.
+  - On reconnect after LOST: sets `_should_reregister=True`, sleeps 5s, re-enables polling.
 - `ReplicaManager`:
-  - Combines watcher and updater; exposes lookup APIs and `is_ps_set_started` / `is_dense_set_started`.
+  - Wires watcher + updater and registers ZKListener.
+  - `start()`: `updater.register()`, `watcher.watch_data()`, `updater.start()`.
+  - `stop()`: stops updater then watcher.
+  - `is_ps_set_started()` ensures each PS task has at least one AVAILABLE replica; `is_dense_set_started()` checks dense replicas when enabled.
 - `SyncBackendWrapper`:
-  - Implements `SyncBackend` for parameter sync; returns replicas with extra info.
+  - `subscribe_model` stores model name.
+  - `get_sync_targets("ps_i")` returns `(sub_graph, watcher.get_replicas_with_extra_info(...))`.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-serving/src/replica_manager.rs`.
+- Rust public API surface: `ReplicaWatcher`, `ReplicaUpdater`, `ReplicaManager`, `SyncBackendWrapper`.
+- Data model mapping: `ReplicaMeta`, `ModelState`, `TFSServerType`, `ServerType`, `ClientConfig.TargetExtraInfo`.
+- Integration points: ZK client, TFSMonitor, metrics client.
+
+**Implementation Steps (Detailed)**
+1. Implement ZK watchers and periodic polling reconciliation.
+2. Port registration/update logic with identical address selection and replica_id sequencing.
+3. Port metrics emission with same prefixes/tags and cadence.
+4. Implement ZK LOST handling and re-registration semantics.
+5. Provide sync backend wrapper returning extra-info targets.
+
+**Tests (Detailed)**
+- Python tests: `monolith/agent_service/replica_manager_test.py`
+- Rust tests: fake ZK + fake TFS server to validate registration, updates, and watcher maps.
+
+**Gaps / Notes**
+- `get_replicas_with_extra_info` returns a dict despite type hint List[str].
+- Uses environment variables (`MY_HOST_IP`, `MY_HOST_IPV6`, `MONOLITH_METRIC_PREFIX`, `TCE_PSM`) for address/metrics.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/replica_manager.rs`.
