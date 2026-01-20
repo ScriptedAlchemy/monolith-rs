@@ -531,7 +531,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/feature_cross_test.py`](#monolith-native-training-layers-feature-cross-test-py) | 286 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/feature_cross_test.rs |  |
 | [`monolith/native_training/layers/feature_seq.py`](#monolith-native-training-layers-feature-seq-py) | 361 | IN PROGRESS | monolith-rs/crates/monolith-layers/src |  |
 | [`monolith/native_training/layers/feature_seq_test.py`](#monolith-native-training-layers-feature-seq-test-py) | 126 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/feature_seq_test.rs |  |
-| [`monolith/native_training/layers/feature_trans.py`](#monolith-native-training-layers-feature-trans-py) | 340 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/feature_trans.py`](#monolith-native-training-layers-feature-trans-py) | 340 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/feature_trans.rs |  |
 | [`monolith/native_training/layers/feature_trans_test.py`](#monolith-native-training-layers-feature-trans-test-py) | 140 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/layer_ops.py`](#monolith-native-training-layers-layer-ops-py) | 131 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/layer_ops_test.py`](#monolith-native-training-layers-layer-ops-test-py) | 232 | TODO | TODO (manual) |  |
@@ -13302,50 +13302,65 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/feature_trans.py`
 <a id="monolith-native-training-layers-feature-trans-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 340
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Feature transformation layers: AutoInt (self-attention), iRazor (feature/embedding dimension selection), SeNet (feature re-weighting).
+- Key symbols/classes/functions: `AutoInt`, `iRazor`, `SeNet`.
+- External dependencies: TensorFlow/Keras (`Layer`, `InputSpec`, initializers/regularizers), Monolith (`MLP`, `add_layer_loss`, `merge_tensor_list`, `with_params`, `check_dim`/`dim_size`).
+- Side effects: Emits TF summary histogram for iRazor NAS weights; adds auxiliary loss via `add_layer_loss`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `AutoInt`:
+  - Input shape `[B, num_feat, emb_dim]` (3D).
+  - For `layer_num` iterations:
+    - `attn = softmax(autoint_input @ autoint_input^T)` → `[B, num_feat, num_feat]`.
+    - `autoint_input = attn @ autoint_input` → `[B, num_feat, emb_dim]`.
+  - Output via `merge_tensor_list` with `out_type` and `keep_list`.
+- `iRazor`:
+  - `nas_space` defines embedding dimension groups; `rigid_masks` is a constant `[nas_len, emb_size]` with grouped 1s.
+  - Build: `nas_logits` weight shape `(num_feat, nas_len)`.
+  - Call:
+    - `nas_weight = softmax(nas_logits / t)`; histogram summary `"nas_weight"`.
+    - `soft_masks = nas_weight @ rigid_masks` → `[num_feat, emb_size]`.
+    - If `feature_weight` provided, compute `nas_loss = feature_weight @ sum(soft_masks, axis=1)` and call `add_layer_loss`.
+    - `out_embeds = embeds * soft_masks`.
+    - Return `merge_tensor_list(out_embeds, out_type, keep_list)`.
+- `SeNet`:
+  - If inputs is a tensor `[B, num_feat, emb_dim]`: `sequeeze_embedding = reduce_mean(inputs, axis=2)`.
+  - If inputs is list of tensors:
+    - `on_gpu=True`: use `segment_sum` on concatenated embeddings and lens to compute means.
+    - Else: `sequeeze_embedding = concat([reduce_mean(embed, axis=1)] ...)`.
+  - `cmp_tower` MLP outputs feature weights of shape `[B, num_feat]`.
+  - For tensor input: reshape weights to `[B, num_feat, 1]` and multiply.
+  - For list input: split weights and multiply per tensor.
+  - Output via `merge_tensor_list` with `num_feature`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/src/feature_trans.rs` (AutoInt, IRazor, SeNet).
+- Rust public API surface:
+  - `AutoInt` + config, `IRazor`, `SENetLayer` (if present) or equivalent.
+- Data model mapping:
+  - `out_type` → `MergeType`.
+  - `feature_weight` auxiliary loss → Rust loss registry or explicit return.
+- Feature gating: None; GPU optimization optional.
+- Integration points: merge utils, MLP, loss aggregation.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Align AutoInt attention math and merge semantics.
+2. Implement iRazor rigid/soft mask logic and optional feature-weighted auxiliary loss.
+3. Implement SeNet for both tensor and list inputs; include `on_gpu` optimization if possible.
+4. Add config serialization for each layer (including `nas_space`, `t`, `cmp_dim`, `num_feature`).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/feature_trans_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/feature_trans_test.rs` (new).
+- Cross-language parity test:
+  - Fix embeddings and weights; compare outputs for AutoInt, iRazor, SeNet.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python iRazor uses `add_layer_loss` to register aux loss; Rust needs an equivalent or explicit API.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
