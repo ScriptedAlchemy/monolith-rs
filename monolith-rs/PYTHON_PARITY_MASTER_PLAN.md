@@ -4177,9 +4177,16 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: none.
 
 **Required Behavior (Detailed)**
-- Constructs `BaseEmbeddingHostCall` with `enable_host_call=False` and `context=None`.
-- Verifies `_compute_new_value` behavior with different offsets.
-- Uses TF session to evaluate results and compares to expected tensors.
+- Disables eager execution (`tf.disable_eager_execution()`).
+- `test_compute_new_value`:
+  - Creates `global_step = tf.train.get_or_create_global_step()` (unused).
+  - Builds `params = {enable_host_call=False, context=None, cpu_test=False, host_call_every_n_steps=100}`.
+  - Instantiates `BaseEmbeddingHostCall("", False, False, False, False, 10, params)`.
+  - `base_value = zeros([10], int32)`, `delta_value = ones([2], int32)`.
+  - Offset=1: `_compute_new_value(base, delta, 1)` -> `[0,1,1,0,0,0,0,0,0,0]`.
+  - Offset=5: `_compute_new_value(prev, delta, 5)` -> `[0,1,1,0,0,1,1,0,0,0]`.
+  - Offset=6: `_compute_new_value(prev, delta, 6)` -> `[0,1,1,0,0,1,2,1,0,0]`.
+  - Each expected tensor verified via `tf.reduce_all(tf.math.equal(...))` inside new `tf.Session()`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/tests/base_embedding_host_call.rs`.
