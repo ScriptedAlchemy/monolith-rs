@@ -492,8 +492,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/gflags_utils_test.py`](#monolith-native-training-gflags-utils-test-py) | 217 | TODO | TODO (manual) |  |
 | [`monolith/native_training/graph_meta.py`](#monolith-native-training-graph-meta-py) | 30 | TODO | TODO (manual) |  |
 | [`monolith/native_training/graph_utils.py`](#monolith-native-training-graph-utils-py) | 26 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
-| [`monolith/native_training/hash_filter_ops.py`](#monolith-native-training-hash-filter-ops-py) | 326 | TODO | TODO (manual) |  |
-| [`monolith/native_training/hash_filter_ops_test.py`](#monolith-native-training-hash-filter-ops-test-py) | 228 | TODO | TODO (manual) |  |
+| [`monolith/native_training/hash_filter_ops.py`](#monolith-native-training-hash-filter-ops-py) | 326 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
+| [`monolith/native_training/hash_filter_ops_test.py`](#monolith-native-training-hash-filter-ops-test-py) | 228 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests |  |
 | [`monolith/native_training/hash_table_ops.py`](#monolith-native-training-hash-table-ops-py) | 738 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hash_table_ops_benchmark.py`](#monolith-native-training-hash-table-ops-benchmark-py) | 148 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hash_table_ops_test.py`](#monolith-native-training-hash-table-ops-test-py) | 1200 | TODO | TODO (manual) |  |
@@ -10630,50 +10630,64 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hash_filter_ops.py`
 <a id="monolith-native-training-hash-filter-ops-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
-- Lines: 326
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Lines: 217
+- Purpose/role: Builds hash filter resources, intercepts gradients, and handles save/restore for hash filters.
+- Key symbols/classes/functions: `FilterType`, `create_hash_filters`, `save_hash_filter`, `restore_hash_filter`, `intercept_gradient`, `HashFilterCheckpointSaverListener`, `HashFilterCheckpointRestorerListener`.
+- External dependencies: TensorFlow custom ops `gen_monolith_ops`, `save_utils.SaveHelper`, `basic_restore_hook`, `utils.ps_device`.
+- Side effects: Creates TF resources, writes checkpoint assets, registers gradient for custom op.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Constants:
+  - `HASH_FILTER_CAPACITY=300000000`, `HASH_FILTER_SPLIT_NUM=7`, `_TIMEOUT_IN_MS=1800000`.
+- `FilterType`: string constants `SLIDING_HASH_FILTER`, `PROBABILISTIC_FILTER`, `NO_FILTER`.
+- `create_hash_filter(capacity, split_num, config, name_suffix)`:
+  - Calls `MonolithHashFilter` custom op with shared_name `MonolithHashFilter<suffix>`.
+- `create_probabilistic_filter(equal_probability, config, name_suffix)`:
+  - Calls `MonolithProbabilisticFilter` op with shared_name `MonolithProbabilisticFilter<suffix>`.
+- `create_dummy_hash_filter(name_suffix)`:
+  - Calls `MonolithDummyHashFilter` op with shared_name `DummyHashFilter<suffix>`.
+- `_create_hash_filter(...)`:
+  - Selects real or dummy filter based on `enable_hash_filter` and `filter_type`; invalid type raises `ValueError`.
+- `create_hash_filters(ps_num, enable_hash_filter, ...)`:
+  - If `ps_num==0`, returns a single filter.
+  - Else, for each PS index, creates filter on `utils.ps_device(i)` unless exporting standalone.
+- `save_hash_filter(hash_filter, basename, enable_hash_filter)`:
+  - If enabled, uses `monolith_hash_filter_save` custom op; else returns `tf.no_op()`.
+- `restore_hash_filter(hash_filter, basename, enable_hash_filter)`:
+  - If enabled, uses `monolith_hash_filter_restore` custom op; else returns `tf.no_op()`.
+- `intercept_gradient(filter_tensor, ids, embeddings)`:
+  - Calls `MonolithHashFilterInterceptGradient`; filters gradients based on ids.
+- `HashFilterCheckpointSaverListener`:
+  - Builds save graph with placeholders per hash filter; writes to asset dir using SaveHelper.
+  - `before_save` writes to `hash_filter_<ps_idx>` files under asset dir and runs save op with timeout.
+- `HashFilterCheckpointRestorerListener`:
+  - Looks up latest checkpoint; restores from asset dir or legacy prefix.
+  - Uses placeholders for hash_filter basenames and runs restore op with timeout.
+- Registered gradient `MonolithHashFilterInterceptGradient`:
+  - Uses `MonolithHashFilterInterceptGradientGradient` custom op to produce filtered gradients; returns `(None, None, filtered_grad)`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tf/src/hash_filter_ops.rs` (new) or TF runtime adapter.
+- Rust public API surface: hash filter creation, save/restore, and gradient intercept wrappers.
+- Feature gating: `tf-runtime` + custom ops required; no-op in Candle backend.
+- Integration points: hash filter use in embedding tables and training loops.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Wrap custom ops for hash filter creation and gradient intercept.
+2. Implement save/restore helpers using TF session run with timeouts.
+3. Add Rust equivalents of saver/restorer listeners if using TF Estimator.
+4. Ensure asset dir layout matches Python (`hash_filter_<ps_idx>` files).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/hash_filter_ops_test.py`.
+- Rust tests: integration tests under `monolith-rs/crates/monolith-tf/tests/hash_filter_ops_test.rs` (new).
+- Cross-language parity test: compare gradient filtering behavior and save/restore contents.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires custom ops from `libmonolith_ops` and TF runtime; not supported on pure Candle backend.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -10690,50 +10704,50 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hash_filter_ops_test.py`
 <a id="monolith-native-training-hash-filter-ops-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
-- Lines: 228
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Lines: 217
+- Purpose/role: Tests hash filter gradient interception and save/restore behavior.
+- Key symbols/classes/functions: `HashFilterOpsTest` cases.
+- External dependencies: TensorFlow, `hash_filter_ops`, `embedding_hash_table_pb2`, TFRecord reader.
+- Side effects: Writes TFRecord checkpoint shards under `TEST_TMPDIR`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_hash_filter_basic`:
+  - Creates hash filter with occurrence threshold 3; intercepts gradient.
+  - Gradients are filtered progressively: first two runs zero out more ids, later runs allow gradients.
+- `test_hash_filter_save_restore`:
+  - Saves filter to basename; verifies 7 split files created.
+  - Restores and verifies gradient filtering state persists across saves.
+- `test_hash_filter_save_restore_across_multiple_filters`:
+  - Creates filter with split_num=100; verifies each shard contains expected `HashFilterSplitMetaDump` fields.
+  - After second save, first 4 shards contain 2 elements; remaining shards contain 0.
+- `test_dummy_hash_filter_basic`:
+  - Dummy filter should not filter gradients (all ones).
+- `test_dummy_hash_filter_save_restore`:
+  - Save/restore with dummy filter produces no files and no effect on gradients.
+- `test_restore_not_found`:
+  - Restoring from non-existent path raises exception.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tf/tests/hash_filter_ops_test.rs` (new).
+- Rust public API surface: hash filter creation, save/restore, intercept gradient ops.
+- Feature gating: `tf-runtime` + custom ops; skip otherwise.
+- Integration points: TFRecord parsing of `HashFilterSplitMetaDump`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port test cases to Rust TF runtime harness.
+2. Implement TFRecord reader for `HashFilterSplitMetaDump` proto in Rust.
+3. Validate gradient filtering sequence and save/restore shard counts.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/hash_filter_ops_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-tf/tests/hash_filter_ops_test.rs`.
+- Cross-language parity test: compare shard metadata and gradient outputs for same ids.
 
 **Gaps / Notes**
-- TODO (manual)
+- Tests depend on custom ops and TFRecord writer/reader compatibility.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
