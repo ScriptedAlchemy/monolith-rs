@@ -623,8 +623,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/runner_utils.py`](#monolith-native-training-runner-utils-py) | 396 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/runner_utils_test.py`](#monolith-native-training-runner-utils-test-py) | 108 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/runtime/ops/gen_monolith_ops.py`](#monolith-native-training-runtime-ops-gen-monolith-ops-py) | 23 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
-| [`monolith/native_training/save_utils.py`](#monolith-native-training-save-utils-py) | 1309 | TODO | TODO (manual) |  |
-| [`monolith/native_training/save_utils_test.py`](#monolith-native-training-save-utils-test-py) | 1740 | TODO | TODO (manual) |  |
+| [`monolith/native_training/save_utils.py`](#monolith-native-training-save-utils-py) | 1309 | IN PROGRESS | monolith-rs/crates/monolith-checkpoint/src |  |
+| [`monolith/native_training/save_utils_test.py`](#monolith-native-training-save-utils-test-py) | 1740 | IN PROGRESS | monolith-rs/crates/monolith-checkpoint/src |  |
 | [`monolith/native_training/service_discovery.py`](#monolith-native-training-service-discovery-py) | 481 | TODO | TODO (manual) |  |
 | [`monolith/native_training/service_discovery_test.py`](#monolith-native-training-service-discovery-test-py) | 407 | TODO | TODO (manual) |  |
 | [`monolith/native_training/serving_ps_test.py`](#monolith-native-training-serving-ps-test-py) | 231 | TODO | TODO (manual) |  |
@@ -19943,50 +19943,110 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/save_utils.py`
 <a id="monolith-native-training-save-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 1309
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Checkpoint save/restore utilities with partial recovery, PS monitoring, monolith checkpoint metadata, and tide-aware saving.
+- Key symbols/classes/functions: `get_latest_checkpoint_state`, `get_monolith_checkpoint_state`, `SaveHelper`, `SecondOrStepTimerWithTideSetting`, `NoFirstSaveCheckpointSaverHook`, `PsMonitor`, `SaverBuilder`, `PartialRecoverySaver`.
+- External dependencies: TensorFlow checkpoint APIs, `MonolithCheckpointState`, `cli` metrics, `tide_available_now`, `CUSTOM_RESTORE_OP`, `calc_feed_dict`.
+- Side effects:
+  - Writes `monolith_checkpoint` file.
+  - Emits metrics via `cli`.
+  - Uses custom restore hooks and may write `clear_nn` flag file.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`get_latest_checkpoint_state(checkpoint_dir, global_step_value)`**
+  - Caches checkpoint state per directory in `_ckpt_state_cache_map`.
+  - Refreshes cache when `global_step_value` increases or cached state is None.
+- **`get_monolith_checkpoint_state(checkpoint_dir, filename=None, remove_invalid_path=False)`**
+  - Reads `monolith_checkpoint` (or `filename`) and parses `MonolithCheckpointState`.
+  - If `remove_invalid_path`:
+    - Converts relative paths to absolute by prepending `checkpoint_dir`.
+    - Removes paths that do not exist on filesystem.
+  - Returns None on `OpError` or `ParseError` with warnings.
+- **`SaveHelper`**
+  - `get_ckpt_prefix(basename, step)` → `"basename-step"`.
+  - `get_ckpt_asset_dir(ckpt_prefix)` → `"ckpt_prefix.assets/"`.
+  - `get_global_step_value(ckpt_prefix)` → parse suffix after `-`.
+  - `get_existing_checkpoint_steps()` uses `tf.train.get_checkpoint_state` to list steps.
+- **`SecondOrStepTimerWithTideSetting`**
+  - Extends `SecondOrStepTimer` with tide availability checks.
+  - If tide unavailable (via `tide_available_now`), uses `_tide_every_secs` instead of `every_secs`.
+  - `enable()/disable()` toggles trigger behavior.
+- **`NoFirstSaveCheckpointSaverHook`**
+  - Wraps `CheckpointSaverHook` with:
+    - Optional tide settings (`tide_*`).
+    - `no_first_save` (skip initial save).
+    - `_is_dense_only`, `_use_native_multi_hash_table`, `_guard_saver_listeners`.
+  - `after_create_session`:
+    - Exports meta graph if requested.
+    - For `PartialRecoverySaver`, calls `setup_ps_initialized_state`.
+    - Creates monolith checkpoint state file if needed.
+  - `trigger_save(session, ignore_save_errors=False)`:
+    - Resets timer and invokes save logic under lock.
+  - `_save(session, step)`:
+    - Skips first save when `no_first_save`.
+    - Skips dense-only save if same step as last.
+    - Calls guard listeners even on save failures.
+    - Retries save on `OpError` up to 2 times; optionally ignores errors.
+    - Emits `save_checkpoint` metrics and timing.
+  - `_create_or_update_monolith_ckpt_state(do_update)`:
+    - Writes `monolith_checkpoint` with hash table type and timestamp.
+  - `end(session)`:
+    - Forces save if dense-only or model dump mode flags set.
+- **`PsMonitor`**
+  - Creates per-PS FIFOQueue to detect initialization.
+  - `is_ps_uninitialized(sess, device)` checks queue size.
+  - `setup_ps_initialized_state(sess)` enqueues to mark initialized.
+- **`SaverBuilder(BulkSaverBuilder)`**
+  - Overrides `_AddShardedRestoreOps` to store grouped restore ops per device.
+  - `restore_ops_per_device` property returns grouped ops.
+- **`PartialRecoverySaver`**
+  - Based on TF `Saver` with modifications:
+    - Supports `ps_monitor`, `exempt_checkpoint_paths`, `skip_save`, `model_dir`.
+    - `exempt_checkpoint_paths` property reads `monolith_checkpoint` to avoid deleting exempt ckpts.
+    - `_RecordLastCheckpoint` excludes exempt paths from deletion accounting.
+    - `_MaybeDeleteOldCheckpoints` respects `keep_checkpoint_every_n_hours`.
+    - `save(...)` supports `save_relative_paths`, handles parent dir errors, writes meta graph optionally.
+    - `_origin_restore` restores by device; if `ps_monitor` set, skips devices already initialized.
+    - `restore(...)`:
+      - Falls back to `_origin_restore` during export or when no graph.
+      - Supports `CUSTOM_RESTORE_OP` collection:
+        - If alias map present, uses `calc_feed_dict` and `NewCheckpointReader`.
+        - If init ops present, handles `clear_nn` flag and optionally updates global_step.
+        - Removes `CUSTOM_RESTORE_OP` from graph collections.
+    - `setup_ps_initialized_state(sess)` delegates to `ps_monitor`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-checkpoint/src`.
+- Rust public API surface:
+  - `PartialRecoverySaver`, `NoFirstSaveCheckpointSaverHook`, `SecondOrStepTimerWithTideSetting`, `SaveHelper`.
+  - Monolith checkpoint state parser/writer.
+- Data model mapping:
+  - `MonolithCheckpointState` protobuf and checkpoint metadata.
+  - Device-specific restore ops and partial recovery logic.
+- Feature gating:
+  - TF runtime backend required for Saver-based logic.
+  - Tide-based timing requires time availability checks.
+- Integration points:
+  - Used by restore hooks, PS monitor, and runner utilities.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement checkpoint state cache and monolith checkpoint state parsing.
+2. Port SaveHelper and tide-aware timer.
+3. Implement NoFirstSaveCheckpointSaverHook with retry and metrics.
+4. Implement PsMonitor queue-based initialization state.
+5. Implement PartialRecoverySaver with exempt checkpoint handling and custom restore logic.
+6. Add tests to mirror `save_utils_test.py` coverage.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/save_utils_test.py`.
+- Rust tests: extensive saver/restore tests, max_to_keep, tide timer, and partial restore.
+- Cross-language parity test: save in TF, restore in Rust (TF backend), compare values.
 
 **Gaps / Notes**
-- TODO (manual)
+- Custom restore logic depends on `CUSTOM_RESTORE_OP` collection and `clear_nn` flag file semantics.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -20003,50 +20063,76 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/save_utils_test.py`
 <a id="monolith-native-training-save-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 1740
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Comprehensive tests for `PartialRecoverySaver`, NoFirstSaveCheckpointSaverHook, checkpoint retention, and tide-aware timer.
+- Key symbols/classes/functions: `SaveUtilsTest`, `SaverHookTest`, `SaverTest`, `SaveRestoreShardedTest`, `MaxToKeepTest`, `RecoverLastCheckpointsTest`, `KeepCheckpointEveryNHoursTest`, `SaveRestoreWithVariableNameMap`, `SecondOrStepTimerWithTideSettingTest`.
+- External dependencies: TensorFlow, `freezegun`, `mock`, `saver_test_utils`, `resource_variable_ops`, `checkpoint_management`.
+- Side effects: Writes checkpoint files under `TEST_TMPDIR`, uses eager/graph modes.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **SaveUtilsTest**
+  - `test_get_ckpt_steps`: `SaveHelper.get_existing_checkpoint_steps` returns steps {10,20,300}.
+  - `test_exempt_checkpoints`: validates `max_to_keep` with exempt checkpoints.
+- **SaverHookTest**
+  - `test_basic`: NoFirstSaveCheckpointSaverHook skips initial save, saves on session close.
+  - `test_op_error`: guard listener `after_save` is called even when save fails.
+  - `test_trigger_save`: `trigger_save` forces save within session.
+- **SaverTest**
+  - `basicSaveRestore`: save/restore of variables and `CheckpointedOp`.
+  - `testSaveMaxToKeep`: max_to_keep with exempt path.
+  - `testResourceColocation`: SaveV2 inputs colocated on CPU of same device.
+  - `testResourceVariableReadOpsAddedDeterministically`: graph defs deterministic.
+  - `testEagerBasic` and `testEagerGraphCompatibility`: eager/graph save/restore compatibility.
+  - `testResourceSaveRestoreCachingDevice`: caching_device variable save/restore.
+  - `testNoAdditionalOpsAddedBySaverForResourceVariablesOutsideSaveScope`: no extraneous ops.
+  - `testSaveCopyRestoreWithSaveRelativePaths`: relative paths survive directory move.
+  - `testFilenameTensor`, `testInvalidPath`, `testInt64`, `testSomeErrors`, `testSameName`.
+  - `testBasicsWithListOfVariables`, `_SaveAndLoad` helper, `testCacheRereadsFile`.
+  - `testAllowEmpty`, `testGPU`, `testSharedServerOnGPU`, `testVariables`.
+  - `testVarListShouldBeEmptyInDeferredBuild`, `testBuildShouldBeCalledBeforeSaveInCaseOfDeferBuild`, `testDeferredBuild`.
+  - `testReshape`: reshape restore behavior.
+  - `testSaveWithGlobalStep`, `testSaveWithGlobalStepWithPadding`.
+  - `testSaveToNonexistingPath`, `testSaveToURI`.
+  - `testSaveRestoreAndValidateVariableDtype`, `testRestoreLargeTensors`.
+- **SaveRestoreShardedTest**
+  - `testIterators`: sharded save/restore of dataset iterators across devices.
+  - `testIteratorsUnshardedRestore`: restore from sharded checkpoint when saver is unsharded.
+- **MaxToKeepTest**
+  - `testMaxToKeepEager`: checkpoint rotation in eager mode.
+  - `testNonSharded`, `testSharded`, `testNoMaxToKeep`, `testNoMetaGraph`.
+- **RecoverLastCheckpointsTest**
+  - `test_recover_last_checkpoints`: recover last checkpoints, handle missing files.
+- **KeepCheckpointEveryNHoursTest**
+  - `testNonSharded`: uses mocked time to validate keep-every-N-hours behavior.
+- **SaveRestoreWithVariableNameMap**
+  - `testNonReshapeResourceVariable` / `testNonReshapeVariable`: name mapping restore.
+- **SecondOrStepTimerWithTideSettingTest**
+  - `testNoTideSetting`, `testTideAvailable`, `testTideNotAvailable` using `freezegun`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-checkpoint/src` (tests).
+- Rust public API surface: saver, hook, timer, checkpoint retention.
+- Data model mapping: checkpoint files + metadata; iterator saveables if supported.
+- Feature gating: eager/graph tests depend on backend; GPU tests conditional.
+- Integration points: checkpoint manager and saver semantics.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port core saver tests: basic save/restore, max_to_keep, exempt checkpoints.
+2. Add hook tests for NoFirstSaveCheckpointSaverHook and trigger_save.
+3. Add timer tests for tide behavior (mock time).
+4. Add sharded save/restore tests if supported.
+5. Add deferred build and reshape tests.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: map major behaviors; use deterministic fixtures.
+- Cross-language parity test: save in TF, restore in Rust/TF backend, compare values.
 
 **Gaps / Notes**
-- TODO (manual)
+- Some tests rely on TF-specific Saveable objects (`CheckpointedOp`, iterators).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
