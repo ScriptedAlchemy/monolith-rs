@@ -584,7 +584,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/model_export/export_context.py`](#monolith-native-training-model-export-export-context-py) | 141 | IN PROGRESS | N/A (export context) |  |
 | [`monolith/native_training/model_export/export_hooks.py`](#monolith-native-training-model-export-export-hooks-py) | 137 | IN PROGRESS | N/A (TF export hook) |  |
 | [`monolith/native_training/model_export/export_hooks_test.py`](#monolith-native-training-model-export-export-hooks-test-py) | 141 | IN PROGRESS | N/A (export hook test) |  |
-| [`monolith/native_training/model_export/export_state_utils.py`](#monolith-native-training-model-export-export-state-utils-py) | 46 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model_export/export_state_utils.py`](#monolith-native-training-model-export-export-state-utils-py) | 46 | IN PROGRESS | N/A (export state) |  |
 | [`monolith/native_training/model_export/export_state_utils_test.py`](#monolith-native-training-model-export-export-state-utils-test-py) | 36 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/export_utils.py`](#monolith-native-training-model-export-export-utils-py) | 98 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/export_utils_test.py`](#monolith-native-training-model-export-export-utils-test-py) | 43 | TODO | TODO (manual) |  |
@@ -16996,50 +16996,44 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_export/export_state_utils.py`
 <a id="monolith-native-training-model-export-export-state-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 46
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Reads/writes export state file (`ExportSaverListenerState`) containing `ServingModelState` proto.
+- Key symbols/classes/functions: `get_export_saver_listener_state`, `overwrite_export_saver_listener_state`.
+- External dependencies: TensorFlow gfile, protobuf text_format, `export_pb2`.
+- Side effects: Reads and writes state files in export directory.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_ExportSaverListenerStateFile = "ExportSaverListenerState"`.
+- `get_export_saver_listener_state(export_dir_base)`:
+  - Reads `<export_dir_base>/ExportSaverListenerState` as text proto.
+  - If file missing, returns empty `ServingModelState`.
+  - Parses using `text_format.Merge`.
+- `overwrite_export_saver_listener_state(export_dir_base, state)`:
+  - Ensures `export_dir_base` exists (`gfile.makedirs`).
+  - Writes text proto to temp file `<filename>-tmp`.
+  - Atomically renames temp to final file (overwrite=True).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A.
+- Rust public API surface: if implemented, add export state read/write helpers.
+- Data model mapping: `ServingModelState` proto in Rust.
+- Feature gating: export-only.
+- Integration points: export hooks.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement read/write of text-format proto in Rust (or switch to binary with parity notes).
+2. Preserve temp-file rename semantics for atomic updates.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `export_state_utils_test.py`.
+- Rust tests: add read/write round-trip tests.
+- Cross-language parity test: compare serialized text output.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses text-format proto; any Rust implementation must match formatting if parity is required.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
