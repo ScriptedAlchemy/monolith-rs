@@ -642,8 +642,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/sync_hooks_test.py`](#monolith-native-training-sync-hooks-test-py) | 119 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/sync_training_hooks.py`](#monolith-native-training-sync-training-hooks-py) | 355 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/sync_training_hooks_test.py`](#monolith-native-training-sync-training-hooks-test-py) | 92 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
-| [`monolith/native_training/tensor_utils.py`](#monolith-native-training-tensor-utils-py) | 162 | TODO | TODO (manual) |  |
-| [`monolith/native_training/tensor_utils_test.py`](#monolith-native-training-tensor-utils-test-py) | 175 | TODO | TODO (manual) |  |
+| [`monolith/native_training/tensor_utils.py`](#monolith-native-training-tensor-utils-py) | 162 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
+| [`monolith/native_training/tensor_utils_test.py`](#monolith-native-training-tensor-utils-test-py) | 175 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
 | [`monolith/native_training/test_utils.py`](#monolith-native-training-test-utils-py) | 65 | TODO | TODO (manual) |  |
 | [`monolith/native_training/touched_key_set_ops.py`](#monolith-native-training-touched-key-set-ops-py) | 61 | TODO | TODO (manual) |  |
 | [`monolith/native_training/touched_key_set_ops_test.py`](#monolith-native-training-touched-key-set-ops-test-py) | 51 | TODO | TODO (manual) |  |
@@ -21136,50 +21136,51 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/tensor_utils.py`
 <a id="monolith-native-training-tensor-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 162
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Utilities for packing/unpacking tensors (including typed groups) and ragged squeeze helper.
+- Key symbols/classes/functions: `maybe_squeeze_3d_tensor`, `pack_tensors`, `unpack_tensors`, `pack_typed_keyed_tensors`, `unpack_packed_tensors`, `split_tensors_with_type`, `merge_dicts`.
+- External dependencies: TensorFlow, `static_reshape_op`.
+- Side effects: None (pure tensor ops).
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `maybe_squeeze_3d_tensor(x)`:
+  - Accepts RaggedTensor with rank 2 or 3; squeezes axis=1 when rank 3.
+  - Raises ValueError on non-ragged or unexpected rank.
+- `pack_tensors(keyed_tensors)`:
+  - Uses StaticReshapeNBuilder to flatten tensors to 1-D, concatenates in sorted key order.
+  - Returns `(packed_tensor, sizes)` where sizes are per-tensor sizes.
+- `unpack_tensors(keyed_shape, packed)`:
+  - Splits packed tensor by sizes, reshapes to original shapes, returns dict by sorted key.
+- `split_tensors_with_type` / `merge_dicts`:
+  - Group tensors by dtype string; returns list of dicts.
+  - `merge_dicts` flattens back into one dict.
+- `pack_typed_keyed_tensors` / `unpack_packed_tensors`:
+  - Packs list of dicts (already grouped by type) into list of packed tensors plus a final concat of sizes.
+  - `unpack_packed_tensors` reconstructs list of dicts by shape metadata.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tensor/src`.
+- Rust public API surface: packing/unpacking helpers and ragged squeeze.
+- Data model mapping: tensor shapes and sizes encoded as concatenated sizes.
+- Feature gating: requires static reshape op or equivalent.
+- Integration points: data transfer and async pipelines.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port ragged squeeze helper with rank checks.
+2. Implement pack/unpack with deterministic key ordering.
+3. Implement typed packing and size concatenation.
+4. Add tests for placeholder support and dtype grouping.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/tensor_utils_test.py`.
+- Rust tests: add pack/unpack and typed pack/unpack tests.
+- Cross-language parity test: compare packed tensors and reconstructed outputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- `StaticReshapeNBuilder` relies on custom op; ensure Rust backend supports it.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -21196,50 +21197,40 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/tensor_utils_test.py`
 <a id="monolith-native-training-tensor-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 175
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests for tensor packing/unpacking utilities.
+- Key symbols/classes/functions: `TensorUtilsTest`.
+- External dependencies: TensorFlow, `tensor_utils`.
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_maybe_squeeze_3d_tensor`: verifies ragged squeeze for rank 2/3.
+- `test_pack_tensors`: pack/unpack dict of tensors; verifies sizes and values.
+- `test_pack_typed_keyed_tensors`: pack/unpack multiple dtype dicts; verifies packed sizes and outputs.
+- `test_pack_typed_keyed_tensors_with_placeholder`: supports placeholders with feed_dict.
+- `test_split_tensors_with_type_and_merge_dicts`: dtype grouping and merge round-trip.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tensor/src` (tests).
+- Rust public API surface: pack/unpack helpers.
+- Data model mapping: dtype grouping and shape handling.
+- Feature gating: requires static reshape op support.
+- Integration points: packing utilities.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port tests for pack/unpack and typed packing.
+2. Add placeholder-like tests if backend supports deferred shapes.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `TensorUtilsTest` in this file.
+- Rust tests: mirror test cases.
+- Cross-language parity test: compare packed sizes and reconstructed dicts.
 
 **Gaps / Notes**
-- TODO (manual)
+- Placeholder test relies on feed_dict semantics.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
