@@ -447,8 +447,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/debugging/debugging_server.py`](#monolith-native-training-debugging-debugging-server-py) | 217 | IN PROGRESS | monolith-rs/crates/monolith-training/src/debugging |  |
 | [`monolith/native_training/demo.py`](#monolith-native-training-demo-py) | 57 | IN PROGRESS | monolith-rs/crates/monolith-training/examples |  |
 | [`monolith/native_training/dense_reload_utils.py`](#monolith-native-training-dense-reload-utils-py) | 457 | IN PROGRESS | monolith-rs/crates/monolith-training/src/checkpoint |  |
-| [`monolith/native_training/dense_reload_utils_test.py`](#monolith-native-training-dense-reload-utils-test-py) | 192 | TODO | TODO (manual) |  |
-| [`monolith/native_training/device_utils.py`](#monolith-native-training-device-utils-py) | 231 | TODO | TODO (manual) |  |
+| [`monolith/native_training/dense_reload_utils_test.py`](#monolith-native-training-dense-reload-utils-test-py) | 192 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
+| [`monolith/native_training/device_utils.py`](#monolith-native-training-device-utils-py) | 231 | IN PROGRESS | monolith-rs/crates/monolith-training/src/device |  |
 | [`monolith/native_training/device_utils_test.py`](#monolith-native-training-device-utils-test-py) | 104 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distribute/distributed_dataset.py`](#monolith-native-training-distribute-distributed-dataset-py) | 81 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distribute/distributed_dataset_test.py`](#monolith-native-training-distribute-distributed-dataset-test-py) | 124 | TODO | TODO (manual) |  |
@@ -8078,53 +8078,55 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/dense_reload_utils_test.py`
-
 <a id="monolith-native-training-dense-reload-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 192
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests for dense reload utilities: variable name inference, feed dict splitting for partitioned vars, and custom restore listener modes.
+- Key symbols/classes/functions: `DenseReloadUtilsTest`, `setUpClass`, `test_infer_variable_name`, `test_calc_feed_dict`, `test_alias_map_listener`, `test_clear_nn_listener`.
+- External dependencies: TensorFlow, `GlorotNormal`, `Ones`, `infer_variable_name`, `calc_feed_dict`, `CustomRestoreListener`.
+- Side effects: creates and deletes checkpoint files under `./ckpt`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `setUpClass`:
+  - Builds a graph with `global_step`, a partitioned variable `partition` (shape 1280x512), and `small_var`.
+  - Saves checkpoint `ckpt/test-<global_step>` in cwd.
+- `tearDownClass`:
+  - Removes `./ckpt` directory if exists.
+- `test_infer_variable_name`:
+  - Creates a partitioned variable and checks `infer_variable_name` removes `/part_xx` to yield `{partition_var.name:0}`.
+- `test_calc_feed_dict`:
+  - Creates partitioned `partition2` and `small_var2`.
+  - Builds `alias_map` mapping new names to old checkpoint names (`small_var2` → `small_var`, `partition2 parts` → `partition`).
+  - Creates placeholders with `origin_name` for each var/partition.
+  - `calc_feed_dict` returns mapping for each alias; asserts shapes match partition shapes.
+- `test_alias_map_listener`:
+  - Builds same alias_map/placeholders and calls `CustomRestoreListener(alias_map=..., model_dir=./ckpt).begin()` (no asserts, just should not error).
+- `test_clear_nn_listener`:
+  - Creates `CustomRestoreListener(clear_nn=True, model_dir=./ckpt)` and calls `begin()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests`.
+- Rust public API surface: dense reload utilities and custom restore listener.
+- Data model mapping: checkpoint vars/partitioned vars to Rust checkpoint reader and feed dict logic.
+- Feature gating: requires checkpoint reader and graph variable introspection.
+- Integration points: `dense_reload_utils.py` implementation.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Build Rust tests that create a checkpoint with partitioned variables (or mock the reader).
+2. Verify `infer_variable_name` removes partition suffixes.
+3. Validate `calc_feed_dict` splitting behavior for partitioned variables.
+4. Ensure custom restore listener handles alias_map and clear_nn without error.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: `dense_reload_utils_test.rs` analog with temp directories.
+- Cross-language parity test: compare feed dict splits on a shared checkpoint.
 
 **Gaps / Notes**
-- TODO (manual)
+- The Python tests rely on TF checkpoint creation; Rust tests may need to use Python-generated checkpoints.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8141,50 +8143,67 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/device_utils.py`
 <a id="monolith-native-training-device-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 231
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Device placement utilities for training/serving, including GPU gating, device functions, and MPI/PS placement logic.
+- Key symbols/classes/functions: `enable_gpu_training`, `disable_gpu_training`, `is_gpu_training`, `get_visible_gpus`, `default_device_fn`, `maybe_device_if_allowed`, `within_placement_context_of`, `get_device_fn`, `input_device_fn`, `model_device_fn`, `serving_input_device_fn`, `skip_device`.
+- External dependencies: TensorFlow DeviceSpec, `device_setter`, MPI rank helper `get_mpi_rank`, flags (`num_ps`, `enable_gpu_training`, `enable_sync_training`, `is_local`).
+- Side effects: global `_GPU_PLACEMENT_ALLOWED` flag; influences device placement for ops.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- GPU training flag:
+  - `_GPU_PLACEMENT_ALLOWED` default False; `enable_gpu_training()` sets True; `disable_gpu_training()` sets False; `is_gpu_training()` returns it.
+- `get_visible_gpus(local_rank, processes_per_gpu=1)`:
+  - Ensures `processes_per_gpu` is int >= 1; returns string of `local_rank / processes_per_gpu` as GPU index.
+- `_device_rule(device_name)`:
+  - Returns `/device:CPU:0` when `device_name` is empty.
+  - If assigned GPU but `_GPU_PLACEMENT_ALLOWED` is False or device type empty, merges with default CPU while keeping job/task/replica.
+- `skip_device(op)`:
+  - Returns True for summary ops (`Write*`, `*Summary`) or string `Const` ops.
+- `default_device_fn(op)`:
+  - Returns CPU for skipped ops; otherwise applies `_device_rule` to op device.
+- `maybe_device_if_allowed(device_name)`:
+  - Context manager that forces device via `_device_rule` to prevent unintended GPU placement.
+- Placement context helpers:
+  - `_FakeOp` and `within_placement_context_of(device_name)` check current placement via graph `_apply_device_functions`.
+- `get_device_fn(cluster=None, task=None)`:
+  - Determines MPI mode via `OMPI_COMM_WORLD_LOCAL_RANK`.
+  - Chooses GPU vs CPU based on `FLAGS.enable_gpu_training` or `_GPU_PLACEMENT_ALLOWED`.
+  - If sync training + MPI + PS: builds device spec for chief/worker based on rank and returns custom `_device_fn` that merges with op device.
+  - If sync training but no PS: returns `default_device_fn`.
+  - If async (no sync training):
+    - Returns None for local mode or missing cluster/task.
+    - Else uses `tf.compat.v1.train.replica_device_setter` with `ps_tasks=FLAGS.num_ps` and standard PS ops.
+- `input_device_fn(op)`:
+  - In MPI+PS+sync training returns `/job:chief|worker/replica:0/task:<idx>/device:CPU:0`, else CPU.
+- `model_device_fn(op)`:
+  - Similar to `_device_fn` but for model scope; uses GPU if enabled, else CPU; respects op.device and `_class` attr.
+- `serving_input_device_fn(op)`:
+  - Uses op.device if set, else CPU.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/device`.
+- Rust public API surface: device placement utilities and device function factories.
+- Data model mapping: TF DeviceSpec strings → Rust device strings used by TF runtime bindings.
+- Feature gating: GPU placement gate, MPI/PS sync training, replica device setter behavior.
+- Integration points: training config, session creation, input pipelines.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement GPU gating and visible GPU computation.
+2. Implement device rule merging logic with default CPU and job/task retention.
+3. Provide Rust equivalents of `get_device_fn`/`input_device_fn`/`model_device_fn` for sync/async modes.
+4. Mirror skip-device rules for summary ops and string const.
+5. Add placement-context helper or document unsupported if TF internals unavailable.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `device_utils_test.py`.
+- Rust tests: unit tests for device rules, GPU gating, and MPI/PS device fn outputs.
+- Cross-language parity test: compare device string outputs under fixed flag/env combinations.
 
 **Gaps / Notes**
-- TODO (manual)
+- Depends on TF internal device functions; Rust may need to mimic device strings rather than enforcing in graph.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8199,6 +8218,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/device_utils_test.py`
+
 <a id="monolith-native-training-device-utils-test-py"></a>
 
 **Status:** TODO (manual review required)
