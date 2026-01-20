@@ -1289,6 +1289,12 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
   - Else: fill address with `get_local_ip()` + `agent_port`, plus memory via `cal_available_memory_v2()`.
 - `AgentService` wrapper:
   - Constructs grpc server with `ThreadPoolExecutor`, registers `AgentServiceImpl`, binds to port.
+  - `AgentDataProvider` wraps `addrs_fn` callback returning `{saved_model_name: [addr...]}`.
+  - `GetReplicas` v1 uses `_watcher._conf.idc/cluster` and `get_replicas(server_type, task, idc, cluster)`; v2 maps `ReplicaMeta.address`.
+  - `HeartBeat` v1 uses `dc_aware` to strip path prefix (`key.split('/')[-1]`) and populates `AddressList`.
+  - `HeartBeat` v3 uses `_data_provider._addrs_fn()` if non-empty.
+  - `GetResource` v2+ fills `shard_id`, `replica_id`, `memory`, `cpu/network/work_load=-1.0`.
+  - `AgentService` binds `[::]:{port or 0}` for watcher path; uses `conf.agent_port` for zk/data_provider.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/grpc_agent.rs` (gRPC), `monolith-rs/crates/monolith-serving/src/server.rs` (server lifecycle), plus new module for AgentConfig integration.
@@ -1340,12 +1346,25 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Required Behavior (Detailed)**
 - `setUpClass`:
-  - Set IDC/cluster env vars.
-  - Create `FakeKazooClient` and `ReplicaWatcher` with `AgentConfig` (dc-aware, ps deploy).
-  - Register ZK nodes for PS replicas and entry replicas with `ReplicaMeta(stat=AVAILABLE)`.
-  - Start watcher, start `AgentService`, and create `SvrClient`.
-- `test_heart_beat`: `heart_beat(ServerType.PS)` should return addresses map with `num_ps` entries.
-- `test_get_replicas`: `get_replicas(ServerType.PS, task=NUM_PS_REPLICAS-1)` returns `NUM_PS_REPLICAS` addresses.
+  - Set `TCE_INTERNAL_IDC='lf'`, `TCE_LOGICAL_CLUSTER='default'`.
+  - Start `FakeKazooClient`.
+  - Build `AgentConfig(bzid='test_model', base_name=MODEL_NAME, deploy_type='ps', base_path=BASE_PATH, num_ps=20, dc_aware=True)`.
+  - Create `ReplicaWatcher(zk, agent_conf)`.
+  - Call `register(zk)` to seed replica nodes; then `watcher.watch_data()`.
+  - Start `AgentService(watcher, port=agent_conf.agent_port)`.
+  - Create `SvrClient(agent_conf)`.
+- `register(zk)`:
+  - `path_prefix = agent_conf.path_prefix`.
+  - For each PS task `0..num_ps-1` and replica `0..1`:
+    - `ReplicaMeta(address='192.168.1.{idx}:{find_free_port()}', stat=ModelState.AVAILABLE)`.
+    - Create ephemeral node at `{path_prefix}/ps:{task_id}/{replica_id}` with `makepath=True`.
+  - For entry replicas `0..1`: create `{path_prefix}/entry:0/{replica_id}` similarly.
+  - Uses `zk.retry(zk.create, ...)` and falls back to `zk.set` on `NodeExistsError`.
+- `test_heart_beat`:
+  - `client.heart_beat(server_type=ServerType.PS)`; asserts `len(resp.addresses) == 20`.
+- `test_get_replicas`:
+  - `client.get_replicas(server_type=ServerType.PS, task=NUM_PS_REPLICAS - 1)` (task=1).
+  - Asserts `len(resp.address_list.address) == NUM_PS_REPLICAS` (2).
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/agent_service.rs`.
