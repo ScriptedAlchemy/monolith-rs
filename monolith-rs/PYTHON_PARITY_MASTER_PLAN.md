@@ -551,7 +551,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/sparse_nas_test.py`](#monolith-native-training-layers-sparse-nas-test-py) | 23 | IN PROGRESS | N/A (empty test) |  |
 | [`monolith/native_training/layers/utils.py`](#monolith-native-training-layers-utils-py) | 159 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/merge.rs |  |
 | [`monolith/native_training/learning_rate_functions.py`](#monolith-native-training-learning-rate-functions-py) | 112 | IN PROGRESS | N/A (no Rust schedule yet) |  |
-| [`monolith/native_training/learning_rate_functions_test.py`](#monolith-native-training-learning-rate-functions-test-py) | 76 | TODO | TODO (manual) |  |
+| [`monolith/native_training/learning_rate_functions_test.py`](#monolith-native-training-learning-rate-functions-test-py) | 76 | IN PROGRESS | N/A (no Rust schedule yet) |  |
 | [`monolith/native_training/logging_ops.py`](#monolith-native-training-logging-ops-py) | 56 | TODO | TODO (manual) |  |
 | [`monolith/native_training/logging_ops_test.py`](#monolith-native-training-logging-ops-test-py) | 57 | TODO | TODO (manual) |  |
 | [`monolith/native_training/losses/batch_softmax_loss.py`](#monolith-native-training-losses-batch-softmax-loss-py) | 57 | TODO | TODO (manual) |  |
@@ -14573,50 +14573,47 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/learning_rate_functions_test.py`
 <a id="monolith-native-training-learning-rate-functions-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 76
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests PolynomialDecay schedule and its integration with an optimizer.
+- Key symbols/classes/functions: `PolynomialDecayTest.test_basic`, `test_dense_optimizer`.
+- External dependencies: TensorFlow v1 session/optimizers, NumPy.
+- Side effects: Uses global_step and updates variables via Adagrad.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_basic`:
+  - Creates global_step, increments twice, and checks decay outputs.
+  - With `initial_learning_rate=0.01`, `decay_steps=10`, `end_learning_rate=0.11`:
+    - At global_step=1: expects 0.02.
+    - At global_step=2: expects 0.03.
+  - Ensures `__str__` equality between two identical PolynomialDecay instances.
+- `test_dense_optimizer`:
+  - Uses PolynomialDecay as `learning_rate` for `AdagradOptimizer`.
+  - Applies grads to two variables for 3 steps.
+  - Verifies updated values match expected arrays.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A until learning rate schedules are implemented.
+- Rust public API surface: PolynomialDecay schedule + optimizer integration.
+- Data model mapping: global_step must be explicit in Rust.
+- Feature gating: None.
+- Integration points: Optimizer implementations (e.g., Adagrad).
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement PolynomialDecay in Rust with explicit step input.
+2. Add tests validating decay values for known steps (0,1,2).
+3. If an optimizer exists, add integration test similar to Adagrad update.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/learning_rate_functions_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-optim/tests/learning_rate_functions_test.rs` (new) or similar.
+- Cross-language parity test:
+  - Compare decay values at fixed steps.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses TF global_step; Rust needs explicit step or trainer context.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
