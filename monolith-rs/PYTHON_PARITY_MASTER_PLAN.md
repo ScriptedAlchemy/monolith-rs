@@ -449,7 +449,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/dense_reload_utils.py`](#monolith-native-training-dense-reload-utils-py) | 457 | IN PROGRESS | monolith-rs/crates/monolith-training/src/checkpoint |  |
 | [`monolith/native_training/dense_reload_utils_test.py`](#monolith-native-training-dense-reload-utils-test-py) | 192 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/device_utils.py`](#monolith-native-training-device-utils-py) | 231 | IN PROGRESS | monolith-rs/crates/monolith-training/src/device |  |
-| [`monolith/native_training/device_utils_test.py`](#monolith-native-training-device-utils-test-py) | 104 | TODO | TODO (manual) |  |
+| [`monolith/native_training/device_utils_test.py`](#monolith-native-training-device-utils-test-py) | 104 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/distribute/distributed_dataset.py`](#monolith-native-training-distribute-distributed-dataset-py) | 81 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distribute/distributed_dataset_test.py`](#monolith-native-training-distribute-distributed-dataset-test-py) | 124 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distribute/str_queue.py`](#monolith-native-training-distribute-str-queue-py) | 114 | TODO | TODO (manual) |  |
@@ -8218,53 +8218,45 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/device_utils_test.py`
-
 <a id="monolith-native-training-device-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 104
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests device placement rules and GPU gating in `device_utils`.
+- Key symbols/classes/functions: `DeviceUtilsTest` and methods `test_basic`, `test_cpu_only`, `test_str_context`, `test_str_nested_contexts`, `test_cpu_device_merge`, `test_gpu_device_merge`, `test_process_gpu_map`.
+- External dependencies: TensorFlow, `device_utils`.
+- Side effects: none.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_basic`: default device function places constants on `/device:CPU:0`.
+- `test_cpu_only`: when GPU training disabled, explicit GPU device request is overridden to CPU.
+- `test_str_context`: with GPU enabled, bare constants default to CPU, `tf.device("GPU:0")` forces GPU:0.
+- `test_str_nested_contexts`: nested device contexts maintain correct placement for CPU/GPU overrides.
+- `test_cpu_device_merge`: with GPU disabled, device job/task merged with CPU; `within_placement_context_of` reports CPU.
+- `test_gpu_device_merge`: with GPU enabled, device job/task merged with GPU; `maybe_device_if_allowed` forces GPU:1 placement and context checks.
+- `test_process_gpu_map`: `get_visible_gpus` returns expected indices for local_rank/processes_per_gpu combinations.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests`.
+- Rust public API surface: device_utils functions.
+- Data model mapping: device strings matching TF conventions.
+- Feature gating: GPU training toggle.
+- Integration points: training device placement.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust tests to assert device string outputs for each scenario.
+2. Verify GPU gating overrides explicit GPU placement when disabled.
+3. Validate visible GPU mapping logic.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: `device_utils_test.rs`.
+- Cross-language parity test: compare device string outputs and placement context behavior.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python tests rely on TF device placement; Rust tests may need to compare string outputs rather than actual TF graph placement.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8279,6 +8271,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distribute/distributed_dataset.py`
+
 <a id="monolith-native-training-distribute-distributed-dataset-py"></a>
 
 **Status:** TODO (manual review required)
