@@ -602,8 +602,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/native_model.py`](#monolith-native-training-native-model-py) | 1109 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/native_task.py`](#monolith-native-training-native-task-py) | 213 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/native_task_context.py`](#monolith-native-training-native-task-context-py) | 58 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
-| [`monolith/native_training/nested_tensors.py`](#monolith-native-training-nested-tensors-py) | 110 | TODO | TODO (manual) |  |
-| [`monolith/native_training/nested_tensors_test.py`](#monolith-native-training-nested-tensors-test-py) | 57 | TODO | TODO (manual) |  |
+| [`monolith/native_training/nested_tensors.py`](#monolith-native-training-nested-tensors-py) | 110 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
+| [`monolith/native_training/nested_tensors_test.py`](#monolith-native-training-nested-tensors-test-py) | 57 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
 | [`monolith/native_training/net_utils.py`](#monolith-native-training-net-utils-py) | 133 | TODO | TODO (manual) |  |
 | [`monolith/native_training/net_utils_test.py`](#monolith-native-training-net-utils-test-py) | 94 | TODO | TODO (manual) |  |
 | [`monolith/native_training/optimizers/adamom.py`](#monolith-native-training-optimizers-adamom-py) | 68 | TODO | TODO (manual) |  |
@@ -18392,50 +18392,92 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/nested_tensors.py`
 <a id="monolith-native-training-nested-tensors-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 110
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Utility for flattening arbitrarily nested structures containing Tensors/RaggedTensors/primitive constants into a flat tensor list and reconstructing the nested structure after computation.
+- Key symbols/classes/functions: `_iterate`, `NestedTensors`.
+- External dependencies: `tensorflow`, `itertools`, `copy`.
+- Side effects:
+  - Mutates dict/list/tuple structures passed into `_iterate` (and thus into `NestedTensors.__init__`) by replacing leaves with object IDs.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`_iterate(nested, action)`** (internal helper):
+  - Recurses through nested structures; for each leaf, applies `action(leaf)` and replaces leaf with the return value.
+  - Handles:
+    - `None`: no action, returns `None`.
+    - `list`/`tuple`: maps recursively; preserves tuple vs list types.
+    - `dict`: iterates `items()` and assigns `nested[k] = _iterate(v, action)` (mutates dict).
+    - other: replaces with `action(nested)`.
+- **`NestedTensors(nested)`**
+  - Stores original `nested` reference as `self._nested`.
+  - Initializes:
+    - `_id_mapping: dict[obj_id -> (kind_idx, list_index)]`
+    - `_ragged_tensors: List[tf.RaggedTensor]`
+    - `_tensors: List[tf.Tensor]`
+    - `_other_objs: List[Any]` for allowed constants/objects.
+  - Calls `_iterate(self._nested, self._add_tensor)` so **all leaves become object IDs**.
+- **`_add_tensor(tensor)`**:
+  - For each unique object ID:
+    - `tf.Tensor` → kind 0, appended to `_tensors`.
+    - `tf.RaggedTensor` → requires `ragged_rank == 1`; else raises
+      `ValueError("Nested tensor doesn't support nested RaggedTensor.")`; kind 1, appended to `_ragged_tensors`.
+    - `(bool, int, str, tf.Variable, None)` → kind 2, appended to `_other_objs` (preserved).
+    - Otherwise raises `ValueError("Tensor is not supported. {}".format(tensor))`.
+  - Returns the object ID (an int), which replaces the leaf.
+- **`get_tensors()`**
+  - Flattens ragged tensors into `(values, row_splits)` pairs.
+  - Returns `self._tensors + flatten_ragged_tensors` as a single list of `tf.Tensor`.
+- **`get_nested_result(tensors)`**
+  - Splits `tensors` into:
+    - `tensors[:len(self._tensors)]` for dense tensors,
+    - `flatten_ragged_tensors = tensors[len(self._tensors):]`.
+  - Asserts `len(flatten_ragged_tensors) == len(self._ragged_tensors) * 2`.
+  - Reconstructs ragged tensors via `_flatten_to_ragged`.
+  - Uses `_id_mapping` to replace object IDs in a deep-copied nested structure with the
+    corresponding tensor/ ragged tensor / other object.
+  - Returns reconstructed nested structure with original container shapes.
+- **`_convert_ragged_to_tensors(ragged)`**:
+  - Returns `(ragged.values, ragged.row_splits)`.
+- **`_convert_tensors_to_ragged(values, row_splits)`**:
+  - Returns `tf.RaggedTensor.from_row_splits(values, row_splits, validate=False)`.
+- **`_ragged_to_flatten(ragged_tensors)`**:
+  - Returns flattened list `[values0, row_splits0, values1, row_splits1, ...]`.
+- **`_flatten_to_ragged(tensors)`**:
+  - Takes even/odd positions as `values` and `row_splits`; reconstructs list of ragged tensors.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tensor/src` (nested tensor utilities).
+- Rust public API surface:
+  - `NestedTensors` struct with `get_tensors()` and `get_nested_result()`.
+  - Internal recursion helper for nested structures.
+- Data model mapping:
+  - Support for dense tensors + ragged tensors with `values`/`row_splits`.
+  - Preserve primitive constants and variables when rebuilding.
+- Feature gating: none (unless ragged tensors are optional in backend).
+- Integration points:
+  - Use in async/queue or feature pipelines where nested structures must be flattened for execution.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a `NestedValue` enum for nested structures (list/tuple/map/leaf).
+2. Track object IDs and build mapping identical to Python (kind indices 0/1/2).
+3. Support ragged tensors only with rank 1; error on higher rank.
+4. Implement flatten/unflatten with identical ordering (values then row_splits).
+5. Add round-trip tests mirroring Python coverage.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/nested_tensors_test.py`.
+- Rust tests: add unit tests for:
+  - basic dict/tuple nesting,
+  - constants-only nesting (no tensors),
+  - ragged tensor round-trip,
+  - ragged rank error path.
+- Cross-language parity test: round-trip nested structures and compare to Python evaluation.
 
 **Gaps / Notes**
-- TODO (manual)
+- `_iterate` mutates dicts in place; `NestedTensors` does **not** copy input `nested` before replacing leaves.
+- Order of dict iteration affects reconstruction order; Python preserves insertion order.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -18452,50 +18494,51 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/nested_tensors_test.py`
 <a id="monolith-native-training-nested-tensors-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 57
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Unit tests for `NestedTensors` flatten/unflatten behavior.
+- Key symbols/classes/functions: `NestedTensorTest`.
+- External dependencies: TensorFlow, `monolith.native_training.nested_tensors`.
+- Side effects: Uses TF test harness; disables eager execution in `__main__`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `testBasic`:
+  - Creates nested structure with tensors `{ "a": ones([]), "b": (ones([]), ones([])) }`.
+  - Replaces flattened tensors with zeros; reconstructs and asserts dict equals `{"a": 0, "b": (0, 0)}`.
+- `testConstant`:
+  - Uses nested constants only (`{"a": {"b": 2}}`).
+  - Expects `get_tensors()` returns empty list and reconstruction returns the same constants.
+- `testRaggedTensor`:
+  - Round-trip a ragged tensor `tf.ragged.constant([[], [1], [2, 3]])`.
+  - Asserts reconstructed value equals original ragged list.
+- `testRaggedTensorWithPlaceHolder`:
+  - Creates ragged tensor, gets flattened tensors, builds placeholders for each flattened tensor.
+  - Calls `get_nested_result(tensors)` (no explicit assert).
+  - Implicitly validates that placeholder creation doesn't break `get_nested_result` call path.
+- `__main__`:
+  - Calls `tf.compat.v1.disable_eager_execution()` and runs `tf.test.main()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tensor/src` (tests alongside `NestedTensors`).
+- Rust public API surface: test helpers to validate nested round-trip and ragged support.
+- Data model mapping: ragged tensors must support `values` + `row_splits`.
+- Feature gating: ragged tests conditional on ragged support.
+- Integration points: ensure tests reflect the same ordering and reconstruction semantics as Python.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port test cases to Rust equivalents (basic nesting, constants-only, ragged round-trip).
+2. Add a placeholder/shape-only test if the backend supports placeholders or uninitialized tensors.
+3. Ensure test runner matches eager/graph expectations (if applicable).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `NestedTensorTest` in this file.
+- Rust tests: implement `nested_tensors_basic`, `nested_tensors_constants`, `nested_tensors_ragged`.
+- Cross-language parity test: compare round-trip output for identical inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- `testRaggedTensorWithPlaceHolder` has no assertions; it only exercises the code path.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
