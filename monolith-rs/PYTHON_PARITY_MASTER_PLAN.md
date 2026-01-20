@@ -510,10 +510,10 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/hooks/hook_utils_test.py`](#monolith-native-training-hooks-hook-utils-test-py) | 35 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/hooks/ps_check_hooks.py`](#monolith-native-training-hooks-ps-check-hooks-py) | 97 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks |  |
 | [`monolith/native_training/hooks/ps_check_hooks_test.py`](#monolith-native-training-hooks-ps-check-hooks-test-py) | 112 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
-| [`monolith/native_training/hooks/server/client_lib.py`](#monolith-native-training-hooks-server-client-lib-py) | 30 | TODO | TODO (manual) |  |
-| [`monolith/native_training/hooks/server/constants.py`](#monolith-native-training-hooks-server-constants-py) | 15 | TODO | TODO (manual) |  |
-| [`monolith/native_training/hooks/server/server_lib.py`](#monolith-native-training-hooks-server-server-lib-py) | 95 | TODO | TODO (manual) |  |
-| [`monolith/native_training/hooks/server/server_lib_test.py`](#monolith-native-training-hooks-server-server-lib-test-py) | 54 | TODO | TODO (manual) |  |
+| [`monolith/native_training/hooks/server/client_lib.py`](#monolith-native-training-hooks-server-client-lib-py) | 30 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks/server |  |
+| [`monolith/native_training/hooks/server/constants.py`](#monolith-native-training-hooks-server-constants-py) | 15 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks/server |  |
+| [`monolith/native_training/hooks/server/server_lib.py`](#monolith-native-training-hooks-server-server-lib-py) | 95 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks/server |  |
+| [`monolith/native_training/hooks/server/server_lib_test.py`](#monolith-native-training-hooks-server-server-lib-test-py) | 54 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/hooks/session_hooks.py`](#monolith-native-training-hooks-session-hooks-py) | 44 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hooks/session_hooks_test.py`](#monolith-native-training-hooks-session-hooks-test-py) | 33 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hvd_lib.py`](#monolith-native-training-hvd-lib-py) | 65 | TODO | TODO (manual) |  |
@@ -11608,50 +11608,35 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hooks/server/client_lib.py`
 <a id="monolith-native-training-hooks-server-client-lib-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 30
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: gRPC client helper to connect to controller server from model_dir.
+- Key symbols/classes/functions: `get_stub_from_model_dir`.
+- External dependencies: `grpc`, TensorFlow gfile, generated `service_pb2_grpc`.
+- Side effects: Reads controller server address file.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Reads `<model_dir>/controller_server_addr.txt`.
+- Creates `grpc.insecure_channel(addr)` and returns `ControllerStub`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/hooks/server/client_lib.rs` (new).
+- Rust public API surface: helper to read addr file and create gRPC client.
+- Feature gating: gRPC required.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Read server addr file from model_dir.
+2. Create gRPC channel and Controller client stub.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `server_lib_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/server_lib_test.rs` (integration).
+- Cross-language parity test: ensure client can connect to server hook.
 
 **Gaps / Notes**
-- TODO (manual)
+- Assumes address file is present and readable.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -11668,50 +11653,31 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hooks/server/constants.py`
 <a id="monolith-native-training-hooks-server-constants-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 15
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Defines filename for controller server address.
+- Key symbols/classes/functions: `SERVER_ADDR_FILENAME`.
+- External dependencies: None.
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `SERVER_ADDR_FILENAME = "controller_server_addr.txt"`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/hooks/server/constants.rs` (new).
+- Rust public API surface: constant for addr file name.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Define `SERVER_ADDR_FILENAME` constant.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: covered indirectly in `server_lib_test.py`.
+- Rust tests: none required beyond integration tests.
 
 **Gaps / Notes**
-- TODO (manual)
+- None.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -11728,50 +11694,44 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hooks/server/server_lib.py`
 <a id="monolith-native-training-hooks-server-server-lib-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 95
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: gRPC controller server for training control (stop/resume/save/status).
+- Key symbols/classes/functions: `ControllerServicer`, `ServerHook`.
+- External dependencies: gRPC, TensorFlow, `barrier_ops`, `save_utils`, `net_utils`.
+- Side effects: Starts a gRPC server, writes address file, triggers barrier ops and checkpoints.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `ControllerServicer`:
+  - `StopTraining`: places barrier; if already placed, aborts with ALREADY_EXISTS.
+  - `ResumeTraining`: removes barrier.
+  - `GetBlockStatus`: returns blocked and unblocked indices for barrier.
+  - `SaveCheckpoint`: calls `saver_hook.trigger_save`.
+  - `GetTrainingStatus`: returns global_step from session.
+- `ServerHook`:
+  - On `after_create_session`, starts gRPC server on ephemeral port, writes addr to `<model_dir>/controller_server_addr.txt`.
+  - On `end`, stops server (grace 20s).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/hooks/server/server_lib.rs` (new).
+- Rust public API surface: Controller gRPC service + ServerHook.
+- Feature gating: gRPC required; TF runtime for SessionRunHook lifecycle.
+- Integration points: barrier ops, checkpoint saver hooks, training global_step.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Define gRPC service with Stop/Resume/Status/Save endpoints.
+2. Start server in hook after session creation; write addr file.
+3. Implement barrier operations and save trigger forwarding.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `server_lib_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/server_lib_test.rs`.
+- Cross-language parity test: issue gRPC commands and verify barrier state changes.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses `net_utils.get_local_server_addr` for address formatting; Rust should mirror semantics.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -11788,50 +11748,38 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hooks/server/server_lib_test.py`
 <a id="monolith-native-training-hooks-server-server-lib-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 54
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Integration test for controller gRPC server and client helper.
+- Key symbols/classes/functions: `ServerTest.test_basic`.
+- External dependencies: TensorFlow, gRPC, `server_lib`, `client_lib`, `barrier_ops`, `save_utils`.
+- Side effects: Starts server in monitored session.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Starts ServerHook and saver hook in a session.
+- Uses client stub from model_dir to:
+  - StopTraining (second StopTraining should raise RpcError).
+  - GetBlockStatus shows blocked index then unblocked after ResumeTraining.
+  - SaveCheckpoint and GetTrainingStatus succeed.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/server_lib_test.rs` (new).
+- Rust public API surface: controller server hook and client stub.
+- Feature gating: gRPC required.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Start controller server hook and saver hook in test session.
+2. Use client to call gRPC methods and assert barrier behavior.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `server_lib_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/server_lib_test.rs`.
+- Cross-language parity test: compare gRPC behavior and responses.
 
 **Gaps / Notes**
-- TODO (manual)
+- Needs a working saver hook to test SaveCheckpoint path.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
