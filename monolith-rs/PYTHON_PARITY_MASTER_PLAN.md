@@ -444,7 +444,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/data/transform_dataset_test.py`](#monolith-native-training-data-transform-dataset-test-py) | 168 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/data/utils.py`](#monolith-native-training-data-utils-py) | 55 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/debugging/debugging_client.py`](#monolith-native-training-debugging-debugging-client-py) | 98 | IN PROGRESS | monolith-rs/crates/monolith-training/src/debugging |  |
-| [`monolith/native_training/debugging/debugging_server.py`](#monolith-native-training-debugging-debugging-server-py) | 217 | TODO | TODO (manual) |  |
+| [`monolith/native_training/debugging/debugging_server.py`](#monolith-native-training-debugging-debugging-server-py) | 217 | IN PROGRESS | monolith-rs/crates/monolith-training/src/debugging |  |
 | [`monolith/native_training/demo.py`](#monolith-native-training-demo-py) | 57 | TODO | TODO (manual) |  |
 | [`monolith/native_training/dense_reload_utils.py`](#monolith-native-training-dense-reload-utils-py) | 457 | TODO | TODO (manual) |  |
 | [`monolith/native_training/dense_reload_utils_test.py`](#monolith-native-training-dense-reload-utils-test-py) | 192 | TODO | TODO (manual) |  |
@@ -7855,53 +7855,60 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/debugging/debugging_server.py`
-
 <a id="monolith-native-training-debugging-debugging-server-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 217
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Flask server that exposes debugging endpoints to fetch variable values and feature embeddings from a running training cluster using saved graph metadata.
+- Key symbols/classes/functions: `DebuggingWorker`, `create_app`, `/debugging/variables`, `/debugging/features`, `main`.
+- External dependencies: Flask, TensorFlow server/meta_graph import, `debugging_info_pb2`, `embedding_hash_table_pb2`, custom ops `monolith_hash_table_lookup_entry`.
+- Side effects: spins up TF server, reads model_dir debugging info, imports meta graph, starts Flask server.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Flags:
+  - `--host`, `--port`, `--model_dir` required to bind server and load debugging info.
+- `DebuggingWorker(model_dir)`:
+  - Reads `DebuggingInfo` proto from `utils.get_debugging_info_file_name(model_dir)`.
+  - Starts a local TF server and builds a fake worker cluster where the last worker is the local server; chief/ps addresses come from debugging info.
+  - Builds `feature_name_config_map` from debugging info and initializes a `MergedMultiTypeHashTable` with a dummy factory.
+  - Creates session config via `cluster_manager.generate_session_config` and imports the meta graph from `utils.get_meta_graph_file_name(model_dir)`.
+- `fetch_variables(variable_names)`:
+  - Filters requested variables to those present in imported graph; returns dict name → stringified value.
+- `fetch_features(feature_names, feature_ids)`:
+  - Maps feature names to merged table names via `slot_mapping` in merged table.
+  - Buckets by PS index using `fid % num_ps`.
+  - For each table/ps index, fetches EntryDump via `monolith_hash_table_lookup_entry`.
+  - Parses EntryDump bytes to text proto and returns dict `feature_name -> {fid: textproto}`.
+- `create_app()`:
+  - Constructs Flask app and a `DebuggingWorker`.
+  - `/debugging/variables`: expects JSON `variable_names`; returns `{status, msg}` with msg JSON string.
+  - `/debugging/features`: expects JSON `feature_names` + `feature_ids` (same length); returns `{status, msg}`.
+  - On exceptions, returns `status=fail` with traceback in msg.
+- `main`:
+  - Calls `env_utils.setup_hdfs_env()` and runs Flask app.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/debugging` (server) + TF backend bindings for graph/variables.
+- Rust public API surface: debugging server binary exposing `/debugging/variables` and `/debugging/features`.
+- Data model mapping: DebuggingInfo proto, EntryDump parsing, table lookup by PS index.
+- Feature gating: requires TF runtime + custom ops for hash table lookup.
+- Integration points: debugging_client CLI, model_dir metadata generation.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a Rust server (e.g., axum/warp) with matching endpoints and JSON payloads.
+2. Load DebuggingInfo and meta graph; create TF session with cluster config matching Python.
+3. Implement variable lookup and table lookup logic with PS sharding by `fid % num_ps`.
+4. Return responses with identical JSON structure and error handling.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: integration tests with mocked debugging info + TF session (if feasible).
+- Cross-language parity test: compare responses for same model_dir and queries.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires TF runtime and custom ops; Rust implementation may need to shell out or depend on TF C API.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7916,6 +7923,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/demo.py`
+
 <a id="monolith-native-training-demo-py"></a>
 
 **Status:** TODO (manual review required)
