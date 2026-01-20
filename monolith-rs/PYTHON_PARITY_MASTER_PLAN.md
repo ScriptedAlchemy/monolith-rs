@@ -579,7 +579,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/model_export/data_gen_utils_test.py`](#monolith-native-training-model-export-data-gen-utils-test-py) | 0 | IN PROGRESS | N/A (no tests) |  |
 | [`monolith/native_training/model_export/demo_export.py`](#monolith-native-training-model-export-demo-export-py) | 100 | IN PROGRESS | N/A (demo exporter) |  |
 | [`monolith/native_training/model_export/demo_export_test.py`](#monolith-native-training-model-export-demo-export-test-py) | 48 | IN PROGRESS | N/A (TF export test) |  |
-| [`monolith/native_training/model_export/demo_predictor.py`](#monolith-native-training-model-export-demo-predictor-py) | 110 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model_export/demo_predictor.py`](#monolith-native-training-model-export-demo-predictor-py) | 110 | IN PROGRESS | N/A (demo predictor) |  |
 | [`monolith/native_training/model_export/demo_predictor_client.py`](#monolith-native-training-model-export-demo-predictor-client-py) | 93 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/export_context.py`](#monolith-native-training-model-export-export-context-py) | 141 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/export_hooks.py`](#monolith-native-training-model-export-export-hooks-py) | 137 | TODO | TODO (manual) |  |
@@ -16661,50 +16661,62 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_export/demo_predictor.py`
 <a id="monolith-native-training-model-export-demo-predictor-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 110
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: CLI demo to load a SavedModel and run prediction with randomly generated inputs.
+- Key symbols/classes/functions: `make_fid_v1`, `generate_demo_instance`, `random_generate_instances`, `random_generate_int`, `random_generate_float`, `predict`, `main`.
+- External dependencies: TensorFlow SavedModel, NumPy, `proto_parser_pb2.Instance`, TestFFMModel constants.
+- Side effects: Loads SavedModel from disk; logs prediction outputs.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Flags:
+  - `saved_model_path` (required path), `tag_set` (default "serve"), `signature` (default "serving_default"), `batch_size` (default 128).
+- `make_fid_v1(slot_id, fid)`:
+  - Encodes FID v1 as `(slot_id << 54) | fid`.
+- `generate_demo_instance()`:
+  - Creates `Instance` proto.
+  - For each slot in `model._NUM_SLOTS`, generates 5 random fids in that slot based on `max_vocab`.
+  - Returns serialized bytes.
+- `random_generate_instances(bs)`:
+  - Returns list of `bs` serialized Instance bytes.
+- `random_generate_examples(bs)` (unused):
+  - Returns list of serialized Example bytes using `model.generate_ffm_example`.
+- `random_generate_int(shape)`:
+  - Returns int64 array in `[0, max_vocab)` where `max_vocab = max(_VOCAB_SIZES) * _NUM_SLOTS`.
+- `random_generate_float(shape)`:
+  - Returns float array of `uniform(0,1)` values.
+- `predict()`:
+  - Loads SavedModel with `tf.compat.v1.saved_model.load`.
+  - Reads signature inputs/outputs for `FLAGS.signature`.
+  - For each input, builds a feed tensor based on dtype:
+    - string -> list of serialized instances, shape length must be 1.
+    - int64 -> random ints.
+    - float32 -> random floats.
+    - else raises `ValueError`.
+  - Runs session and logs outputs.
+- `main` calls `predict`; `__main__` sets logging verbosity to INFO and runs via absl.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A.
+- Rust public API surface: none.
+- Data model mapping: if implementing predictor in Rust, map SavedModel signature I/O to random data generation.
+- Feature gating: TF runtime only.
+- Integration points: serving validation / smoke tests.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. If Rust can load SavedModels, implement a CLI to sample inputs and run predictions.
+2. Mirror dtype-based generation (string -> serialized Instance, int64/float32 random arrays).
+3. Match FID v1 encoding for feature IDs.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `demo_predictor_client.py` (manual) or none.
+- Rust tests: none.
+- Cross-language parity test: compare output shapes for identical inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- `random_generate_examples` is unused.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
