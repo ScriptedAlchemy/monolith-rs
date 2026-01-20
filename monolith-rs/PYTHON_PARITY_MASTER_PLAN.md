@@ -577,7 +577,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/model_export/__init__.py`](#monolith-native-training-model-export-init-py) | 22 | IN PROGRESS | N/A (module alias) |  |
 | [`monolith/native_training/model_export/data_gen_utils.py`](#monolith-native-training-model-export-data-gen-utils-py) | 732 | IN PROGRESS | N/A (data generator) |  |
 | [`monolith/native_training/model_export/data_gen_utils_test.py`](#monolith-native-training-model-export-data-gen-utils-test-py) | 0 | IN PROGRESS | N/A (no tests) |  |
-| [`monolith/native_training/model_export/demo_export.py`](#monolith-native-training-model-export-demo-export-py) | 100 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model_export/demo_export.py`](#monolith-native-training-model-export-demo-export-py) | 100 | IN PROGRESS | N/A (demo exporter) |  |
 | [`monolith/native_training/model_export/demo_export_test.py`](#monolith-native-training-model-export-demo-export-test-py) | 48 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/demo_predictor.py`](#monolith-native-training-model-export-demo-predictor-py) | 110 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/demo_predictor_client.py`](#monolith-native-training-model-export-demo-predictor-client-py) | 93 | TODO | TODO (manual) |  |
@@ -16543,50 +16543,54 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_export/demo_export.py`
 <a id="monolith-native-training-model-export-demo-export-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 100
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: CLI demo that exports a saved model from the TestFFMModel using standalone or distributed exporter.
+- Key symbols/classes/functions: `export_saved_model`, `main`.
+- External dependencies: TensorFlow, Monolith CPU training, `parse_instances`, `StandaloneExporter`, `DistributedExporter`.
+- Side effects: Writes SavedModel to disk under `export_base`; uses flags; disables eager execution.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Defines flags:
+  - `num_ps` (default 5) for CPU training config.
+  - `model_dir` and `export_base` default to `/tmp/<user>/monolith/native_training/demo/...`.
+  - `export_mode` enum (Standalone or Distributed).
+- `export_saved_model(model_dir, export_base, num_ps, export_mode)`:
+  - Disables eager execution; sets TF logging verbosity to INFO.
+  - Instantiates `TestFFMModel` params with name `"demo_export"` and batch size 64.
+  - Creates `cpu_training.CpuTraining` with `CpuTrainingConfig(num_ps=num_ps)`.
+  - Chooses exporter:
+    - `StandaloneExporter` or `DistributedExporter` (with `shared_embedding=False`).
+  - Defines `serving_input_receiver_fn`:
+    - `instances` placeholder of dtype `tf.string` with shape `(None,)`.
+    - Parses instances via `parse_instances`, with fidv1 features 0.._NUM_SLOTS-1.
+    - Builds `features` dict with keys `feature_i` from `slot_i`.
+    - Returns `tf.estimator.export.ServingInputReceiver`.
+  - Calls `exporter.export_saved_model(serving_input_receiver_fn)`.
+- `main(_)` calls `export_saved_model` with flags.
+- `__main__` uses `absl.app.run`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (Python TF export demo).
+- Rust public API surface: none.
+- Data model mapping: if exporting in Rust, define equivalent serving input receiver.
+- Feature gating: TF runtime only.
+- Integration points: export pipeline.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. If Rust export is desired, implement a demo exporter that mirrors TestFFMModel inputs.
+2. Map parsing logic for FID v1 features to Rust serving inputs.
+3. Preserve default paths and batch size for parity tests.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/model_export/demo_export_test.py`.
+- Rust tests: none.
+- Cross-language parity test: compare exported SavedModel signatures and input names.
 
 **Gaps / Notes**
-- TODO (manual)
+- Demo only; depends on TestFFMModel and CPU training stack.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
