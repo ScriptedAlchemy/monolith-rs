@@ -503,8 +503,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/hooks/ckpt_hooks_test.py`](#monolith-native-training-hooks-ckpt-hooks-test-py) | 181 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/hooks/ckpt_info.py`](#monolith-native-training-hooks-ckpt-info-py) | 98 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks |  |
 | [`monolith/native_training/hooks/ckpt_info_test.py`](#monolith-native-training-hooks-ckpt-info-test-py) | 45 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
-| [`monolith/native_training/hooks/controller_hooks.py`](#monolith-native-training-hooks-controller-hooks-py) | 170 | TODO | TODO (manual) |  |
-| [`monolith/native_training/hooks/controller_hooks_test.py`](#monolith-native-training-hooks-controller-hooks-test-py) | 82 | TODO | TODO (manual) |  |
+| [`monolith/native_training/hooks/controller_hooks.py`](#monolith-native-training-hooks-controller-hooks-py) | 170 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks |  |
+| [`monolith/native_training/hooks/controller_hooks_test.py`](#monolith-native-training-hooks-controller-hooks-test-py) | 82 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/hooks/feature_engineering_hooks.py`](#monolith-native-training-hooks-feature-engineering-hooks-py) | 99 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hooks/hook_utils.py`](#monolith-native-training-hooks-hook-utils-py) | 41 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hooks/hook_utils_test.py`](#monolith-native-training-hooks-hook-utils-test-py) | 35 | TODO | TODO (manual) |  |
@@ -11231,50 +11231,51 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hooks/controller_hooks.py`
 <a id="monolith-native-training-hooks-controller-hooks-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 170
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Controller hooks for stop/save signaling, barrier coordination, and file-based action queries.
+- Key symbols/classes/functions: `ControllerHook`, `StopHelper`, `QueryActionHook`.
+- External dependencies: TensorFlow, `barrier_ops`, `controller_hooks_pb2`, `utils.ps_device`.
+- Side effects: Writes/reads action files under model_dir; places/removes barriers; triggers save callback.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `ControllerHook`:
+  - Creates local `control_var=[False, False]` on ps0 device if `num_ps>0`.
+  - `stop_op` assigns True to index 0; `trigger_save_op` assigns True to index 1; `reset_trigger_save_op` assigns False.
+  - `before_run` requests `control_var`.
+  - `after_run`:
+    - If stop flag set: place barrier (action `STOP_ACTION`), wait up to 30s for all workers blocked, then remove barrier.
+    - If trigger_save flag set: reset flag and call `_trigger_save` callback if provided.
+- `StopHelper`:
+  - Barrier callback sets internal `_should_stop` on STOP action.
+  - `create_stop_hook` returns a hook that calls `request_stop` when `_should_stop`.
+- `QueryActionHook`:
+  - Polls `<model_dir>/monolith_action` every `QUERY_INTERVAL` seconds in a background thread.
+  - Parses `ControllerHooksProto` from text; on TRIGGER_SAVE runs `hook.trigger_save_op`, on STOP runs `hook.stop_op`.
+  - Writes response to `<model_dir>/monolith_action_response` and deletes query file.
+  - On parse error, writes error to response.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/hooks/controller_hooks.rs` (new).
+- Rust public API surface: controller hook, stop helper, file-based action polling hook.
+- Feature gating: TF runtime for SessionRunHook equivalents; polling logic can be generic.
+- Integration points: barrier ops, checkpoint save trigger, model_dir actions.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a control flag shared variable (or atomic state) to signal stop/save.
+2. Add barrier coordination for STOP action and wait-until-blocked logic.
+3. Implement file polling for `monolith_action` and action parsing.
+4. Wire trigger-save callback to the training loop/hook.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `controller_hooks_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/controller_hooks_test.rs` (new).
+- Cross-language parity test: verify TRIGGER_SAVE and STOP paths behave as expected.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python has a likely bug in `_write_resp` call with two args on unknown action; decide whether to fix or preserve behavior in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -11291,50 +11292,40 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hooks/controller_hooks_test.py`
 <a id="monolith-native-training-hooks-controller-hooks-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 82
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests ControllerHook stop/save behavior and QueryActionHook file polling.
+- Key symbols/classes/functions: `ControllerHookTest`, `QueryActionHookTest`.
+- External dependencies: TensorFlow, `barrier_ops`, `controller_hooks`.
+- Side effects: Creates action files under temp model_dir.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `testStop`:
+  - Uses `StopHelper` + `BarrierOp` with callback; runs `stop_op` and ensures session stops after a subsequent run if needed.
+- `testSave`:
+  - Trigger save op should invoke `trigger_save` exactly once.
+- `QueryActionHookTest.testStop`:
+  - Writes `monolith_action` file with `action: TRIGGER_SAVE` and waits for processing.
+  - Confirms `trigger_save` called once.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/controller_hooks_test.rs` (new).
+- Rust public API surface: controller hook and file polling hook.
+- Feature gating: TF runtime if hooks are TF-based; otherwise simulate in test harness.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a test harness to invoke stop/save flags and verify state transitions.
+2. Add a file-based query test that writes `monolith_action` and checks callback execution.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `controller_hooks_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/controller_hooks_test.rs`.
+- Cross-language parity test: compare stop/save action handling.
 
 **Gaps / Notes**
-- TODO (manual)
+- Timing-based file polling tests may need retries or longer timeouts in Rust CI.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
