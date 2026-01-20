@@ -582,7 +582,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/model_export/demo_predictor.py`](#monolith-native-training-model-export-demo-predictor-py) | 110 | IN PROGRESS | N/A (demo predictor) |  |
 | [`monolith/native_training/model_export/demo_predictor_client.py`](#monolith-native-training-model-export-demo-predictor-client-py) | 93 | IN PROGRESS | N/A (demo gRPC client) |  |
 | [`monolith/native_training/model_export/export_context.py`](#monolith-native-training-model-export-export-context-py) | 141 | IN PROGRESS | N/A (export context) |  |
-| [`monolith/native_training/model_export/export_hooks.py`](#monolith-native-training-model-export-export-hooks-py) | 137 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model_export/export_hooks.py`](#monolith-native-training-model-export-export-hooks-py) | 137 | IN PROGRESS | N/A (TF export hook) |  |
 | [`monolith/native_training/model_export/export_hooks_test.py`](#monolith-native-training-model-export-export-hooks-test-py) | 141 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/export_state_utils.py`](#monolith-native-training-model-export-export-state-utils-py) | 46 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/export_state_utils_test.py`](#monolith-native-training-model-export-export-state-utils-test-py) | 36 | TODO | TODO (manual) |  |
@@ -16865,50 +16865,63 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_export/export_hooks.py`
 <a id="monolith-native-training-model-export-export-hooks-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 137
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Checkpoint saver listener that exports SavedModel on each checkpoint and prunes old exports.
+- Key symbols/classes/functions: `get_global_step`, `ExportSaverListener`.
+- External dependencies: TensorFlow, Monolith save_utils/export_state_utils, custom metrics client.
+- Side effects: Writes export directories, deletes old ones, emits metrics.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `get_global_step(checkpoint_path)`:
+  - Regex `model.ckpt-(\d+)`; asserts match; returns int.
+- `ExportSaverListener`:
+  - `__init__(save_path, serving_input_receiver_fn, exporter, exempt_checkpoint_paths=None, dense_only=False)`:
+    - Stores serving_input_receiver_fn and exporter.
+    - `self._helper = save_utils.SaveHelper(save_path)`.
+    - Builds `self._exempt_checkpoint_steps` from `exempt_checkpoint_paths` by parsing global steps.
+    - `dense_only` toggles special deletion logic.
+    - Creates metric client via `cli.get_cli(utils.get_metric_prefix())`.
+  - `after_save(session, global_step_value)`:
+    - Uses SaveHelper to get checkpoint prefix for step.
+    - Calls `exporter.export_saved_model(...)`.
+    - Accepts export_dirs as bytes, list, or dict of values.
+    - For each export_dir:
+      - Adds entry to export state and prunes old entries.
+  - `_add_entry_to_state(export_dir, global_step_value)`:
+    - Decodes bytes; computes base/version.
+    - Appends `ServingEntry(export_dir, global_step)` to state and overwrites state file.
+    - Calls `_update_metrics`.
+  - `_maybe_delete_old_entries(export_dir)`:
+    - Loads existing state; computes `existing_steps` from current checkpoints plus exempt steps.
+    - If `dense_only`, also loads full checkpoint state from model_dir and includes all steps.
+    - Removes entries not in `existing_steps`, deleting directories via `tf.io.gfile.rmtree`.
+  - `_update_metrics(export_dir_base, version)`:
+    - Emits `export_models.latest_version` as int if version is numeric.
+    - `version` uses `split(".")[0]` to handle float-like names.
+    - Logs warning on exceptions every 1200 seconds.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A.
+- Rust public API surface: if implementing export hooks, add a checkpoint listener trait.
+- Data model mapping: export state protobufs -> Rust structs.
+- Feature gating: export-only.
+- Integration points: checkpoint saving, export pipeline, metrics client.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement checkpoint listener in Rust training loop if needed.
+2. Mirror export directory state tracking and pruning rules.
+3. Add metrics emission for latest export version.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `export_hooks_test.py`.
+- Rust tests: add filesystem tests for pruning behavior.
+- Cross-language parity test: compare export state entries after simulated checkpoints.
 
 **Gaps / Notes**
-- TODO (manual)
+- `get_global_step` asserts regex match; invalid checkpoint paths will raise AssertionError.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
