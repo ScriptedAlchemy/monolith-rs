@@ -540,24 +540,24 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/logit_correction.py`](#monolith-native-training-layers-logit-correction-py) | 88 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/logit_correction.rs |  |
 | [`monolith/native_training/layers/logit_correction_test.py`](#monolith-native-training-layers-logit-correction-test-py) | 65 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/logit_correction_test.rs |  |
 | [`monolith/native_training/layers/mlp.py`](#monolith-native-training-layers-mlp-py) | 211 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/mlp.rs |  |
-| [`monolith/native_training/layers/mlp_test.py`](#monolith-native-training-layers-mlp-test-py) | 78 | TODO | TODO (manual) |  |
-| [`monolith/native_training/layers/multi_task.py`](#monolith-native-training-layers-multi-task-py) | 448 | TODO | TODO (manual) |  |
-| [`monolith/native_training/layers/multi_task_test.py`](#monolith-native-training-layers-multi-task-test-py) | 128 | TODO | TODO (manual) |  |
-| [`monolith/native_training/layers/norms.py`](#monolith-native-training-layers-norms-py) | 343 | TODO | TODO (manual) |  |
-| [`monolith/native_training/layers/norms_test.py`](#monolith-native-training-layers-norms-test-py) | 84 | TODO | TODO (manual) |  |
-| [`monolith/native_training/layers/pooling.py`](#monolith-native-training-layers-pooling-py) | 101 | TODO | TODO (manual) |  |
-| [`monolith/native_training/layers/pooling_test.py`](#monolith-native-training-layers-pooling-test-py) | 141 | TODO | TODO (manual) |  |
-| [`monolith/native_training/layers/sparse_nas.py`](#monolith-native-training-layers-sparse-nas-py) | 31 | TODO | TODO (manual) |  |
-| [`monolith/native_training/layers/sparse_nas_test.py`](#monolith-native-training-layers-sparse-nas-test-py) | 23 | TODO | TODO (manual) |  |
-| [`monolith/native_training/layers/utils.py`](#monolith-native-training-layers-utils-py) | 159 | TODO | TODO (manual) |  |
-| [`monolith/native_training/learning_rate_functions.py`](#monolith-native-training-learning-rate-functions-py) | 112 | TODO | TODO (manual) |  |
-| [`monolith/native_training/learning_rate_functions_test.py`](#monolith-native-training-learning-rate-functions-test-py) | 76 | TODO | TODO (manual) |  |
-| [`monolith/native_training/logging_ops.py`](#monolith-native-training-logging-ops-py) | 56 | TODO | TODO (manual) |  |
-| [`monolith/native_training/logging_ops_test.py`](#monolith-native-training-logging-ops-test-py) | 57 | TODO | TODO (manual) |  |
-| [`monolith/native_training/losses/batch_softmax_loss.py`](#monolith-native-training-losses-batch-softmax-loss-py) | 57 | TODO | TODO (manual) |  |
-| [`monolith/native_training/losses/batch_softmax_loss_test.py`](#monolith-native-training-losses-batch-softmax-loss-test-py) | 35 | TODO | TODO (manual) |  |
-| [`monolith/native_training/losses/inbatch_auc_loss.py`](#monolith-native-training-losses-inbatch-auc-loss-py) | 41 | TODO | TODO (manual) |  |
-| [`monolith/native_training/losses/inbatch_auc_loss_test.py`](#monolith-native-training-losses-inbatch-auc-loss-test-py) | 71 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/mlp_test.py`](#monolith-native-training-layers-mlp-test-py) | 78 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/mlp_test.rs |  |
+| [`monolith/native_training/layers/multi_task.py`](#monolith-native-training-layers-multi-task-py) | 448 | IN PROGRESS | monolith-rs/crates/monolith-layers/src |  |
+| [`monolith/native_training/layers/multi_task_test.py`](#monolith-native-training-layers-multi-task-test-py) | 128 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/multi_task_test.rs |  |
+| [`monolith/native_training/layers/norms.py`](#monolith-native-training-layers-norms-py) | 343 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/normalization.rs |  |
+| [`monolith/native_training/layers/norms_test.py`](#monolith-native-training-layers-norms-test-py) | 84 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/norms_test.rs |  |
+| [`monolith/native_training/layers/pooling.py`](#monolith-native-training-layers-pooling-py) | 101 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/pooling.rs |  |
+| [`monolith/native_training/layers/pooling_test.py`](#monolith-native-training-layers-pooling-test-py) | 141 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/pooling_test.rs |  |
+| [`monolith/native_training/layers/sparse_nas.py`](#monolith-native-training-layers-sparse-nas-py) | 31 | IN PROGRESS | N/A (stub) |  |
+| [`monolith/native_training/layers/sparse_nas_test.py`](#monolith-native-training-layers-sparse-nas-test-py) | 23 | IN PROGRESS | N/A (empty test) |  |
+| [`monolith/native_training/layers/utils.py`](#monolith-native-training-layers-utils-py) | 159 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/merge.rs |  |
+| [`monolith/native_training/learning_rate_functions.py`](#monolith-native-training-learning-rate-functions-py) | 112 | IN PROGRESS | N/A (no Rust schedule yet) |  |
+| [`monolith/native_training/learning_rate_functions_test.py`](#monolith-native-training-learning-rate-functions-test-py) | 76 | IN PROGRESS | N/A (no Rust schedule yet) |  |
+| [`monolith/native_training/logging_ops.py`](#monolith-native-training-logging-ops-py) | 56 | IN PROGRESS | N/A (TF custom ops) |  |
+| [`monolith/native_training/logging_ops_test.py`](#monolith-native-training-logging-ops-test-py) | 57 | IN PROGRESS | N/A (TF custom ops) |  |
+| [`monolith/native_training/losses/batch_softmax_loss.py`](#monolith-native-training-losses-batch-softmax-loss-py) | 57 | IN PROGRESS | N/A (no Rust loss yet) |  |
+| [`monolith/native_training/losses/batch_softmax_loss_test.py`](#monolith-native-training-losses-batch-softmax-loss-test-py) | 35 | IN PROGRESS | N/A (no Rust loss yet) |  |
+| [`monolith/native_training/losses/inbatch_auc_loss.py`](#monolith-native-training-losses-inbatch-auc-loss-py) | 41 | IN PROGRESS | N/A (TF custom op) |  |
+| [`monolith/native_training/losses/inbatch_auc_loss_test.py`](#monolith-native-training-losses-inbatch-auc-loss-test-py) | 71 | IN PROGRESS | N/A (TF custom op) |  |
 | [`monolith/native_training/losses/ltr_losses.py`](#monolith-native-training-losses-ltr-losses-py) | 1233 | TODO | TODO (manual) |  |
 | [`monolith/native_training/metric/cli.py`](#monolith-native-training-metric-cli-py) | 28 | TODO | TODO (manual) |  |
 | [`monolith/native_training/metric/deep_insight_ops.py`](#monolith-native-training-metric-deep-insight-ops-py) | 134 | TODO | TODO (manual) |  |
@@ -13919,50 +13919,52 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/mlp_test.py`
 <a id="monolith-native-training-layers-mlp-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 78
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke tests for MLP instantiation, serialization, and forward call with batch normalization and mixed activation list.
+- Key symbols/classes/functions: `MLPTest` methods `test_mlp_instantiate`, `test_mlp_serde`, `test_mlp_call`.
+- External dependencies: TensorFlow v1 session mode, NumPy.
+- Side effects: Checks internal `_stacked_layers` length.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_mlp_instantiate`:
+  - Params-based instantiate with `output_dims=[1,3,4,5]`, `activations=None`, `initializers=GlorotNormal`.
+  - Direct constructor with same output dims and `initializers=HeUniform`.
+- `test_mlp_serde`:
+  - Instantiate via params, `get_config` and `MLP.from_config(cfg)` should succeed.
+- `test_mlp_call`:
+  - Params-based instantiate with:
+    - `output_dims=[100,50,10,1]`,
+    - `enable_batch_normalization=True`,
+    - `activations=['relu', tanh, PReLU, None]`,
+    - `initializers=GlorotNormal`.
+  - Input shape `(100,100)`; sums output.
+  - Asserts `len(layer._stacked_layers) == 11`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/mlp_test.rs`.
+- Rust public API surface: `MLP`, `MLPConfig`, `ActivationType`.
+- Data model mapping:
+  - Activation list includes mixed string/function/class; Rust should accept equivalent `ActivationType`.
+  - `_stacked_layers` count corresponds to Dense + optional BN + activation for each layer; ensure layering logic matches.
+- Feature gating: None.
+- Integration points: `monolith_layers::mlp`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust tests for constructor and config serialization.
+2. Add forward test with batch normalization and mixed activations; assert output shape/sum.
+3. Add check on internal layer count if exposed (or infer via config).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/mlp_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/mlp_test.rs` (new).
+- Cross-language parity test:
+  - Fix weights and inputs; compare output sums and layer counts.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses `tf.keras.layers.PReLU` class in activations list; Rust must map to `ActivationType::PReLU` with default params.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -13979,50 +13981,74 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/multi_task.py`
 <a id="monolith-native-training-layers-multi-task-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 448
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Multi-task learning layers: MMoE (multi-gate mixture of experts) and SNR (sub-network routing with hard-concrete gates).
+- Key symbols/classes/functions: `MMoE`, `SNR`, `hard_concrete_ste`.
+- External dependencies: TensorFlow/Keras (Layer, activations/initializers/regularizers/constraints), Monolith (`MLP`, `Dense`, `add_layer_loss`, `with_params`).
+- Side effects: Adds loss terms for gate balancing (MMoE) and L0 penalty (SNR).
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `MMoE`:
+  - `gate_type` in `{softmax, topk, noise_topk}`; `top_k` default 1.
+  - `num_experts` inferred from `expert_output_dims` or activations/initializers if not provided.
+  - Experts are MLPs; all expert output dims must share same last dim.
+  - Gate input dim inferred from `input_shape` (supports TF shape objects).
+  - Gate weights shape `(gate_input_dim, num_experts * num_tasks)`; optional noise weights if `noise_topk`.
+  - `calc_gate`:
+    - Linear gate logits; optional noise.
+    - Softmax over experts; if topk modes, zero out non-topk and renormalize.
+    - Returns gates with shape `(batch, num_experts, num_tasks)`.
+  - `call`:
+    - If inputs is tuple, `(expert_input, gate_input)` else both are inputs.
+    - `expert_outputs = stack([expert(x)], axis=2)` -> `(batch, output_dim, num_experts)`.
+    - `mmoe_output = matmul(expert_outputs, gates)` -> `(batch, output_dim, num_tasks)`.
+    - If gate_type != softmax: adds CV-squared loss over gate importance.
+    - Returns list of per-task outputs via `unstack(axis=2)`.
+- `hard_concrete_ste`:
+  - Clamps to [0,1] in forward; gradient is identity (STE).
+- `SNR`:
+  - `snr_type` in `{trans, aver}`; `aver` requires `in_subnet_dim == out_subnet_dim`.
+  - `build` infers `num_in_subnet` and `in_subnet_dim` from input list shapes.
+  - `log_alpha` shape `(num_route, 1)` where `num_route = num_in_subnet * num_out_subnet`.
+  - Adds L0 loss: `sum(sigmoid(log_alpha - factor))` with `factor = beta * log(-gamma/zeta)`.
+  - If `snr_type=trans`: `weight` shape `(num_route, block_size)`; else identity tiled.
+  - `sample`:
+    - If training: sample `u`, `s = sigmoid((logit(u)+log_alpha)/beta)`.
+    - Else: `s = sigmoid(log_alpha)`.
+    - Stretch to `[gamma,zeta]`, then clamp to [0,1] (STE optional).
+  - `call`:
+    - Multiply `weight` by `z`, reshape to block matrix, matmul concat(inputs), split into outputs.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module:
+  - `monolith-rs/crates/monolith-layers/src/mmoe.rs` (MMoE).
+  - `monolith-rs/crates/monolith-layers/src/snr.rs` (SNR).
+- Rust public API surface:
+  - `MMoE`, `MMoEConfig`, `GateType`/`Gate`, `SNR`, `SNRConfig`, `SNRType`.
+- Data model mapping:
+  - Python `gate_type` → Rust enum.
+  - `top_k` and noise_topk behavior → Rust gating implementation.
+  - `use_bias`, batch norm flags, and initializers for experts.
+- Feature gating: None.
+- Integration points: MLP, Dense, activation registry.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Align expert construction and gate input dim inference with Python.
+2. Implement noise_topk gating and CV-squared loss term for topk modes.
+3. Ensure SNR sampling uses same hard-concrete bounds and STE behavior.
+4. Add config serialization for MMoE and SNR (activations, initializers, gate_type, etc.).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/multi_task_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/multi_task_test.rs` (new).
+- Cross-language parity test:
+  - Fix weights/inputs and compare outputs for MMoE (softmax/topk/noise_topk) and SNR (trans/aver).
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses `add_loss` for CV-squared and L0 penalty; Rust must decide how to expose these losses.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14039,50 +14065,47 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/multi_task_test.py`
 <a id="monolith-native-training-layers-multi-task-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 128
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke tests for MMoE and SNR layers (instantiation, serde, forward).
+- Key symbols/classes/functions: `MultiTaskTest` methods `test_mmoe_instantiate`, `test_mmoe_serde`, `test_mmoe_call`, `test_snr_instantiate`, `test_snr_serde`, `test_snr_call`.
+- External dependencies: TensorFlow v1 session mode, NumPy.
+- Side effects: Runs TF sessions for forward calls.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- MMoE:
+  - Instantiate via params with `num_tasks=2`, `num_experts=3`, `expert_output_dims=[128,64,64]`, `expert_activations='relu'`, `expert_initializers=GlorotNormal`.
+  - Direct constructor with same settings.
+  - `test_mmoe_call`: uses `gate_type='topk'`, `top_k=2`, expert dims list-of-lists, input `(100,128)`, sums output list.
+- SNR:
+  - Instantiate via params with `num_out_subnet=3`, `out_subnet_dim=128`, `use_ste=False`.
+  - Direct constructor with same values.
+  - `test_snr_call`: `snr_type='aver'`, `mode=PREDICT`, four inputs `(100,128)` each; sums outputs.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/multi_task_test.rs`.
+- Rust public API surface: `MMoE`, `MMoEConfig`, `SNR`, `SNRConfig`.
+- Data model mapping:
+  - `gate_type` and `top_k` → Rust gate config.
+  - `snr_type='aver'` → `SNRType::Aver`.
+- Feature gating: None.
+- Integration points: `monolith_layers::mmoe`, `monolith_layers::snr`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust tests for config round-trip for MMoE and SNR.
+2. Add forward tests with matching input shapes and configurations.
+3. Add deterministic assertions on output shapes/sums.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/multi_task_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/multi_task_test.rs` (new).
+- Cross-language parity test:
+  - Fix weights and inputs; compare outputs for MMoE (topk) and SNR (aver).
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses list-of-lists expert dims for MMoE; ensure Rust supports heterogeneous expert configs.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14099,50 +14122,57 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/norms.py`
 <a id="monolith-native-training-layers-norms-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 343
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Normalization and multi-task gradient balancing utilities: custom BatchNorm, LayerNorm, and GradNorm.
+- Key symbols/classes/functions: `BatchNorm`, `LayerNorm`, `GradNorm`.
+- External dependencies: TensorFlow/Keras (`Layer`, `InputSpec`, initializers/regularizers), Monolith `add_layer_loss`.
+- Side effects: Emits TF summary scalars/histograms; adds losses for moving mean/variance and GradNorm.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `BatchNorm`:
+  - Tracks moving_mean and moving_variance; optional center/scale with beta/gamma weights.
+  - In TRAIN mode:
+    - Computes batch mean/variance (optionally stop-grad).
+    - Replaces gradient for moving stats with current batch values.
+    - Adds losses for moving mean/variance and logs summaries.
+    - If `training_use_global_dist`: blends moving stats with current stats using `global_dist_momentum`.
+  - In EVAL mode:
+    - Uses stopped moving stats; logs summaries.
+  - Returns `tf.nn.batch_normalization` with epsilon.
+- `LayerNorm`:
+  - Normalizes across last dimension per sample; applies beta/gamma with epsilon 1e-6.
+  - Same logic for train/eval.
+- `GradNorm`:
+  - Given `losses` and `shared_inputs`, computes gradients wrt shared inputs, concatenates, and computes norms.
+  - Softmax weights over tasks; computes `gnorm_loss` using absolute or relative difference vs average.
+  - Returns `(gnorm_loss, weighted_loss)`; logs weights and gnorms.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/src/normalization.rs`.
+- Rust public API surface: `BatchNorm`, `LayerNorm`, `GradNorm`.
+- Data model mapping:
+  - Momentum/epsilon/renorm settings map to Rust BatchNorm fields.
+  - GradNorm computes losses from provided grads (Rust currently expects grads, not tensors).
+- Feature gating: None.
+- Integration points: MLP/MMoE/LHUC use BatchNorm; GradNorm used in multi-task setups.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Align BatchNorm behavior with Python: moving stats, training/eval paths, optional stop-grad, and global-dist blending.
+2. Ensure LayerNorm uses epsilon=1e-6 and per-sample normalization.
+3. Adjust GradNorm API to accept losses and grads consistent with Python (or document differences).
+4. Add config serialization for BatchNorm/LayerNorm/GradNorm.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/norms_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/norms_test.rs` (new).
+- Cross-language parity test:
+  - Compare BatchNorm/LayerNorm outputs and GradNorm loss for fixed inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses TF summaries and add_layer_loss for moving stats; Rust lacks equivalent side effects.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14159,50 +14189,47 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/norms_test.py`
 <a id="monolith-native-training-layers-norms-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 84
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke tests for LayerNorm and GradNorm instantiation and serialization; simple forward for LayerNorm.
+- Key symbols/classes/functions: `NormTest` methods `test_ln_instantiate`, `test_ln_serde`, `test_ln_call`, `test_gn_instantiate`, `test_gn_serde`.
+- External dependencies: TensorFlow v1 session mode, NumPy.
+- Side effects: Runs session for LayerNorm forward.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- LayerNorm:
+  - Instantiate via params with `initializer=GlorotNormal`.
+  - Direct constructor with `initializer=HeUniform`.
+  - `test_ln_call`: input `(100,100)`, sum outputs, run session.
+- GradNorm:
+  - Instantiate via params with `loss_names=["abc","defg"]`.
+  - Direct constructor with `relative_diff=True`.
+  - `get_config`/`from_config` round-trip.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/norms_test.rs`.
+- Rust public API surface: `LayerNorm`, `GradNorm`.
+- Data model mapping:
+  - Params-based instantiation ↔ Rust config/builder.
+  - `get_config`/`from_config` ↔ serde round-trip.
+- Feature gating: None.
+- Integration points: `monolith_layers::normalization`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust tests for LayerNorm config round-trip and forward output shape.
+2. Add Rust tests for GradNorm config round-trip.
+3. Add deterministic assertions where possible.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/norms_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/norms_test.rs` (new).
+- Cross-language parity test:
+  - Fix inputs and compare LayerNorm output sums.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python tests do not cover BatchNorm; ensure BatchNorm tests are added elsewhere in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14219,50 +14246,44 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/pooling.py`
 <a id="monolith-native-training-layers-pooling-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 101
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Defines list-based pooling layers: base `Pooling`, `SumPooling`, `AvgPooling`, `MaxPooling`.
+- Key symbols/classes/functions: `Pooling.call`, `SumPooling.pool`, `AvgPooling.pool`, `MaxPooling.pool`.
+- External dependencies: TensorFlow ops (`math_ops`, `array_ops`), Monolith `check_list`.
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `Pooling.call(vec_list)`:
+  - Validates list with `check_list(vec_list, lambda x: x > 0)` (ensures non-empty).
+  - If list length is 1, returns first tensor.
+  - Otherwise calls `self.pool`.
+- `SumPooling.pool`: `math_ops.add_n(vec_list)`.
+- `AvgPooling.pool`: `math_ops.add_n(vec_list) / len(vec_list)`.
+- `MaxPooling.pool`: `reduce_max(stack(vec_list), axis=0)`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/src/pooling.rs`.
+- Rust public API surface: `SumPooling`, `AvgPooling`, `MaxPooling` implementing `Pooling` trait.
+- Data model mapping: list of tensors → slice `&[Tensor]`.
+- Feature gating: None.
+- Integration points: `monolith_layers::pooling`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Ensure Rust pooling checks non-empty list and returns first tensor when length is 1 (Python behavior).
+2. Confirm max pooling uses elementwise max (not stacking + reduce if already implemented).
+3. Add config/params metadata if needed for with_params parity.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none specific.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/pooling_test.rs` (new) or unit tests in module.
+- Cross-language parity test:
+  - Compare sums/means/maxes on fixed tensors with list length 1 and >1.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python `check_list` enforces non-empty; Rust returns error on empty list, but must also return input directly when len=1.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14279,50 +14300,50 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/pooling_test.py`
 <a id="monolith-native-training-layers-pooling-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 141
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke tests for Sum/Max/Avg pooling instantiation, serialization, and forward call.
+- Key symbols/classes/functions: `PoolingTest` methods `test_sp_*`, `test_mp_*`, `test_ap_*`.
+- External dependencies: TensorFlow v1 session mode, NumPy.
+- Side effects: Runs session after variable init.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- SumPooling:
+  - Params-based instantiate and direct constructor.
+  - `test_sp_call`: list of 5 tensors `(100,10)`, sum output.
+- MaxPooling:
+  - Params-based instantiate and direct constructor.
+  - `test_mp_call`: list of 5 tensors `(100,10)`, sum output.
+- AvgPooling:
+  - Params-based instantiate and direct constructor.
+  - `test_ap_call`: list of 5 tensors `(100,10)`, sum output.
+- Serialization:
+  - `get_config` and `from_config` for each pooling type.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/pooling_test.rs`.
+- Rust public API surface: `SumPooling`, `MaxPooling`, `AvgPooling`.
+- Data model mapping:
+  - Params-based instantiation ↔ Rust config/builder (if needed).
+  - No parameters beyond defaults.
+- Feature gating: None.
+- Integration points: `monolith_layers::pooling`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust tests for pooling ops on list of tensors (len=5).
+2. Add tests for len=1 list to match Python `Pooling.call`.
+3. Add serialization tests if config metadata is implemented.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/pooling_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/pooling_test.rs` (new).
+- Cross-language parity test:
+  - Fix input tensors; compare sums for each pooling type.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python pooling layers rely on Keras `Layer` base; Rust pooling is a trait. Map serialization accordingly.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14339,50 +14360,37 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/sparse_nas.py`
 <a id="monolith-native-training-layers-sparse-nas-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 31
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Placeholder module containing only imports; no classes or functions defined.
+- Key symbols/classes/functions: None.
+- External dependencies: TF/Keras, FeatureList, SummaryType, logging/flags; all imported but unused.
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- No runtime behavior; module only defines imports.
+- If later extended, define behavior for sparse NAS utilities.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (no behavior to port).
+- Rust public API surface: None.
+- Data model mapping: None.
+- Feature gating: None.
+- Integration points: None.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Confirm this file is a stub; if not, locate missing code or history.
+2. If future Python changes add functionality, update parity mapping accordingly.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/sparse_nas_test.py`.
+- Rust tests: N/A unless functionality is added.
+- Cross-language parity test: N/A until implemented.
 
 **Gaps / Notes**
-- TODO (manual)
+- This file appears to be an empty scaffold; confirm if code was removed or moved.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14399,50 +14407,35 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/sparse_nas_test.py`
 <a id="monolith-native-training-layers-sparse-nas-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 23
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Empty test scaffold; no test cases defined.
+- Key symbols/classes/functions: None.
+- External dependencies: TensorFlow (imported), NumPy (imported), unused.
+- Side effects: Runs `tf.test.main()` when executed directly.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- No assertions or tests; file does not exercise any functionality.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A.
+- Rust public API surface: None.
+- Data model mapping: None.
+- Feature gating: None.
+- Integration points: None.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Confirm no test coverage required unless sparse_nas gains functionality.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/sparse_nas_test.py` (empty).
+- Rust tests: N/A.
+- Cross-language parity test: N/A.
 
 **Gaps / Notes**
-- TODO (manual)
+- If sparse_nas gains code, add corresponding tests and parity section updates.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14459,50 +14452,58 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/utils.py`
 <a id="monolith-native-training-layers-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 159
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Shared utilities for layer code: merge semantics, shape helpers, and Gumbel-based subset sampling.
+- Key symbols/classes/functions: `MergeType`, `DCNType`, `check_dim`, `dim_size`, `merge_tensor_list`, `gumbel_keys`, `continuous_topk`, `sample_subset`.
+- External dependencies: TensorFlow, NumPy.
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `MergeType`: string constants `concat`, `stack`, `None`.
+- `DCNType`: string constants `vector`, `matrix`, `mixed`.
+- `check_dim(dim)`:
+  - `None` → `-1`, `int` → itself, `tf.compat.v1.Dimension` → `.value`, else raise.
+- `dim_size(inputs, axis)`:
+  - Uses static shape; if unknown (`-1`), returns dynamic `array_ops.shape(inputs)[axis]`.
+- `merge_tensor_list(tensor_list, merge_type='concat', num_feature=None, axis=1, keep_list=False)`:
+  - Accepts tensor or list; if single tensor, uses shape to decide:
+    - 3D: `stack` returns `[tensor]` or tensor; `concat` reshapes to `[B, num_feat*emb]`; `None` unstack on axis.
+    - 2D with `num_feature>1`: `stack` reshapes to `[B, num_feature, emb]`; `concat` returns as-is; `None` unstack.
+    - 2D without `num_feature`: returns as-is.
+    - Else: raise shape error.
+  - For list length >1: `stack`, `concat`, or return list.
+- `gumbel_keys(w)`: samples Gumbel noise and adds to `w`.
+- `continuous_topk(w, k, t, separate=False)`:
+  - Iteratively computes soft top-k masks; returns sum or list.
+- `sample_subset(w, k, t=0.1)`:
+  - `w = gumbel_keys(w)` then `continuous_topk`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/src/merge.rs` for merge utilities; DCNType maps to `monolith-layers/src/dcn.rs` (`DCNMode`).
+- Rust public API surface: `MergeType`, `merge_tensor_list`, `merge_tensor_list_tensor`.
+- Data model mapping:
+  - `MergeType::None` corresponds to `MergeOutput::List`.
+  - `check_dim`/`dim_size` are implicit in Rust shape handling; consider helper utilities.
+  - Gumbel subset sampling functions not currently present in Rust.
+- Feature gating: None.
+- Integration points: feature_cross, feature_trans, senet, etc.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Verify `merge_tensor_list` semantics in Rust match Python (including single-tensor reshape/unstack cases).
+2. Add Rust equivalents for `check_dim`/`dim_size` if needed for dynamic shapes.
+3. Implement Gumbel subset sampling helpers if required by future layers.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none specific.
+- Rust tests: add unit tests in `monolith-rs/crates/monolith-layers/tests/merge_test.rs` if not present.
+- Cross-language parity test:
+  - Compare merge outputs for 2D/3D inputs with `num_feature` and `keep_list` settings.
 
 **Gaps / Notes**
-- TODO (manual)
+- Gumbel subset sampling utilities are missing in Rust; add if used elsewhere.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14519,50 +14520,43 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/learning_rate_functions.py`
 <a id="monolith-native-training-learning-rate-functions-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 112
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Defines learning rate schedule function objects (base class + polynomial decay) for optimizers and embedding slice configs.
+- Key symbols/classes/functions: `LearningRateFunction`, `PolynomialDecay`.
+- External dependencies: TensorFlow v1 (`tf.compat.v1.train.polynomial_decay`, `get_or_create_global_step`), `abc`.
+- Side effects: None; uses global step when called.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `LearningRateFunction`:
+  - Abstract `__call__` that must be overridden.
+  - `__str__` prints class name and sorted `__dict__` params.
+- `PolynomialDecay`:
+  - Stores init params: `initial_learning_rate`, `decay_steps`, `end_learning_rate`, `power`, `cycle`, `name`.
+  - `__call__` fetches `global_step = tf.compat.v1.train.get_or_create_global_step()` and returns `tf.compat.v1.train.polynomial_decay(...)`.
+  - Uses TF’s polynomial decay semantics (including `cycle`).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (no Rust equivalent yet).
+- Rust public API surface: None.
+- Data model mapping: If implemented, use a trait + struct for polynomial decay tied to training step.
+- Feature gating: None.
+- Integration points: Optimizer configs and embedding slice configs.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Decide where to place LR schedules in Rust (optimizer module or training crate).
+2. Implement `PolynomialDecay` with explicit step parameter (Rust lacks TF global_step).
+3. Provide string formatting for config parity if required.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: None in repo.
+- Rust tests: Add unit tests for decay values at known steps.
+- Cross-language parity test: Compare decay outputs for fixed steps.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python relies on TF global step; Rust will need explicit step input or global trainer context.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14579,50 +14573,47 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/learning_rate_functions_test.py`
 <a id="monolith-native-training-learning-rate-functions-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 76
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests PolynomialDecay schedule and its integration with an optimizer.
+- Key symbols/classes/functions: `PolynomialDecayTest.test_basic`, `test_dense_optimizer`.
+- External dependencies: TensorFlow v1 session/optimizers, NumPy.
+- Side effects: Uses global_step and updates variables via Adagrad.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_basic`:
+  - Creates global_step, increments twice, and checks decay outputs.
+  - With `initial_learning_rate=0.01`, `decay_steps=10`, `end_learning_rate=0.11`:
+    - At global_step=1: expects 0.02.
+    - At global_step=2: expects 0.03.
+  - Ensures `__str__` equality between two identical PolynomialDecay instances.
+- `test_dense_optimizer`:
+  - Uses PolynomialDecay as `learning_rate` for `AdagradOptimizer`.
+  - Applies grads to two variables for 3 steps.
+  - Verifies updated values match expected arrays.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A until learning rate schedules are implemented.
+- Rust public API surface: PolynomialDecay schedule + optimizer integration.
+- Data model mapping: global_step must be explicit in Rust.
+- Feature gating: None.
+- Integration points: Optimizer implementations (e.g., Adagrad).
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement PolynomialDecay in Rust with explicit step input.
+2. Add tests validating decay values for known steps (0,1,2).
+3. If an optimizer exists, add integration test similar to Adagrad update.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/learning_rate_functions_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-optim/tests/learning_rate_functions_test.rs` (new) or similar.
+- Cross-language parity test:
+  - Compare decay values at fixed steps.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses TF global_step; Rust needs explicit step or trainer context.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14639,50 +14630,45 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/logging_ops.py`
 <a id="monolith-native-training-logging-ops-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 56
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Thin wrappers around custom logging/metrics TF ops (timestamps, timers, machine health).
+- Key symbols/classes/functions: `tensors_timestamp`, `emit_timer`, `machine_info`, `check_machine_health`.
+- External dependencies: TensorFlow, absl flags, custom ops `gen_monolith_ops`.
+- Side effects: Registers a global flag `monolith_default_machine_info_mem_limit`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `tensors_timestamp(tensors)`: returns `(tensors, timestamp)` via `monolith_tensors_timestamp`.
+- `emit_timer(key, value, tags=None)`:
+  - Formats tags as `"k=v|k2=v2"`, passes to `monolith_metric_v2`.
+  - Returns TF op.
+- `machine_info(mem_limit=None, shared_name=None)`:
+  - Uses default flag if `mem_limit` is None.
+  - Calls `monolith_machine_info` with `mem_limit`, `name`, `shared_name`.
+- `check_machine_health(machine_info_tensor)`:
+  - Returns scalar string tensor from `monolith_check_machine_health`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (custom TF ops not wired in Rust).
+- Rust public API surface: None.
+- Data model mapping: Would require TF runtime bindings.
+- Feature gating: TF-runtime only if added.
+- Integration points: metrics/logging pipeline.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Decide whether to expose these custom ops in Rust TF-runtime backend.
+2. If yes, add FFI bindings and wrappers with identical signatures.
+3. Provide a config/flag equivalent for default mem_limit.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: add once bindings exist.
+- Cross-language parity test: validate emitted tags and machine health output.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires custom TF ops; currently no Rust bindings.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14699,50 +14685,44 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/logging_ops_test.py`
 <a id="monolith-native-training-logging-ops-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 57
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests logging ops custom TF wrappers (timestamp, timer, machine health).
+- Key symbols/classes/functions: `LoggingOpsTest.test_tensors_timestamp`, `test_emit_timer`, `test_machine_health`, `test_machine_health_oom`.
+- External dependencies: TensorFlow v1, absl flags, `logging_ops_pb2`.
+- Side effects: Mutates global flag `monolith_default_machine_info_mem_limit`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_tensors_timestamp`:
+  - Calls `tensors_timestamp` twice and asserts newer timestamp >= old.
+- `test_emit_timer`:
+  - Calls `emit_timer("test", 0.0)` and evaluates op.
+- `test_machine_health`:
+  - Sets mem_limit high; `check_machine_health` returns empty bytes.
+- `test_machine_health_oom`:
+  - Sets mem_limit=0; `check_machine_health` returns serialized proto with status `OUT_OF_MEMORY`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (custom TF ops not implemented).
+- Rust public API surface: None.
+- Data model mapping: Would require TF runtime bindings and protobuf parsing.
+- Feature gating: TF-runtime only.
+- Integration points: logging/metrics pipeline.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust bindings for logging ops if TF runtime backend is enabled.
+2. Add tests mirroring timestamp monotonicity and machine health outcomes.
+3. Parse protobuf in Rust to validate OOM status.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/logging_ops_test.py`.
+- Rust tests: N/A until bindings exist.
+- Cross-language parity test: Validate proto outputs for machine health.
 
 **Gaps / Notes**
-- TODO (manual)
+- Depends on custom ops and protobufs not yet exposed in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14759,50 +14739,49 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/losses/batch_softmax_loss.py`
 <a id="monolith-native-training-losses-batch-softmax-loss-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 57
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Computes batch softmax loss for retrieval-style training.
+- Key symbols/classes/functions: `batch_softmax_loss`.
+- External dependencies: TensorFlow.
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Inputs:
+  - `query` shape `(batch_size, k)`, `item` shape `(batch_size, k)`.
+  - `item_step_interval` shape `(batch_size,)`.
+  - `r` weights (interest) same length as batch.
+  - `normalize` (default True), `temperature` (default 1.0).
+- Validation:
+  - `temperature` must be > 0 else raise `ValueError("temperature should be positive, while got ...")`.
+- Computation:
+  - Optional L2-normalize query/item along axis 1.
+  - `similarity = query @ item^T / temperature`.
+  - Clamp `item_step_interval` to at least 1.0, compute `item_frequency = 1 / item_step_interval`.
+  - Adjust similarity: `exp(similarity - log(item_frequency))`.
+  - Loss: `-sum(r * log(diag(similarity) / reduce_sum(similarity, axis=1)))`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (no Rust loss implementation yet).
+- Rust public API surface: loss function in training/optimizer crate.
+- Data model mapping: Tensor ops for matmul, diag, log, exp.
+- Feature gating: None.
+- Integration points: training loss computation.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement batch_softmax_loss in Rust with the same math and shape checks.
+2. Ensure numerical stability around log/exp and item_frequency.
+3. Add input normalization option.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/losses/batch_softmax_loss_test.py`.
+- Rust tests: new test in `monolith-rs/crates/monolith-training/tests`.
+- Cross-language parity test: compare loss for fixed inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires loss module placement decision in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14819,50 +14798,38 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/losses/batch_softmax_loss_test.py`
 <a id="monolith-native-training-losses-batch-softmax-loss-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 35
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Single test for batch_softmax_loss numeric output.
+- Key symbols/classes/functions: `BatchSoftmaxLossTest.test_batch_softmax_loss`.
+- External dependencies: TensorFlow, NumPy.
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Creates random `query` and `item` tensors `(batch=4, dim=3)`.
+- `item_step_interval` is random integers in `[1,10)`, `r` is ones.
+- Calls `batch_softmax_loss` and asserts loss equals `6.5931373`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A until loss is implemented.
+- Rust public API surface: batch_softmax_loss.
+- Data model mapping: Tensor operations and RNG.
+- Feature gating: None.
+- Integration points: training loss module.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement loss and a deterministic test by seeding RNG or using fixed inputs.
+2. Match Python numeric output if using the same fixed inputs.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/losses/batch_softmax_loss_test.py`.
+- Rust tests: add deterministic equivalent.
+- Cross-language parity test: compare loss for fixed inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python test uses random inputs without setting a seed but asserts a fixed value; likely flaky. Prefer fixing inputs in Rust and note the discrepancy.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14879,50 +14846,39 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/losses/inbatch_auc_loss.py`
 <a id="monolith-native-training-losses-inbatch-auc-loss-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 41
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Wrapper for custom TF op `InbatchAucLoss` and its gradient registration.
+- Key symbols/classes/functions: `inbatch_auc_loss`, `_inbatch_auc_loss_grad`.
+- External dependencies: `gen_monolith_ops` custom op.
+- Side effects: Registers gradient for `InbatchAucLoss`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `inbatch_auc_loss(label, logit, neg_weight=1.0)`:
+  - Calls `inbatch_auc_loss_ops.inbatch_auc_loss`.
+- Gradient:
+  - `InbatchAucLoss` gradient returns `None` for label and computed gradient for logit via `inbatch_auc_loss_grad`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (custom TF op not bound in Rust).
+- Rust public API surface: None.
+- Data model mapping: Would need TF runtime binding.
+- Feature gating: TF-runtime only if implemented.
+- Integration points: loss computation in training.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust binding for `InbatchAucLoss` op if TF runtime backend is used.
+2. Expose gradient or compute manually if training is supported.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/losses/inbatch_auc_loss_test.py`.
+- Rust tests: N/A until binding exists.
+- Cross-language parity test: compare loss/grad values for fixed inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Depends on custom TF ops; currently missing in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14939,50 +14895,43 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/losses/inbatch_auc_loss_test.py`
 <a id="monolith-native-training-losses-inbatch-auc-loss-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 71
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Unit tests for inbatch_auc_loss and its gradient op.
+- Key symbols/classes/functions: `InbatchAucLossTest.test_inbatch_auc_loss`, `test_inbatch_auc_loss_grad`.
+- External dependencies: TensorFlow, Python math.
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_inbatch_auc_loss`:
+  - Uses labels `[1,0,0,1]` and logits `[0.5,-0.2,-0.4,0.8]`.
+  - Computes expected loss by summing `log(sigmoid(diff))` over all pos-neg pairs.
+  - Asserts almost equal to TF op output.
+- `test_inbatch_auc_loss_grad`:
+  - Calls custom op grad with `grad=2`.
+  - Computes expected gradient by pairwise contributions.
+  - Asserts close.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A until custom op binding exists.
+- Rust public API surface: inbatch_auc_loss and grad.
+- Data model mapping: pairwise log-sigmoid over pos-neg pairs.
+- Feature gating: TF runtime only.
+- Integration points: training loss.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement loss (or bind op) and deterministic tests with the same inputs.
+2. Validate gradient against manual computation.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/losses/inbatch_auc_loss_test.py`.
+- Rust tests: add once implementation exists.
+- Cross-language parity test: compare loss/grad for fixed inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Depends on custom TF op; no Rust binding yet.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
