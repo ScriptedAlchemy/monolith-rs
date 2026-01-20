@@ -2739,29 +2739,112 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 **Python Summary**
 - Lines: 503
 - Purpose/role: CLI for TensorFlow Serving status/metadata/load/predict/profile; includes data generation and format conversion.
-- Key symbols/classes/functions: `read_header`, `read_data`, `generate_random_instance`, `get_instance_proto`, `get_example_batch_proto`, `get_example_batch_to_instance`, `ProfileThread`, `main`.
+- Key symbols/classes/functions: `read_header`, `read_data`, `generate_random_instance`, `generate_random_example_batch`, `get_instance_proto`, `get_example_batch_proto`, `gen_random_file`, `get_example_batch_proto_v2`, `get_example_batch_to_instance`, `ProfileThread`, `main`.
 - External dependencies: TF Serving protos, matrix `ExampleBatch`/`Instance`, `FeatureList`, `data_gen_utils`.
 - Side effects: reads/writes files, makes gRPC requests, spawns threads, prints output.
 
 **Required Behavior (Detailed)**
+- Flags/global constants:
+  - Flags: `signature_name="serving_default"`, `feature_list=None`, `file_type="pb"`, `batch_size=8`, `lagrangex_header=False`, `has_sort_id=False`, `kafka_dump=False`, `kafka_dump_prefix=False`, `parallel_num=1`, `profile_duration=600`, `profile_data_dir=None`.
+  - Globals: `VALID_SLOTS=[]`, `_NUM_SLOTS=6`, `_VOCAB_SIZES=[5,5,5,5,5,5]`, `SKIP_LIST` set.
 - Input parsing helpers:
-  - `read_header` consumes Kafka/LagrangeX header bytes depending on flags.
-  - `read_data` reads size-prefixed payload (8-byte little-endian length).
+  - `read_header(stream)`:
+    - `int_size=8`.
+    - If `FLAGS.lagrangex_header`, read 8 bytes and return.
+    - Else:
+      - `aggregate_page_sortid_size=0`.
+      - If `FLAGS.kafka_dump_prefix`:
+        - Read `<Q` size; if size==0 read another `<Q`; else set `aggregate_page_sortid_size=size`.
+      - If `FLAGS.has_sort_id`:
+        - If `aggregate_page_sortid_size==0`, read `<Q` size; else use `aggregate_page_sortid_size`.
+        - Read `size` bytes (sort_id payload).
+      - If `FLAGS.kafka_dump`, read 8 bytes.
+  - `read_data(stream)`: calls `read_header`, reads `<Q` size (8 bytes) then reads and returns that many bytes.
 - Data generation:
-  - `generate_random_instance` produces random fid values based on slots/vocab sizes.
-  - `generate_random_example_batch` builds ExampleBatch with random fid values and LineId.
-  - `gen_random_file` uses `data_gen_utils` to create random data files.
+  - `generate_random_instance(slots=None, vocab_sizes=_VOCAB_SIZES)`:
+    - If slots None: `slots = [1..len(_VOCAB_SIZES)]`.
+    - `max_vocab = max(vocab_sizes)`.
+    - Build `fids = (slot << 54) | (i * max_vocab + rand(1, vocab_sizes[i]))` for each `i, slot` and repeat `vocab_sizes[i]` times.
+    - Return serialized `Instance` with `fid` populated.
+  - `generate_random_example_batch(feature_list, batch_size=256)`:
+    - Creates `ExampleBatch` with `batch_size`.
+    - Skips features whose name contains any token in `SKIP_LIST`.
+    - Only processes features with `"_id"` or `"_name"` in name.
+    - For each kept feature:
+      - Adds `named_feature_list` with `name=feature.name`.
+      - For each example in batch:
+        - If `feature.method` startswith `vectortop` and `feature.args[0]` is numeric:
+          - `num=int(args[0])`; if `num>0`, replace with `randint(1, num)`.
+          - Create `num` fids `(feature.slot << 48) | rand(1, sys.maxsize-1)` into `fid_v2_list.value`.
+        - Else: single fid `(feature.slot << 48) | rand(1, (1<<48)-1)` into `fid_v2_list.value`.
+    - Adds `__LINE_ID__` feature list:
+      - For each example: `LineId(sample_rate=0.001, req_time=now_ts - rand(1,1000), actions=[rand(1,3), rand(3,5)])` serialized into `bytes_list.value`.
+    - Returns serialized `ExampleBatch`.
+  - `gen_random_file(input_file, variant_type="example_batch")`:
+    - Asserts `input_file` not None and `VALID_SLOTS` non-empty.
+    - Builds `ParserArgs` with sparse_features from `VALID_SLOTS`, extra_features list, shapes, `batch_size=FLAGS.batch_size`, `variant_type`.
+    - Uses `data_gen_utils.gen_random_data_file(..., sort_id=FLAGS.has_sort_id, kafka_dump=FLAGS.kafka_dump, num_batch=1, actions=[1..12])`.
 - Tensor proto conversion:
-  - `get_instance_proto`: returns TensorProto from list of serialized Instance bytes.
-  - `get_example_batch_proto`: reads ExampleBatch from file or generates random; returns TensorProto.
-  - `get_example_batch_to_instance`: converts ExampleBatch to list of Instance messages (handles fid_v1/fid_v2/float/int/bytes fields).
+  - `get_instance_proto(input_file=None, batch_size=256)`:
+    - If `input_file` None: generate `batch_size` random instances.
+    - Else: read `batch_size` instances via `read_data` and parse `Instance` per record.
+    - Return `utils.make_tensor_proto(instances)` (list of serialized bytes).
+  - `get_example_batch_proto(input_file=None, feature_list=None, batch_size=256, file_type='pb')`:
+    - If no file: generate random ExampleBatch.
+    - Else parse ExampleBatch from pb (`read_data`) or pbtxt (`text_format.Parse`).
+    - Return `utils.make_tensor_proto([example_batch])`.
+  - `get_example_batch_proto_v2(input_file)`:
+    - If file missing, call `gen_random_file`.
+    - Parse ExampleBatch from `read_data`.
+    - `user_fname_set = {get_feature_name_and_slot(slot)[0] for slot in user_features}`.
+    - For each `named_feature_list` with name in set:
+      - Set `type = FeatureListType.SHARED`.
+      - Replace feature list with `batch_size` copies of the first feature.
+    - Return `utils.make_tensor_proto([serialized ExampleBatch])`.
+  - `get_example_batch_to_instance(input_file, file_type)`:
+    - Parse ExampleBatch from pb or pbtxt.
+    - For each example index, create `Instance`:
+      - Use shared feature if `named_feature_list.type == SHARED`.
+      - Map `__LABEL__` to `inst.label` (float_list).
+      - Map `__LINE_ID__` bytes to `inst.line_id.ParseFromString`.
+      - For other features, select first non-empty value list in order:
+        - `fid_v1_list`: compute `slot_id = fid >> 54`; convert each fid to v2 with `(slot_id << 48) | (mask & v)` where `mask=(1<<48)-1`.
+        - `fid_v2_list`: copy.
+        - `float_list` or `double_list`: copy into `float_value`.
+        - `int64_list`: copy into `int64_value`.
+        - `bytes_list`: copy into `bytes_value`.
+    - Return `utils.make_tensor_proto(inst_list)` (serialized instances).
+- Profiling thread:
+  - `ProfileThread.run()` loops until `int(time.time()) - run_st < repeat_time`:
+    - Job 0 logs progress every 60 seconds (`show_count` gate).
+    - Builds PredictRequest with signature name flag, picks random cached example_batch and random stub.
+    - Predict timeout = 30s.
+    - Records per-request latency (ms) into list, increments count.
+    - On exception: logs warning and continues.
+  - `get_result()` joins thread and returns latency list.
 - CLI (`main`):
-  - Uses `AgentConfig.from_file` and env host to pick target port (entry/ps/dense).
-  - `status`: GetModelStatus request.
-  - `meta`: GetModelMetadata request.
-  - `load`: ReloadConfigRequest using a ModelServerConfig pbtxt file.
-  - `profile`: generates/loads ExampleBatch data, spawns `ProfileThread`s, computes avg latency, p99, QPS.
-  - Default: send PredictRequest with input type (instance/example_batch) and print response.
+  - Calls `enable_tob_env()` and `env_utils.setup_host_ip()`.
+  - Loads `agent_conf = AgentConfig.from_file(FLAGS.conf)`.
+  - `host = env["MY_HOST_IP"]` or `socket.gethostbyname(socket.gethostname())`.
+  - Default `model_name` if flag unset:
+    - PS: `ps_{shard_id}`; DENSE: `TFSServerType.DENSE`; else ENTRY.
+  - `target` by deploy_type: entry/ps/dense port; allows override `FLAGS.target` and comma-separated targets.
+  - Creates `channel_list` from targets, `channel` for first target.
+  - `cmd_type` behaviors:
+    - `status`: `ModelServiceStub.GetModelStatus` for model name/signature; print response.
+    - `meta`: `PredictionServiceStub.GetModelMetadata`, metadata fields `base_path`, `num_versions`, `signature_name`; print response.
+    - `load`: parse `ModelServerConfig` from pbtxt `FLAGS.input_file`, `HandleReloadConfigRequest`, log "load done", return status.
+    - `profile`:
+      - Assert `VALID_SLOTS` non-empty; ensure `profile_data_dir` exists.
+      - Build list of up to 500 data files; generate missing via `gen_random_file` (uuid filenames).
+      - Load each file with `get_example_batch_proto_v2`.
+      - Spawn `parallel_num` `ProfileThread`s; gather latency list.
+      - Compute avg latency, p99 (index `round((n-1)*0.99)`), QPS; log summary.
+    - Default (`get`): build PredictRequest; choose inputs:
+      - `input_type == "instance"`: if file missing, `gen_random_file(..., "instance")`; `get_instance_proto`.
+      - `input_type == "example_batch"`: use provided file or new uuid, `get_example_batch_proto_v2`.
+      - Else: `get_example_batch_to_instance`.
+      - Call `Predict(timeout=30)` and print response.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-cli/src/bin/tfs_client.rs`.
@@ -2781,7 +2864,9 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Rust tests: port get_instance_proto and get_example_batch_to_instance tests.
 
 **Gaps / Notes**
-- Python references `user_features` in `get_example_batch_proto_v2` without local definition; confirm source of this global in Rust.
+- `user_features` referenced in `get_example_batch_proto_v2` is not defined in this module; Rust port must identify the intended source or expose configuration.
+- `VALID_SLOTS` defaults empty; profile path asserts it is non-empty (likely set via external config/feature list).
+- `_NUM_SLOTS` is unused in this module; `_VOCAB_SIZES` governs random instance generation.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -2808,9 +2893,17 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: reads test data files.
 
 **Required Behavior (Detailed)**
-- `test_get_instance_proto`: asserts dtype and tensor shape for random instance batch.
-- `test_get_example_batch_to_instance_from_pb`: reads binary examplebatch file with header.
-- `test_get_example_batch_to_instance_from_pbtxt`: reads pbtxt example batch file.
+- `test_get_instance_proto`:
+  - Calls `get_instance_proto()` with default `batch_size=256`.
+  - Asserts `tensor_proto.dtype == 7` and `tensor_shape.dim[0].size == 256`.
+- `test_get_example_batch_to_instance_from_pb`:
+  - Uses file `monolith/native_training/data/training_instance/examplebatch.data`.
+  - Sets `FLAGS.lagrangex_header = True`.
+  - Calls `get_example_batch_to_instance(file, 'pb')`.
+- `test_get_example_batch_to_instance_from_pbtxt`:
+  - Uses file `monolith/agent_service/example_batch.pbtxt`.
+  - Sets `FLAGS.lagrangex_header = True`.
+  - Calls `get_example_batch_to_instance(file, 'pbtxt')`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-cli/tests/tfs_client.rs`.
