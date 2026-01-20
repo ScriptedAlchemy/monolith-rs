@@ -627,7 +627,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/save_utils_test.py`](#monolith-native-training-save-utils-test-py) | 1740 | IN PROGRESS | monolith-rs/crates/monolith-checkpoint/src |  |
 | [`monolith/native_training/service_discovery.py`](#monolith-native-training-service-discovery-py) | 481 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/service_discovery_test.py`](#monolith-native-training-service-discovery-test-py) | 407 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
-| [`monolith/native_training/serving_ps_test.py`](#monolith-native-training-serving-ps-test-py) | 231 | TODO | TODO (manual) |  |
+| [`monolith/native_training/serving_ps_test.py`](#monolith-native-training-serving-ps-test-py) | 231 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/session_run_hooks.py`](#monolith-native-training-session-run-hooks-py) | 171 | TODO | TODO (manual) |  |
 | [`monolith/native_training/session_run_hooks_test.py`](#monolith-native-training-session-run-hooks-test-py) | 144 | TODO | TODO (manual) |  |
 | [`monolith/native_training/signal_utils.py`](#monolith-native-training-signal-utils-py) | 37 | TODO | TODO (manual) |  |
@@ -20290,50 +20290,52 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/serving_ps_test.py`
 <a id="monolith-native-training-serving-ps-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 231
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Generates example batches and feature configs for serving PS tests.
+- Key symbols/classes/functions: `FeatMeta`, `TableMeta`, `ServingPSTest`.
+- External dependencies: `distribution_ops` (imported), `idl.matrix.proto.example_pb2` protos.
+- Side effects: Prints generated `ExampleBatch` and `FeatureConfigs` to stdout.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Defines feature/table metadata (`FeatMeta`, `TableMeta`) and a `features` map.
+- `test_example_gen`:
+  - Builds `ExampleBatch` with `batch_size=10`.
+  - For each feature, fills `fid_v1_list` or `fid_v2_list` based on `fid_version`.
+  - For SHARED feature lists, only adds first feature (breaks after one).
+  - Prints the batch.
+- `test_conf_gen`:
+  - Builds `FeatureConfigs` with per-feature slice dims and pooling types.
+  - Constructs `OutConfig` objects:
+    - `bias` and `vec` as `CONCAT`.
+    - `uffm`, `iffm`, `seq` as `NONE`.
+    - `user_only` as `STACK`.
+  - Configures slice ranges and shapes based on metadata.
+  - Prints configs.
+- `__main__`: disables eager execution and runs `tf.test.main()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (tests or utilities).
+- Rust public API surface: helper to generate example batches and feature configs.
+- Data model mapping: ExampleBatch, FeatureConfigs, OutConfig protos.
+- Feature gating: requires proto definitions and encoding.
+- Integration points: serving PS pipelines or export utilities.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port metadata structs and feature definitions.
+2. Implement example batch generator with fid_v1/v2 bit packing.
+3. Implement feature config generation and OutConfig creation.
+4. Add tests to validate shapes and slice configs.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `ServingPSTest` in this file (no assertions besides prints).
+- Rust tests: add assertions for generated proto contents.
+- Cross-language parity test: compare serialized protos.
 
 **Gaps / Notes**
-- TODO (manual)
+- Tests mainly print outputs; no asserts in Python.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
