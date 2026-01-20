@@ -508,8 +508,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/hooks/feature_engineering_hooks.py`](#monolith-native-training-hooks-feature-engineering-hooks-py) | 99 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks |  |
 | [`monolith/native_training/hooks/hook_utils.py`](#monolith-native-training-hooks-hook-utils-py) | 41 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks |  |
 | [`monolith/native_training/hooks/hook_utils_test.py`](#monolith-native-training-hooks-hook-utils-test-py) | 35 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
-| [`monolith/native_training/hooks/ps_check_hooks.py`](#monolith-native-training-hooks-ps-check-hooks-py) | 97 | TODO | TODO (manual) |  |
-| [`monolith/native_training/hooks/ps_check_hooks_test.py`](#monolith-native-training-hooks-ps-check-hooks-test-py) | 112 | TODO | TODO (manual) |  |
+| [`monolith/native_training/hooks/ps_check_hooks.py`](#monolith-native-training-hooks-ps-check-hooks-py) | 97 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks |  |
+| [`monolith/native_training/hooks/ps_check_hooks_test.py`](#monolith-native-training-hooks-ps-check-hooks-test-py) | 112 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/hooks/server/client_lib.py`](#monolith-native-training-hooks-server-client-lib-py) | 30 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hooks/server/constants.py`](#monolith-native-training-hooks-server-constants-py) | 15 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hooks/server/server_lib.py`](#monolith-native-training-hooks-server-server-lib-py) | 95 | TODO | TODO (manual) |  |
@@ -11499,50 +11499,47 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hooks/ps_check_hooks.py`
 <a id="monolith-native-training-hooks-ps-check-hooks-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 97
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Health-check hooks for PS machines, reporting failures and placing barriers.
+- Key symbols/classes/functions: `PsHealthCheckerHook`, `Config`, `get_ps_machine_info_shared_name`.
+- External dependencies: TensorFlow, `logging_ops`, `barrier_ops`, `logging_ops_pb2`.
+- Side effects: Spawns background thread, places barrier on failure, logs error details.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `get_ps_machine_info_shared_name(index)` returns `"ps_machine_info_<index>"`.
+- `_default_report(results)`:
+  - Logs per-PS MachineHealthResult using text_format one-line strings.
+- `Config`:
+  - Contains `barrier_op`, `num_ps`, `ps_device_fn` (default `utils.ps_device`), `report_fn` (default `_default_report`).
+- `_PsHealthChecker`:
+  - Builds `machine_info` and `check_machine_health` ops per PS device.
+  - Runs in a daemon thread registered with coordinator.
+  - If any status is non-empty, parses `MachineHealthResult`, calls report_fn, places barrier, and waits for stop.
+  - Sleeps/waits via `coord.wait_for_stop(timeout=30)` in loop.
+- `PsHealthCheckerHook`:
+  - Creates checker on `begin()` and starts thread in `after_create_session`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/hooks/ps_check_hooks.rs` (new).
+- Rust public API surface: PS health checker hook with background polling.
+- Feature gating: TF runtime/custom ops required for machine health ops.
+- Integration points: barrier ops and logging/alerting system.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Wrap logging_ops machine_info and health check ops in Rust TF runtime.
+2. Spawn a background thread to poll health status.
+3. On failure, call report_fn and place barrier, then request stop.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `ps_check_hooks_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/ps_check_hooks_test.rs` (new).
+- Cross-language parity test: simulate healthy vs OOM conditions and verify report hook invocation.
 
 **Gaps / Notes**
-- TODO (manual)
+- Health status is encoded as serialized proto bytes; Rust must parse with `logging_ops_pb2` equivalent.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -11559,50 +11556,42 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hooks/ps_check_hooks_test.py`
 <a id="monolith-native-training-hooks-ps-check-hooks-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 112
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests PS health checker hook and error handling.
+- Key symbols/classes/functions: `PsCheckHooksTest` cases.
+- External dependencies: TensorFlow, `ps_check_hooks`, `logging_ops`.
+- Side effects: Uses monitored sessions and sleeps briefly.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_basic`:
+  - Healthy machine info should not trigger report.
+- `test_oom`:
+  - mem_limit=0 triggers report_fn once.
+- `test_raise_in_after_create_session` / `test_raise_in_before_run`:
+  - Raising in hooks should propagate DeadlineExceededError.
+- `test_default_report`:
+  - Calls `_default_report` with a MachineHealthResult for smoke coverage.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/ps_check_hooks_test.rs` (new).
+- Rust public API surface: PS health checker hook.
+- Feature gating: TF runtime/custom ops required.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add a test harness that simulates healthy and unhealthy machine_info results.
+2. Assert report function called under unhealthy case.
+3. Verify exceptions propagate from hook callbacks.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `ps_check_hooks_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/ps_check_hooks_test.rs`.
+- Cross-language parity test: compare report invocation counts.
 
 **Gaps / Notes**
-- TODO (manual)
+- Tests rely on custom logging_ops; may need to skip if ops unavailable.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
