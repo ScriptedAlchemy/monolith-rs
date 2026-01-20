@@ -453,7 +453,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/distribute/distributed_dataset.py`](#monolith-native-training-distribute-distributed-dataset-py) | 81 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/distribute/distributed_dataset_test.py`](#monolith-native-training-distribute-distributed-dataset-test-py) | 124 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/distribute/str_queue.py`](#monolith-native-training-distribute-str-queue-py) | 114 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
-| [`monolith/native_training/distribute/str_queue_test.py`](#monolith-native-training-distribute-str-queue-test-py) | 67 | TODO | TODO (manual) |  |
+| [`monolith/native_training/distribute/str_queue_test.py`](#monolith-native-training-distribute-str-queue-test-py) | 67 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/distributed_ps.py`](#monolith-native-training-distributed-ps-py) | 2108 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distributed_ps_benchmark.py`](#monolith-native-training-distributed-ps-benchmark-py) | 168 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distributed_ps_factory.py`](#monolith-native-training-distributed-ps-factory-py) | 262 | TODO | TODO (manual) |  |
@@ -8452,53 +8452,47 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distribute/str_queue_test.py`
-
 <a id="monolith-native-training-distribute-str-queue-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 67
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests basic enqueue/dequeue behavior, initialization, out-of-range handling, and auto-enqueue logic for `StrQueue`.
+- Key symbols/classes/functions: `QueueTest` with `testBasic`, `testInit`, `testOutOfRange`, `testAutoEnqueue`.
+- External dependencies: TensorFlow, `str_queue.StrQueue`.
+- Side effects: none.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `testBasic`:
+  - Enqueues `test1`, `test2` and dequeues in order.
+- `testInit`:
+  - Initializes queue with `initial_elements=['test1']` and dequeues `test1`.
+- `testOutOfRange`:
+  - Dequeue from empty queue returns `out_of_range=True`.
+- `testAutoEnqueue`:
+  - `auto_enqueue` increments variable `v` and enqueues stringified values until `v > 2`, then returns out_of_range.
+  - Dequeues yield `"1"`, `"2"`, then `out_of_range=True` for subsequent dequeues.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/tests`.
+- Rust public API surface: `StrQueue` equivalent.
+- Data model mapping: string queue semantics.
+- Feature gating: none.
+- Integration points: `distributed_dataset` uses StrQueue.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust tests that validate enqueue/dequeue ordering and init behavior.
+2. Implement auto-enqueue hook test with controlled counter.
+3. Verify out_of_range behavior persists after exhaustion.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: `str_queue_test.rs`.
+- Cross-language parity test: compare dequeued sequences for fixed auto-enqueue behavior.
 
 **Gaps / Notes**
-- TODO (manual)
+- TensorFlow session semantics are not required; Rust can implement a pure queue test.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8513,6 +8507,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distributed_ps.py`
+
 <a id="monolith-native-training-distributed-ps-py"></a>
 
 **Status:** TODO (manual review required)
