@@ -516,8 +516,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/hooks/server/server_lib_test.py`](#monolith-native-training-hooks-server-server-lib-test-py) | 54 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/hooks/session_hooks.py`](#monolith-native-training-hooks-session-hooks-py) | 44 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks |  |
 | [`monolith/native_training/hooks/session_hooks_test.py`](#monolith-native-training-hooks-session-hooks-test-py) | 33 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
-| [`monolith/native_training/hvd_lib.py`](#monolith-native-training-hvd-lib-py) | 65 | TODO | TODO (manual) |  |
-| [`monolith/native_training/input.py`](#monolith-native-training-input-py) | 45 | TODO | TODO (manual) |  |
+| [`monolith/native_training/hvd_lib.py`](#monolith-native-training-hvd-lib-py) | 65 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
+| [`monolith/native_training/input.py`](#monolith-native-training-input-py) | 45 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/layers/__init__.py`](#monolith-native-training-layers-init-py) | 46 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/add_bias.py`](#monolith-native-training-layers-add-bias-py) | 110 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/add_bias_test.py`](#monolith-native-training-layers-add-bias-test-py) | 65 | TODO | TODO (manual) |  |
@@ -11888,50 +11888,38 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hvd_lib.py`
 <a id="monolith-native-training-hvd-lib-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 65
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Lazy import wrapper for Horovod or BytePS TensorFlow libraries.
+- Key symbols/classes/functions: `_Lib`, module-level `__getattr__`.
+- External dependencies: `byteps.tensorflow` or `horovod.tensorflow`.
+- Side effects: Imports the chosen library on first use.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_Lib.enable_bps` reads `MONOLITH_WITH_BYTEPS` env var.
+- `lib` property imports BytePS if enabled, else Horovod.
+- Provides passthrough methods: `init`, `rank`, `size`, `allgather`, `broadcast`, `BroadcastGlobalVariablesHook`.
+- Module-level `__getattr__` forwards to `_Lib` methods.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/hvd_lib.rs` (new).
+- Rust public API surface: wrapper interface with lazy initialization for Horovod/BytePS bindings.
+- Feature gating: only available under TF runtime / distributed features.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement lazy initialization with mutex/once for BytePS or Horovod bindings.
+2. Expose helper methods mirroring Python names.
+3. Read `MONOLITH_WITH_BYTEPS` to choose backend.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: add smoke tests to verify backend selection and lazy init.
+- Cross-language parity test: ensure backend selection matches env.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires actual Horovod/BytePS bindings for Rust; otherwise should be stubbed with clear errors.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -11948,50 +11936,39 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/input.py`
 <a id="monolith-native-training-input-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 45
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Utility to generate random FFM training examples.
+- Key symbols/classes/functions: `slot_to_key`, `generate_ffm_example`.
+- External dependencies: NumPy, TensorFlow.
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `slot_to_key(slot)` returns `"feature_<slot>"`.
+- `generate_ffm_example(vocab_sizes, length=5)`:
+  - Creates label feature with random int in [0,1) (effectively 0).
+  - For each vocab size, samples `num_ids` in `[1, length]` and ids in a range offset by `max_vocab * i`.
+  - Constructs a `tf.train.Example` and returns serialized bytes.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/src/input.rs` (new) or `monolith-rs/crates/monolith-examples` helpers.
+- Rust public API surface: helper to generate serialized Example protos.
+- Data model mapping: `monolith::io::proto::Example` or TensorFlow Example proto.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement `slot_to_key` helper.
+2. Implement random example generation with identical id ranges.
+3. Serialize Example protobuf to bytes.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: used indirectly in estimator tests.
+- Rust tests: add deterministic test with fixed RNG seed.
+- Cross-language parity test: compare serialized Example with fixed seed.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses `np.random.randint(low=0, high=1)` which always yields 0; consider whether to preserve this.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
