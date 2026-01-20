@@ -2034,30 +2034,58 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: starts gRPC server; spawns background thread to update model states.
 
 **Required Behavior (Detailed)**
+- Data classes:
+  - `ModelConf`: `model_name`, `base_path`, `version_policy='latest'`, `version_data=None`, `model_platform='tensorflow'`, `signature_name=('update','predict')`.
+  - `ModelVersion`: `version=0`, `version_label=None`, `state=ModelState.UNKNOWN`.
+  - `ModelMeta`: holds `conf`, `versions` (defaults to `[ModelVersion()]`), `_unloading` flag; `is_unloading()`/`set_unloading()`.
+  - `Event`: `model_name`, `version`, `state`.
 - `ModelMgr`:
-  - Manages models and versions, with `load`, `remove`, `get_status`, `get_metadata`.
-  - `load()`:
-    - For each ModelConfig, derive version policy (`latest`, `all`, or `specific`) and create `ModelVersion` list.
-    - Enqueue `Event(state=START)` for each version.
-  - `remove()`:
-    - Marks model as unloading, enqueue `UNLOADING` events for each version.
-  - `_poll()` thread:
-    - Processes queued events and transitions version state: UNKNOWN -> START -> LOADING -> AVAILABLE -> UNLOADING -> END.
-    - For `latest` policy, unloads oldest when max exceeded.
-    - Periodically adds new version for non-specific policies.
+  - Holds `_models` dict, `_lock`, `_queue`, `_thread`, `_has_stopped`.
+  - `__init__(model_config_list=None)` calls `load` if provided.
+  - `load(model_config_list)`:
+    - If `latest`: `version_policy='latest'`, `version_data=num_versions`, versions `1..num_versions`.
+    - If `all`: `version_policy='latest'`, `version_data=None`, versions `[1]`.
+    - Else: `version_policy='specific'`, `version_data=sorted(versions)`, versions per list.
+    - Adds `ModelMeta` to `_models` and enqueues `Event(START)` per version.
+  - `remove(model_name_list)`:
+    - Marks model unloading and enqueues `UNLOADING` for each version.
   - `get_status(model_spec)`:
-    - Returns version statuses (or NOT_FOUND status if missing).
+    - If model exists and no version_choice: returns status for all versions.
+    - If `version` set: returns matching version.
+    - If `version_label` set: returns matching label.
+    - If none found: returns single status with `version=-1`, `NOT_FOUND`, message `{name} is not found`.
   - `get_metadata(model_spec, metadata_field)`:
-    - Returns requested metadata from model_conf and version fields.
+    - For each requested field, pulls from `ModelConf` if present.
+    - If `model_spec.version` set, overlays fields from matching `ModelVersion`.
+  - `get_alive_model_names()` returns models not unloading.
+  - `start()` spawns `_poll` thread; `stop()` sets `_has_stopped` and joins.
+  - `_poll()`:
+    - Processes queued events via `_event_handler`.
+    - Every 30s: pick random model; if policy != `specific`, append new version (last+1) and enqueue `START`.
+  - `_event_handler(event)` transitions:
+    - `UNKNOWN -> START` (enqueue LOADING) -> `LOADING` (enqueue AVAILABLE) -> `AVAILABLE`.
+    - On AVAILABLE: if policy `latest` and `len(versions) > version_data`, enqueue `UNLOADING` for oldest.
+    - `UNLOADING` enqueues `END` (unless already UNLOADING/END).
+    - `END` removes version; if none left remove model.
+    - Logs transitions; logs error on missing model or unknown event.
 - `ModelServiceImpl`:
-  - `GetModelStatus` returns `GetModelStatusResponse` with version statuses.
+  - `GetModelStatus` builds response with `model_mgr.get_status`.
   - `HandleReloadConfigRequest`:
-    - Removes old models not in new config; loads new ones; returns OK status.
-- `PredictionServiceImpl.GetModelMetadata`:
-  - Populates metadata `Any` values (byte-encoded repr of fields).
+    - `old_names = alive`, `new_names` from request configs.
+    - Remove `old_names - new_names`, load configs for `new_names - old_names`.
+    - Returns `ReloadConfigResponse` with `OK` status.
+- `PredictionServiceImpl`:
+  - `Predict` is no-op.
+  - `GetModelMetadata`:
+    - Uses `metadata_field = set(request.metadata_field)`.
+    - For each metadata item: `Any(value=bytes(repr(v), 'utf-8'))` assigned to response.
 - `FakeTFServing`:
-  - Can be constructed from a single model config, a config file, or a ModelServerConfig.
-  - Starts gRPC server on `port` with ModelService + PredictionService.
+  - `model_config_file` handling:
+    - None: create `ModelMgr` from single `gen_model_config(model_name, base_path, version_data=num_versions)`.
+    - str: parse pbtxt to `ModelServerConfig`, use config list.
+    - else: expect `ModelServerConfig` instance.
+  - Starts gRPC server with ModelService + PredictionService, binds `[::]:{port}`.
+  - `start()` starts model_mgr and waits for termination; `stop()` stops server and model_mgr.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/support/fake_tfserving.rs`.
@@ -2102,10 +2130,21 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: starts FakeTFServing in background thread.
 
 **Required Behavior (Detailed)**
-- `setUpClass`: start FakeTFServing on a free port, wait for readiness.
-- `test_get_model_metadata`: call `GetModelMetadata` and assert response type.
-- `test_get_model_status`: call `GetModelStatus` and assert response type.
-- `test_handle_reload_config_request`: send `ReloadConfigRequest` with two model configs; assert OK response type.
+- Class setup:
+  - `MODEL_NAME='test_model_test'`, `BASE_PATH='/tmp/test_model/monolith'`.
+  - `PORT = utils.find_free_port()`.
+  - `Address = f'{socket.gethostbyname(socket.gethostname())}:{PORT}'`.
+  - Start `FakeTFServing(MODEL_NAME, BASE_PATH, num_versions=2, port=PORT)` in a thread; `sleep(5)`.
+- `test_get_model_metadata`:
+  - Build `GetModelMetadataRequest` with `gen_model_spec(MODEL_NAME, 2, signature_name='predict')`.
+  - `metadata_field` includes `base_path`, `num_versions`, `signature_name`.
+  - Call `PredictionServiceStub.GetModelMetadata` and assert `GetModelMetadataResponse` type.
+- `test_get_model_status`:
+  - Build `GetModelStatusRequest` with `gen_model_spec(MODEL_NAME, 1, signature_name='predict')`.
+  - Call `ModelServiceStub.GetModelStatus` and assert `GetModelStatusResponse` type.
+- `test_handle_reload_config_request`:
+  - Build `ReloadConfigRequest`, extend config list with two `gen_model_config` entries (same name `test_model`, different base paths/versions).
+  - Call `HandleReloadConfigRequest` and assert `ReloadConfigResponse` type.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/mocked_tfserving.rs`.
