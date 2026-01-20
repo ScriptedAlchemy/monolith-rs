@@ -542,7 +542,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/mlp.py`](#monolith-native-training-layers-mlp-py) | 211 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/mlp.rs |  |
 | [`monolith/native_training/layers/mlp_test.py`](#monolith-native-training-layers-mlp-test-py) | 78 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/mlp_test.rs |  |
 | [`monolith/native_training/layers/multi_task.py`](#monolith-native-training-layers-multi-task-py) | 448 | IN PROGRESS | monolith-rs/crates/monolith-layers/src |  |
-| [`monolith/native_training/layers/multi_task_test.py`](#monolith-native-training-layers-multi-task-test-py) | 128 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/multi_task_test.py`](#monolith-native-training-layers-multi-task-test-py) | 128 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/multi_task_test.rs |  |
 | [`monolith/native_training/layers/norms.py`](#monolith-native-training-layers-norms-py) | 343 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/norms_test.py`](#monolith-native-training-layers-norms-test-py) | 84 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/pooling.py`](#monolith-native-training-layers-pooling-py) | 101 | TODO | TODO (manual) |  |
@@ -14065,50 +14065,47 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/multi_task_test.py`
 <a id="monolith-native-training-layers-multi-task-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 128
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke tests for MMoE and SNR layers (instantiation, serde, forward).
+- Key symbols/classes/functions: `MultiTaskTest` methods `test_mmoe_instantiate`, `test_mmoe_serde`, `test_mmoe_call`, `test_snr_instantiate`, `test_snr_serde`, `test_snr_call`.
+- External dependencies: TensorFlow v1 session mode, NumPy.
+- Side effects: Runs TF sessions for forward calls.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- MMoE:
+  - Instantiate via params with `num_tasks=2`, `num_experts=3`, `expert_output_dims=[128,64,64]`, `expert_activations='relu'`, `expert_initializers=GlorotNormal`.
+  - Direct constructor with same settings.
+  - `test_mmoe_call`: uses `gate_type='topk'`, `top_k=2`, expert dims list-of-lists, input `(100,128)`, sums output list.
+- SNR:
+  - Instantiate via params with `num_out_subnet=3`, `out_subnet_dim=128`, `use_ste=False`.
+  - Direct constructor with same values.
+  - `test_snr_call`: `snr_type='aver'`, `mode=PREDICT`, four inputs `(100,128)` each; sums outputs.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/multi_task_test.rs`.
+- Rust public API surface: `MMoE`, `MMoEConfig`, `SNR`, `SNRConfig`.
+- Data model mapping:
+  - `gate_type` and `top_k` → Rust gate config.
+  - `snr_type='aver'` → `SNRType::Aver`.
+- Feature gating: None.
+- Integration points: `monolith_layers::mmoe`, `monolith_layers::snr`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust tests for config round-trip for MMoE and SNR.
+2. Add forward tests with matching input shapes and configurations.
+3. Add deterministic assertions on output shapes/sums.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/multi_task_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/multi_task_test.rs` (new).
+- Cross-language parity test:
+  - Fix weights and inputs; compare outputs for MMoE (topk) and SNR (aver).
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses list-of-lists expert dims for MMoE; ensure Rust supports heterogeneous expert configs.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
