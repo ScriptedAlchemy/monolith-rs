@@ -499,8 +499,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/hash_table_ops_test.py`](#monolith-native-training-hash-table-ops-test-py) | 1200 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests |  |
 | [`monolith/native_training/hash_table_utils.py`](#monolith-native-training-hash-table-utils-py) | 50 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/src |  |
 | [`monolith/native_training/hash_table_utils_test.py`](#monolith-native-training-hash-table-utils-test-py) | 45 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/tests |  |
-| [`monolith/native_training/hooks/ckpt_hooks.py`](#monolith-native-training-hooks-ckpt-hooks-py) | 193 | TODO | TODO (manual) |  |
-| [`monolith/native_training/hooks/ckpt_hooks_test.py`](#monolith-native-training-hooks-ckpt-hooks-test-py) | 181 | TODO | TODO (manual) |  |
+| [`monolith/native_training/hooks/ckpt_hooks.py`](#monolith-native-training-hooks-ckpt-hooks-py) | 193 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks |  |
+| [`monolith/native_training/hooks/ckpt_hooks_test.py`](#monolith-native-training-hooks-ckpt-hooks-test-py) | 181 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/hooks/ckpt_info.py`](#monolith-native-training-hooks-ckpt-info-py) | 98 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hooks/ckpt_info_test.py`](#monolith-native-training-hooks-ckpt-info-test-py) | 45 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hooks/controller_hooks.py`](#monolith-native-training-hooks-controller-hooks-py) | 170 | TODO | TODO (manual) |  |
@@ -11016,50 +11016,51 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hooks/ckpt_hooks.py`
 <a id="monolith-native-training-hooks-ckpt-hooks-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 193
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Checkpoint hooks for worker iterator state and barrier coordination during saves.
+- Key symbols/classes/functions: `BarrierSaverListener`, `WorkerCkptHelper`, `assign_ckpt_info`, `get_ckpt_info`, `disable_iterator_save_restore`.
+- External dependencies: TensorFlow, `barrier_ops`, `basic_restore_hook`, `graph_meta`, `ckpt_hooks_pb2`.
+- Side effects: Creates local variables and placeholders, manipulates iterator saveables, blocks workers with barriers.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_get_meta()`:
+  - Lazily creates `WorkerCkptMetaInfo` local variable + placeholder + assign op.
+- `assign_ckpt_info(session, info)`:
+  - Assigns serialized `WorkerCkptInfo` to info_var.
+- `get_ckpt_info(session)`:
+  - Reads info_var and parses to `WorkerCkptInfo`.
+- `BarrierSaverListener`:
+  - On `before_save`, places a barrier and waits for workers to block (up to max_pending_seconds).
+  - On `after_save`, removes barrier if it was placed by this listener.
+- `WorkerCkptHelper`:
+  - Creates iterator saveables (if enabled) and a Saver to save per-worker iterator state.
+  - `create_save_iterator_callback` saves iterator checkpoints using current global_step from `WorkerCkptInfo`.
+  - `create_restorer_hook` restores iterator state on session creation.
+- `disable_iterator_save_restore()`:
+  - Disables iterator save/restore globally (must be called before helper creation).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/hooks/ckpt_hooks.rs` (new).
+- Rust public API surface: iterator checkpoint helper and barrier-based saver listener.
+- Feature gating: TF runtime required for iterator saveables and session hooks.
+- Integration points: training loops and distributed barrier coordination.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement worker checkpoint metadata storage and serialization.
+2. Implement barrier saver listener with wait/remove semantics.
+3. Implement iterator save/restore helper for dataset iterators.
+4. Provide a global toggle to disable iterator save/restore.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `ckpt_hooks_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/ckpt_hooks_test.rs` (new).
+- Cross-language parity test: verify iterator restore resumes from same element.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses TF iterator saveables and should be skipped if dataset iterators are not used in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -11076,50 +11077,45 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hooks/ckpt_hooks_test.py`
 <a id="monolith-native-training-hooks-ckpt-hooks-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 181
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests worker iterator save/restore and barrier-based saver listener behavior.
+- Key symbols/classes/functions: `WorkerCkptHooksTest`, `CountCheckpointSaverListener`.
+- External dependencies: TensorFlow, `ckpt_hooks`, `barrier_ops`, `save_utils`.
+- Side effects: Writes checkpoints under `TEST_TMPDIR`, spawns a thread to run a monitored session.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `testIteratorSaveRestore`:
+  - Saves iterator state at global_step=10 and restores; next element after restore matches expected value.
+- `testNoCkpt`:
+  - Restorer hook is a no-op when no checkpoint exists.
+- `testNoSaveables`:
+  - If no saveables, saving iterator state is skipped without error.
+- `testCkptDisabled`:
+  - `disable_iterator_save_restore()` prevents restore; iterator restarts from beginning.
+- `test_saver_with_barrier`:
+  - Verifies barrier placement during save and that saver listener callbacks are invoked in order.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/ckpt_hooks_test.rs` (new).
+- Rust public API surface: barrier saver listener and worker iterator checkpoint helper.
+- Feature gating: TF runtime required.
+- Integration points: save_utils and barrier operations.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add a Rust test dataset iterator and verify save/restore steps.
+2. Add a test for disabled iterator restore.
+3. Add a barrier coordination test ensuring save waits for workers.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/hooks/ckpt_hooks_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/ckpt_hooks_test.rs`.
+- Cross-language parity test: compare iterator position after restore.
 
 **Gaps / Notes**
-- TODO (manual)
+- Threaded monitored session in test may be hard to replicate in Rust; can approximate with explicit calls.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
