@@ -586,7 +586,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/model_export/export_hooks_test.py`](#monolith-native-training-model-export-export-hooks-test-py) | 141 | IN PROGRESS | N/A (export hook test) |  |
 | [`monolith/native_training/model_export/export_state_utils.py`](#monolith-native-training-model-export-export-state-utils-py) | 46 | IN PROGRESS | N/A (export state) |  |
 | [`monolith/native_training/model_export/export_state_utils_test.py`](#monolith-native-training-model-export-export-state-utils-test-py) | 36 | IN PROGRESS | N/A (export state test) |  |
-| [`monolith/native_training/model_export/export_utils.py`](#monolith-native-training-model-export-export-utils-py) | 98 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model_export/export_utils.py`](#monolith-native-training-model-export-export-utils-py) | 98 | IN PROGRESS | N/A (remote predict helper) |  |
 | [`monolith/native_training/model_export/export_utils_test.py`](#monolith-native-training-model-export-export-utils-test-py) | 43 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/saved_model_exporters.py`](#monolith-native-training-model-export-saved-model-exporters-py) | 739 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/saved_model_exporters_test.py`](#monolith-native-training-model-export-saved-model-exporters-test-py) | 153 | TODO | TODO (manual) |  |
@@ -17100,50 +17100,52 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_export/export_utils.py`
 <a id="monolith-native-training-model-export-export-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 98
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Helper for defining and invoking remote prediction signatures via `distributed_serving_ops.remote_predict`.
+- Key symbols/classes/functions: `RemotePredictHelper`, `_get_tensor_signature_name`.
+- External dependencies: TensorFlow, `nested_tensors`, `export_context`, `distributed_serving_ops`.
+- Side effects: Registers SavedModel signatures with `ExportContext`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_get_tensor_signature_name(t)`:
+  - Returns tensor name with ":" replaced by "_" (e.g., "foo:0" -> "foo_0").
+- `RemotePredictHelper.__init__(name, input_tensors, remote_func)`:
+  - Wraps inputs in `NestedTensors`, stores remote func, calls `_define_remote_func`.
+- `_define_remote_func()`:
+  - Creates placeholders matching flat input tensors (dtype/shape) with suffix `_remote_input_ph`.
+  - Builds nested input structure from placeholders and calls `remote_func`.
+  - Wraps outputs in `NestedTensors`.
+  - Builds signature input/output dicts keyed by `_get_tensor_signature_name`.
+  - Asserts no name conflicts (lengths match).
+  - Registers signature in current `ExportContext` via `add_signature`.
+- `call_remote_predict(model_name, input_tensors=None, old_model_name=None, task=0)`:
+  - Uses provided `input_tensors` or original input tensors.
+  - Calls `distributed_serving_ops.remote_predict` with signature name and I/O names.
+  - Passes `output_types` from output tensor dtypes and `signature_name=self._name`.
+  - Returns outputs in original nested structure.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A.
+- Rust public API surface: if remote predict exists, implement a helper mirroring signature registration.
+- Data model mapping: nested tensor structure + signature names.
+- Feature gating: remote serving only.
+- Integration points: distributed serving ops.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement nested tensor flattening and placeholder generation if Rust supports graph export.
+2. Ensure signature name mapping replaces ":" with "_".
+3. Provide remote predict wrapper matching arg ordering and output types.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `export_utils_test.py`.
+- Rust tests: add unit test for signature name mapping and nested output reconstruction.
+- Cross-language parity test: compare signature I/O names and remote_predict call args.
 
 **Gaps / Notes**
-- TODO (manual)
+- Relies on global export context; ensure one is active when constructing helper.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
