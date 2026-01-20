@@ -443,7 +443,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/data/transform/transforms_test.py`](#monolith-native-training-data-transform-transforms-test-py) | 70 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/data/transform_dataset_test.py`](#monolith-native-training-data-transform-dataset-test-py) | 168 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/data/utils.py`](#monolith-native-training-data-utils-py) | 55 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
-| [`monolith/native_training/debugging/debugging_client.py`](#monolith-native-training-debugging-debugging-client-py) | 98 | TODO | TODO (manual) |  |
+| [`monolith/native_training/debugging/debugging_client.py`](#monolith-native-training-debugging-debugging-client-py) | 98 | IN PROGRESS | monolith-rs/crates/monolith-training/src/debugging |  |
 | [`monolith/native_training/debugging/debugging_server.py`](#monolith-native-training-debugging-debugging-server-py) | 217 | TODO | TODO (manual) |  |
 | [`monolith/native_training/demo.py`](#monolith-native-training-demo-py) | 57 | TODO | TODO (manual) |  |
 | [`monolith/native_training/dense_reload_utils.py`](#monolith-native-training-dense-reload-utils-py) | 457 | TODO | TODO (manual) |  |
@@ -7787,53 +7787,60 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/debugging/debugging_client.py`
-
 <a id="monolith-native-training-debugging-debugging-client-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 98
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: CLI client to query debugging server endpoints for variable values or feature embeddings.
+- Key symbols/classes/functions: `main`, CLI flags `type`, `variable_names`, `feature_ids`, `feature_name`, `feature_names`.
+- External dependencies: `requests`, `json`, protobuf `text_format`, `embedding_hash_table_pb2.EntryDump`.
+- Side effects: HTTP POSTs to local debugging server; logs results; raises exceptions on invalid flag combos.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Flags:
+  - `--type` must be `debugging_variables` or `debugging_features`.
+  - `--variable_names` list for variable lookup.
+  - `--feature_ids` list for feature lookup.
+  - `--feature_name` single name to pair with all ids.
+  - `--feature_names` list of names; must be same length as `feature_ids` if provided.
+- `debugging_variables` flow:
+  - If `variable_names` empty → log and return.
+  - POST JSON `{"variable_names": [...]}` to `http://127.0.0.1:<port>/debugging/variables`.
+  - Response JSON contains `STATUS`, `SUCCESS/FAIL`, `MSG` keys; on FAIL log reason and return.
+  - `MSG` is JSON-encoded dict name→value; logs each variable value or "Not exist".
+- `debugging_features` flow:
+  - Disallow providing both `feature_name` and `feature_names`.
+  - If `feature_ids` empty → log and return.
+  - If `feature_name` set, expand to list same length as ids.
+  - Validate `len(feature_names) == len(feature_ids)` else raise.
+  - POST JSON `{"feature_names": [...], "feature_ids": [...]}` to `/debugging/features`.
+  - On FAIL log reason and return.
+  - `MSG` is JSON-encoded dict name→id→textproto of `EntryDump`.
+  - If present, parse textproto into `EntryDump` and log; else log "Not exist".
+- Script mode: sets logging verbosity INFO, disables eager, and runs app.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/debugging` (or CLI crate).
+- Rust public API surface: CLI command for debugging server queries.
+- Data model mapping: JSON request/response; `EntryDump` textproto parsing.
+- Feature gating: requires debugging server running locally.
+- Integration points: `debugging_server.py` endpoints.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a Rust CLI that mirrors flags and validation.
+2. POST to `/debugging/variables` and `/debugging/features` with identical JSON payloads.
+3. Parse response JSON; for features, parse textproto into `EntryDump` (protobuf text format parser).
+4. Match logging output patterns and error handling (exceptions for invalid flags).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: integration tests with a mocked debugging server (or golden responses).
+- Cross-language parity test: compare outputs against Python client for same server responses.
 
 **Gaps / Notes**
-- TODO (manual)
+- Depends on `requests` and protobuf text parsing; Rust needs equivalent libraries.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7848,6 +7855,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/debugging/debugging_server.py`
+
 <a id="monolith-native-training-debugging-debugging-server-py"></a>
 
 **Status:** TODO (manual review required)
