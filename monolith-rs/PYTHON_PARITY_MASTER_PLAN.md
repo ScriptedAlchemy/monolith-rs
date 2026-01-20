@@ -575,8 +575,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/model_dump/graph_utils.py`](#monolith-native-training-model-dump-graph-utils-py) | 845 | IN PROGRESS | N/A (TF graph utils) |  |
 | [`monolith/native_training/model_dump/graph_utils_test.py`](#monolith-native-training-model-dump-graph-utils-test-py) | 86 | IN PROGRESS | N/A (TF graph utils) |  |
 | [`monolith/native_training/model_export/__init__.py`](#monolith-native-training-model-export-init-py) | 22 | IN PROGRESS | N/A (module alias) |  |
-| [`monolith/native_training/model_export/data_gen_utils.py`](#monolith-native-training-model-export-data-gen-utils-py) | 732 | TODO | TODO (manual) |  |
-| [`monolith/native_training/model_export/data_gen_utils_test.py`](#monolith-native-training-model-export-data-gen-utils-test-py) | 0 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model_export/data_gen_utils.py`](#monolith-native-training-model-export-data-gen-utils-py) | 732 | IN PROGRESS | N/A (data generator) |  |
+| [`monolith/native_training/model_export/data_gen_utils_test.py`](#monolith-native-training-model-export-data-gen-utils-test-py) | 0 | IN PROGRESS | N/A (no tests) |  |
 | [`monolith/native_training/model_export/demo_export.py`](#monolith-native-training-model-export-demo-export-py) | 100 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/demo_export_test.py`](#monolith-native-training-model-export-demo-export-test-py) | 48 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/demo_predictor.py`](#monolith-native-training-model-export-demo-predictor-py) | 110 | TODO | TODO (manual) |  |
@@ -16417,50 +16417,71 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_export/data_gen_utils.py`
 <a id="monolith-native-training-model-export-data-gen-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 732
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Generates synthetic Example/Instance/ExampleBatch data and PredictionLogs for model export, warmup, and testing.
+- Key symbols/classes/functions: `FeatureMeta`, `ParserArgs`, `gen_fids_v1`, `gen_fids_v2`, `fill_features`, `fill_line_id`, `gen_example`, `gen_instance`, `gen_example_batch`, `gen_prediction_log`, `gen_warmup_file`, `gen_random_data_file`.
+- External dependencies: TensorFlow, TF Serving protos, Monolith feature list, proto types (`Example`, `Instance`, `LineId`).
+- Side effects: Writes TFRecord warmup files and binary data files.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Constants: `MASK_V1/MAX_SLOT_V1`, `MASK_V2/MAX_SLOT_V2` control fid encoding.
+- `FeatureMeta`:
+  - Infers dtype from LineId field descriptors or slot (defaults to float32 for dense, int64 for sparse).
+  - `shape` defaults to 1 for dense, -1 for sparse.
+- `ParserArgs` dataclass:
+  - Reads defaults from TF collections via `get_collection`.
+  - Ensures `DEFAULT_SERVING_SIGNATURE_DEF_KEY` is present in `signature_name`.
+  - Attempts `FeatureList.parse()` if no feature_list provided.
+- `gen_fids_v1(slot, size)` / `gen_fids_v2(slot, size)`:
+  - Encodes slot in high bits and random low bits; v1 logs when slot > max, v2 asserts slot range.
+- `fill_features` (singledispatch):
+  - For `EFeature` (Example):
+    - Sparse: generates fid_v2_list with drop_rate logic and slot-specific handling.
+    - Dense: fills float/double/int64 lists with random values.
+  - For `IFeature` (Instance):
+    - Similar logic; uses `feature.fid`, `float_value`, `int64_value`.
+- `fill_line_id(line_id, features, hash_len=48, actions=None)`:
+  - Fills LineId fields based on metadata or defaults; handles repeated vs scalar fields.
+- `lg_header(source)` / `sort_header(sort_id, kafka_dump, kafka_dump_prefix)`:
+  - Produce binary headers for data files, including Java hash computation.
+- `gen_example(...)`:
+  - Builds Example with named_feature entries; uses `FeatureList` or slot lookup; fills labels and LineId.
+- `gen_instance(...)`:
+  - Builds Instance proto using fidv1/fidv2 features; fills labels and LineId.
+- `gen_example_batch(...)`:
+  - Builds ExampleBatch with per-feature lists, LineId list (`__LINE_ID__`), and labels (`__LABEL__`).
+- `gen_prediction_log(args)`:
+  - Generates PredictRequest logs using the appropriate variant type.
+  - Supports multiple signatures; may emit multiple requests for multi-head outputs.
+- `gen_warmup_file(warmup_file, drop_rate)`:
+  - Builds ParserArgs, removes dense label if present, writes PredictionLog TFRecord to file.
+  - Creates directories if needed; returns file path or None.
+- `gen_random_data_file(...)`:
+  - Writes binary file with headers and serialized instances for `num_batch`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (Python proto generators).
+- Rust public API surface: if needed, add a data-gen utility module for tests/warmup.
+- Data model mapping: map proto types (Example/Instance/ExampleBatch) to Rust protobufs.
+- Feature gating: TF Serving protos required for PredictionLog generation.
+- Integration points: model export/warmup pipeline.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement fid encoding and feature filling logic in Rust.
+2. Mirror ParserArgs collection-based defaults if Rust uses similar collections.
+3. Implement PredictionLog generation and TFRecord writing for warmup data.
+4. Port binary data file format (headers + length + payload).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none (`data_gen_utils_test.py` is empty).
+- Rust tests: add unit tests for fid encoding and example generation.
+- Cross-language parity test: compare serialized outputs for fixed RNG seed.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses `eval` on stored representations and random data generation; not deterministic without seeding.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -16477,50 +16498,35 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_export/data_gen_utils_test.py`
 <a id="monolith-native-training-model-export-data-gen-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 0
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Empty test placeholder.
+- Key symbols/classes/functions: none.
+- External dependencies: none.
+- Side effects: none.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- File is empty; no tests executed.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A.
+- Rust public API surface: none.
+- Data model mapping: none.
+- Feature gating: none.
+- Integration points: none.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add tests if/when data generation is ported to Rust.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: none.
+- Cross-language parity test: N/A.
 
 **Gaps / Notes**
-- TODO (manual)
+- No coverage for data generation utilities.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
