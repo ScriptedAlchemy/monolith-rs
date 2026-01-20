@@ -525,7 +525,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/advanced_activations_test.py`](#monolith-native-training-layers-advanced-activations-test-py) | 84 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/advanced_activations_test.rs |  |
 | [`monolith/native_training/layers/agru.py`](#monolith-native-training-layers-agru-py) | 295 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/agru.rs |  |
 | [`monolith/native_training/layers/agru_test.py`](#monolith-native-training-layers-agru-test-py) | 112 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/agru_test.rs |  |
-| [`monolith/native_training/layers/dense.py`](#monolith-native-training-layers-dense-py) | 307 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/dense.py`](#monolith-native-training-layers-dense-py) | 307 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/dense.rs |  |
 | [`monolith/native_training/layers/dense_test.py`](#monolith-native-training-layers-dense-test-py) | 147 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/feature_cross.py`](#monolith-native-training-layers-feature-cross-py) | 805 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/feature_cross_test.py`](#monolith-native-training-layers-feature-cross-test-py) | 286 | TODO | TODO (manual) |  |
@@ -12819,50 +12819,85 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/dense.py`
 <a id="monolith-native-training-layers-dense-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 307
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Custom Dense layer with optional kernel normalization, optimizer attachment to variables, partitioned variable support, and inactive-ReLU monitoring.
+- Key symbols/classes/functions: `Dense(Layer)` with `add_weight`, `get_variable`, `build`, `call`, `compute_output_shape`, `get_config`.
+- External dependencies: TensorFlow/Keras internals (`core_ops.dense`, `variable_ops.PartitionedVariable`, `base_layer_utils`, `InputSpec`, `K.track_variable`, `tensor_shape`), Monolith utils (`with_params`, `get_uname`).
+- Side effects:
+  - Attaches `.optimizer` attribute to variables created.
+  - Tracks split variables in layer trainable/non-trainable weights.
+  - Emits summary histogram for inactive ReLU counts when enabled.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Initialization:
+  - If `input_shape` not provided and `input_dim` is, convert to `input_shape=(input_dim,)`.
+  - Sets `units`, `activation=activations.get(activation)`, `use_bias`, `kernel_initializer`, `bias_initializer`, `kernel_regularizer`, `bias_regularizer`, `allow_kernel_norm`, `kernel_norm_trainable`, `partitioner`, `inactive_relu_monitor`, `inactive_relu_monitor_decay`, `optimizer`.
+  - `input_spec = InputSpec(min_ndim=2)`, `supports_masking=True`.
+- `add_weight` override:
+  - Calls `super().add_weight(...)`, then sets `var.optimizer = self.optimizer`.
+  - If `PartitionedVariable`, set optimizer on each shard.
+- `get_variable` helper:
+  - Wraps `tf.compat.v1.get_variable` inside current name scope with AUTO_REUSE.
+  - Sets optimizer on variable(s).
+  - Manually tracks variables with `K.track_variable` and appends to `_trainable_weights` or `_non_trainable_weights`, including split/partitioned variables.
+- `build(input_shape)`:
+  - Ensures dtype is floating/complex; otherwise `TypeError("Unable to build `Dense` layer with non-floating point dtype %s")`.
+  - Requires last dimension known; otherwise `ValueError("The last dimension of the inputs to `Dense` should be defined. Found `None`.")`.
+  - Creates kernel variable using `get_variable` seeded by `kernel_initializer` output.
+  - If `allow_kernel_norm`:
+    - Normalize kernel with `tf.nn.l2_normalize(axis=0, epsilon=1e-6)`.
+    - If `kernel_norm_trainable`, create `trainable_kernel_norm` initialized with `tf.linalg.norm(init_kernel, axis=0)` and multiply normalized kernel by it.
+  - If `use_bias`, add bias weight; else `bias=None`.
+  - If `inactive_relu_monitor` and activation is ReLU:
+    - Create non-trainable `inactive_relu_count_moving_avg` variable under `METRIC_VARIABLES` and `GLOBAL_VARIABLES`.
+- `call(inputs)`:
+  - Uses `core_ops.dense(inputs, kernel, bias, activation, dtype=compute_dtype)`.
+  - If `inactive_relu_monitor`:
+    - `inactive_relu_count = units - count_nonzero(output, axis=0)`.
+    - Logs histogram `inactive_relu_count_moving_avg`.
+    - Updates moving average with decay and uses control dependencies.
+- `compute_output_shape`:
+  - Requires last dim defined; otherwise `ValueError("The innermost dimension of input_shape must be defined, but saw: %s")`.
+  - Output shape = input_shape[:-1] + units.
+- `get_config`:
+  - Serializes units, activation, use_bias, initializers, regularizers, `allow_kernel_norm`, `kernel_norm_trainable`, `partitioner`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/src/dense.rs`.
+- Rust public API surface:
+  - `Dense` currently implements a linear layer with optional kernel norm (no activation in the layer).
+  - Add a `DenseConfig` or wrapper to include activation and inactive-ReLU monitoring.
+- Data model mapping:
+  - Python `activation` → Rust `ActivationType` or `ActivationLayer` (in `mlp.rs`/`activation_layer.rs`).
+  - Python `kernel_norm_trainable` → Rust `kernel_norm_trainable`.
+  - Python `partitioner` and `optimizer` do not exist in Rust; require explicit non-TF equivalents or document omission.
+- Feature gating: None.
+- Integration points: MLP and any model configs that reference `Dense` directly.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Decide parity approach:
+   - Option A: Add activation inside `Dense` (match Python call signature).
+   - Option B: Keep linear `Dense` and ensure all call sites add `ActivationLayer` explicitly (document difference).
+2. Add kernel norm behavior to match TF:
+   - Normalize weights along axis 0, epsilon 1e-6.
+   - If trainable, scale by per-output norm.
+3. Add inactive ReLU monitoring equivalent (optional):
+   - Track per-unit zero counts and exponential moving average; integrate with Rust metrics/logging.
+4. Add config serialization to include activation, kernel/bias initializers, regularizers, allow_kernel_norm, kernel_norm_trainable.
+5. Mirror error messages for invalid input dtypes and missing last dimension (as close as Rust allows).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/dense_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/dense_test.rs` (new).
+- Cross-language parity test:
+  - Fix weights/bias and compare outputs for activation on/off and kernel_norm modes.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python attaches `.optimizer` to TF variables and supports partitioned variables; Rust has no equivalent.
+- Python Dense includes activation inside the layer; Rust `Dense` is linear-only today.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
