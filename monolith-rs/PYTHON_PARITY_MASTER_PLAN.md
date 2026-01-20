@@ -569,7 +569,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/metric/utils.py`](#monolith-native-training-metric-utils-py) | 104 | IN PROGRESS | N/A (TF custom ops) |  |
 | [`monolith/native_training/metric/utils_test.py`](#monolith-native-training-metric-utils-test-py) | 50 | IN PROGRESS | N/A (TF custom ops) |  |
 | [`monolith/native_training/mlp_utils.py`](#monolith-native-training-mlp-utils-py) | 444 | IN PROGRESS | N/A (TF distributed runtime) |  |
-| [`monolith/native_training/model.py`](#monolith-native-training-model-py) | 182 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model.py`](#monolith-native-training-model-py) | 182 | IN PROGRESS | N/A (test model) |  |
 | [`monolith/native_training/model_comp_test.py`](#monolith-native-training-model-comp-test-py) | 183 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_dump/dump_utils.py`](#monolith-native-training-model-dump-dump-utils-py) | 757 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_dump/graph_utils.py`](#monolith-native-training-model-dump-graph-utils-py) | 845 | TODO | TODO (manual) |  |
@@ -15941,50 +15941,67 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model.py`
 <a id="monolith-native-training-model-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 182
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Defines a small FFM (field-aware factorization machine) test model and input pipeline for native training.
+- Key symbols/classes/functions: `_parse_example`, `TestFFMModel`, `FFMParams`, constants `_NUM_SLOTS`, `_FFM_SLOT`, `_VOCAB_SIZES`, `_NUM_EXAMPLES`.
+- External dependencies: TensorFlow, NumPy, Monolith feature/entry APIs, `deep_insight_ops`.
+- Side effects: Sets NumPy seed in input function; emits deep insight metrics in training; logs model info.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Constants:
+  - `_NUM_SLOTS = 6`, `_VOCAB_SIZES = [5,5,5,5,5,5]`, `_NUM_EXAMPLES = 64`.
+  - `_FFM_SLOT` defines tuple pairs and embedding dim for dot products.
+- `_parse_example(example: str) -> Dict[str, tf.Tensor]`:
+  - Builds feature map with fixed label and VarLenFeature for each slot.
+  - Parses examples with `tf.io.parse_example`.
+  - Converts any `SparseTensor` to `RaggedTensor`.
+  - Returns feature dict including `"label"` and slot features.
+- `TestFFMModel(NativeTask)`:
+  - `create_input_fn(mode)` returns `input_fn()`:
+    - Sets `np.random.seed(0)` for deterministic example generation.
+    - Generates `_NUM_EXAMPLES` examples via `generate_ffm_example(_VOCAB_SIZES)`.
+    - Builds dataset: batch to `per_replica_batch_size`, map `_parse_example`, cache, repeat, prefetch.
+  - `create_model_fn()` returns `model_fn(features, mode, config)`:
+    - Creates feature slots/columns for each slot with FTRL bias + SGD default optimizer.
+    - Collects bias embeddings for first half of slots.
+    - Computes FFM dot products for each `(user,item,dim)` in `_FFM_SLOT`.
+    - `ffm_out = add_n(dot_res) + sum_bias`, `pred = sigmoid(ffm_out)`.
+    - If `mode == PREDICT`: returns `EstimatorSpec(predictions=pred)`.
+    - Loss: `reduce_sum(binary_crossentropy(features["label"], pred))`.
+    - If deep insight metrics enabled and sample ratio > 0:
+      - Creates deep insight client, builds uids/req_times/sample_rates, calls `write_deep_insight`.
+      - Logs model_name/target.
+    - Else uses `tf.no_op()`.
+    - Increments global step and applies embedding gradients via `ctx.apply_embedding_gradients`.
+    - Returns `EstimatorSpec(loss=loss, train_op=group(apply_grads, deep_insight_op))`.
+  - `create_serving_input_receiver_fn()`:
+    - Creates string placeholder `instances`, parses via `_parse_example`, returns `ServingInputReceiver`.
+- `FFMParams(SingleTaskModelParams)`:
+  - `task()` returns `TestFFMModel.params()` with `per_replica_batch_size = 64`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (test model; no Rust equivalent).
+- Rust public API surface: none.
+- Data model mapping: if ported, map to Rust embedding feature slots and FFM dot products.
+- Feature gating: none.
+- Integration points: training pipeline and deep insight metrics.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. If needed for parity demos, implement a Rust FFM example model and parser.
+2. Mirror dataset generation determinism (`np.random.seed(0)`) with fixed RNG.
+3. Match bias/slot construction and FFM dot-product structure.
+4. Add deep insight metrics only if TF runtime backend exists.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none in repo.
+- Rust tests: optional integration test for forward pass + loss.
+- Cross-language parity test: compare forward outputs on fixed synthetic batch.
 
 **Gaps / Notes**
-- TODO (manual)
+- This is a test/sample model; may not be required for production parity.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
