@@ -1165,6 +1165,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
   - Creates `ZKBackend`, `start()` then executes command; `stop()` in `finally`.
   - For `pub/unpub`, layout path is `/{bzid}/layouts/{layout}`.
   - Uses `env_utils.setup_hdfs_env()` in `__main__` guard; sets logging.
+  - Flags: `zk_servers`, `bzid`, `export_base`, `overwrite`, `model_name`, `layout`, `arch`, `cmd`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-cli/src/bin/agent_controller.rs`.
@@ -1214,16 +1215,20 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Required Behavior (Detailed)**
 - `setUpClass`:
-  - Create `ZKBackend` with fake ZK; `start()`.
+  - `bzid='gip'`.
+  - `bd = ZKBackend(bzid, zk_servers='127.0.0.1:9999')`.
+  - Replace `bd._zk` with `FakeKazooClient()`.
+  - Call `bd.start()`.
 - `test_decl_saved_models`:
-  - Call `declare_saved_model` with test saved_model directory.
+  - Uses exported saved_model dir under `TEST_SRCDIR/TEST_WORKSPACE/monolith/native_training/model_export/testdata/saved_model`.
+  - Calls `declare_saved_model(..., model_name='test_ffm_model', overwrite=True)`.
   - Verify `bd.list_saved_models('test_ffm_model')` matches `{ps_0..ps_4, entry}`.
 - `test_pub`:
   - Declare saved model again.
-  - `map_model_to_layout(..., "entry", action="pub")` adds entry only.
-  - `map_model_to_layout(..., "ps_*", action="pub")` adds all ps subgraphs.
-  - `map_model_to_layout(..., "ps_*", action="unpub")` removes ps subgraphs.
-  - `map_model_to_layout(..., "entry", action="unpub")` results in empty layout list.
+  - `map_model_to_layout(..., "test_ffm_model:entry", "/gip/layouts/test_layout1", "pub")` -> `layout_info['test_layout1'] == ['test_ffm_model:entry']`.
+  - `map_model_to_layout(..., "test_ffm_model:ps_*", "pub")` -> adds `ps_0..ps_4` (ordered list).
+  - `map_model_to_layout(..., "test_ffm_model:ps_*", "unpub")` -> back to entry only.
+  - `map_model_to_layout(..., "test_ffm_model:entry", "unpub")` -> empty list.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-cli/tests/agent_controller.rs` (or serving tests if backend lives there).
