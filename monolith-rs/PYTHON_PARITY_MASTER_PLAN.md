@@ -967,12 +967,26 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 **Required Behavior (Detailed)**
 - `run_agent(conf_path, tfs_log, use_mps, replica_id, dense_service_index)`:
   - Mutates `REPLICA_ID` and `DENSE_SERVICE_IDX` when `use_mps` is true.
-  - Loads `AgentConfig` from file and instantiates AgentV1 or AgentV3 based on `agent_version`.
-  - Starts `ModelManager` for rough sort model; terminates self on failure.
+  - If `use_mps`: sets env vars and suffixes `tfs_log` with `.mps{dense_service_index}`.
+  - Loads `AgentConfig` from file; uses `conf_path = dirname(agent_config_path)`.
+  - `agent_version` dispatch:
+    - `1` -> `AgentV1(config, conf_path, tfs_log)`.
+    - `2` -> raises `Exception('agent_version v2 is not support')`.
+    - `3` -> `AgentV3(config, conf_path, tfs_log)`.
+    - else -> raises `Exception("agent_version error ...")`.
+  - Starts `ModelManager(rough_sort_model_name, rough_sort_model_p2p_path, rough_sort_model_local_path, True)`.
+  - If `model_manager.start()` returns False: log error, `os.kill(os.getpid(), SIGKILL)`.
+  - Calls `agent.start()` then `agent.wait_for_termination()`.
 - `main()`:
-  - Initializes HDFS env via `env_utils.setup_hdfs_env()`.
-  - Loads AgentConfig, handles `DeployType.DENSE` + `dense_service_num > 1` by spawning multiple processes.
-  - Otherwise runs single agent.
+  - Calls `env_utils.setup_hdfs_env()` in try/except; logs failure.
+  - Logs full env via `logging.info(f'environ is : {os.environ!r}')`.
+  - If `FLAGS.conf` missing: prints `FLAGS.get_help()` and returns.
+  - Loads `AgentConfig.from_file(FLAGS.conf)`.
+  - If `deploy_type == DENSE` and `dense_service_num > 1`:
+    - Spawns `dense_service_num` processes running `run_agent`.
+    - `cur_rid = config.replica_id * dense_service_num + i`.
+    - Joins all processes.
+  - Else: calls `run_agent(FLAGS.conf, FLAGS.tfs_log, False, config.replica_id, 0)`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-cli` or `monolith-rs/crates/monolith-serving/src/bin/*` (new binary).
@@ -1018,13 +1032,21 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: resolves binary paths, builds shell commands, changes CWD in context manager.
 
 **Required Behavior (Detailed)**
-- `get_cmd_path()` returns the absolute path to this Python file.
-- `get_cmd_and_port(...)`:
-  - For PS/ENTRY/DENSE: delegates to `AgentConfig.get_cmd_and_port` with `tfs_binary`.
-  - Else (proxy): builds proxy command string, uses `proxy.conf` if present.
+- Constants:
+  - `TFS_BINARY = {TFS_HOME}/bin/tensorflow_model_server`.
+  - `PROXY_BINARY = {TFS_HOME}/bin/server`.
+- `get_cmd_path()` returns `os.path.abspath(__file__)`.
+- `get_cmd_and_port(config, conf_path=None, server_type=None, config_file=None, tfs_binary=TFS_BINARY, proxy_binary=PROXY_BINARY)`:
+  - For `server_type` in `{PS, ENTRY, DENSE}`: delegates to `config.get_cmd_and_port(tfs_binary, server_type=..., config_file=...)`.
+  - Else (proxy): uses `{conf_path}/proxy.conf` if present.
+    - Command string: `{proxy_binary} --port={config.proxy_port} --grpc_target=localhost:{config.tfs_entry_port} [--conf_file=proxy.conf] &`.
+    - Returns `(cmd, config.proxy_port)`.
 - `ServingLog` context manager:
-  - Builds log filename prefixed with `log_prefix` and switches CWD to `$TFS_HOME/bin`.
-- `AgentBase` abstract base with `start()` and `wait_for_termination()`.
+  - On enter: builds `log_filename = dirname(tfs_log)/{log_prefix}_{basename(tfs_log)}`.
+  - Saves current cwd, `chdir` to `{TFS_HOME}/bin`, returns `open(log_filename, 'a')`.
+  - On exit: `chdir` back to previous cwd (does not close file handle itself).
+- `AgentBase`:
+  - Stores `config` and defines abstract `start()` and `wait_for_termination()`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: new module in `monolith-rs/crates/monolith-serving/src/agent_base.rs` (or similar).
@@ -1082,6 +1104,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
   - `addr` or (`get` + `args=addr`):
     - Connect `MonolithKazooClient` with `agent_conf.zk_servers`.
     - Traverse `/{bzid}/service/{model_name}`; support dc-aware layout (`idc:cluster/server_type:task`) and non-dc (`server_type:task`).
+    - Uses regex `TASK = r'^(\\w+):(\\d+)$'` to detect `server_type:task` nodes; otherwise treats as `idc:cluster` prefix.
     - For each replica node, read `ReplicaMeta`, print path + `archon_address`, `address`, and `ModelState.Name`.
     - Sort output; handle `NoNodeError` by printing "{model_name} has not load !" and returning.
   - `get` + `args=info`: print `cal_model_info_v2(model_dir, ckpt)`.
@@ -1165,6 +1188,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
   - Creates `ZKBackend`, `start()` then executes command; `stop()` in `finally`.
   - For `pub/unpub`, layout path is `/{bzid}/layouts/{layout}`.
   - Uses `env_utils.setup_hdfs_env()` in `__main__` guard; sets logging.
+  - Flags: `zk_servers`, `bzid`, `export_base`, `overwrite`, `model_name`, `layout`, `arch`, `cmd`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-cli/src/bin/agent_controller.rs`.
@@ -1214,16 +1238,20 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Required Behavior (Detailed)**
 - `setUpClass`:
-  - Create `ZKBackend` with fake ZK; `start()`.
+  - `bzid='gip'`.
+  - `bd = ZKBackend(bzid, zk_servers='127.0.0.1:9999')`.
+  - Replace `bd._zk` with `FakeKazooClient()`.
+  - Call `bd.start()`.
 - `test_decl_saved_models`:
-  - Call `declare_saved_model` with test saved_model directory.
+  - Uses exported saved_model dir under `TEST_SRCDIR/TEST_WORKSPACE/monolith/native_training/model_export/testdata/saved_model`.
+  - Calls `declare_saved_model(..., model_name='test_ffm_model', overwrite=True)`.
   - Verify `bd.list_saved_models('test_ffm_model')` matches `{ps_0..ps_4, entry}`.
 - `test_pub`:
   - Declare saved model again.
-  - `map_model_to_layout(..., "entry", action="pub")` adds entry only.
-  - `map_model_to_layout(..., "ps_*", action="pub")` adds all ps subgraphs.
-  - `map_model_to_layout(..., "ps_*", action="unpub")` removes ps subgraphs.
-  - `map_model_to_layout(..., "entry", action="unpub")` results in empty layout list.
+  - `map_model_to_layout(..., "test_ffm_model:entry", "/gip/layouts/test_layout1", "pub")` -> `layout_info['test_layout1'] == ['test_ffm_model:entry']`.
+  - `map_model_to_layout(..., "test_ffm_model:ps_*", "pub")` -> adds `ps_0..ps_4` (ordered list).
+  - `map_model_to_layout(..., "test_ffm_model:ps_*", "unpub")` -> back to entry only.
+  - `map_model_to_layout(..., "test_ffm_model:entry", "unpub")` -> empty list.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-cli/tests/agent_controller.rs` (or serving tests if backend lives there).
@@ -1284,6 +1312,12 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
   - Else: fill address with `get_local_ip()` + `agent_port`, plus memory via `cal_available_memory_v2()`.
 - `AgentService` wrapper:
   - Constructs grpc server with `ThreadPoolExecutor`, registers `AgentServiceImpl`, binds to port.
+  - `AgentDataProvider` wraps `addrs_fn` callback returning `{saved_model_name: [addr...]}`.
+  - `GetReplicas` v1 uses `_watcher._conf.idc/cluster` and `get_replicas(server_type, task, idc, cluster)`; v2 maps `ReplicaMeta.address`.
+  - `HeartBeat` v1 uses `dc_aware` to strip path prefix (`key.split('/')[-1]`) and populates `AddressList`.
+  - `HeartBeat` v3 uses `_data_provider._addrs_fn()` if non-empty.
+  - `GetResource` v2+ fills `shard_id`, `replica_id`, `memory`, `cpu/network/work_load=-1.0`.
+  - `AgentService` binds `[::]:{port or 0}` for watcher path; uses `conf.agent_port` for zk/data_provider.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/grpc_agent.rs` (gRPC), `monolith-rs/crates/monolith-serving/src/server.rs` (server lifecycle), plus new module for AgentConfig integration.
@@ -1335,12 +1369,25 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Required Behavior (Detailed)**
 - `setUpClass`:
-  - Set IDC/cluster env vars.
-  - Create `FakeKazooClient` and `ReplicaWatcher` with `AgentConfig` (dc-aware, ps deploy).
-  - Register ZK nodes for PS replicas and entry replicas with `ReplicaMeta(stat=AVAILABLE)`.
-  - Start watcher, start `AgentService`, and create `SvrClient`.
-- `test_heart_beat`: `heart_beat(ServerType.PS)` should return addresses map with `num_ps` entries.
-- `test_get_replicas`: `get_replicas(ServerType.PS, task=NUM_PS_REPLICAS-1)` returns `NUM_PS_REPLICAS` addresses.
+  - Set `TCE_INTERNAL_IDC='lf'`, `TCE_LOGICAL_CLUSTER='default'`.
+  - Start `FakeKazooClient`.
+  - Build `AgentConfig(bzid='test_model', base_name=MODEL_NAME, deploy_type='ps', base_path=BASE_PATH, num_ps=20, dc_aware=True)`.
+  - Create `ReplicaWatcher(zk, agent_conf)`.
+  - Call `register(zk)` to seed replica nodes; then `watcher.watch_data()`.
+  - Start `AgentService(watcher, port=agent_conf.agent_port)`.
+  - Create `SvrClient(agent_conf)`.
+- `register(zk)`:
+  - `path_prefix = agent_conf.path_prefix`.
+  - For each PS task `0..num_ps-1` and replica `0..1`:
+    - `ReplicaMeta(address='192.168.1.{idx}:{find_free_port()}', stat=ModelState.AVAILABLE)`.
+    - Create ephemeral node at `{path_prefix}/ps:{task_id}/{replica_id}` with `makepath=True`.
+  - For entry replicas `0..1`: create `{path_prefix}/entry:0/{replica_id}` similarly.
+  - Uses `zk.retry(zk.create, ...)` and falls back to `zk.set` on `NodeExistsError`.
+- `test_heart_beat`:
+  - `client.heart_beat(server_type=ServerType.PS)`; asserts `len(resp.addresses) == 20`.
+- `test_get_replicas`:
+  - `client.get_replicas(server_type=ServerType.PS, task=NUM_PS_REPLICAS - 1)` (task=1).
+  - Asserts `len(resp.address_list.address) == NUM_PS_REPLICAS` (2).
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/agent_service.rs`.
@@ -1531,16 +1578,30 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: starts AgentV3 (with fake components), writes model_config file.
 
 **Required Behavior (Detailed)**
-- Setup:
-  - Create `AgentV3` with `deploy_type=unified`, `agent_version=3`.
-  - Replace `_tfs_wrapper` with `FakeTFSWrapper` and `_backend._zk` with `FakeKazooClient`.
-  - Start agent; populate `/gip/saved_models/test_ffm_model/*` nodes with deploy configs.
+- Class setup:
+  - `bzid='gip'`, set `MY_HOST_IP=127.0.0.1`.
+  - Build `AgentConfig(bzid='gip', deploy_type='unified', agent_version=3, layout_pattern='/gip/layout', zk_servers='127.0.0.1:8888')`.
+  - `base_path = os.environ['TEST_TMPDIR']`.
+  - Construct `AgentV3` with:
+    - `conf_path = os.path.join(base_path, '/monolith_serving/conf')` (note: absolute suffix).
+    - `tfs_log = os.path.join('monolith_serving/logs/log.log')` (relative path).
+  - Replace `_tfs_wrapper` with `FakeTFSWrapper(agent._model_config_path)`.
+  - Replace `_backend._zk` with `FakeKazooClient`.
+  - Call `agent.start()`.
+  - For sub_graph in `['entry','ps_0','ps_1','ps_2']`:
+    - `config={'model_base_path': TEST_TMPDIR/test_ffm_model/exported_models/{sub_graph}, 'version_policy': 'latest'}`.
+    - Write JSON bytes to ZK path `/gip/saved_models/test_ffm_model/{sub_graph}` with `makepath=True`.
 - `test_service_info`: backend `get_service_info(container)` equals agent's `_service_info`.
 - `test_publish_models`:
-  - Add layout nodes (`/gip/layout/test_ffm_model:entry`, `/ps_0`).
-  - Verify FakeTFSWrapper sees both models.
-  - Call `sync_available_saved_models()` and verify service_map binding.
-  - Delete one layout node, verify updated list and service_map.
+  - Assert `tfs_wrapper.list_saved_models()` initially empty.
+  - `zk.ensure_path('/gip/layout/test_ffm_model:entry')` and `...:ps_0`.
+  - Expect `list_saved_models()` == `['test_ffm_model:entry','test_ffm_model:ps_0']` (order matters).
+  - Call `agent.sync_available_saved_models()`.
+  - Expect `backend.get_service_map()` equals:
+    - `{'test_ffm_model': {'entry': [agent._service_info], 'ps_0': [agent._service_info]}}`.
+  - Delete `/gip/layout/test_ffm_model:ps_0`.
+  - Expect `list_saved_models()` == `['test_ffm_model:entry']`.
+  - Call `sync_available_saved_models()` and expect service_map only has `entry`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/agent_v3.rs`.
@@ -1894,9 +1955,35 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: none; pure data serialization + address selection logic.
 
 **Required Behavior (Detailed)**
-- JSON serialization/deserialization exactly matches dataclasses_json output.
-- `ReplicaMeta.get_address` resolves IPv4/IPv6 with archon preference and filters `0.0.0.0` / `[::]`.
-- `get_path` methods build correct ZK paths.
+- Type aliases:
+  - `ModelState = ModelVersionStatus.State`.
+  - `ModelName`, `SubModelName`, `SubModelSize`, `TFSModelName`, `VersionPath` are `NewType` wrappers.
+  - `EmptyStatus = StatusProto()` (defined but unused).
+- `ModelMeta`:
+  - Fields: `model_name`, `model_dir`, `ckpt`, `num_shard=-1`, `action='NONE'`, `spec_replicas=[]`.
+  - `get_path(base_path)` -> `os.path.join(base_path, model_name)`.
+  - `serialize()` -> UTF-8 JSON bytes via `dataclasses_json`.
+  - `deserialize(bytes)` -> `from_json` on UTF-8 string.
+- `ResourceSpec`:
+  - Fields: `address`, `shard_id`, `replica_id`, `memory`, `cpu=-1.0`, `network=-1.0`, `work_load=-1.0`.
+  - `get_path(base_path)` -> `base_path/{shard_id}:{replica_id}`.
+  - `serialize`/`deserialize` mirror `ModelMeta`.
+- `PublishType` enum: `LOAD=1`, `UNLOAD=2`.
+- `PublishMeta`:
+  - Fields: `shard_id`, `replica_id=-1`, `model_name`, `num_ps`, `total_publish_num=1`, `sub_models`, `ptype=PublishType.LOAD`, `is_spec=False`.
+  - `get_path(base_path)` -> `base_path/{shard_id}:{replica_id}:{model_name}`.
+  - `serialize`/`deserialize` mirror `ModelMeta`.
+- `ReplicaMeta`:
+  - Fields: `address`, `address_ipv6`, `stat=ModelState.UNKNOWN`, `model_name`, `server_type`, `task=-1`, `replica=-1`, `archon_address`, `archon_address_ipv6`.
+  - `get_path(bzid, sep='/')` -> `['', bzid, 'service', model_name, f'{server_type}:{task}', str(replica)]` joined by `sep`.
+  - `get_address(use_archon=False, address_family=AddressFamily.IPV4)`:
+    - Chooses `archon_address`/`archon_address_ipv6` when `use_archon`.
+    - Treats `0.0.0.0*` and `[::]*` as invalid (set to None).
+    - If `address_family == IPV4`: prefer ipv4, fall back to ipv6; else prefer ipv6 then ipv4.
+- `EventType` enum: `PORTAL=1`, `SERVICE=2`, `PUBLISH=3`, `RESOURCE=4`, `UNKNOWN=1` (alias of PORTAL).
+- `Event`:
+  - Fields: `path=None`, `data=b''`, `etype=EventType.UNKNOWN`.
+  - `serialize`/`deserialize` via `dataclasses_json` UTF-8 JSON bytes.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/data_def.rs` (new) or `monolith-rs/crates/monolith-core/src`.
@@ -1941,13 +2028,17 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Required Behavior (Detailed)**
 - `serde(item)`:
-  - `serialized = item.serialize()`
-  - `recom = cls.deserialize(serialized)`
-  - Asserts equality.
-- Tests:
-  - `ModelMeta` with `model_name`, `num_shard`, `model_dir`, `ckpt`.
-  - `ResourceSpec` with `address`, `shard_id`, `replica_id`, `memory`, `cpu`.
-  - `ReplicaMeta` with `address`, `model_name`, `server_type`, `task`, `replica`.
+  - `cls = item.__class__`.
+  - `serialized = item.serialize()`.
+  - `recom = cls.deserialize(serialized)`.
+  - Asserts `item == recom`.
+- `test_model_info`:
+  - `ModelMeta(model_name='monolith', num_shard=3, model_dir='/tmp/opt', ckpt='model.ckpt-1234')`.
+  - Roundtrip equality via `serde`.
+- `test_resource`:
+  - `ResourceSpec(address='localhost:123', shard_id=10, replica_id=2, memory=12345, cpu=3.5)` roundtrip.
+- `test_replica_meta`:
+  - `ReplicaMeta(address='localhost:123', model_name='monolith', server_type='ps', task=0, replica=0)` roundtrip.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/data_def.rs`.
@@ -1990,30 +2081,58 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: starts gRPC server; spawns background thread to update model states.
 
 **Required Behavior (Detailed)**
+- Data classes:
+  - `ModelConf`: `model_name`, `base_path`, `version_policy='latest'`, `version_data=None`, `model_platform='tensorflow'`, `signature_name=('update','predict')`.
+  - `ModelVersion`: `version=0`, `version_label=None`, `state=ModelState.UNKNOWN`.
+  - `ModelMeta`: holds `conf`, `versions` (defaults to `[ModelVersion()]`), `_unloading` flag; `is_unloading()`/`set_unloading()`.
+  - `Event`: `model_name`, `version`, `state`.
 - `ModelMgr`:
-  - Manages models and versions, with `load`, `remove`, `get_status`, `get_metadata`.
-  - `load()`:
-    - For each ModelConfig, derive version policy (`latest`, `all`, or `specific`) and create `ModelVersion` list.
-    - Enqueue `Event(state=START)` for each version.
-  - `remove()`:
-    - Marks model as unloading, enqueue `UNLOADING` events for each version.
-  - `_poll()` thread:
-    - Processes queued events and transitions version state: UNKNOWN -> START -> LOADING -> AVAILABLE -> UNLOADING -> END.
-    - For `latest` policy, unloads oldest when max exceeded.
-    - Periodically adds new version for non-specific policies.
+  - Holds `_models` dict, `_lock`, `_queue`, `_thread`, `_has_stopped`.
+  - `__init__(model_config_list=None)` calls `load` if provided.
+  - `load(model_config_list)`:
+    - If `latest`: `version_policy='latest'`, `version_data=num_versions`, versions `1..num_versions`.
+    - If `all`: `version_policy='latest'`, `version_data=None`, versions `[1]`.
+    - Else: `version_policy='specific'`, `version_data=sorted(versions)`, versions per list.
+    - Adds `ModelMeta` to `_models` and enqueues `Event(START)` per version.
+  - `remove(model_name_list)`:
+    - Marks model unloading and enqueues `UNLOADING` for each version.
   - `get_status(model_spec)`:
-    - Returns version statuses (or NOT_FOUND status if missing).
+    - If model exists and no version_choice: returns status for all versions.
+    - If `version` set: returns matching version.
+    - If `version_label` set: returns matching label.
+    - If none found: returns single status with `version=-1`, `NOT_FOUND`, message `{name} is not found`.
   - `get_metadata(model_spec, metadata_field)`:
-    - Returns requested metadata from model_conf and version fields.
+    - For each requested field, pulls from `ModelConf` if present.
+    - If `model_spec.version` set, overlays fields from matching `ModelVersion`.
+  - `get_alive_model_names()` returns models not unloading.
+  - `start()` spawns `_poll` thread; `stop()` sets `_has_stopped` and joins.
+  - `_poll()`:
+    - Processes queued events via `_event_handler`.
+    - Every 30s: pick random model; if policy != `specific`, append new version (last+1) and enqueue `START`.
+  - `_event_handler(event)` transitions:
+    - `UNKNOWN -> START` (enqueue LOADING) -> `LOADING` (enqueue AVAILABLE) -> `AVAILABLE`.
+    - On AVAILABLE: if policy `latest` and `len(versions) > version_data`, enqueue `UNLOADING` for oldest.
+    - `UNLOADING` enqueues `END` (unless already UNLOADING/END).
+    - `END` removes version; if none left remove model.
+    - Logs transitions; logs error on missing model or unknown event.
 - `ModelServiceImpl`:
-  - `GetModelStatus` returns `GetModelStatusResponse` with version statuses.
+  - `GetModelStatus` builds response with `model_mgr.get_status`.
   - `HandleReloadConfigRequest`:
-    - Removes old models not in new config; loads new ones; returns OK status.
-- `PredictionServiceImpl.GetModelMetadata`:
-  - Populates metadata `Any` values (byte-encoded repr of fields).
+    - `old_names = alive`, `new_names` from request configs.
+    - Remove `old_names - new_names`, load configs for `new_names - old_names`.
+    - Returns `ReloadConfigResponse` with `OK` status.
+- `PredictionServiceImpl`:
+  - `Predict` is no-op.
+  - `GetModelMetadata`:
+    - Uses `metadata_field = set(request.metadata_field)`.
+    - For each metadata item: `Any(value=bytes(repr(v), 'utf-8'))` assigned to response.
 - `FakeTFServing`:
-  - Can be constructed from a single model config, a config file, or a ModelServerConfig.
-  - Starts gRPC server on `port` with ModelService + PredictionService.
+  - `model_config_file` handling:
+    - None: create `ModelMgr` from single `gen_model_config(model_name, base_path, version_data=num_versions)`.
+    - str: parse pbtxt to `ModelServerConfig`, use config list.
+    - else: expect `ModelServerConfig` instance.
+  - Starts gRPC server with ModelService + PredictionService, binds `[::]:{port}`.
+  - `start()` starts model_mgr and waits for termination; `stop()` stops server and model_mgr.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/support/fake_tfserving.rs`.
@@ -2058,10 +2177,21 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: starts FakeTFServing in background thread.
 
 **Required Behavior (Detailed)**
-- `setUpClass`: start FakeTFServing on a free port, wait for readiness.
-- `test_get_model_metadata`: call `GetModelMetadata` and assert response type.
-- `test_get_model_status`: call `GetModelStatus` and assert response type.
-- `test_handle_reload_config_request`: send `ReloadConfigRequest` with two model configs; assert OK response type.
+- Class setup:
+  - `MODEL_NAME='test_model_test'`, `BASE_PATH='/tmp/test_model/monolith'`.
+  - `PORT = utils.find_free_port()`.
+  - `Address = f'{socket.gethostbyname(socket.gethostname())}:{PORT}'`.
+  - Start `FakeTFServing(MODEL_NAME, BASE_PATH, num_versions=2, port=PORT)` in a thread; `sleep(5)`.
+- `test_get_model_metadata`:
+  - Build `GetModelMetadataRequest` with `gen_model_spec(MODEL_NAME, 2, signature_name='predict')`.
+  - `metadata_field` includes `base_path`, `num_versions`, `signature_name`.
+  - Call `PredictionServiceStub.GetModelMetadata` and assert `GetModelMetadataResponse` type.
+- `test_get_model_status`:
+  - Build `GetModelStatusRequest` with `gen_model_spec(MODEL_NAME, 1, signature_name='predict')`.
+  - Call `ModelServiceStub.GetModelStatus` and assert `GetModelStatusResponse` type.
+- `test_handle_reload_config_request`:
+  - Build `ReloadConfigRequest`, extend config list with two `gen_model_config` entries (same name `test_model`, different base paths/versions).
+  - Call `HandleReloadConfigRequest` and assert `ReloadConfigResponse` type.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/mocked_tfserving.rs`.
@@ -2104,20 +2234,40 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: in-memory state updates and watch callbacks.
 
 **Required Behavior (Detailed)**
+- Watch helpers:
+  - `ChildrenWatch`: registers with catalog; `__call__` passes `(children,event)` if `send_event`, else `(children)`.
+  - `DataWatch`: registers with catalog; `__call__` first tries `(data,state,event)` then falls back to `(data,state)` on `TypeError`.
+  - `Election.run` executes callback under a lock; `cancel()` calls `self.lock.cancel()` (not supported by threading.Lock).
 - `Node`:
-  - Tracks `path`, `value`, `ephemeral`, `children`, timestamps, and version.
-  - `set()` updates value/version and triggers data watch with CHANGED event.
-  - `create_child()` creates child Node and triggers parent children watch.
-  - `remove_child()` handles recursive delete and triggers children watch; raises NotEmptyError if needed.
-  - `__del__` triggers DELETED events and cleans children.
+  - Fields: `path`, `value`, `ephemeral`, `children`, `_ctime/_mtime` (unix seconds), `_version`.
+  - On init: fires CREATED event to data/children watches if present.
+  - `state` returns `ZnodeStat` with `dataLength=len(value)` and `numChildren=len(children)`.
+  - `set(value)` updates mtime/version, triggers CHANGED event.
+  - `set_data_watch`/`set_children_watch` immediately invoke watchers with current state and `event=None`.
+  - `create_child(path, ...)`:
+    - Computes child path from basename (root special-cased).
+    - Creates `Node`, adds to children.
+    - Triggers CHILD event on parent children watch.
+  - `get_or_create_child`, `get_child`, `has_child` helpers.
+  - `remove_child(path, recursive=False)`:
+    - Raises `NotEmptyError` if child has children and `recursive` False.
+    - Deletes child and triggers CHILD event; raises `NoNodeError` if missing.
+  - `__del__`: fires DELETED event to data/children watches, deletes children, clears fields.
 - `Catalog`:
-  - Holds root node; maintains data/children watches and sequence counters.
-  - `ensure_path()` creates nodes along path.
-  - `create()` supports `makepath` and `sequence` numbering; raises NodeExistsError if exists.
-  - `delete()`, `set()`, `get()` operate on nodes.
+  - Holds root `Node('/')`, watch registries, and `_sequence_paths`.
+  - `add_data_watch`/`add_children_watch` attach to existing node if found.
+  - `ensure_path(path)` creates nodes along path and attaches registered watches.
+  - `create(path, value=b'', ephemeral=False, makepath=False, sequence=False)`:
+    - If `sequence`: appends zero-padded 10-digit counter (starts at 0000000000).
+    - If `makepath`: ensures parent path; else requires parent to exist.
+    - Raises `NodeExistsError` if child exists.
+  - `delete`, `set`, `get` delegate to nodes (raises `NoNodeError` if missing).
 - `FakeKazooClient`:
-  - API compatible subset: `start`, `stop`, `create`, `delete`, `set`, `get`, `exists`, `get_children`, `ensure_path`, `retry`.
-  - Provides `DataWatch`, `ChildrenWatch`, `Election` constructors via `partial`.
+  - `start()` initializes `Catalog`; `stop()` clears it.
+  - CRUD: `create`, `delete(recursive=True)`, `set`, `get` (returns `(value,state)`), `exists`, `get_children`.
+  - `ensure_path` delegates to catalog.
+  - `retry` calls function directly.
+  - `DataWatch`, `ChildrenWatch`, `Election` exposed via `partial`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/support/fake_zk.rs`.
@@ -2161,11 +2311,25 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: creates and deletes in-memory nodes; prints watch outputs.
 
 **Required Behavior (Detailed)**
-- `test_create`: create path with `makepath=True` and assert returned path.
-- `test_set_get`: create node, set/get, verify NoNodeError on invalid path.
-- `test_delete`: delete node and parent path.
-- `test_data_watch`: register DataWatch and ensure callback is invoked.
-- `test_children_watch`: register ChildrenWatch with `send_event=True` and ensure callback is invoked on child creation.
+- Class setup/teardown:
+  - `setUpClass`: `client = FakeKazooClient(); client.start()`.
+  - `tearDownClass`: `client.stop()`.
+- `test_create`:
+  - `client.create('/monolith/zk/data', makepath=True)` returns same path.
+  - Catches/ logs `NoNodeError` or `NodeExistsError`.
+- `test_set_get`:
+  - Create with `include_data=True`; expect `(path, state)`.
+  - `set` on non-existent child raises `NoNodeError` (logged).
+  - `get` on non-existent child raises `NoNodeError` (logged).
+  - `get` on existing path returns original bytes.
+- `test_delete`:
+  - Create then `client.delete(path)` and `client.delete('/monolith')`.
+- `test_data_watch`:
+  - Create path, register `DataWatch(path, func)`; callback prints args.
+- `test_children_watch`:
+  - Register `ChildrenWatch('/monolith/zk', send_event=True)`; create child path.
+  - Register `DataWatch` on `/monolith/zk/data`.
+  - Create `/monolith/zk/test` to trigger watch callbacks.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/mocked_zkclient.rs`.
@@ -2545,22 +2709,42 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: reads cgroup files, runs shell commands, reads filesystem/HDFS.
 
 **Required Behavior (Detailed)**
-- `_get_pod_cgroup_path()` reads `/proc/1/cgroup` and extracts memory cgroup path.
-- `exists(dirname)` uses `tf.io.gfile.isdir` or `tf.io.gfile.exists`.
-- `open_hdfs(fname)` runs `${_HADOOP_BIN} fs -text` and yields non-empty lines.
+- `_get_pod_cgroup_path()`:
+  - Runs `cat /proc/1/cgroup`, finds line containing `:memory:`, returns trailing path without slashes.
+  - On error returns `None`.
+  - `_POD_CGROUP_PATH` computed at import time.
+- `exists(dirname)` -> `tf.io.gfile.isdir(dirname) or tf.io.gfile.exists(dirname)`.
+- `open_hdfs(fname)`:
+  - Builds cmd `[_HADOOP_BIN, 'fs', '-text', ...]` (global `_HADOOP_BIN` expected).
+  - Accepts string or list/tuple of paths.
+  - Retries up to 3 times; logs exceptions; asserts output list is not None.
+  - Yields non-empty stripped lines.
 - `cal_model_info_v2(exported_models_path, ckpt=None, version=None)`:
-  - Resolves absolute path; asserts exists.
-  - Lists sub_model names under exported_models_path.
-  - Determines `ckpt` from `tf.train.get_checkpoint_state` if missing; derives `global_step`.
-  - Determines version: uses `export_state_utils` or lists numeric dirs; intersects across sub_models; uses latest if not specified.
-  - Sums file sizes under each sub_model/version path.
-  - Adds assets size from `{ckpt}.assets` files matching regex `^.+_(\d+)-\d+-of-\d+$`.
-  - Returns map `{sub_model_name: (size, version_path)}`.
-- `total_memory`/`cal_available_memory`: read cgroup memory limit/usage; fall back to `MY_MEM_LIMIT` env.
-- `total_memory_v2`/`cal_available_memory_v2`: use `psutil.virtual_memory()`.
-- `CPU` helper reads cpuacct usage and computes usage delta.
-- `num_cpu` uses cgroup `cpu.cfs_quota_us` and `cpu.cfs_period_us`, fallback `MY_CPU_LIMIT`.
-- `cal_cpu_usage` samples CPU usage over 5 seconds and averages; `cal_cpu_usage_v2` uses `psutil.cpu_percent()`.
+  - Normalizes path to absolute (rstrip `/`), requires `tf.io.gfile.exists`.
+  - Initializes `model_info` with each sub_model under export dir (excluding dotfiles) size 0.
+  - If `ckpt` None: uses `tf.train.get_checkpoint_state(ckpt_base_path)` and basename of `model_checkpoint_path`.
+  - `global_step = -1` if ckpt None else `int(ckpt.split('-')[-1])`.
+  - If `version` None:
+    - For each sub_model, attempt `export_state_utils.get_export_saver_listener_state(tfs_base_path)`; if state and `global_step>=0`, collect versions from entries and pick matching `global_step`.
+    - Else list numeric subdirs under sub_model.
+    - Intersect versions across sub_models; pick max if `version` still None.
+  - Else cast `version` to int.
+  - For each sub_model: sum all file sizes under `exported_models_path/sub_model/version` via `tf.io.gfile.walk`.
+  - If assets dir `ckpt_base_path/{ckpt}.assets` exists:
+    - For files matching `ROW` regex, add size to `model_info['ps_{index}']`.
+  - Returns `{sub_model_name: (size, version_path)}`.
+- Memory helpers:
+  - `total_memory` reads `/sys/fs/cgroup/memory/{_POD_CGROUP_PATH}/memory.limit_in_bytes`; if 0 uses `MY_MEM_LIMIT`.
+  - `total_memory_v2` uses `psutil.virtual_memory().total`.
+  - `cal_available_memory` reads cgroup `memory.usage_in_bytes` and `memory.limit_in_bytes`, returns limit - usage.
+  - `cal_available_memory_v2` uses `psutil.virtual_memory().available`.
+- CPU helpers:
+  - `CPU.wall_clock()` uses `time.time_ns()` (fallback to `date +%s%N` subprocess).
+  - `CPU.cpu_clock()` reads cpuacct usage from file.
+  - `CPU.cpu_usage()` returns delta_cpu/delta_wall and updates stored clocks.
+  - `num_cpu()` reads `cpu.cfs_quota_us` and `cpu.cfs_period_us`, fallback to `MY_CPU_LIMIT` if period 0.
+  - `cal_cpu_usage()` samples 5 times, 1s sleep, averages `round(cpu_usage*100,2)`.
+  - `cal_cpu_usage_v2()` uses `psutil.cpu_percent()`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/resource_utils.rs`.
@@ -2605,8 +2789,10 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: reads system stats.
 
 **Required Behavior (Detailed)**
-- `test_cal_avaiable_memory_v2`: asserts `0 < available < total`.
-- `test_cal_cpu_usage_v2`: asserts CPU usage is in `[0, 100]`.
+- `test_cal_avaiable_memory_v2`:
+  - Calls `total_memory_v2()` and `cal_available_memory_v2()`; asserts `0 < available < total`.
+- `test_cal_cpu_usage_v2`:
+  - Calls `cal_cpu_usage_v2()`; asserts `0 <= usage <= 100`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/resource_utils.rs`.
@@ -2739,29 +2925,112 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 **Python Summary**
 - Lines: 503
 - Purpose/role: CLI for TensorFlow Serving status/metadata/load/predict/profile; includes data generation and format conversion.
-- Key symbols/classes/functions: `read_header`, `read_data`, `generate_random_instance`, `get_instance_proto`, `get_example_batch_proto`, `get_example_batch_to_instance`, `ProfileThread`, `main`.
+- Key symbols/classes/functions: `read_header`, `read_data`, `generate_random_instance`, `generate_random_example_batch`, `get_instance_proto`, `get_example_batch_proto`, `gen_random_file`, `get_example_batch_proto_v2`, `get_example_batch_to_instance`, `ProfileThread`, `main`.
 - External dependencies: TF Serving protos, matrix `ExampleBatch`/`Instance`, `FeatureList`, `data_gen_utils`.
 - Side effects: reads/writes files, makes gRPC requests, spawns threads, prints output.
 
 **Required Behavior (Detailed)**
+- Flags/global constants:
+  - Flags: `signature_name="serving_default"`, `feature_list=None`, `file_type="pb"`, `batch_size=8`, `lagrangex_header=False`, `has_sort_id=False`, `kafka_dump=False`, `kafka_dump_prefix=False`, `parallel_num=1`, `profile_duration=600`, `profile_data_dir=None`.
+  - Globals: `VALID_SLOTS=[]`, `_NUM_SLOTS=6`, `_VOCAB_SIZES=[5,5,5,5,5,5]`, `SKIP_LIST` set.
 - Input parsing helpers:
-  - `read_header` consumes Kafka/LagrangeX header bytes depending on flags.
-  - `read_data` reads size-prefixed payload (8-byte little-endian length).
+  - `read_header(stream)`:
+    - `int_size=8`.
+    - If `FLAGS.lagrangex_header`, read 8 bytes and return.
+    - Else:
+      - `aggregate_page_sortid_size=0`.
+      - If `FLAGS.kafka_dump_prefix`:
+        - Read `<Q` size; if size==0 read another `<Q`; else set `aggregate_page_sortid_size=size`.
+      - If `FLAGS.has_sort_id`:
+        - If `aggregate_page_sortid_size==0`, read `<Q` size; else use `aggregate_page_sortid_size`.
+        - Read `size` bytes (sort_id payload).
+      - If `FLAGS.kafka_dump`, read 8 bytes.
+  - `read_data(stream)`: calls `read_header`, reads `<Q` size (8 bytes) then reads and returns that many bytes.
 - Data generation:
-  - `generate_random_instance` produces random fid values based on slots/vocab sizes.
-  - `generate_random_example_batch` builds ExampleBatch with random fid values and LineId.
-  - `gen_random_file` uses `data_gen_utils` to create random data files.
+  - `generate_random_instance(slots=None, vocab_sizes=_VOCAB_SIZES)`:
+    - If slots None: `slots = [1..len(_VOCAB_SIZES)]`.
+    - `max_vocab = max(vocab_sizes)`.
+    - Build `fids = (slot << 54) | (i * max_vocab + rand(1, vocab_sizes[i]))` for each `i, slot` and repeat `vocab_sizes[i]` times.
+    - Return serialized `Instance` with `fid` populated.
+  - `generate_random_example_batch(feature_list, batch_size=256)`:
+    - Creates `ExampleBatch` with `batch_size`.
+    - Skips features whose name contains any token in `SKIP_LIST`.
+    - Only processes features with `"_id"` or `"_name"` in name.
+    - For each kept feature:
+      - Adds `named_feature_list` with `name=feature.name`.
+      - For each example in batch:
+        - If `feature.method` startswith `vectortop` and `feature.args[0]` is numeric:
+          - `num=int(args[0])`; if `num>0`, replace with `randint(1, num)`.
+          - Create `num` fids `(feature.slot << 48) | rand(1, sys.maxsize-1)` into `fid_v2_list.value`.
+        - Else: single fid `(feature.slot << 48) | rand(1, (1<<48)-1)` into `fid_v2_list.value`.
+    - Adds `__LINE_ID__` feature list:
+      - For each example: `LineId(sample_rate=0.001, req_time=now_ts - rand(1,1000), actions=[rand(1,3), rand(3,5)])` serialized into `bytes_list.value`.
+    - Returns serialized `ExampleBatch`.
+  - `gen_random_file(input_file, variant_type="example_batch")`:
+    - Asserts `input_file` not None and `VALID_SLOTS` non-empty.
+    - Builds `ParserArgs` with sparse_features from `VALID_SLOTS`, extra_features list, shapes, `batch_size=FLAGS.batch_size`, `variant_type`.
+    - Uses `data_gen_utils.gen_random_data_file(..., sort_id=FLAGS.has_sort_id, kafka_dump=FLAGS.kafka_dump, num_batch=1, actions=[1..12])`.
 - Tensor proto conversion:
-  - `get_instance_proto`: returns TensorProto from list of serialized Instance bytes.
-  - `get_example_batch_proto`: reads ExampleBatch from file or generates random; returns TensorProto.
-  - `get_example_batch_to_instance`: converts ExampleBatch to list of Instance messages (handles fid_v1/fid_v2/float/int/bytes fields).
+  - `get_instance_proto(input_file=None, batch_size=256)`:
+    - If `input_file` None: generate `batch_size` random instances.
+    - Else: read `batch_size` instances via `read_data` and parse `Instance` per record.
+    - Return `utils.make_tensor_proto(instances)` (list of serialized bytes).
+  - `get_example_batch_proto(input_file=None, feature_list=None, batch_size=256, file_type='pb')`:
+    - If no file: generate random ExampleBatch.
+    - Else parse ExampleBatch from pb (`read_data`) or pbtxt (`text_format.Parse`).
+    - Return `utils.make_tensor_proto([example_batch])`.
+  - `get_example_batch_proto_v2(input_file)`:
+    - If file missing, call `gen_random_file`.
+    - Parse ExampleBatch from `read_data`.
+    - `user_fname_set = {get_feature_name_and_slot(slot)[0] for slot in user_features}`.
+    - For each `named_feature_list` with name in set:
+      - Set `type = FeatureListType.SHARED`.
+      - Replace feature list with `batch_size` copies of the first feature.
+    - Return `utils.make_tensor_proto([serialized ExampleBatch])`.
+  - `get_example_batch_to_instance(input_file, file_type)`:
+    - Parse ExampleBatch from pb or pbtxt.
+    - For each example index, create `Instance`:
+      - Use shared feature if `named_feature_list.type == SHARED`.
+      - Map `__LABEL__` to `inst.label` (float_list).
+      - Map `__LINE_ID__` bytes to `inst.line_id.ParseFromString`.
+      - For other features, select first non-empty value list in order:
+        - `fid_v1_list`: compute `slot_id = fid >> 54`; convert each fid to v2 with `(slot_id << 48) | (mask & v)` where `mask=(1<<48)-1`.
+        - `fid_v2_list`: copy.
+        - `float_list` or `double_list`: copy into `float_value`.
+        - `int64_list`: copy into `int64_value`.
+        - `bytes_list`: copy into `bytes_value`.
+    - Return `utils.make_tensor_proto(inst_list)` (serialized instances).
+- Profiling thread:
+  - `ProfileThread.run()` loops until `int(time.time()) - run_st < repeat_time`:
+    - Job 0 logs progress every 60 seconds (`show_count` gate).
+    - Builds PredictRequest with signature name flag, picks random cached example_batch and random stub.
+    - Predict timeout = 30s.
+    - Records per-request latency (ms) into list, increments count.
+    - On exception: logs warning and continues.
+  - `get_result()` joins thread and returns latency list.
 - CLI (`main`):
-  - Uses `AgentConfig.from_file` and env host to pick target port (entry/ps/dense).
-  - `status`: GetModelStatus request.
-  - `meta`: GetModelMetadata request.
-  - `load`: ReloadConfigRequest using a ModelServerConfig pbtxt file.
-  - `profile`: generates/loads ExampleBatch data, spawns `ProfileThread`s, computes avg latency, p99, QPS.
-  - Default: send PredictRequest with input type (instance/example_batch) and print response.
+  - Calls `enable_tob_env()` and `env_utils.setup_host_ip()`.
+  - Loads `agent_conf = AgentConfig.from_file(FLAGS.conf)`.
+  - `host = env["MY_HOST_IP"]` or `socket.gethostbyname(socket.gethostname())`.
+  - Default `model_name` if flag unset:
+    - PS: `ps_{shard_id}`; DENSE: `TFSServerType.DENSE`; else ENTRY.
+  - `target` by deploy_type: entry/ps/dense port; allows override `FLAGS.target` and comma-separated targets.
+  - Creates `channel_list` from targets, `channel` for first target.
+  - `cmd_type` behaviors:
+    - `status`: `ModelServiceStub.GetModelStatus` for model name/signature; print response.
+    - `meta`: `PredictionServiceStub.GetModelMetadata`, metadata fields `base_path`, `num_versions`, `signature_name`; print response.
+    - `load`: parse `ModelServerConfig` from pbtxt `FLAGS.input_file`, `HandleReloadConfigRequest`, log "load done", return status.
+    - `profile`:
+      - Assert `VALID_SLOTS` non-empty; ensure `profile_data_dir` exists.
+      - Build list of up to 500 data files; generate missing via `gen_random_file` (uuid filenames).
+      - Load each file with `get_example_batch_proto_v2`.
+      - Spawn `parallel_num` `ProfileThread`s; gather latency list.
+      - Compute avg latency, p99 (index `round((n-1)*0.99)`), QPS; log summary.
+    - Default (`get`): build PredictRequest; choose inputs:
+      - `input_type == "instance"`: if file missing, `gen_random_file(..., "instance")`; `get_instance_proto`.
+      - `input_type == "example_batch"`: use provided file or new uuid, `get_example_batch_proto_v2`.
+      - Else: `get_example_batch_to_instance`.
+      - Call `Predict(timeout=30)` and print response.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-cli/src/bin/tfs_client.rs`.
@@ -2781,7 +3050,9 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Rust tests: port get_instance_proto and get_example_batch_to_instance tests.
 
 **Gaps / Notes**
-- Python references `user_features` in `get_example_batch_proto_v2` without local definition; confirm source of this global in Rust.
+- `user_features` referenced in `get_example_batch_proto_v2` is not defined in this module; Rust port must identify the intended source or expose configuration.
+- `VALID_SLOTS` defaults empty; profile path asserts it is non-empty (likely set via external config/feature list).
+- `_NUM_SLOTS` is unused in this module; `_VOCAB_SIZES` governs random instance generation.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -2808,9 +3079,17 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: reads test data files.
 
 **Required Behavior (Detailed)**
-- `test_get_instance_proto`: asserts dtype and tensor shape for random instance batch.
-- `test_get_example_batch_to_instance_from_pb`: reads binary examplebatch file with header.
-- `test_get_example_batch_to_instance_from_pbtxt`: reads pbtxt example batch file.
+- `test_get_instance_proto`:
+  - Calls `get_instance_proto()` with default `batch_size=256`.
+  - Asserts `tensor_proto.dtype == 7` and `tensor_shape.dim[0].size == 256`.
+- `test_get_example_batch_to_instance_from_pb`:
+  - Uses file `monolith/native_training/data/training_instance/examplebatch.data`.
+  - Sets `FLAGS.lagrangex_header = True`.
+  - Calls `get_example_batch_to_instance(file, 'pb')`.
+- `test_get_example_batch_to_instance_from_pbtxt`:
+  - Uses file `monolith/agent_service/example_batch.pbtxt`.
+  - Sets `FLAGS.lagrangex_header = True`.
+  - Calls `get_example_batch_to_instance(file, 'pbtxt')`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-cli/tests/tfs_client.rs`.
@@ -2842,51 +3121,73 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/agent_service/tfs_monitor.py`
 <a id="monolith-agent-service-tfs-monitor-py"></a>
 
-**Status:** IN PROGRESS (manual)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 303
 - Purpose/role: gRPC monitor for TensorFlow Serving model status and config reload.
 - Key symbols/classes/functions: `TFSMonitor`, `get_model_status` (singledispatch), `gen_model_config`, `handle_reload_config_request`.
-- External dependencies: TF Serving gRPC stubs, `ModelServerConfig`, `PublishMeta`.
-- Side effects: gRPC calls to TFS servers.
+- External dependencies: TF Serving gRPC stubs, `ModelServerConfig`, `PublishMeta`, `StatusProto`.
+- Side effects: gRPC calls to TFS servers; opens/closes channels.
 
 **Required Behavior (Detailed)**
-- Maintains gRPC stubs for ENTRY/PS/DENSE based on deploy_type and ports.
-- `get_addr(sub_model_name)` chooses port based on deploy type and sub_model type.
-- `get_service_type(sub_model_name)` returns TFSServerType or None.
-- `get_model_status(PublishMeta)`:
-  - For each sub_model, builds `GetModelStatusRequest`.
-  - For dense nodes (entry when dense-along-entry), may omit version unless `fix_dense_version`.
-  - On RPC errors, returns UNKNOWN with StatusProto error code/details.
-  - Returns map `{tfs_model_name: (version_path, ModelVersionStatus)}`.
-- `get_model_status(name, version=None, signature_name=None)`:
-  - Returns list of ModelVersionStatus for a model via `GetModelStatus`.
-- `gen_model_config(pms)`:
-  - Builds ModelServerConfig per service type from PublishMeta list.
-  - For dense nodes: use `latest` policy unless `fix_dense_version`.
-  - For ps/entry: `specific` policy with version number.
+- Host selection:
+  - `host` property: if unset or localhost, resolves to `get_local_ip()`.
+- Stubs:
+  - `connect()` creates `grpc.insecure_channel` + `ModelServiceStub` and `PredictionServiceStub` per deploy_type:
+    - ENTRY: `tfs_entry_port`
+    - PS: `tfs_ps_port`
+    - DENSE: `tfs_dense_port` (only if dense_alone).
+  - `start()` resets stubs and calls `connect()`.
+  - `stop()` closes channels and clears stubs.
+- Address selection:
+  - `get_addr(sub_model_name)` chooses port based on deploy_type and sub_model.
+  - `get_service_type(sub_model_name)` maps to `TFSServerType` or None.
+- `get_model_status(PublishMeta, fix_dense_version=False)`:
+  - For each sub_model in `pm.sub_models`:
+    - Builds `tfs_model_name = f"{model}:{sub_model}"`.
+    - Dense node detection:
+      - If not dense_alone and entry → dense node.
+      - If dense_alone and dense → dense node.
+    - If dense node and `fix_dense_version=False`, request **no version** (latest).
+    - Else request specific version = basename of version path.
+  - If no statuses returned: create `ModelVersionStatus` with `state=UNKNOWN` and `StatusProto(error_code=NOT_FOUND)`.
+  - If multiple statuses: sort by version and select latest (or AVAILABLE if present).
+  - On `_InactiveRpcError`: returns UNKNOWN with StatusProto error_code from `e.code().value[0]`.
+  - Returns `{tfs_model_name: (version_path, ModelVersionStatus)}`.
+- `get_model_status(name, version=None, signature_name=None)` overload:
+  - Determines service_type via `get_service_type`.
+  - If None, returns empty list.
+  - Else sends `GetModelStatusRequest` and returns list of ModelVersionStatus.
+- `gen_model_config(pms, fix_dense_version=False)`:
+  - Builds `ModelServerConfig` per service type.
+  - Skips `PublishMeta` where `ptype == UNLOAD`.
+  - Dense nodes:
+    - version_policy = `latest` if not fix_dense_version; else `specific`.
+    - version_data = `1` if latest, else version basename.
+  - Non-dense nodes: `specific` version policy with basename.
+  - Appends configs into appropriate service type list.
 - `handle_reload_config_request(service_type, model_configs)`:
-  - Ensures default model config is present.
-  - Sends ReloadConfigRequest to appropriate service.
+  - Ensures `DEFAULT_MODEL_CONFIG` is present if missing.
+  - Sends `HandleReloadConfigRequest` to appropriate stub; returns `StatusProto`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/tfs_monitor.rs`.
-- Rust public API surface: `TFSMonitor` struct with status and reload APIs.
-- Data model mapping: TF Serving protos and `PublishMeta` equivalents.
+- Rust public API surface: `TfsMonitor` with status query + reload APIs.
+- Data model mapping: TF Serving protos, `PublishMeta`, `ModelServerConfig`.
 
 **Implementation Steps (Detailed)**
 1. Port gRPC client setup for entry/ps/dense.
-2. Implement singledispatch-like overloads (Rust traits/enum arguments).
-3. Port model config generation logic and dense version policy.
-4. Add default model config injection.
+2. Implement overload semantics for `get_model_status`.
+3. Port dense-node version policy logic (latest vs specific).
+4. Add default model config injection on reload.
 
 **Tests (Detailed)**
 - Python tests: `monolith/agent_service/tfs_monitor_test.py`
-- Rust tests: start fake TFS servers and verify reload/status.
+- Rust tests: fake TFS servers; verify reload responses + status selection.
 
 **Gaps / Notes**
-- Requires TF Serving protos + stubs in Rust.
+- Error code mapping uses `e.code().value[0]` (non-obvious; must preserve).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -2913,15 +3214,43 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: starts fake TF serving servers.
 
 **Required Behavior (Detailed)**
-- Setup:
-  - Start FakeTFServing for entry and ps ports; wait for readiness.
-  - Create `TFSMonitor` and connect.
+- Class setup:
+  - Set env vars: `HOST_SHARD_ENV=10`, `SHARD_ID=1`, `REPLICA_ID=2`.
+  - Build `AgentConfig(bzid='bzid', deploy_type='mixed')`.
+  - Start `FakeTFServing` for entry and ps with `num_versions=2`, ports from config, `ModelServerConfig()`.
+  - Start servers in threads, `sleep(2)` for readiness.
+  - Create `TFSMonitor`, call `connect()`, init `data = {}`.
+- Class teardown: `monitor.stop()`, stop both fake servers.
+- `setUp`:
+  - Build `sub_models` dict with `entry`, `ps_0`, `ps_3`, `ps_5` pointing at `path.format(sub_model, version)`.
+  - `PublishMeta(model_name='test_1', num_ps=5, shard_id/replica_id from config)`.
+  - Save `data['setUp'] = monitor.get_model_status(pm)`.
+- `tearDown`:
+  - Rebuild same `PublishMeta`, `sleep(1)`.
+  - Compare `before_status` vs `after_status = monitor.get_model_status(pm)`; assert same length.
+  - If `data['execute'] == 'reload_config'`:
+    - For each model, ensure version path unchanged.
+    - `before` status must be `version == -1` and `error_code == 5` (NOT_FOUND).
+    - `after` status cases:
+      - `version == -1`: allowed (no extra check).
+      - `version == 1`: only for `entry` model names.
+      - else `version == int(os.path.basename(version_path))`.
+  - Else (remove_config):
+    - For each model, `after.version == -1`, version path unchanged.
+    - If `before.version == -1`, `before.status.error_code == 5` (NOT_FOUND).
+    - Else `before.version > 0`.
 - `test_reload_config`:
-  - Generate PublishMeta list with random ps counts and entry submodel.
-  - Call `gen_model_config` then `handle_reload_config_request` per service type.
+  - For `i in range(10)`:
+    - `num_ps = random.randint(5, 20)`.
+    - `sub_models` includes `ps_{j}` for `j in range(num_ps)` where `j % 3 == 0`.
+    - Always include `entry` submodel.
+    - Build `PublishMeta(model_name=f'test_{i}', num_ps=num_ps)` and append.
+  - `model_configs = monitor.gen_model_config(pms)`.
+  - For each service_type, if config list non-empty: `handle_reload_config_request`.
+  - Set `data['execute'] = 'reload_config'`.
 - `test_remove_config`:
-  - Similar to reload config but with different models; ensures reload path can remove models.
-- `tearDown`: compares before/after status; ensures NOT_FOUND responses for unloaded models.
+  - Same as reload but `i in range(5, 10)` (different model names), set `data['execute'] = 'remove_config'`.
+- Randomness: no seed set; tests rely on structural invariants rather than specific PS counts.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/tfs_monitor.rs`.
@@ -3045,16 +3374,181 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 **Python Summary**
 - Lines: ~1000+
 - Purpose/role: Core config + helper utilities for agent service, TF Serving configs, TensorProto creation, network utilities, and config file generation.
-- Key symbols/classes/functions: `AgentConfig`, `DeployType`, `TFSServerType`, `gen_model_spec`, `gen_model_config`, `make_tensor_proto`, `get_local_ip`, many helpers.
+- Key symbols/classes/functions: `TfServingConfig`, `AgentConfig`, `DeployType`, `TFSServerType`, `RoughSortModel*`, `conf_parser`, `find_free_port`, `gen_model_spec`, `gen_model_config`, `make_tensor_proto`, `InstanceFormater`, `ZKPath`, `get_local_ip`, many helpers.
 - External dependencies: `tensorflow`, `tensorflow_serving` protos, `protobuf.text_format`, `json`, `socket`, `os`.
 - Side effects: overrides `os.path.isabs`; writes platform config files; reads/writes files; inspects env; opens sockets.
 
 **Required Behavior (Detailed)**
-- Must preserve ALL defaults in `AgentConfig` and flag parsing (`flags.DEFINE_string('conf', ...)`).
-- `AgentConfig.__post_init__` logic is critical for port allocation and layout config.
-- `gen_model_spec` and `gen_model_config` must match TF Serving proto semantics.
-- `make_tensor_proto` must mirror TF string tensor encoding for PredictRequest inputs.
-- `get_local_ip` and port helpers must match network selection logic (IPv4/IPv6).
+- Module globals:
+  - Defines `flags.DEFINE_string("conf", "", "agent conf file")`.
+  - `TFS_HOME="/opt/tiger/monolith_serving"`.
+  - `DEFAULT_PLATFORM_CONFIG_FILE = "{TFS_HOME}/conf/platform_config_file.cfg"`.
+  - Overrides `os.path.isabs` to treat paths starting with `hdfs:/` as absolute.
+  - `DEFAULT_MODEL_CONFIG` computed via `gen_model_config` with name `default` and base_path `${TFS_HOME}/dat/saved_models/entry`.
+  - `FeatureKeys` set used by `InstanceFormater.from_dump`.
+- Small helpers:
+  - `conf_parser(file_name, args)`:
+    - Ignores missing file.
+    - Strips comments/blank lines.
+    - Supports `include <path>` directive (recursive parse).
+    - Parses `key=value` or `key value` via regex split `SEQ`.
+    - If key repeats: first value becomes list; subsequent appended.
+  - `find_free_port()` binds `('localhost', 0)` and returns ephemeral port.
+  - `check_port_open(port)` connects to `127.0.0.1:port`; logs and returns bool.
+  - `write_to_tmp_file(content)` writes `str(content)` to tempfile and returns path.
+  - `replica_id_from_pod_name()`:
+    - If `MY_POD_NAME` set: MD5 hash, take hex `[10:20]` slice, parse base16.
+    - Else returns `-1`; any exception returns `-1`.
+- Type helpers and enums:
+  - `TFSServerType` constants: `ps`, `entry`, `dense`, `unified`.
+  - `DeployType` wraps server type; validates type; equality works vs string or DeployType.
+  - `DeployType.compat_server_type(server_type)`:
+    - If `server_type` None or `mixed`:
+      - If self is `mixed`, raises RuntimeError.
+      - Else returns self type.
+    - If self is `mixed`, returns server_type.
+    - Else asserts equality and returns server_type.
+  - Rough sort enums: `RoughSortModelLoadedServer` and `RoughSortModelPrefix`.
+- `TfServingConfig` dataclass defaults:
+  - `enable_batching=False`, `allow_version_labels_for_unavailable_models=False`, `batching_parameters_file=None`.
+  - `num_load_threads=0`, `num_unload_threads=0`, `max_num_load_retries=5`, `load_retry_interval_micros=60*1000*1000`.
+  - `file_system_poll_wait_seconds=1`, `flush_filesystem_caches=True`.
+  - `tensorflow_session_parallelism=0`, `tensorflow_intra_op_parallelism=0`, `tensorflow_inter_op_parallelism=0`.
+  - `ssl_config_file=None`, `platform_config_file=None`.
+  - `per_process_gpu_memory_fraction=0`, `allow_growth=True`, `saved_model_tags=None`.
+  - `grpc_channel_arguments=None`, `grpc_max_threads=0`, `enable_model_warmup=True`, `version=None`.
+  - `remove_unused_fields_from_bundle_metagraph=True`, `enable_signature_method_name_check=False`.
+  - `xla_cpu_compilation_enabled=False`, `enable_profiler=True`.
+- `AgentConfig` dataclass defaults (in addition to `TfServingConfig`):
+  - `bzid=None`, `base_name=None`, `base_path=None`, `num_ps=1`, `num_shard=None`, `deploy_type=None`.
+  - `replica_id=None`, `stand_alone_serving=False`, `zk_servers=None`.
+  - `proxy_port=None`, `tfs_entry_port=None`, `tfs_entry_http_port=None`, `tfs_entry_archon_port=None`.
+  - `tfs_ps_port=None`, `tfs_ps_http_port=None`, `tfs_ps_archon_port=None`.
+  - `dense_alone=False`, `dense_service_num=3`, `tfs_dense_port=None`, `tfs_dense_http_port=None`, `tfs_dense_archon_port=None`.
+  - `agent_port=None`, `update_model_status_interval=1`, `model_config_file=None`, `agent_version=1`.
+  - `max_waiting_sec=1200`, `preload_jemalloc=True`.
+  - `version_policy='latest'`, `version_data=1`.
+  - `fetch_ps_timeout_ms=200`, `fetch_ps_long_conn_num=100`, `fetch_ps_long_conn_enable=True`, `fetch_ps_retry=2`, `aio_thread_num=30`.
+  - `file_system_poll_wait_seconds_ps=0`.
+  - Rough sort: `rough_sort_model_name=None`, `rough_sort_model_local_path=None`, `rough_sort_model_loaded_server=entry`, `rough_sort_model_p2p_path=None`, `rough_sort_resource_constrained=False`.
+  - `dc_aware=False`.
+  - Unified: `layout_pattern=None`, `layout_filters=None`, `tfs_port_archon=None`, `tfs_port_grpc=None`, `tfs_port_http=None`, `use_metrics=True`.
+- `AgentConfig.__post_init__`:
+  - Updates `zk_servers` via `_update_zk_servers(self.zk_servers, is_ipv6_only())`.
+  - If `stand_alone_serving`: `deploy_type = DeployType(mixed)`; else requires `deploy_type` and wraps in `DeployType`.
+  - `num_shard` defaults to `num_tce_shard`; otherwise asserts equal to `num_tce_shard`.
+  - Port allocation (uses `find_free_port` and env overrides):
+    - Mixed: proxy + entry/ps ports from `PORT`, `PORT3..PORT7`; dense ports from `PORT8..PORT10` if `dense_alone` and `DENSE_SERVICE_IDX==0`, else free ports.
+    - Entry: proxy + ps ports free; entry ports from `PORT`, `PORT3`, `PORT4`; optional dense free ports.
+    - PS: proxy + entry ports free; ps ports from `PORT`, `PORT3`, `PORT4`; optional dense free ports.
+    - Dense: requires `dense_alone=True`; entry/ps ports free; dense ports from `PORT`, `PORT3`, `PORT4` if `DENSE_SERVICE_IDX==0`, else free.
+    - Unified: `tfs_port_archon/ grpc / http` from `PORT`, `PORT3`, `PORT4`.
+  - `agent_port` from `PORT2` or free.
+  - `replica_id`: if `agent_version==1`, use `replica_id_from_pod_name`; else env `REPLICA_ID` or fallback to pod hash.
+  - If `platform_config_file` unset, use `DEFAULT_PLATFORM_CONFIG_FILE`.
+  - Calls `generate_platform_config_file()`.
+- `generate_platform_config_file()`:
+  - Builds `ConfigProto` with `intra_op_parallelism_threads` and `inter_op_parallelism_threads`:
+    - Use configured values or `MY_CPU_LIMIT` or default `16`.
+  - `allow_soft_placement=True`, `gpu_options.allow_growth=allow_growth`.
+  - If `dense_alone` and `enable_batching`:
+    - Build `BatchingParameters` with `max_batch_size=1024`, `batch_timeout_micros=800`, `max_enqueued_batches=100000`, `num_batch_threads=8`, `support_diff_dim_size_inputs=True`.
+    - Build `SessionBundleConfig` with session+batching.
+  - Else `SessionBundleConfig` with session only.
+  - Set `enable_model_warmup`.
+  - Wrap in `SavedModelBundleSourceAdapterConfig`, pack into `PlatformConfigMap` under key `tensorflow`.
+  - Serialize to text and write to `platform_config_file`.
+  - On exception: logs and attempts to remove file if it exists.
+- AgentConfig properties:
+  - `num_tce_shard`: `HOST_SHARD_ENV` or `1`.
+  - `shard_id`: env `SHARD_ID` or `-1`.
+  - `idc`: env `TCE_INTERNAL_IDC` lowercased.
+  - `cluster`: env `TCE_LOGICAL_CLUSTER` or `TCE_CLUSTER` or `TCE_PHYSICAL_CLUSTER` lowercased.
+  - `location`: `"{idc}:{cluster}"` if both; else None.
+  - `path_prefix`: `/bzid/service/base_name[/idc:cluster]` if `dc_aware` else without location.
+  - `layout_path`: if `layout_pattern` absolute, use it; else `/{bzid}/layouts/{layout_pattern}`.
+  - `container_cluster`: `"{TCE_PSM};{idc};{cluster}"`.
+  - `container_id`: env `MY_POD_NAME` or `get_local_ip()`.
+- Command helpers:
+  - `get_cmd_and_port(binary, server_type=None, config_file=None)`:
+    - Normalizes `server_type` via `compat_server_type`.
+    - If `config_file` None, generates model server config and writes to temp file.
+    - Adds flags: `--model_config_file`, archon psm/cluster, metrics prefix, log_conf.
+    - For mixed and non-entry: suffix psm with `_ps`/`_dense`, change log conf.
+    - Adds port/rest/archon flags per server type.
+    - ENTRY/DENSE add `archon_entry_to_ps_*` flags and `archon_async_dispatcher_threads`.
+    - DENSE adds `--enable_batching=true` if enabled.
+    - `agent_version != 1` adds `--model_config_file_poll_wait_seconds=0`.
+    - Iterates `TfServingConfig` fields: if value differs from default, emit flag; special case `file_system_poll_wait_seconds`:
+      - If `agent_version==1` and server_type==PS, use `file_system_poll_wait_seconds_ps`.
+      - Else use configured value if not default.
+    - Returns command string and chosen gRPC port.
+  - `get_cmd` returns command only.
+  - `get_server_schedule_iter(server_type)`:
+    - Mixed/PS: for PS yields indices where `i % num_shard == shard_id`; else yields None.
+    - Dense: if server_type dense, yields `replica_id` (commented TODO about bug).
+    - Else yields None.
+- Model config generation:
+  - `_gen_model_server_config(server_type)`:
+    - Uses `version_policy` and `version_data`, `compat_server_type`.
+    - PS: create config per schedule index `ps_i`, base_path = `base_path/ps_i`.
+      - If `rough_sort_model_name` and loaded_server=PS: add `ps_item_embedding_i` with base_path `${rough_sort_model_local_path}/${rough_sort_model_name}/${name}`.
+    - Entry/Dense: add `entry` or `dense_0` model with base_path `${base_path}/{name}`.
+      - If `rough_sort_resource_constrained` and loaded_server=ENTRY: add `entry_item_embedding_0` with base_path `${base_path}/{name}`.
+      - Else if `rough_sort_model_name` and loaded_server in ENTRY/DENSE: add `{entry|dense}_item_embedding_0` with base_path `${rough_sort_model_local_path}/${rough_sort_model_name}/${name}`.
+- Config parsing:
+  - `AgentConfig.from_file(fname)`:
+    - Calls `conf_parser` to build `kwarg`.
+    - For each annotated field: convert strings to bool/int/float/str/List; `str == "none"` -> `None`; `int/float` uses `eval`.
+    - If missing `deploy_type`, uses legacy `server_type`.
+    - Returns `AgentConfig(**args)` (triggers `__post_init__`).
+  - `_update_zk_servers(zk_servers, use_ipv6)`:
+    - If `use_ipv6` and `zk_servers` contains IPv4 hosts:
+      - If equals `default_zk_servers_ipv4` (constructed from `_HOSTS` + `_PORT`), return `default_zk_servers(True)` with warning.
+      - Else raise exception.
+    - Else returns original `zk_servers`.
+- ZK path parser:
+  - `ZKPath.PAT` regex supports `/bzid/service/base[/idc:cluster]/server_type:index[/replica_id]`.
+  - `__init__`: if `path is None or len(path) != 0` then attempts match; sets `_group_dict` or logs "path not matched".
+  - `__getattr__` returns captured group or None.
+  - `task`: `"server_type:index"` if both present.
+  - `location`: `"idc:cluster"` if both present.
+  - `ship_in(idc, cluster)`: if either arg None, returns True; else compares to parsed idc/cluster.
+- Pattern helpers:
+  - `parse_pattern` splits string by `{}` (or `[]` in `expand_pattern`) and combines via `comb_fn`.
+  - `normalize_regex` replaces `{name}` with named capture group `(?P<name>\\d+)`.
+  - `expand_pattern` expands bracket ranges like `[1-3]` or `[1,2]` into list; uses `range(int(s), int(e))` for dash.
+- Model spec/config helpers:
+  - `gen_model_spec(name, version=None, signature_name=None)`:
+    - Sets `version.value` if int; else `version_label` if str.
+    - Adds `signature_name` if provided.
+  - `gen_model_config(name, base_path, version_policy='latest', version_data=1, model_platform='tensorflow', version_labels=None)`:
+    - `latest`, `latest_once` set `num_versions`.
+    - `all` sets `ServableVersionPolicy.All()`.
+    - `specific` accepts int or list and extends versions.
+    - Else raises ValueError.
+    - `version_labels` applied if provided.
+  - `gen_status_proto` and `gen_model_version_status` wrap TF Serving status proto fields.
+  - `make_tensor_proto(instances)` builds DT_STRING TensorProto with `dim.size=len(instances)` and `string_val` set.
+- InstanceFormater:
+  - `to_tensor_proto(batch_size)` repeats serialized instance `batch_size` times.
+  - `to_pb(fname=None)` writes serialized bytes to temp file or given path.
+  - `to_json(fname=None)` uses `MessageToJson` and `write_to_tmp_file` or writes to `fname`.
+  - `to_pb_text(fname=None)` writes text format via `write_to_tmp_file` or to `fname`.
+  - `from_json(fname)` reads JSON and `ParseDict` to Instance.
+  - `from_pb_text(fname)` reads file, strips lines, `text_format.Parse`.
+  - `from_dump(fname)`:
+    - Parses key/value lines into nested dict/list structure (`kwargs`) with `stack` control.
+    - Interprets numeric keys as list indices.
+    - Handles feature-level merging using `FeatureKeys` and stack lookback.
+    - Converts numeric values to int.
+    - Parses resulting dict into Instance via `ParseDict`.
+- Misc:
+  - `pasre_sub_model_name(sub_model_name)` (typo in name) splits by `_`, returns `(lower, index)` with default `0`.
+  - `get_local_ip()`:
+    - First tries `MY_HOST_IP` or `socket.gethostbyname(hostname)`.
+    - Falls back to UDP socket connect to `8.8.8.8:80` to infer local IP.
+    - Returns `'localhost'` if no usable IP found.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/config.rs` + new `utils.rs`.
@@ -3101,14 +3595,37 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: reads config and test data files.
 
 **Required Behavior (Detailed)**
-- `gen_model_spec` and `gen_model_config` must set fields correctly (name, version, signature).
-- `gen_status_proto` should preserve error_code and message.
-- `gen_model_version_status` should match version and state.
-- `AgentConfig.from_file` should load `agent.conf` and expose values (e.g., `stand_alone_serving`, `layout_filters`).
-- `InstanceFormater` should parse json/pbtext/dump and produce TensorProto of correct dtype and shape.
-- `get_cmd_and_port` should include `model_config_file_poll_wait_seconds` for agent_version 2.
-- `ZKPath` parsing:
-  - Full dc-aware path, partial path, and old (non-dc) paths must parse bzid/base_name/idc/cluster/server_type/index/replica_id correctly.
+- `setUpClass`: sets `MY_HOST_IP=127.0.0.1`.
+- `test_gen_model_spec`:
+  - `gen_model_spec('model', 1, 'predict')` -> name, version.value, signature_name set.
+- `test_gen_model_config`:
+  - `gen_model_config` with `version_data=2` and version_labels.
+  - Asserts `name`, `base_path`, and `latest.num_versions == 2`.
+- `test_gen_status_proto`:
+  - `gen_status_proto(ErrorCode.CANCELLED, 'CANCELLED')` sets fields.
+- `test_gen_model_version_status`:
+  - `gen_model_version_status(version=1, state=START, error_code=NOT_FOUND, error_message="NOT_FOUND")`.
+  - Asserts version and state match.
+- `test_gen_from_file`:
+  - `AgentConfig.from_file('monolith/agent_service/agent.conf')` sets `stand_alone_serving=True`.
+- `test_list_field`:
+  - Same config file; asserts `layout_filters == ['ps_0', 'ps_1']`.
+- `test_instance_wrapper_from_json`:
+  - `InstanceFormater.from_json('monolith/agent_service/test_data/inst.json')`.
+  - `to_tensor_proto(5)` yields dtype 7, dim[0].size 5.
+- `test_instance_wrapper_from_pbtext`:
+  - `from_pb_text('monolith/agent_service/test_data/inst.pbtext')`; same tensor checks.
+- `test_instance_wrapper_from_dump`:
+  - `from_dump('monolith/agent_service/test_data/inst.dump')`; same tensor checks.
+- `test_get_cmd_and_port`:
+  - `AgentConfig.from_file(...); conf.agent_version=2; conf.get_cmd_and_port(binary='tensorflow_model_server', server_type='ps')`.
+  - Asserts `'model_config_file_poll_wait_seconds'` is in cmd string.
+- `ZKPath` tests:
+  - Full dc-aware: `/bzid/service/base_name/idc:cluster/server_type:0/1` -> bzid/base_name/idc/cluster/server_type/index/replica_id; `location='idc:cluster'`, `task='server_type:0'`, `ship_in(None,None)` True.
+  - Partial dc-aware: `/bzid/service/base_name/idc:cluster/server_type:0` -> replica_id None, `ship_in('idc','cluster')` True.
+  - Old full: `/bzid/service/base_name/server_type:0/1` -> idc/cluster None, replica_id `1`, `ship_in(None,None)` True.
+  - Old partial: `/bzid/service/base_name/server_type:0` -> replica_id None.
+  - Old partial 2: `/1_20001223_.../service/20001223_.../ps:1` -> bzid/base_name parsed, server_type `ps`, index `1`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/utils.rs`.
