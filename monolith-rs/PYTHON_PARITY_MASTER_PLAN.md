@@ -587,7 +587,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/model_export/export_state_utils.py`](#monolith-native-training-model-export-export-state-utils-py) | 46 | IN PROGRESS | N/A (export state) |  |
 | [`monolith/native_training/model_export/export_state_utils_test.py`](#monolith-native-training-model-export-export-state-utils-test-py) | 36 | IN PROGRESS | N/A (export state test) |  |
 | [`monolith/native_training/model_export/export_utils.py`](#monolith-native-training-model-export-export-utils-py) | 98 | IN PROGRESS | N/A (remote predict helper) |  |
-| [`monolith/native_training/model_export/export_utils_test.py`](#monolith-native-training-model-export-export-utils-test-py) | 43 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model_export/export_utils_test.py`](#monolith-native-training-model-export-export-utils-test-py) | 43 | IN PROGRESS | N/A (remote predict test) |  |
 | [`monolith/native_training/model_export/saved_model_exporters.py`](#monolith-native-training-model-export-saved-model-exporters-py) | 739 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/saved_model_exporters_test.py`](#monolith-native-training-model-export-saved-model-exporters-test-py) | 153 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/saved_model_visulizer.py`](#monolith-native-training-model-export-saved-model-visulizer-py) | 89 | TODO | TODO (manual) |  |
@@ -17162,50 +17162,42 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_export/export_utils_test.py`
 <a id="monolith-native-training-model-export-export-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 43
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Basic test for `RemotePredictHelper` signature definition and call path.
+- Key symbols/classes/functions: `ExportUtilsTest.testBasic`.
+- External dependencies: TensorFlow, `export_context`, `export_utils`.
+- Side effects: Enters export mode (standalone).
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `testBasic`:
+  - Enters `export_context.enter_export_mode(EXPORT_MODE.STANDALONE)`.
+  - Defines `remote_func(d)` returning `d["a"] * 3 + d["b"] * 4`.
+  - Instantiates `RemotePredictHelper("test_func", {"a": tf.constant(1), "b": tf.constant(2)}, remote_func)`.
+  - Calls `helper.call_remote_predict("model_name")`.
+  - Asserts result is a `tf.Tensor`.
+- Note: test intentionally only checks grammar due to missing TF Serving compilation.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A.
+- Rust public API surface: none.
+- Data model mapping: none.
+- Feature gating: export-only.
+- Integration points: remote predict.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. If Rust implements RemotePredictHelper, add a similar smoke test.
+2. Ensure export mode context is active for signature registration.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `export_utils_test.py`.
+- Rust tests: none.
+- Cross-language parity test: verify signature registration.
 
 **Gaps / Notes**
-- TODO (manual)
+- No actual remote serving is exercised.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
