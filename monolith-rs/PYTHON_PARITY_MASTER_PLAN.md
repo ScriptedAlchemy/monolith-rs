@@ -520,7 +520,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/input.py`](#monolith-native-training-input-py) | 45 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/layers/__init__.py`](#monolith-native-training-layers-init-py) | 46 | IN PROGRESS | monolith-rs/crates/monolith-layers/src |  |
 | [`monolith/native_training/layers/add_bias.py`](#monolith-native-training-layers-add-bias-py) | 110 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/add_bias.rs |  |
-| [`monolith/native_training/layers/add_bias_test.py`](#monolith-native-training-layers-add-bias-test-py) | 65 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/add_bias_test.py`](#monolith-native-training-layers-add-bias-test-py) | 65 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/add_bias_test.rs |  |
 | [`monolith/native_training/layers/advanced_activations.py`](#monolith-native-training-layers-advanced-activations-py) | 217 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/advanced_activations_test.py`](#monolith-native-training-layers-advanced-activations-test-py) | 84 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/agru.py`](#monolith-native-training-layers-agru-py) | 295 | TODO | TODO (manual) |  |
@@ -12437,50 +12437,53 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/add_bias_test.py`
 <a id="monolith-native-training-layers-add-bias-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 65
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Unit tests for `AddBias` instantiation, serialization, and forward call in TF v1 session mode.
+- Key symbols/classes/functions: `AddBiasTest.test_ab_instantiate`, `test_ab_serde`, `test_ab_call`.
+- External dependencies: TensorFlow v1 session runtime, NumPy.
+- Side effects: Uses `tf.compat.v1.disable_eager_execution()` in main guard; runs session initializers.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_ab_instantiate`:
+  - Builds `layer_template = AddBias.params()`.
+  - Copies params, sets `initializer = tf.initializers.Zeros()`, calls `instantiate()`.
+  - Also instantiates with `AddBias(initializer=tf.initializers.Zeros())`.
+  - Both constructions must succeed.
+- `test_ab_serde`:
+  - Instantiates via params.
+  - `cfg = ins1.get_config()`, then `AddBias.from_config(cfg)`.
+  - No assertion; should complete without error.
+- `test_ab_call`:
+  - Creates layer via params, sets `name` and `initializer`.
+  - Creates variable input shape `(100, 10)` and computes `tf.reduce_sum(layer(data))`.
+  - Runs in a session after `global_variables_initializer()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/add_bias_test.rs`.
+- Rust public API surface: `AddBias` constructor/builder, serialization, forward call.
+- Data model mapping:
+  - `AddBias.params()` ↔ Rust config builder or `LayerParams` metadata.
+  - `get_config`/`from_config` ↔ serde round-trip for `AddBias`.
+- Feature gating: None.
+- Integration points: `monolith_layers::AddBias`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add a constructor test for `AddBias::new()` and builder methods.
+2. Add serde round-trip test for `AddBias` config.
+3. Add forward pass test with deterministic input and bias; assert output sum.
+4. Keep tests CPU-only; no TF runtime required.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/add_bias_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/add_bias_test.rs` (new).
+- Cross-language parity test:
+  - Compare output sum for fixed input/bias between Python and Rust.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python tests are smoke tests without explicit assertions; Rust should add asserts for deterministic behavior.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
