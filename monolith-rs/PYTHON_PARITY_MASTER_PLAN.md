@@ -4508,6 +4508,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
   - Instantiates BaseLayer params, sets name, creates layer, calls `create_child`, and asserts child exists.
 - `test_create_children`:
   - Creates two child layers and asserts list length is 2.
+- Both tests set `layer._disable_create_child = False` (attribute not defined on BaseLayer but set anyway).
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/tests/base_layer.rs`.
