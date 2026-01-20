@@ -524,7 +524,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/advanced_activations.py`](#monolith-native-training-layers-advanced-activations-py) | 217 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/activation.rs |  |
 | [`monolith/native_training/layers/advanced_activations_test.py`](#monolith-native-training-layers-advanced-activations-test-py) | 84 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/advanced_activations_test.rs |  |
 | [`monolith/native_training/layers/agru.py`](#monolith-native-training-layers-agru-py) | 295 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/agru.rs |  |
-| [`monolith/native_training/layers/agru_test.py`](#monolith-native-training-layers-agru-test-py) | 112 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/agru_test.py`](#monolith-native-training-layers-agru-test-py) | 112 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/agru_test.rs |  |
 | [`monolith/native_training/layers/dense.py`](#monolith-native-training-layers-dense-py) | 307 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/dense_test.py`](#monolith-native-training-layers-dense-test-py) | 147 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/feature_cross.py`](#monolith-native-training-layers-feature-cross-py) | 805 | TODO | TODO (manual) |  |
@@ -12751,50 +12751,58 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/agru_test.py`
 <a id="monolith-native-training-layers-agru-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 112
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke tests for `AGRUCell` instantiation, serde, and static/dynamic attention RNN helpers.
+- Key symbols/classes/functions: `AGRUTest` methods `test_agru_instantiate`, `test_agru_serde`, `test_agru_call`, `test_agru_static_rnn_call`, `test_agru_dynamic_rnn_call`.
+- External dependencies: TensorFlow v1 session mode, NumPy.
+- Side effects: Disables eager execution and v2 behavior in main guard.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_agru_instantiate`:
+  - Uses `AGRUCell.params()` to build `InstantiableParams`.
+  - Sets `units=10`, `activation=sigmoid`, `initializer=GlorotNormal`, then `instantiate()`.
+  - Also constructs directly with `AGRUCell(units=10, activation=sigmoid, initializer=HeUniform)`.
+  - Both instantiations must succeed.
+- `test_agru_serde`:
+  - `cfg = AGRUCell(...).get_config()` then `AGRUCell.from_config(cfg)` must succeed.
+- `test_agru_call`:
+  - Inputs: `data` shape `(100, 100)`, `state` shape `(100, 10)`, `attr` shape `(100, 1)`.
+  - Calls `layer((data, state, attr))`, gets `(output, new_state)`; sums `new_state`.
+  - Runs in a session after variable initialization.
+- `test_agru_static_rnn_call`:
+  - Inputs: `data` shape `(100, 20, 10)`, `attr` shape `(100, 20)`.
+  - Calls `static_rnn_with_attention`, receives `(outputs, final_state)`.
+  - Sums `final_state` (not the full outputs).
+- `test_agru_dynamic_rnn_call`:
+  - Inputs: random `data` shape `(100, 20, 10)` and `attr` shape `(100, 20)`.
+  - Calls `dynamic_rnn_with_attention`, receives `(outputs, final_state)` and sums `final_state`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/agru_test.rs`.
+- Rust public API surface: `AGRUCell` (or equivalent), `static_rnn_with_attention`, `dynamic_rnn_with_attention`.
+- Data model mapping:
+  - Params-based instantiation ↔ Rust config/builder.
+  - `get_config`/`from_config` ↔ serde round-trip.
+- Feature gating: None.
+- Integration points: `monolith_layers::agru`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust tests for params/builder instantiation and serde round-trip.
+2. Add forward step test for `AGRUCell` with fixed inputs, compare output sum.
+3. Add static and dynamic RNN tests; validate final state sum against Python.
+4. Mirror test input shapes and attention shapes from Python.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/agru_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/agru_test.rs` (new).
+- Cross-language parity test:
+  - Fix weights and inputs and compare final state sums for static/dynamic helpers.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python tests do not assert exact values; Rust tests should add deterministic assertions.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
