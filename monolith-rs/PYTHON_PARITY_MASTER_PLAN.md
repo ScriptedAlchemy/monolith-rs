@@ -522,7 +522,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/add_bias.py`](#monolith-native-training-layers-add-bias-py) | 110 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/add_bias.rs |  |
 | [`monolith/native_training/layers/add_bias_test.py`](#monolith-native-training-layers-add-bias-test-py) | 65 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/add_bias_test.rs |  |
 | [`monolith/native_training/layers/advanced_activations.py`](#monolith-native-training-layers-advanced-activations-py) | 217 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/activation.rs |  |
-| [`monolith/native_training/layers/advanced_activations_test.py`](#monolith-native-training-layers-advanced-activations-test-py) | 84 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/advanced_activations_test.py`](#monolith-native-training-layers-advanced-activations-test-py) | 84 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/advanced_activations_test.rs |  |
 | [`monolith/native_training/layers/agru.py`](#monolith-native-training-layers-agru-py) | 295 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/agru_test.py`](#monolith-native-training-layers-agru-test-py) | 112 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/dense.py`](#monolith-native-training-layers-dense-py) | 307 | TODO | TODO (manual) |  |
@@ -12588,50 +12588,51 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/advanced_activations_test.py`
 <a id="monolith-native-training-layers-advanced-activations-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 84
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Exercises `advanced_activations.get`/`serialize` with identifiers and ensures activation layers run in a TF session.
+- Key symbols/classes/functions: `serde`, `all_acts`, `raw_acts`, `lay_acts`, `ActivationsTest`.
+- External dependencies: TensorFlow Keras activations/layers, TF v1 session mode.
+- Side effects: Disables eager execution in main guard; runs session with variable initialization.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `serde(act)`:
+  - `_act = get(act)`, `sered_act = serialize(_act)`, then `get(sered_act)` must succeed.
+- `all_acts` list defines string identifiers for names to test.
+- `raw_acts` list of Keras activation functions exists but is unused in tests.
+- `lay_acts` list includes Keras layer instances (`ReLU`, `PReLU`, `ThresholdedReLU`, `ELU`, `Softmax`, `LeakyReLU`).
+- Tests:
+  - `test_get_from_str`: calls `serde` for each name in `all_acts`.
+  - `test_get_from_layers`: calls `serde` for each layer instance in `lay_acts`.
+  - `test_get_from_func`: loops `lay_acts` again (likely intended `raw_acts` but uses layers).
+  - `test_params`: for each name, calls `cls = get(act).__class__` then `cls.params()`.
+  - `test_call`: creates input `(100, 200)`, applies `get(act)` to each name, sums and evaluates in a session.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/advanced_activations_test.rs`.
+- Rust public API surface: activation registry `get`, `serialize`, config params metadata.
+- Data model mapping:
+  - `all_acts` strings → Rust name lookup (`ActivationType` or registry).
+  - `serialize` output → Rust serialization format (must accept Python repr strings if parity required).
+- Feature gating: None.
+- Integration points: `monolith_layers::activation` and `ActivationLayer`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust tests to cover name lookup for all `all_acts` names.
+2. Add serde round-trip test for each activation type.
+3. Add test to ensure `params`/config metadata exists for each activation class.
+4. Add forward test applying all activations to a fixed tensor and summing outputs.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/advanced_activations_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/advanced_activations_test.rs` (new).
+- Cross-language parity test:
+  - Use identical inputs and compare output sums per activation name.
 
 **Gaps / Notes**
-- TODO (manual)
+- `test_get_from_func` likely intended to use `raw_acts` but currently uses `lay_acts`; Rust tests should mirror the current behavior, not the intent.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
