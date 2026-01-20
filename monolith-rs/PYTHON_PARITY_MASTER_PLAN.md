@@ -622,7 +622,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/restore_test.py`](#monolith-native-training-restore-test-py) | 240 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/runner_utils.py`](#monolith-native-training-runner-utils-py) | 396 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/runner_utils_test.py`](#monolith-native-training-runner-utils-test-py) | 108 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
-| [`monolith/native_training/runtime/ops/gen_monolith_ops.py`](#monolith-native-training-runtime-ops-gen-monolith-ops-py) | 23 | TODO | TODO (manual) |  |
+| [`monolith/native_training/runtime/ops/gen_monolith_ops.py`](#monolith-native-training-runtime-ops-gen-monolith-ops-py) | 23 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/save_utils.py`](#monolith-native-training-save-utils-py) | 1309 | TODO | TODO (manual) |  |
 | [`monolith/native_training/save_utils_test.py`](#monolith-native-training-save-utils-test-py) | 1740 | TODO | TODO (manual) |  |
 | [`monolith/native_training/service_discovery.py`](#monolith-native-training-service-discovery-py) | 481 | TODO | TODO (manual) |  |
@@ -19894,50 +19894,39 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/runtime/ops/gen_monolith_ops.py`
 <a id="monolith-native-training-runtime-ops-gen-monolith-ops-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 23
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Loads the Monolith custom op shared library and exposes generated op wrappers.
+- Key symbols/classes/functions: `gen_monolith_ops_base` imports, `tf.load_library(...)`.
+- External dependencies: TensorFlow, `monolith.utils.get_libops_path`.
+- Side effects: Loads shared library `libtfkernel_monolith_ops_for_load.so` at import time.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Imports all symbols from `gen_monolith_ops_base`.
+- Calls `tf.load_library(utils.get_libops_path("monolith/native_training/runtime/ops/libtfkernel_monolith_ops_for_load.so"))` on import.
+- This is required for custom ops used throughout native training (hash tables, optimizers, ragged utils, etc.).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tf/src` (TF runtime bindings).
+- Rust public API surface: dynamic library loader or FFI bindings for custom ops.
+- Data model mapping: expose wrappers or direct FFI calls matching generated ops.
+- Feature gating: only available when TF runtime backend is enabled and custom ops library present.
+- Integration points: required by optimizers, hash table ops, ragged utils, etc.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Provide a Rust wrapper that loads the custom op shared library at startup.
+2. Ensure load is idempotent and errors are surfaced clearly.
+3. Map or bind the generated op APIs used in Python.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none in this file; exercised by downstream tests.
+- Rust tests: add a smoke test that loads the shared library when TF backend enabled.
+- Cross-language parity test: verify ops are available and callable.
 
 **Gaps / Notes**
-- TODO (manual)
+- Import-time side effect means load failures are fatal early; Rust should handle similarly or fail fast.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
