@@ -1431,24 +1431,50 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: starts and kills subprocesses; registers signal handlers; logs to files.
 
 **Required Behavior (Detailed)**
+- `ProcessType` enum: `PS=1`, `ENTRY=2`, `PROXY=3`, `UNKONWN=4`, `DENSE=5`.
 - `ProcessNode.__init__`:
-  - Chooses command and port via `get_cmd_and_port` based on process type.
-  - For ENTRY sets env `PORT2` to agent port.
+  - Stores config, replica_mgr, proc_type, tfs_log, env, etc; `_shell=False`, `_stderr=STDOUT`.
+  - For `PS/ENTRY/DENSE`: uses `get_cmd_and_port` with server_type and `tfs_binary`.
+  - For ENTRY: `_env = os.environ.copy()` and sets `PORT2` to `agent_port`.
+  - For other types: `get_cmd_and_port` without server_type (proxy command).
   - Tracks `_sub_procs` map and `_popen` handle.
 - `ProcessNode.run()`:
-  - If ENTRY: waits for PS replicas (and dense if `dense_alone`) via `ReplicaManager` before starting; timeout 3600s.
-  - Launches subprocess with `ServingLog` output redirection (unless `MLP_POD_NAME` env set).
-  - Waits for port open; starts sub-procs recursively; returns success boolean.
-- `ProcessNode.wait_for_started()`: polls `check_port_open` every 10s up to 3600s; returns True on success.
-- `ProcessNode.kill()`: kills sub-procs then self with retries; uses `poll`/`returncode` guards.
+  - If ENTRY: waits for PS replicas to start:
+    - Sleeps `update_model_status_interval * 2` and loops while `!replica_mgr.is_ps_set_started()` up to `max_waiting_sec=3600`.
+    - If `dense_alone`: waits for `is_dense_set_started()` similarly.
+    - On timeout logs error and returns False.
+  - Launches subprocess via `ServingLog(proc_type.name.lower(), tfs_log)`:
+    - `Popen(self._cmd.split(), shell=False, stderr=STDOUT, stdout=log)` unless `MLP_POD_NAME` env is set (then stdout=None).
+  - Calls `wait_for_started()`; on failure logs and returns False.
+  - Starts each sub-proc via `proc.run()`, aborting on failure.
+- `ProcessNode.wait_for_started()`:
+  - If `_port==0` returns True.
+  - Polls `check_port_open(_port)` every 10s up to 3600s.
+- `ProcessNode.kill()`:
+  - Kills sub-procs first; for each, retries up to 3 times with `kill()` and 1s sleep.
+  - Kills self `_popen` with same retry loop.
+- `ProcessNode.poll/returncode`:
+  - If `_is_failover` True: return None; else delegates to `_popen.poll()/returncode`.
+- `ProcessNode.failover()`:
+  - Sets `_is_failover`; if not `is_tce_main` and proc_type in {PS,DENSE} -> `run()`; else `kill()`; resets flag.
 - `ProcessMgr`:
-  - Registers SIGTERM/SIGINT handler to kill all processes.
-  - Background `_poll` thread watches all processes; if any exits, kills all.
-  - `start()` runs `ProcessNode.run()` for each and starts poll thread.
-- `AgentV1`:
-  - Starts ZK client, ReplicaManager (watcher/updater), AgentService, and ProcessMgr in that order.
-  - Build process graph based on `DeployType` (MIXED/ENTRY/PS/DENSE) and `dense_alone`.
-  - `stop()` shuts down processes, AgentService, ReplicaManager, ZK.
+  - Class vars `_is_killed=False`, `_lock=RLock`.
+  - Registers SIGTERM/SIGINT handler that kills all and SIGKILLs self.
+  - `_poll` thread flattens process tree and checks `returncode`; if any exited, kills all (no failover).
+  - `start()` runs each subproc; starts poll thread; on failure kills all.
+  - `kill_all(include_self=True)` kills all subprocs and optionally `os.kill(self, SIGKILL)`.
+- `AgentV1.__init__`:
+  - Creates `MonolithKazooClient`, `ReplicaManager`, and `AgentService(replica_mgr.watcher, port=agent_port)`.
+  - Builds `ProcessMgr` and adds `ProcessNode`s based on `deploy_type`:
+    - MIXED: ps + (dense if `dense_alone`) + entry (entry marked `is_tce_main=True`).
+    - ENTRY: single ENTRY node (named `proxy_proc` in code).
+    - PS: single PS node (`is_tce_main=True`).
+    - Else: single DENSE node.
+- `AgentV1.start()`:
+  - Starts ZK, ReplicaManager, AgentService, then ProcessMgr (with logs for each).
+- `AgentV1.wait_for_termination()` delegates to AgentService.
+- `AgentV1.stop()`:
+  - `process_mgr.kill_all(include_self=False)`, stop AgentService, ReplicaManager, and ZK.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/agent_v1.rs` + process supervisor module.
