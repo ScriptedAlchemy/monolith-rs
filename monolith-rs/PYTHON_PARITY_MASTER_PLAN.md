@@ -573,7 +573,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/model_comp_test.py`](#monolith-native-training-model-comp-test-py) | 183 | IN PROGRESS | N/A (TF/Horovod test) |  |
 | [`monolith/native_training/model_dump/dump_utils.py`](#monolith-native-training-model-dump-dump-utils-py) | 757 | IN PROGRESS | N/A (TF model dump) |  |
 | [`monolith/native_training/model_dump/graph_utils.py`](#monolith-native-training-model-dump-graph-utils-py) | 845 | IN PROGRESS | N/A (TF graph utils) |  |
-| [`monolith/native_training/model_dump/graph_utils_test.py`](#monolith-native-training-model-dump-graph-utils-test-py) | 86 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model_dump/graph_utils_test.py`](#monolith-native-training-model-dump-graph-utils-test-py) | 86 | IN PROGRESS | N/A (TF graph utils) |  |
 | [`monolith/native_training/model_export/__init__.py`](#monolith-native-training-model-export-init-py) | 22 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/data_gen_utils.py`](#monolith-native-training-model-export-data-gen-utils-py) | 732 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/data_gen_utils_test.py`](#monolith-native-training-model-export-data-gen-utils-test-py) | 0 | TODO | TODO (manual) |  |
@@ -16311,50 +16311,47 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_dump/graph_utils_test.py`
 <a id="monolith-native-training-model-dump-graph-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 86
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests `GraphDefHelper` input/receiver reconstruction using a saved model dump.
+- Key symbols/classes/functions: `GraphUtilsTest.test_load_input_fn`, `test_load_receiver`, `test_load_mode`.
+- External dependencies: TensorFlow, `DumpUtils`, `GraphDefHelper`.
+- Side effects: Loads model dump from `model_dump/test_data/model_dump`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `setUpClass`:
+  - Sets `FLAGS.data_type = 'examplebatch'`.
+  - Loads dump via `DumpUtils().load(...)`.
+- `test_load_input_fn`:
+  - Calls `import_input_fn` with `file_name`.
+  - Verifies each output feature returns `tf.RaggedTensor` if flagged ragged, else `tf.Tensor`.
+- `test_load_receiver`:
+  - Calls `import_receiver_fn`.
+  - Verifies feature tensor types and that receiver_tensors length is 1.
+- `test_load_mode`:
+  - `get_graph_helper` returns `GraphDefHelper` for TRAIN, TRAIN with `graph.dry_run=True`, and PREDICT.
+- `__main__`: disables eager execution and runs tests.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A.
+- Rust public API surface: none.
+- Data model mapping: none.
+- Feature gating: TF runtime only.
+- Integration points: model dump loader.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. If graph import is implemented in Rust, add tests for ragged/dense reconstruction.
+2. Use fixed dump artifacts to avoid nondeterminism.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/model_dump/graph_utils_test.py`.
+- Rust tests: none.
+- Cross-language parity test: compare reconstructed tensors and types.
 
 **Gaps / Notes**
-- TODO (manual)
+- Test depends on external dump artifacts in the repo.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
