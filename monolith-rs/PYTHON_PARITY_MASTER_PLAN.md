@@ -3700,27 +3700,57 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: ZK watch registration, ZK CRUD, background threads, queue events.
 
 **Required Behavior (Detailed)**
-- Maintains in-memory `_data` cache of ZK paths to bytes.
-- Defines base paths: `resource`, `portal`, `publish`, `service`, `locks`, `election`.
-- CRUD helpers (`create`, `set`, `delete`, `exists`, `ensure_path`) wrap ZK and fall back to cache on errors.
-- `report_resource`: writes ResourceSpec as ephemeral node.
-- `resources` property: returns list of ResourceSpec from cached paths.
-- `num_tce_replica`: waits until every replica id appears for all shards; returns count.
-- `tce_replica_id`: uses env `REPLICA_ID` or derives from pod name.
-- `publish_loadding`: writes PublishMeta entries to publish path; updates cache.
-- `expected_loading`:
-  - Groups PublishMeta by model_name; selects when all publish nodes have arrived.
-  - Adjusts shard_id/replica_id for autoscaler and entry cases; filters sub_models to entry when needed.
-- `update_service(replicas)`:
-  - Computes paths for local replicas; removes outdated nodes; creates/updates current replicas.
-- Replica queries: `get_all_replicas`, `get_model_replicas`, `get_task_replicas`, `get_replica` (AVAILABLE only).
-- Watchers:
-  - `watch_portal`: ensures portal/publish consistency; installs DataWatch for model meta; emits Event(PORTAL).
-  - `watch_publish`: installs watches on publish nodes; emits Event(PUBLISH) when all publish nodes arrive.
-  - `watch_resource`: watches resource nodes into cache.
-  - `watch_service`: watches service hierarchy into cache.
-- `election`: uses Kazoo Election to run leader function; handles reconnects.
-- `start(is_client=False)`: starts ZK, watches service, and optionally publish.
+- Core state:
+  - `_data` in-memory cache of `path -> bytes`.
+  - Base paths: `/bzid/resource`, `/bzid/portal`, `/bzid/publish`, `/bzid/service`, `/bzid/locks`, `/bzid/election`.
+  - `_local_host = get_local_ip()`, `_deploy_type` set from ctor.
+- CRUD:
+  - `create`: tries ZK create; on `NodeExistsError` sets value; rethrows other exceptions.
+  - `set`: `zk.set` with retry; on `NoNodeError` creates with `makepath=True`.
+  - `exists`: uses `zk.exists` (bool or stat); on `ZookeeperError` falls back to `_data`.
+  - `delete`: retries delete; on `NotEmptyError` deletes recursively; on `NoNodeError` logs.
+  - `get`: returns cached bytes; `get_children` returns child names by prefix (no dedupe).
+- Resource/reporting:
+  - `report_resource` writes `ResourceSpec` (ephemeral) under `/resource/{shard}:{replica}`.
+  - `resources` property deserializes all cached resource nodes.
+  - `tce_replica_id` from env `REPLICA_ID` or `replica_id_from_pod_name()`.
+  - `num_tce_replica` intends to wait for all shards to report; implementation currently buggy (inner helper does not return).
+- Publish/loading:
+  - `publish_loadding` (typo): creates publish nodes if cache differs; supports list or single.
+  - `expected_loading`:
+    - Reads publish nodes; counts per model; keeps PublishMeta with **fewest** sub_models.
+    - Selects model when count == `total_publish_num`.
+    - If local shard+replica match: use pm as-is.
+    - Else if same shard and `not is_spec`: override `replica_id` to local.
+    - Else: override shard_id/replica_id to local and **filter sub_models to entry only**.
+    - Skips non-LOAD ptypes.
+  - `get_published_path` returns publish paths ending with model_name.
+- Service updates/query:
+  - `update_service(replicas)`:
+    - Computes desired local paths via `ReplicaMeta.get_path`.
+    - Deletes local replicas not in desired set.
+    - Creates/updates remaining (ephemeral) when cache is missing or different.
+  - `local_replica_paths`: cached service nodes whose host matches `_local_host` and `replica == tce_replica_id`.
+  - `get_all_replicas(server_type)`: returns `{model:server_type:task -> [ReplicaMeta]}` for AVAILABLE only.
+  - `get_model_replicas(model_name, server_type)`: returns `{model:task -> [ReplicaMeta]}` for AVAILABLE only.
+  - `get_task_replicas(model_name, server_type, task)` returns list of AVAILABLE replicas.
+  - `get_replica` returns AVAILABLE replica or None.
+- Watches:
+  - `watch_portal`:
+    - Ensures portal/publish consistency; deletes publish entries not in portal.
+    - Installs DataWatch per portal node; on CREATED/DELETED emits `Event(PORTAL)` with ModelMeta/action.
+  - `watch_publish`:
+    - DataWatch per publish node; updates cache on CREATED/DELETED.
+    - When count is 0 or == total_publish_num, emits `Event(PUBLISH)`.
+  - `watch_resource`:
+    - Watches resource nodes; updates cache on CREATED/DELETED/CHANGED.
+  - `watch_service`:
+    - Watches model -> task -> replica hierarchy; caches data for each replica node.
+- Election:
+  - `election(leader, sched, identifier)` no-ops for ENTRY deploy.
+  - Uses Kazoo election; on `ConnectionClosedError` with disconnected state: clears cache/queue and restarts.
+- `start(is_client=False)`:
+  - Starts ZK, watches service, and if not client also watches publish.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/zk_mirror.rs`.
@@ -3766,16 +3796,36 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: ZK node creation, event queue handling.
 
 **Required Behavior (Detailed)**
+- `setUpClass`:
+  - Set `HOST_SHARD_ENV=10`, `SHARD_ID=2`, `REPLICA_ID=2`.
+  - Create `ZKMirror(zk=FakeKazooClient(), bzid='bzid', queue=Queue(), tce_shard_id=2, num_tce_shard=10)` and start.
+  - Build `ResourceSpec(address='{local_ip}:1234', shard_id=2, replica_id=2, memory=12345, cpu=5.6, network=3.2, work_load=0.7)`.
 - `test_crud`:
-  - `ensure_path`, `exists`, `create`, `get/set`, `delete` operations.
-  - Checks derived properties: `num_tce_shard`, `tce_replica_id`, `tce_shard_id`.
+  - `ensure_path('/model/crud')`, `exists` True.
+  - `create('/model/crud/data', b'test', makepath=True)`.
+  - `get/set` via underlying `_zk` to verify value change.
+  - `delete('/model/crud', recursive=False)` then `exists` False.
+  - Assert `num_tce_shard==10`, `tce_replica_id==2`, `tce_shard_id==2`.
 - `test_zk_mirror`:
-  - `watch_portal` + `watch_resource`.
-  - Portal event should be emitted for new ModelMeta.
-  - Scheduler simulation publishes PublishMeta to all shards/replicas.
-  - `expected_loading` selects correct PublishMeta for current shard.
-  - `update_service` writes ReplicaMeta nodes; verify replica query APIs.
-  - `report_resource` and `resources` should roundtrip ResourceSpec.
+  - Step0: `watch_portal()` and `watch_resource()`, then create portal node for `ModelMeta(model_name, model_dir, num_shard=5)`.
+  - Step1: dequeue `Event` from `queue`, assert `etype==PORTAL`, path matches, deserialize `ModelMeta`.
+  - Build scheduler PublishMeta list:
+    - `version=123456`, `num_ps=10`, `NUM_REPLICAS=3`.
+    - For each `i in range(mm.num_shard)`:
+      - `sub_models`: `ps_k` for `k % mm.num_shard == i`, plus `entry`.
+      - Choose `shard_id`: `self.shard_id` for `i==0`, else pop from shuffled shard list (avoiding current shard).
+      - For each replica_id 0..2, create `PublishMeta(shard_id, replica_id, model_name, num_ps, sub_models)`.
+    - Set `pm.total_publish_num = len(pms)` for all; call `publish_loadding(pms)`.
+  - Step2: `expected_loading()` returns map where:
+    - model_name == `MODEL_NAME`, `pm.shard_id == self.shard_id`, and `'entry'` in `pm.sub_models`.
+  - Step3: `update_service`:
+    - For each sub_model in expected `pm`, build `ReplicaMeta(address='{local_ip}:8080', model_name, server_type, task, replica=2, stat=AVAILABLE)`.
+    - Call `update_service(replicas)`.
+  - Step4: replica query checks:
+    - Build `entry_replica`, `ps0_replica`, `ps5_replica` with `stat=30`.
+    - Validate `get_all_replicas('ps')`, `get_model_replicas('entry')`, `get_task_replicas('ps',0)`, `get_replica('ps',5,2)`.
+    - `local_replica_paths` equals set of three expected paths.
+  - Step5/6: `report_resource(resource)` then `resources[0] == resource`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/zk_mirror.rs`.
