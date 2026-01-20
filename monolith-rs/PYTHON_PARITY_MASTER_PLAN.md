@@ -590,7 +590,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/model_export/export_utils_test.py`](#monolith-native-training-model-export-export-utils-test-py) | 43 | IN PROGRESS | N/A (remote predict test) |  |
 | [`monolith/native_training/model_export/saved_model_exporters.py`](#monolith-native-training-model-export-saved-model-exporters-py) | 739 | IN PROGRESS | N/A (SavedModel exporters) |  |
 | [`monolith/native_training/model_export/saved_model_exporters_test.py`](#monolith-native-training-model-export-saved-model-exporters-test-py) | 153 | IN PROGRESS | N/A (exporter tests) |  |
-| [`monolith/native_training/model_export/saved_model_visulizer.py`](#monolith-native-training-model-export-saved-model-visulizer-py) | 89 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model_export/saved_model_visulizer.py`](#monolith-native-training-model-export-saved-model-visulizer-py) | 89 | IN PROGRESS | N/A (tensorboard visualizer) |  |
 | [`monolith/native_training/model_export/warmup_data_decoder.py`](#monolith-native-training-model-export-warmup-data-decoder-py) | 55 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/warmup_data_gen.py`](#monolith-native-training-model-export-warmup-data-gen-py) | 253 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/warmup_example_batch.py`](#monolith-native-training-model-export-warmup-example-batch-py) | 57 | TODO | TODO (manual) |  |
@@ -17372,50 +17372,44 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_export/saved_model_visulizer.py`
 <a id="monolith-native-training-model-export-saved-model-visulizer-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 89
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: CLI utility to import a SavedModel protobuf and write it to TensorBoard for visualization.
+- Key symbols/classes/functions: `import_to_tensorboard`, `main`.
+- External dependencies: TensorFlow SavedModel proto, TensorBoard summary writer.
+- Side effects: Reads a SavedModel file, writes TensorBoard logdir.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `import_to_tensorboard(model_dir, log_dir)`:
+  - Opens SavedModel file at `model_dir` as bytes.
+  - Parses `SavedModel` proto; if more than one meta_graph, prints message and exits with code 1.
+  - Imports the first graph_def into a new graph.
+  - Writes graph to `log_dir` using `summary.FileWriter`.
+  - Prints TensorBoard command.
+- `main` invokes `import_to_tensorboard` with CLI flags.
+- CLI parsing via `argparse`, requires `--model_dir` and `--log_dir`.
+- Uses `app.run` from TF platform with parsed args.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A.
+- Rust public API surface: none.
+- Data model mapping: SavedModel proto parsing.
+- Feature gating: TF runtime only.
+- Integration points: tooling/debugging.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. If Rust needs similar tool, parse SavedModel protobuf and emit graph for visualization.
+2. Provide CLI for model_dir/log_dir.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: none.
+- Cross-language parity test: not applicable.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses TF internal APIs; depends on TensorFlow installation.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
