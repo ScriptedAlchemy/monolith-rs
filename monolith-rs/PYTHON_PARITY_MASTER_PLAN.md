@@ -570,7 +570,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/metric/utils_test.py`](#monolith-native-training-metric-utils-test-py) | 50 | IN PROGRESS | N/A (TF custom ops) |  |
 | [`monolith/native_training/mlp_utils.py`](#monolith-native-training-mlp-utils-py) | 444 | IN PROGRESS | N/A (TF distributed runtime) |  |
 | [`monolith/native_training/model.py`](#monolith-native-training-model-py) | 182 | IN PROGRESS | N/A (test model) |  |
-| [`monolith/native_training/model_comp_test.py`](#monolith-native-training-model-comp-test-py) | 183 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model_comp_test.py`](#monolith-native-training-model-comp-test-py) | 183 | IN PROGRESS | N/A (TF/Horovod test) |  |
 | [`monolith/native_training/model_dump/dump_utils.py`](#monolith-native-training-model-dump-dump-utils-py) | 757 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_dump/graph_utils.py`](#monolith-native-training-model-dump-graph-utils-py) | 845 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_dump/graph_utils_test.py`](#monolith-native-training-model-dump-graph-utils-test-py) | 86 | TODO | TODO (manual) |  |
@@ -16018,50 +16018,65 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_comp_test.py`
 <a id="monolith-native-training-model-comp-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 183
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Integration test comparing TF embedding updates vs Monolith embedding updates under sync training (Horovod).
+- Key symbols/classes/functions: `EmbeddingUpdateTask`, `CpuSyncTrainTest`, `lookup_tf_embedding`.
+- External dependencies: TensorFlow, Horovod, Monolith CPU training stack, Keras layers.
+- Side effects: Sets environment variables at import; runs distributed training; writes model checkpoints under `/tmp/<user>/monolith_test/...`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Module-level env vars (set before TF/Horovod import):
+  - `MONOLITH_WITH_HOROVOD=True`, `HOROVOD_AUTOTUNE=1`, `HOROVOD_CYCLE_TIME=0.1`,
+    `MONOLITH_SYNC_EMPTY_RANK0_PS_SHARD=0`, `MONOLITH_WITH_ALLREDUCE_FUSION=one`,
+    `MONOLITH_ROOT_LOG_INTERVAL=10`.
+- Sets TF v1 random seed to 42.
+- Global constants: `num_features=17`, `batch_size=455`, `emb_dim=15`, `fid_max_val=100000`.
+- `lookup_tf_embedding(features, f_name, dim)`:
+  - Builds `RaggedTensor` from `tf_<f_name>_p1`/`p2`.
+  - Embedding lookup on a zeros-initialized variable.
+  - Returns `segment_sum` by row ids.
+- `EmbeddingUpdateTask(MonolithModel)`:
+  - `__init__`: sets `train.max_steps=50`, `train.per_replica_batch_size=batch_size`.
+  - `input_fn`:
+    - Generates random feature vectors with variable length per feature (1..24).
+    - Uses `dense_to_ragged_batch` with batch_size and `advanced_parse`.
+    - Adds `tf_feature{i}_p1/p2` to features for TF embedding lookup.
+  - `model_fn`:
+    - Creates embedding feature columns and Monolith embeddings.
+    - Computes TF embeddings via `lookup_tf_embedding`.
+    - Asserts Monolith embeddings equal TF embeddings.
+    - Builds parallel Keras MLPs for both embedding sets, computes MSE losses.
+    - Returns `EstimatorSpec` with combined loss, predictions, labels, head names, and optimizer.
+  - `serving_input_receiver_fn`: unimplemented (`pass`).
+- `CpuSyncTrainTest`:
+  - `_create_config(gpu, multi_hash_table)` builds `DistributedCpuTrainingConfig` with sync training enabled.
+  - `test_embedding_update`:
+    - Initializes Horovod, runs distributed sync training in 2 configurations (cpu/multi-hash on/off).
+    - If GPU available, repeats with GPU enabled.
+- `__main__`: disables eager execution and runs `tf.test.main()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (TF/Horovod integration test only).
+- Rust public API surface: none.
+- Data model mapping: none.
+- Feature gating: Horovod/TF runtime only.
+- Integration points: training loop parity for embedding updates.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. If Rust aims to match embedding update semantics, port the comparison into Rust unit tests using Candle/TF backend.
+2. Provide deterministic random feature generation for repeatability.
+3. Mirror embedding lookup + segment sum behavior.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/model_comp_test.py`.
+- Rust tests: none.
+- Cross-language parity test: compare embedding tensors and loss values on fixed seeds.
 
 **Gaps / Notes**
-- TODO (manual)
+- `serving_input_receiver_fn` is unimplemented.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
