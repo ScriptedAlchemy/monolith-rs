@@ -473,8 +473,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/embedding_combiners_test.py`](#monolith-native-training-embedding-combiners-test-py) | 47 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests |  |
 | [`monolith/native_training/entry.py`](#monolith-native-training-entry-py) | 630 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/src |  |
 | [`monolith/native_training/entry_test.py`](#monolith-native-training-entry-test-py) | 84 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/tests |  |
-| [`monolith/native_training/env_utils.py`](#monolith-native-training-env-utils-py) | 32 | TODO | TODO (manual) |  |
-| [`monolith/native_training/env_utils_test.py`](#monolith-native-training-env-utils-test-py) | 23 | TODO | TODO (manual) |  |
+| [`monolith/native_training/env_utils.py`](#monolith-native-training-env-utils-py) | 32 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
+| [`monolith/native_training/env_utils_test.py`](#monolith-native-training-env-utils-test-py) | 23 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/estimator.py`](#monolith-native-training-estimator-py) | 667 | TODO | TODO (manual) |  |
 | [`monolith/native_training/estimator_dist_test.py`](#monolith-native-training-estimator-dist-test-py) | 166 | TODO | TODO (manual) |  |
 | [`monolith/native_training/estimator_mode_test.py`](#monolith-native-training-estimator-mode-test-py) | 417 | TODO | TODO (manual) |  |
@@ -9849,50 +9849,46 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/env_utils.py`
 <a id="monolith-native-training-env-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 32
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Minimal environment utility stubs for HDFS setup, UUID->PSM conversion, and ZooKeeper auth data.
+- Key symbols/classes/functions: `setup_hdfs_env`, `generate_psm_from_uuid`, `get_zk_auth_data`.
+- External dependencies: `os`, `absl.logging` (unused), `contextlib`, `hashlib`, `subprocess`, `socket` (unused).
+- Side effects: `get_zk_auth_data` prints `ZK_AUTH` to stdout when set.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `setup_hdfs_env()`:
+  - Currently a no-op (`pass`).
+- `generate_psm_from_uuid(s)`:
+  - Returns the input string unchanged.
+- `get_zk_auth_data()`:
+  - Reads `ZK_AUTH` env var.
+  - If set, prints `"ZK_AUTH <value>"` and returns `[('digest', ZK_AUTH)]`.
+  - If unset, returns `None`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/env_utils.rs` (new) or `monolith-rs/crates/monolith-core/src/env_utils.rs`.
+- Rust public API surface: `setup_hdfs_env`, `generate_psm_from_uuid`, `get_zk_auth_data` equivalents.
+- Data model mapping: `get_zk_auth_data` returns `Option<Vec<(String, String)>>` or a domain-specific auth struct.
+- Feature gating: none; functions are pure env utilities.
+- Integration points: any ZooKeeper or HDFS setup codepaths in Rust equivalents.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement `setup_hdfs_env` as a no-op in Rust until actual HDFS setup logic is defined.
+2. Implement `generate_psm_from_uuid` as identity function.
+3. Implement `get_zk_auth_data` to read `ZK_AUTH` and return digest tuple; log/print similarly.
+4. Add tests to verify behavior with `ZK_AUTH` set/unset.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none (see `env_utils_test.py`, empty).
+- Rust tests: add unit tests in `monolith-rs/crates/monolith-training/tests/env_utils_test.rs`.
+- Cross-language parity test: set `ZK_AUTH` env and compare return value.
 
 **Gaps / Notes**
-- TODO (manual)
+- Many imports are unused; indicates incomplete implementation in Python.
+- If upstream has a richer implementation, this file should be revisited for parity.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -9909,50 +9905,36 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/env_utils_test.py`
 <a id="monolith-native-training-env-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 23
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Placeholder test file; no tests implemented.
+- Key symbols/classes/functions: None.
+- External dependencies: `os`, `unittest`, `mock`, `env_utils` (unused).
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- No runtime behavior; file only defines imports and `unittest.main()` when run as main.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/env_utils_test.rs` (new).
+- Rust public API surface: tests for `env_utils` functions.
+- Feature gating: none.
+- Integration points: ensure env parsing helpers are covered by unit tests.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement Rust tests for `get_zk_auth_data` with and without `ZK_AUTH`.
+2. Add a smoke test for `generate_psm_from_uuid` identity behavior.
+3. Keep `setup_hdfs_env` as no-op test (ensures no panic).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/env_utils_test.rs`.
+- Cross-language parity test: not required beyond env value checks.
 
 **Gaps / Notes**
-- TODO (manual)
+- This file has no actual tests; Rust should still cover behavior to keep parity validated.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
