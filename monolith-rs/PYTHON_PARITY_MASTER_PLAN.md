@@ -598,7 +598,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/multi_hash_table_ops.py`](#monolith-native-training-multi-hash-table-ops-py) | 695 | IN PROGRESS | N/A (TF custom ops) |  |
 | [`monolith/native_training/multi_hash_table_ops_test.py`](#monolith-native-training-multi-hash-table-ops-test-py) | 249 | IN PROGRESS | N/A (TF custom ops) |  |
 | [`monolith/native_training/multi_type_hash_table.py`](#monolith-native-training-multi-type-hash-table-py) | 435 | IN PROGRESS | N/A (hash table wrapper) |  |
-| [`monolith/native_training/multi_type_hash_table_test.py`](#monolith-native-training-multi-type-hash-table-test-py) | 326 | TODO | TODO (manual) |  |
+| [`monolith/native_training/multi_type_hash_table_test.py`](#monolith-native-training-multi-type-hash-table-test-py) | 326 | IN PROGRESS | N/A (hash table tests) |  |
 | [`monolith/native_training/native_model.py`](#monolith-native-training-native-model-py) | 1109 | TODO | TODO (manual) |  |
 | [`monolith/native_training/native_task.py`](#monolith-native-training-native-task-py) | 213 | TODO | TODO (manual) |  |
 | [`monolith/native_training/native_task_context.py`](#monolith-native-training-native-task-context-py) | 58 | TODO | TODO (manual) |  |
@@ -17842,50 +17842,49 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/multi_type_hash_table_test.py`
 <a id="monolith-native-training-multi-type-hash-table-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 326
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests MultiTypeHashTable and MergedMultiTypeHashTable behaviors, including fused ops and name stability.
+- Key symbols/classes/functions: `MultiTypeHashTableTest.*`, `MergedMultiTypeHashTable.*`.
+- External dependencies: TensorFlow, hash_table_ops custom ops.
+- Side effects: None beyond TF session operations.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_basic`: assign_add + lookup values per slot.
+- `test_apply_gradients`: applies gradients; expected negative embeddings.
+- `test_apply_gradients_with_learning_rate_decay`: uses PolynomialDecay learning rate; checks scaled updates.
+- `test_apply_gradients_without_lookup`: gradient updates without prior lookup.
+- `test_fused_lookup` / `test_fused_lookup_multi_shards`:
+  - Validate fused lookup outputs (embeddings, splits, offsets).
+- `test_fused_apply_gradients` / `test_fused_apply_gradients_missing_tables`:
+  - Validate fused optimize updates and resulting embeddings.
+- `MergedMultiTypeHashTable.testBasic`:
+  - Merges slots 1/2; verifies combined updates and gradients.
+- `testNameStability`:
+  - Ensures merged slot name (MD5) deterministic; factory called with single merged key.
+- `testRestoreName`:
+  - Verifies `extra_restore_names` for old naming convention `fc_slot_*`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A.
+- Rust public API surface: none.
+- Data model mapping: custom ops for hash tables.
+- Feature gating: TF runtime + custom ops.
+- Integration points: embedding table implementation.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. If Rust binds custom ops, port tests for assign/lookup and fused ops.
+2. Validate merged slot mapping and restore name behavior.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `multi_type_hash_table_test.py`.
+- Rust tests: none.
+- Cross-language parity test: compare embeddings and offsets for fused ops.
 
 **Gaps / Notes**
-- TODO (manual)
+- Tests rely on custom ops and fixed learning rate semantics.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
