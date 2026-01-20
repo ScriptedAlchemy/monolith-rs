@@ -647,8 +647,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/test_utils.py`](#monolith-native-training-test-utils-py) | 65 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/touched_key_set_ops.py`](#monolith-native-training-touched-key-set-ops-py) | 61 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/src |  |
 | [`monolith/native_training/touched_key_set_ops_test.py`](#monolith-native-training-touched-key-set-ops-test-py) | 51 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/src |  |
-| [`monolith/native_training/utils.py`](#monolith-native-training-utils-py) | 320 | TODO | TODO (manual) |  |
-| [`monolith/native_training/utils_test.py`](#monolith-native-training-utils-test-py) | 70 | TODO | TODO (manual) |  |
+| [`monolith/native_training/utils.py`](#monolith-native-training-utils-py) | 320 | IN PROGRESS | monolith-rs/crates/monolith-training/src/utils.rs (new) |  |
+| [`monolith/native_training/utils_test.py`](#monolith-native-training-utils-test-py) | 70 | IN PROGRESS | monolith-rs/crates/monolith-training/tests/utils.rs (new) |  |
 | [`monolith/native_training/variables.py`](#monolith-native-training-variables-py) | 147 | TODO | TODO (manual) |  |
 | [`monolith/native_training/variables_test.py`](#monolith-native-training-variables-test-py) | 89 | TODO | TODO (manual) |  |
 | [`monolith/native_training/yarn_runtime.py`](#monolith-native-training-yarn-runtime-py) | 127 | TODO | TODO (manual) |  |
@@ -21467,50 +21467,138 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/utils.py`
 <a id="monolith-native-training-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 320
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Utility helpers for TF-native training (device strings, gradient backprop helpers, shape helpers, params introspection, graph dependency checks, TF collections, env-driven metric prefix).
+- Key symbols/classes/functions: `PS_JOB_NAME`, `ps_device`, `propagate_back_gradients`, `propagate_back_dict_gradients`, `get_ndim`, `int_shape`, `extend_as_list`, `check_list`, `to_snake_case`, `to_list`, `_get_parameters`, `_get_all_parameters`, `_inverted_index`, `params`, `check_ops_dependence`, `with_params`, `get_local_host`, `get_test_tmp_dir`, `get_debugging_info_file_name`, `get_meta_graph_file_name`, `add_to_collections`, `get_collection`, `set_metric_prefix`, `get_metric_prefix`.
+- External dependencies: TensorFlow (core + internal graph utils), `absl.logging`, `monolith.core.base_layer.get_uname`, `monolith.core.hyperparams` (`allowed_kwargs`, `InstantiableParams`, `Params`), stdlib (`os`, `platform`, `socket`, `re`, `inspect`, `copy`, `types`).
+- Side effects:
+  - Raises `RuntimeError`, `TypeError`, `ValueError`, generic `Exception` in validation helpers.
+  - Mutates TF collections via `tf.compat.v1.add_to_collections`.
+  - Sets environment variable `MONOLITH_METRIC_PREFIX`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Constants:
+  - `PS_JOB_NAME = "ps"`.
+- `ps_device(index)`:
+  - Returns `"/job:ps/task:{index}/device:CPU:0"` (string formatting only; no validation).
+- `propagate_back_gradients(grads_and_vars, xs, valid_var_set=None)`:
+  - Iterates `(grad, var)` pairs; if `valid_var_set` and `var` not in it → `RuntimeError("Invalid variables in the input", var, valid_var_set)`.
+  - Accumulates `combined_vars` and `combined_grads` in input order.
+  - Returns `tf.gradients(combined_vars, list(xs), combined_grads)` (list aligned with `xs` order).
+- `propagate_back_dict_gradients(grads_and_vars, x_to_key, valid_var_set=None)`:
+  - Calls `propagate_back_gradients` using `x_to_key.keys()`.
+  - Zips returned `dxs` with `x_to_key.items()` (dict iteration order), grouping into `defaultdict(list)` keyed by `key` → list of `(dx, x)`.
+- `get_ndim(x)`:
+  - Returns `len(x.get_shape()._dims)` if `_dims` is not `None`; else `None`.
+- `int_shape(x)`:
+  - Uses `x.get_shape().as_list()`; maps `None` → `-1`, `int` as-is, `tf.compat.v1.Dimension` → `.value`.
+  - Any other dim type raises `ValueError`; function catches `ValueError` and returns `None`.
+- `extend_as_list(x, n)`:
+  - If `x` is `list`/`tuple`:
+    - If `len(x) < n`: return `x + [None] * (n - len(x))`.
+    - Else: return `x` as-is (no copy).
+  - Else: attempts `[x if i == 0 else deepcopy(x) for i in range(n)]`; if deepcopy fails, returns `[x] * n`.
+- `check_list(candidate, length_checker, could_be_none=False)`:
+  - If `candidate is None` and `not could_be_none`: `TypeError`.
+  - Only accepts `None` or `list`; other types (including `tuple`) → `TypeError`.
+  - If `candidate` is list and `length_checker(len(candidate))` is false → `ValueError`.
+  - Returns `candidate` unchanged.
+- `to_snake_case(name)`:
+  - Inserts underscores between camel-case boundaries; lowercases.
+  - If result starts with `_`, prefix with `"private"`.
+- `to_list(x)`:
+  - If `x` is a `list`, returns `x` (no copy).
+  - Else returns `[x]` (tuples are not expanded).
+- Parameter helpers:
+  - `_get_parameters(cls, parameters)` collects `__init__` parameters except `self/cls` and varargs/kwargs.
+  - `_get_all_parameters` walks base classes (excluding `object`) then calls `_get_parameters`.
+  - `_inverted_index(ips, idx_dict)` recursively maps param names to their `InstantiableParams` container.
+  - `params(cls)`:
+    - Finds nearest base with `.params()`, otherwise `InstantiableParams(cls)`.
+    - Sets `ips.cls = cls`.
+    - Builds param list from `__init__` signature across the MRO.
+    - Attempts to define `name` using `get_uname(cls.__name__)` (ignores exceptions).
+    - For each parameter:
+      - If name exists in inverted index: update default value if non-empty.
+      - Else: `ips.define(name, default_or_None, name)`; if define fails and default is not empty/None, set via `ips[name] = default`.
+    - Defines `allowed_kwargs` with default `None` (ignores exceptions).
+    - Returns `ips`.
+- `check_ops_dependence(op_names_1, op_names_2)`:
+  - Extracts subgraph of `op_names_1` from default graph.
+  - If any op in `op_names_2` appears in that subgraph, raises `Exception` with message:
+    `"Checking ops dependence, the ops [%s] depend on ops [%s], which may cause ops [%s] to be run twice."`
+- `with_params(cls)`:
+  - Binds `params` as a method of `cls` and returns `cls`.
+- Host/paths/env:
+  - `get_local_host()`:
+    - Windows/Linux: `socket.gethostbyname(socket.gethostname())`.
+    - Other OS: `socket.gethostbyname(socket.gethostname() + ".local")`.
+  - `get_test_tmp_dir()` reads `TEST_TMPDIR` env var, default `/tmp`.
+  - `get_debugging_info_file_name(model_dir)` → `model_dir/debugging_info.pb`.
+  - `get_meta_graph_file_name(model_dir)` → `model_dir/meta_graph_for_debugging.pb`.
+  - `set_metric_prefix(prefix)` sets `MONOLITH_METRIC_PREFIX`.
+  - `get_metric_prefix()` returns `MONOLITH_METRIC_PREFIX` or default `"monolith.training"`.
+- Collections:
+  - `add_to_collections(names, value)`:
+    - If value is `bool|int|float|str`, always adds (even falsy).
+    - Else if `value` is truthy, adds.
+    - Else logs `value is {value}, skip`.
+  - `get_collection(name)`:
+    - If collection is `bool|int|float|str`, returns it directly.
+    - Else if collection is truthy (non-empty list), returns it.
+    - Else returns `None`.
+- Threading/concurrency: no explicit locks here (TF graph-level ops only).
+- Determinism: `propagate_back_dict_gradients` relies on dict iteration order (preserves insertion order in Python 3.7+).
+- Performance: `check_ops_dependence` materializes graph def + subgraph; can be expensive on large graphs.
+- Metrics/logging: only `add_to_collections` logs when skipping falsy values.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/utils.rs` (new).
+- Rust public API surface:
+  - `ps_device(index: usize) -> String`
+  - `propagate_back_gradients(...)` / `propagate_back_dict_gradients(...)` (TF backend only)
+  - `get_ndim`, `int_shape`, `extend_as_list`, `check_list`, `to_snake_case`, `to_list`
+  - `params` analog for Rust config structs (likely a builder/derive macro)
+  - `check_ops_dependence` (TF backend only)
+  - `get_local_host`, `get_test_tmp_dir`, `get_debugging_info_file_name`, `get_meta_graph_file_name`
+  - `add_to_collections` / `get_collection` (TF backend only)
+  - `set_metric_prefix`, `get_metric_prefix`
+- Data model mapping:
+  - TF tensors/graph ops map only under `tf-runtime` feature.
+  - Rust-native training uses native tensors and may skip TF-specific utilities.
+- Feature gating:
+  - `tf-runtime` for gradient propagation + collections + graph dependence checks.
+  - Native-only implementations for string/path/env helpers.
+- Integration points:
+  - `monolith-training` modules referencing `utils.ps_device`, `utils.get_metric_prefix`, `utils.get_test_tmp_dir`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Create `monolith-training/src/utils.rs` and port pure helpers (string/path/env/shape helpers).
+2. Implement `ps_device` exactly (string formatting).
+3. For `propagate_back_*`, gate behind TF runtime and map to TF gradient APIs (or document unsupported for Candle).
+4. Recreate `params` behavior in Rust (likely a builder or derive macro). Preserve defaults + `allowed_kwargs` handling.
+5. Implement `check_ops_dependence` for TF backend; otherwise return Ok/NotSupported.
+6. Provide collection helpers under TF backend (or maintain a Rust-side registry if needed).
+7. Mirror exceptions and error messages where externally visible (especially `RuntimeError` in `propagate_back_gradients`).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/utils_test.py`.
+- Rust tests:
+  - `test_propagate_back_dict_gradients` (TF backend only).
+  - `test_check_ops_dependence` (TF backend only).
+  - `test_collections` (TF backend only).
+  - Unit tests for `ps_device`, `to_snake_case`, `extend_as_list`, `check_list`, `get_metric_prefix`.
+- Cross-language parity test:
+  - Compare `propagate_back_dict_gradients` outputs (dx, x) for the same graph.
 
 **Gaps / Notes**
-- TODO (manual)
+- `extend_as_list` will error for tuples when `len(x) < n` due to `tuple + list` (no guard).
+- `to_list` treats tuples as a single element (not expanded).
+- Uses private TF shape attribute `_dims`.
+- Several imports are unused (`numpy.lib.arraysetops.isin`, `tensorflow.python.framework.ops`, `variables`, `six`).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -21527,50 +21615,55 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/utils_test.py`
 <a id="monolith-native-training-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 70
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests gradient backprop grouping, graph dependence checks, and TF collection helpers.
+- Key symbols/classes/functions: `UtilsTest`, `test_propagate_back_dict_gradients`, `test_check_ops_dependence`, `test_collections`.
+- External dependencies: TensorFlow, `monolith.native_training.utils`.
+- Side effects: Adds TF collections within the test graph.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_propagate_back_dict_gradients`:
+  - Create `x = tf.Variable(8.0)`, `y = 2 * x`, `grad_y = 3 * y`.
+  - `valid_vars = {y}`; call `propagate_back_dict_gradients(zip([grad_y], [y]), {x: "group1"}, valid_vars)`.
+  - After session init, `grouped["group1"]` yields list `[(dx, x)]` with `dx == 96` and `x == 8`.
+- `test_check_ops_dependence`:
+  - `v.assign_add(1)` stored as `add`; create `t1`, `t2` under control dependency on `add`.
+  - `check_ops_dependence(t1.op.name, add.name)` raises `Exception`.
+  - `check_ops_dependence(t1.op.name, t2.op.name)` does not raise.
+- `test_collections`:
+  - Adds scalars, lists, and None to collections.
+  - `get_collection('int')[-1] == 2`, `'str'[-1] == 'str'`, `'bool'[-1] == True`.
+  - Lists: last entries are `[4,5,6]`, `['hello','world']`, `[False]` (empty list and None are skipped).
+- Uses TF v1 session mode (`tf.test.TestCase` + `self.session()`).
+- `tf.compat.v1.disable_eager_execution()` in `__main__`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/utils.rs` (new).
+- Rust public API surface: `propagate_back_dict_gradients`, `check_ops_dependence`, `add_to_collections`, `get_collection`.
+- Data model mapping: Rust-side tensor or TF runtime tensor under `tf-runtime` feature.
+- Feature gating: tests run only when TF backend is enabled.
+- Integration points: `monolith-training` utils module.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port `test_propagate_back_dict_gradients` using TF backend (or skip with explicit feature guard).
+2. Port `test_check_ops_dependence` by constructing a simple TF graph and verifying exception behavior.
+3. Port `test_collections` by adding values to TF collections and asserting last entries.
+4. Add native-only tests for non-TF helpers (string/path/env) separately.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `UtilsTest.test_propagate_back_dict_gradients`, `.test_check_ops_dependence`, `.test_collections`.
+- Rust tests:
+  - `propagate_back_dict_gradients_matches_python` (TF backend)
+  - `check_ops_dependence_raises_on_dependency` (TF backend)
+  - `collections_add_get` (TF backend)
+- Cross-language parity test:
+  - Compare gradients and collection ordering between Python and Rust TF backends.
 
 **Gaps / Notes**
-- TODO (manual)
+- Collections ordering relies on TF collection append order; Rust must preserve the same semantics.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
