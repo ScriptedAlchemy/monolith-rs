@@ -1573,41 +1573,104 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/agent_service/backends.py`
 <a id="monolith-agent-service-backends-py"></a>
 
-**Status:** IN PROGRESS (manual)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 402
-- Purpose/role: Backend abstractions + ZK implementation for layouts, saved models, and service info.
-- Key symbols/classes/functions: `SavedModel`, `SavedModelDeployConfig`, `Container`, `ContainerServiceInfo`, `AgentBackend`, `CtrlBackend`, `SyncBackend`, `ZKBackend`
-- External dependencies: `kazoo`, `dataclasses_json`, `monolith.native_training.zk_utils`
-- Side effects: ZK reads/writes, watches, retry loops, thread sync.
+- Purpose/role: Backend abstractions + ZK implementation for layouts, saved models, service info, and sync targets.
+- Key symbols/classes/functions: `SavedModel`, `SavedModelDeployConfig`, `Container`, `ContainerServiceInfo`, `AgentBackend`, `CtrlBackend`, `SyncBackend`, `ZKBackend`.
+- External dependencies: `kazoo` (ChildrenWatch, state, errors), `dataclasses_json`, `MonolithKazooClient`.
+- Side effects: ZK reads/writes, ephemeral nodes, watchers, retry/set on conflicts.
 
 **Required Behavior (Detailed)**
-- Dataclasses serialize/deserialize to JSON bytes.
-- ZKBackend implements:
-  - Layout watchers (ChildrenWatch) and callbacks
-  - Saved model registration & layout updates
-  - Service info reporting + retrieval
-  - Sync target subscription
-- Correct handling of ZK errors (NodeExists, NoNode, ConnectionClosed, etc.).
+- Data classes:
+  - `SavedModel(model_name, sub_graph)` is frozen; `__str__` → `"model:sub_graph"`.
+  - `SavedModelDeployConfig` + `ContainerServiceInfo` are `dataclass_json` with `serialize()` → UTF-8 JSON bytes; `deserialize()` uses `from_json`.
+  - `Container(ctx_cluster, ctx_id)` string format `"cluster:id"`.
+- Abstract backends:
+  - `AgentBackend`: layout callbacks, sync_available_saved_models, report/get service info, get_service_map, start/stop.
+  - `CtrlBackend`: list/declare saved models, add/remove layout, bzid_info, start/stop.
+  - `SyncBackend`: subscribe_model, get_sync_targets, start/stop.
+- `ZKBackend.__init__(bzid, zk_servers)`:
+  - Creates `MonolithKazooClient` and registers a listener:
+    - `KazooState.LOST` → sets `_is_lost` event.
+    - other states → clears `_is_lost`.
+  - Tracks `_available_saved_model` (set), `_service_info_map` (dict), `_children_watcher_map` (path→ChildrenWatch), `_sync_model_name`.
+- `sync_available_saved_models(container, saved_models)`:
+  - If `_is_lost` set: clears available set, calls `_zk.restart()`, returns.
+  - Computes add/remove sets; for each add: create ephemeral binding node at
+    `/{bzid}/binding/{model}/{sub_graph}:{container}` (makepath=True).
+  - For each remove: delete the binding node.
+  - Updates `_available_saved_model` to the new set.
+- `register_layout_callback(layout_path, callback)`:
+  - Ensures layout path exists and sets a ChildrenWatch via `_children_watch`.
+  - `callback_wrap(children)`:
+    - Parses `model_name:sub_graph` from each child.
+    - Reads deploy config from `/saved_models/{model}/{sub_graph}`; if missing logs error.
+    - Builds list of `(SavedModel, SavedModelDeployConfig)` and `model_names` set.
+    - Resets `_service_info_map` to only those model_names (preserving existing sub-maps).
+    - For each model_name, registers binding watch on `/{bzid}/binding/{model_name}` with `_bind_callback`.
+    - Calls `callback(saved_models)` and returns its result.
+- `_bind_callback(model_name, children)`:
+  - If model_name not tracked, returns False.
+  - For each child `sub_graph:ctx_cluster:ctx_id:...`, fetches `ContainerServiceInfo`.
+  - Populates `_service_info_map[model_name][sub_graph]` with service infos.
+- `report_service_info(container, service_info)`:
+  - Creates ephemeral node at `/{bzid}/container_service/{container}` with serialized JSON bytes.
+- `get_service_info(container)`:
+  - Reads node and deserializes `ContainerServiceInfo` (returns None on NoNode).
+- `_children_watch(path, callback)`:
+  - If watcher exists and not stopped, log and skip.
+  - Ensures path exists before creating `ChildrenWatch`.
+- `list_saved_models(model_name)`:
+  - Reads children under `/{bzid}/saved_models/{model_name}`, returns `SavedModel` list.
+  - Returns empty list on `NoNodeError`.
+- `decl_saved_model(saved_model, deploy_config)`:
+  - Creates znode at `/{bzid}/saved_models/{model}/{sub_graph}` with JSON bytes (makepath=True).
+- `add_to_layout(layout, saved_model)`:
+  - Ensures path `"{layout}/{model:sub_graph}"` exists.
+- `remove_from_layout(layout, saved_model)`:
+  - Deletes path; ignores NoNodeError.
+- `bzid_info()`:
+  - Collects `model_info` (deploy configs + bindings), `container_info` (service info + saved_models), `layout_info` (sorted saved_model list).
+  - Increments `sub_graphs_available` when bindings exist.
+  - Returns sorted dicts for stable output.
+- Sync backend:
+  - `subscribe_model(model_name)`: sets `_sync_model_name` (asserts only once) and registers binding watch.
+  - `get_sync_targets(sub_graph)`:
+    - If `_is_lost` set, clears available and restarts ZK.
+    - Returns `(f"{model}:{sub_graph}", [service_info.grpc...])`.
+- ZK helpers:
+  - `create_znode`: on `NodeExistsError` uses `_zk.retry(_zk.set, path=..., value=...)`; logs other exceptions.
+  - `delete_znode`: logs errors on exception.
+  - `get_znode`: returns bytes or None on `NoNodeError`.
+- `start()`/`stop()` delegate to `_zk.start()` / `_zk.stop()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: new `monolith-rs/crates/monolith-serving/src/agent_backend.rs` + ZK integration (feature gated).
-- Rust public API surface: trait equivalents for AgentBackend/CtrlBackend/SyncBackend and ZK implementation.
-- Integration points: `ReplicaManager`, `ModelManager`, agent controllers.
+- Target crate/module: `monolith-rs/crates/monolith-serving/src/agent_backend.rs` + ZK integration (feature gated).
+- Rust public API surface:
+  - Structs: `SavedModel`, `SavedModelDeployConfig`, `Container`, `ContainerServiceInfo` (serde JSON).
+  - Traits: `AgentBackend`, `CtrlBackend`, `SyncBackend`.
+  - `ZkBackend` implementing all three.
+- Data model mapping:
+  - ZK nodes: `/saved_models`, `/layouts`, `/binding`, `/container_service` with JSON payloads.
+  - Service map: `HashMap<Model, HashMap<SubGraph, Vec<ContainerServiceInfo>>>`.
+- Integration points: `AgentV3`, `agent_controller`, `tfs_monitor`, `replica_manager`.
 
 **Implementation Steps (Detailed)**
-1. Define Rust structs for SavedModel, SavedModelDeployConfig, Container, ContainerServiceInfo with serde JSON.
-2. Define backend traits mirroring Python abstract base classes.
-3. Implement ZK backend with watchers; match callback semantics and payload formats.
-4. Port error handling and retry behaviors.
+1. Port data classes with `serde_json` encode/decode to bytes.
+2. Implement backend traits and ZK client wrapper with watch support.
+3. Match ChildrenWatch semantics (invoke callback on changes).
+4. Preserve ZK LOST behavior (restart + clear available set).
+5. Mirror `bzid_info` output structure and sorting.
 
 **Tests (Detailed)**
 - Python tests: `monolith/agent_service/backends_test.py`
-- Rust tests: add ZK mock tests for layout watches and serialization.
+- Rust tests: mock ZK for layout watches, binding updates, and bzid_info structure.
+- Cross-language parity test: compare serialized JSON payloads and service_map updates.
 
 **Gaps / Notes**
-- No Rust ZK backend yet; needs full parity implementation.
+- Requires Rust ZK client with watcher support; ensure watcher stop semantics match `ChildrenWatch`.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
