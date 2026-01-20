@@ -514,8 +514,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/hooks/server/constants.py`](#monolith-native-training-hooks-server-constants-py) | 15 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks/server |  |
 | [`monolith/native_training/hooks/server/server_lib.py`](#monolith-native-training-hooks-server-server-lib-py) | 95 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks/server |  |
 | [`monolith/native_training/hooks/server/server_lib_test.py`](#monolith-native-training-hooks-server-server-lib-test-py) | 54 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
-| [`monolith/native_training/hooks/session_hooks.py`](#monolith-native-training-hooks-session-hooks-py) | 44 | TODO | TODO (manual) |  |
-| [`monolith/native_training/hooks/session_hooks_test.py`](#monolith-native-training-hooks-session-hooks-test-py) | 33 | TODO | TODO (manual) |  |
+| [`monolith/native_training/hooks/session_hooks.py`](#monolith-native-training-hooks-session-hooks-py) | 44 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks |  |
+| [`monolith/native_training/hooks/session_hooks_test.py`](#monolith-native-training-hooks-session-hooks-test-py) | 33 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/hvd_lib.py`](#monolith-native-training-hvd-lib-py) | 65 | TODO | TODO (manual) |  |
 | [`monolith/native_training/input.py`](#monolith-native-training-input-py) | 45 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/__init__.py`](#monolith-native-training-layers-init-py) | 46 | TODO | TODO (manual) |  |
@@ -11796,50 +11796,37 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hooks/session_hooks.py`
 <a id="monolith-native-training-hooks-session-hooks-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 44
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tracks the current TF session via a hook and provides a helper to fetch it.
+- Key symbols/classes/functions: `SetCurrentSessionHook`, `get_current_session`.
+- External dependencies: TensorFlow.
+- Side effects: Stores session in a module-level singleton during hook lifetime.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `SetCurrentSessionHook.after_create_session` sets `_INFO.session`.
+- `SetCurrentSessionHook.end` clears `_INFO.session`.
+- `get_current_session()` returns `_INFO.session` if set, else `tf.compat.v1.get_default_session()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/hooks/session_hooks.rs` (new).
+- Rust public API surface: session tracking hook + helper to fetch current session.
+- Feature gating: TF runtime only.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add a thread-safe global or TLS slot for current session.
+2. Hook into session creation/end to set/clear.
+3. Provide getter that falls back to default session.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `session_hooks_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/session_hooks_test.rs`.
+- Cross-language parity test: ensure session is available inside monitored session and cleared after.
 
 **Gaps / Notes**
-- TODO (manual)
+- Global session state should be scoped carefully in multi-session environments.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -11856,50 +11843,35 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hooks/session_hooks_test.py`
 <a id="monolith-native-training-hooks-session-hooks-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 33
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke test for current-session tracking.
+- Key symbols/classes/functions: `SessionHooksTest.testBasic`.
+- External dependencies: TensorFlow, `session_hooks`.
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Asserts `get_current_session()` is None outside a session.
+- Inside MonitoredSession with `SetCurrentSessionHook`, `get_current_session()` returns non-None.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/session_hooks_test.rs` (new).
+- Rust public API surface: session tracking helper.
+- Feature gating: TF runtime.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add test that checks current session availability inside hook-managed session.
+2. Ensure session is cleared after end.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `session_hooks_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/session_hooks_test.rs`.
+- Cross-language parity test: not required beyond smoke behavior.
 
 **Gaps / Notes**
-- TODO (manual)
+- None.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
