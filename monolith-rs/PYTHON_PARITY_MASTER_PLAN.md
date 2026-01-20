@@ -580,7 +580,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/model_export/demo_export.py`](#monolith-native-training-model-export-demo-export-py) | 100 | IN PROGRESS | N/A (demo exporter) |  |
 | [`monolith/native_training/model_export/demo_export_test.py`](#monolith-native-training-model-export-demo-export-test-py) | 48 | IN PROGRESS | N/A (TF export test) |  |
 | [`monolith/native_training/model_export/demo_predictor.py`](#monolith-native-training-model-export-demo-predictor-py) | 110 | IN PROGRESS | N/A (demo predictor) |  |
-| [`monolith/native_training/model_export/demo_predictor_client.py`](#monolith-native-training-model-export-demo-predictor-client-py) | 93 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model_export/demo_predictor_client.py`](#monolith-native-training-model-export-demo-predictor-client-py) | 93 | IN PROGRESS | N/A (demo gRPC client) |  |
 | [`monolith/native_training/model_export/export_context.py`](#monolith-native-training-model-export-export-context-py) | 141 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/export_hooks.py`](#monolith-native-training-model-export-export-hooks-py) | 137 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/export_hooks_test.py`](#monolith-native-training-model-export-export-hooks-test-py) | 141 | TODO | TODO (manual) |  |
@@ -16733,50 +16733,53 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_export/demo_predictor_client.py`
 <a id="monolith-native-training-model-export-demo-predictor-client-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 93
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: gRPC client for TensorFlow Serving PredictionService using random inputs derived from SavedModel signature.
+- Key symbols/classes/functions: `get_signature_def`, `main`.
+- External dependencies: gRPC, TensorFlow Serving protos, TensorFlow.
+- Side effects: Sends Predict RPC to remote server.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Flags:
+  - `server` (default "localhost:8500"), `model_name` ("default"), `signature_name` ("serving_default"), `use_example` (bool).
+  - Note: code references `FLAGS.batch_size` but flag is not defined in this file (bug).
+- `get_signature_def(stub)`:
+  - Requests signature_def metadata via `GetModelMetadata`.
+  - Unpacks `SignatureDefMap` and returns signature by `FLAGS.signature_name`.
+  - Prints available signature names.
+- `main`:
+  - Creates insecure gRPC channel and PredictionService stub.
+  - Builds PredictRequest with model spec.
+  - For each input in signature:
+    - Computes shape, substituting `FLAGS.batch_size` for -1 dims.
+    - Generates example/instance bytes for string inputs.
+    - Generates random ints/floats for int64/float32 inputs.
+    - Raises `ValueError` for unsupported dtype.
+  - Calls `stub.Predict(request, timeout=30)` and logs result.
+- Logging verbosity set to INFO in `__main__`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A.
+- Rust public API surface: none.
+- Data model mapping: if implementing, use TF Serving gRPC protos in Rust.
+- Feature gating: gRPC + TF Serving protos.
+- Integration points: serving smoke tests.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Define missing `batch_size` flag or pass as CLI arg.
+2. If Rust needs a client, implement signature discovery and random input generation.
+3. Mirror example/instance encoding logic using demo_predictor helpers.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: none.
+- Cross-language parity test: compare request shapes and dtype handling.
 
 **Gaps / Notes**
-- TODO (manual)
+- `FLAGS.batch_size` is referenced but never defined (likely a bug).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
