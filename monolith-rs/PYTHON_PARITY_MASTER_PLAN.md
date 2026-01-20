@@ -563,7 +563,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/metric/deep_insight_ops.py`](#monolith-native-training-metric-deep-insight-ops-py) | 134 | IN PROGRESS | N/A (TF custom ops) |  |
 | [`monolith/native_training/metric/deep_insight_ops_test.py`](#monolith-native-training-metric-deep-insight-ops-test-py) | 33 | IN PROGRESS | N/A (empty test) |  |
 | [`monolith/native_training/metric/exit_hook.py`](#monolith-native-training-metric-exit-hook-py) | 48 | IN PROGRESS | N/A (no Rust hook) |  |
-| [`monolith/native_training/metric/kafka_utils.py`](#monolith-native-training-metric-kafka-utils-py) | 119 | TODO | TODO (manual) |  |
+| [`monolith/native_training/metric/kafka_utils.py`](#monolith-native-training-metric-kafka-utils-py) | 119 | IN PROGRESS | N/A (no Rust Kafka wrapper) |  |
 | [`monolith/native_training/metric/metric_hook.py`](#monolith-native-training-metric-metric-hook-py) | 563 | TODO | TODO (manual) |  |
 | [`monolith/native_training/metric/metric_hook_test.py`](#monolith-native-training-metric-metric-hook-test-py) | 189 | TODO | TODO (manual) |  |
 | [`monolith/native_training/metric/utils.py`](#monolith-native-training-metric-utils-py) | 104 | TODO | TODO (manual) |  |
@@ -15384,50 +15384,74 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/metric/kafka_utils.py`
 <a id="monolith-native-training-metric-kafka-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 119
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Simple Kafka producer wrapper with a background thread + queue; tracks send counters.
+- Key symbols/classes/functions: `KProducer`, `KProducer.send`, `KProducer.close`.
+- External dependencies: `kafka.KafkaProducer`, `queue.Queue`, `threading.Thread/RLock`, `absl.logging`, `time`.
+- Side effects: Starts a background thread on init; sends messages to Kafka.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `KProducer.__init__(brokers, topic)`:
+  - Stores `brokers` and `topic`.
+  - Creates `KafkaProducer(bootstrap_servers=brokers)`.
+  - Initializes `_lock` (RLock), `_has_stopped=False`, `_msg_queue=Queue()`.
+  - Initializes counters `_total`, `_success`, `_failed` to 0.
+  - Spawns background thread targeting `_poll` and starts it.
+- `send(msgs)`:
+  - If `msgs` is `None` or empty, returns immediately.
+  - If `msgs` is `str` or `bytes`, wraps into a list.
+  - Else filters iterable to only non-`None` entries with `len(msg) > 0`.
+  - If resulting list is non-empty:
+    - Logs first message up to 10 times via `logging.log_first_n(INFO, msgs[0], n=10)`.
+    - Increments `_total` by `len(msgs)`.
+    - Enqueues the list into `_msg_queue`.
+  - No encoding/conversion; message passed to KafkaProducer as-is.
+- `_poll()` (background thread):
+  - Loop: `msg_batch = _msg_queue.get(timeout=1)`.
+  - On any exception (e.g., timeout), checks `_has_stopped` under lock:
+    - If stopped: break; else continue.
+  - If `msg_batch` non-empty: sends each message via `producer.send(topic, msg)` and attaches callbacks:
+    - `_send_success` for success, `_send_failed` for error.
+  - After processing a batch, exits if `_has_stopped` is True.
+- `total()`, `success()`, `failed()`:
+  - Return counters; not synchronized across threads (may race).
+- `_flush()`:
+  - Asserts `_has_stopped` is True.
+  - Drains `_msg_queue` (timeout=1) until empty or exception.
+  - Sends queued messages with callbacks (same as `_poll`).
+- `close()`:
+  - Sets `_has_stopped=True` under lock.
+  - Joins background thread.
+  - Calls `_flush()` and then `producer.close(timeout=1)`.
+  - Logs warnings on any exception.
+- `_send_success(...)`: increments `_success`.
+- `_send_failed(...)`: sleeps 2 seconds, logs warning, increments `_failed`.
+- Threading/concurrency: background thread + queue; counters are not locked.
+- Determinism: none; dependent on Kafka/network.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (no Rust Kafka wrapper).
+- Rust public API surface: optional Kafka producer wrapper with background worker.
+- Data model mapping: messages as `Vec<u8>` or `String`; track counters.
+- Feature gating: requires a Rust Kafka client (e.g., `rdkafka`).
+- Integration points: metrics emission pipeline.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Choose Kafka client crate and implement a background worker with channel/queue.
+2. Mirror `send` behavior (filtering, logging first message, counters).
+3. Implement graceful shutdown (stop flag, join thread, flush queue).
+4. Provide success/failure counters and expose them.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: add unit tests with a mocked producer or test broker.
+- Cross-language parity test: compare counters and send filtering behavior.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python implementation is not thread-safe for counters; preserve semantics unless explicitly improved.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
