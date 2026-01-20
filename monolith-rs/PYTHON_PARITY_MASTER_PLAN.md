@@ -539,7 +539,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/lhuc_test.py`](#monolith-native-training-layers-lhuc-test-py) | 73 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/lhuc_test.rs |  |
 | [`monolith/native_training/layers/logit_correction.py`](#monolith-native-training-layers-logit-correction-py) | 88 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/logit_correction.rs |  |
 | [`monolith/native_training/layers/logit_correction_test.py`](#monolith-native-training-layers-logit-correction-test-py) | 65 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/logit_correction_test.rs |  |
-| [`monolith/native_training/layers/mlp.py`](#monolith-native-training-layers-mlp-py) | 211 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/mlp.py`](#monolith-native-training-layers-mlp-py) | 211 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/mlp.rs |  |
 | [`monolith/native_training/layers/mlp_test.py`](#monolith-native-training-layers-mlp-test-py) | 78 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/multi_task.py`](#monolith-native-training-layers-multi-task-py) | 448 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/multi_task_test.py`](#monolith-native-training-layers-multi-task-test-py) | 128 | TODO | TODO (manual) |  |
@@ -13846,50 +13846,63 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/mlp.py`
 <a id="monolith-native-training-layers-mlp-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 211
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Core MLP layer built from custom Dense layers with optional batch normalization, weight norm, and feature insight logging.
+- Key symbols/classes/functions: `MLP`, `build`, `call`, `get_config`, `from_config`, `get_layer`.
+- External dependencies: TensorFlow/Keras (`Layer`, `BatchNormalization`, regularizers), Monolith `Dense`, `extend_as_list`, `advanced_activations`, `feature_insight_data`.
+- Side effects: Adds BN/Dense losses, uses `feature_insight_data` hook on first Dense when segment info provided.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Initialization:
+  - `output_dims` defines layers; `use_weight_norm`, `use_learnable_weight_norm`, `use_bias`, regularizers and BN params stored.
+  - `initializers` expanded to list of length `_n_layers` via `extend_as_list` and `tf.initializers.get`.
+  - `activations`:
+    - None → `[relu]*(n_layers-1) + [None]`.
+    - List/tuple length must match `n_layers`; each mapped via `ad_acts.get`.
+    - Single activation → applied to all but last (None).
+- `build`:
+  - If BN enabled, prepend input BN layer.
+  - For each layer:
+    - Create custom `Dense` with activation=None, bias/init/regularizer and kernel norm settings.
+    - Optional BatchNorm between layers (not on final layer).
+    - Append activation layer if not None.
+  - Tracks trainable/non-trainable weights and adds sub-layer losses.
+- `call`:
+  - Sequentially applies `_stacked_layers`.
+  - When a layer name ends with `dense_0` and kwargs provided, calls `feature_insight_data` with segment metadata and layer kernel.
+- `get_config` serializes activations and initializers, regularizers, BN settings, weight norm flags.
+- `from_config`:
+  - Deserializes `initializers` and `activations`; others assigned directly.
+  - Ignores leftover keys, then `instantiate()`.
+- `get_layer(index)` returns `_stacked_layers[index]`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/src/mlp.rs`.
+- Rust public API surface: `MLP`, `MLPConfig`, `ActivationType`, `ActivationLayer`.
+- Data model mapping:
+  - Python activations list → Rust `ActivationType` list; last layer activation None.
+  - `feature_insight_data` hook → optional instrumentation in Rust.
+- Feature gating: None.
+- Integration points: `Dense`, `BatchNorm`, activation registry.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Ensure MLPConfig defaults align with Python (weight norm on, BN off).
+2. Add support for per-layer initializers and activations list expansion (1 or N).
+3. Add optional input BatchNorm and per-layer BN (skip last).
+4. Add optional feature insight hook (or document omission).
+5. Add config serialization compatible with Python `get_config`.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/mlp_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/mlp_test.rs` (new).
+- Cross-language parity test:
+  - Fix weights and inputs; compare output sums with/without BN and weight norm.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python `feature_insight_data` side effect not yet mirrored in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
