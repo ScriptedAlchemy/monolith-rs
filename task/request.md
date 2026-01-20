@@ -421,29 +421,29 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/data/extract_fid_test.py`](#monolith-native-training-data-extract-fid-test-py) | 30 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/data/feature_list.py`](#monolith-native-training-data-feature-list-py) | 409 | IN PROGRESS | monolith-rs/crates/monolith-data/src/feature_list.rs |  |
 | [`monolith/native_training/data/feature_list_test.py`](#monolith-native-training-data-feature-list-test-py) | 0 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
-| [`monolith/native_training/data/feature_utils.py`](#monolith-native-training-data-feature-utils-py) | 1070 | TODO | TODO (manual) |  |
-| [`monolith/native_training/data/feature_utils_test.py`](#monolith-native-training-data-feature-utils-test-py) | 1414 | TODO | TODO (manual) |  |
+| [`monolith/native_training/data/feature_utils.py`](#monolith-native-training-data-feature-utils-py) | 1070 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
+| [`monolith/native_training/data/feature_utils_test.py`](#monolith-native-training-data-feature-utils-test-py) | 1414 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/data/item_pool_hook.py`](#monolith-native-training-data-item-pool-hook-py) | 109 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/data/item_pool_test.py`](#monolith-native-training-data-item-pool-test-py) | 58 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/data/kafka_dataset_test.py`](#monolith-native-training-data-kafka-dataset-test-py) | 239 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/data/multi_flow_test.py`](#monolith-native-training-data-multi-flow-test-py) | 125 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/data/negative_gen_test.py`](#monolith-native-training-data-negative-gen-test-py) | 253 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/data/parse_sparse_feature_test.py`](#monolith-native-training-data-parse-sparse-feature-test-py) | 1833 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
-| [`monolith/native_training/data/parsers.py`](#monolith-native-training-data-parsers-py) | 782 | TODO | TODO (manual) |  |
+| [`monolith/native_training/data/parsers.py`](#monolith-native-training-data-parsers-py) | 782 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/data/tf_example_to_example_test.py`](#monolith-native-training-data-tf-example-to-example-test-py) | 183 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
-| [`monolith/native_training/data/training_instance/python/instance_dataset_op.py`](#monolith-native-training-data-training-instance-python-instance-dataset-op-py) | 166 | TODO | TODO (manual) |  |
-| [`monolith/native_training/data/training_instance/python/instance_dataset_op_test_stdin.py`](#monolith-native-training-data-training-instance-python-instance-dataset-op-test-stdin-py) | 58 | TODO | TODO (manual) |  |
-| [`monolith/native_training/data/training_instance/python/instance_negative_gen_dataset_op_test.py`](#monolith-native-training-data-training-instance-python-instance-negative-gen-dataset-op-test-py) | 283 | TODO | TODO (manual) |  |
-| [`monolith/native_training/data/training_instance/python/parse_instance_ops.py`](#monolith-native-training-data-training-instance-python-parse-instance-ops-py) | 245 | TODO | TODO (manual) |  |
-| [`monolith/native_training/data/training_instance/python/parse_instance_ops_test.py`](#monolith-native-training-data-training-instance-python-parse-instance-ops-test-py) | 185 | TODO | TODO (manual) |  |
-| [`monolith/native_training/data/training_instance/python/parser_utils.py`](#monolith-native-training-data-training-instance-python-parser-utils-py) | 85 | TODO | TODO (manual) |  |
-| [`monolith/native_training/data/training_instance/python/pb_datasource_ops.py`](#monolith-native-training-data-training-instance-python-pb-datasource-ops-py) | 48 | TODO | TODO (manual) |  |
-| [`monolith/native_training/data/training_instance/python/test_data_utils.py`](#monolith-native-training-data-training-instance-python-test-data-utils-py) | 15 | TODO | TODO (manual) |  |
-| [`monolith/native_training/data/transform/transforms.py`](#monolith-native-training-data-transform-transforms-py) | 250 | TODO | TODO (manual) |  |
-| [`monolith/native_training/data/transform/transforms_test.py`](#monolith-native-training-data-transform-transforms-test-py) | 70 | TODO | TODO (manual) |  |
+| [`monolith/native_training/data/training_instance/python/instance_dataset_op.py`](#monolith-native-training-data-training-instance-python-instance-dataset-op-py) | 166 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
+| [`monolith/native_training/data/training_instance/python/instance_dataset_op_test_stdin.py`](#monolith-native-training-data-training-instance-python-instance-dataset-op-test-stdin-py) | 58 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
+| [`monolith/native_training/data/training_instance/python/instance_negative_gen_dataset_op_test.py`](#monolith-native-training-data-training-instance-python-instance-negative-gen-dataset-op-test-py) | 283 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
+| [`monolith/native_training/data/training_instance/python/parse_instance_ops.py`](#monolith-native-training-data-training-instance-python-parse-instance-ops-py) | 245 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
+| [`monolith/native_training/data/training_instance/python/parse_instance_ops_test.py`](#monolith-native-training-data-training-instance-python-parse-instance-ops-test-py) | 185 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
+| [`monolith/native_training/data/training_instance/python/parser_utils.py`](#monolith-native-training-data-training-instance-python-parser-utils-py) | 85 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
+| [`monolith/native_training/data/training_instance/python/pb_datasource_ops.py`](#monolith-native-training-data-training-instance-python-pb-datasource-ops-py) | 48 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
+| [`monolith/native_training/data/training_instance/python/test_data_utils.py`](#monolith-native-training-data-training-instance-python-test-data-utils-py) | 15 | IN PROGRESS | none |  |
+| [`monolith/native_training/data/transform/transforms.py`](#monolith-native-training-data-transform-transforms-py) | 250 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
+| [`monolith/native_training/data/transform/transforms_test.py`](#monolith-native-training-data-transform-transforms-test-py) | 70 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/data/transform_dataset_test.py`](#monolith-native-training-data-transform-dataset-test-py) | 168 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
-| [`monolith/native_training/data/utils.py`](#monolith-native-training-data-utils-py) | 55 | TODO | TODO (manual) |  |
-| [`monolith/native_training/debugging/debugging_client.py`](#monolith-native-training-debugging-debugging-client-py) | 98 | TODO | TODO (manual) |  |
+| [`monolith/native_training/data/utils.py`](#monolith-native-training-data-utils-py) | 55 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
+| [`monolith/native_training/debugging/debugging_client.py`](#monolith-native-training-debugging-debugging-client-py) | 98 | IN PROGRESS | monolith-rs/crates/monolith-training/src/debugging |  |
 | [`monolith/native_training/debugging/debugging_server.py`](#monolith-native-training-debugging-debugging-server-py) | 217 | TODO | TODO (manual) |  |
 | [`monolith/native_training/demo.py`](#monolith-native-training-demo-py) | 57 | TODO | TODO (manual) |  |
 | [`monolith/native_training/dense_reload_utils.py`](#monolith-native-training-dense-reload-utils-py) | 457 | TODO | TODO (manual) |  |
@@ -6306,50 +6306,149 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/data/feature_utils.py`
 <a id="monolith-native-training-data-feature-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 1070
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Feature/label filtering, transformation, and utility ops over variant tensors; mostly thin wrappers around custom `gen_monolith_ops` kernels with strict input validation and feature-registration side effects.
+- Key symbols/classes/functions: `filter_by_fids`, `filter_by_feature_value`, `filter_by_value`, `add_action`, `add_label`, `scatter_label`, `filter_by_label`, `special_strategy`, `negative_sample`, `feature_combine`, `switch_slot`, `switch_slot_batch`, `label_upper_bound`, `label_normalization`, `use_field_as_label`, `create_item_pool`, `item_pool_random_fill`, `item_pool_check`, `save_item_pool`, `restore_item_pool`, `fill_multi_rank_output`, `use_f100_multi_head`, `map_id`, `multi_label_gen`, `string_to_variant`, `string_to_variant_with_transform`, `variant_to_zeros`, `kafka_resource_init`, `kafka_read_next`, `kafka_read_next_v2`, `has_variant`, `gen_fid_mask`, `tf_example_to_example`.
+- External dependencies: TensorFlow, numpy, `idl.matrix.proto.line_id_pb2.LineId`, `data_op_config_pb2.LabelConf`/`TFRecordFeatureDescription`, `gen_monolith_ops` custom kernels.
+- Side effects: calls `add_feature`/`add_feature_by_fids` to ensure downstream parsing includes required fields; validates/loads operand files via `tf.io.gfile.exists`; asserts on invalid inputs; builds TF ops that mutate or filter variant tensors.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `filter_by_fids(variant, filter_fids, has_fids, select_fids, has_actions, req_time_min, select_slots, variant_type)`:
+  - Coerces `filter_fids`/`has_fids`/`select_fids` to `np.uint64` then `int64` list; defaults to empty lists.
+  - `select_slots` defaults to empty; asserts all slots > 0.
+  - If `variant_type != 'instance'`, calls `add_feature_by_fids` for all fid lists.
+  - Calls `ragged_data_ops.set_filter(...)` with `has_actions or []`, `req_time_min`, `select_slots`, `variant_type` and returns variant tensor.
+- `filter_by_feature_value(variant, field_name, op, operand, field_type, keep_empty, operand_filepath)`:
+  - `op` must be in `{gt,ge,eq,lt,le,neq,between,in,not-in,all,any,diff,startswith,endswith}`.
+  - Exactly one of `operand` or `operand_filepath` is provided; if filepath set, it must exist and `op` must be in `{in, not-in}`.
+  - `field_type` must be in `{int64,float,double,bytes}`; builds `int_operand`, `float_operand`, `string_operand` based on type/op:
+    - `all/any/diff` only for `int64` (operand int or list of int).
+    - `between` uses a list of numbers (float/double) or ints for int64.
+    - `bytes` accepts str or list of str; otherwise raises `RuntimeError("params error!")`.
+  - Calls `ragged_data_ops.feature_value_filter(...)` with operands, file path, `keep_empty`, returns variant.
+- `filter_by_value(variant, field_name, op, operand, variant_type, keep_empty, operand_filepath)`:
+  - For `variant_type != 'instance'`, calls `add_feature('__LINE_ID__')`.
+  - `field_name` must exist in `LineId` descriptor; uses proto field `cpp_type`/`has_options` to determine parsing rules.
+  - Same operand vs operand_filepath exclusivity; operand file must exist; only `in/not-in` supported with filepath.
+  - For repeated fields (`field.has_options`), only `all/any/diff` allowed and only integer types.
+  - For `string` fields: operand must be str or list of str, else `RuntimeError("params error!")`.
+  - Calls `ragged_data_ops.value_filter(...)` with `variant_type` and returns variant.
+- `add_action(variant, field_name, op, operand, action, variant_type)`:
+  - For `variant_type != 'instance'`, calls `add_feature('__LINE_ID__')`.
+  - `op` in `{gt,ge,eq,lt,le,neq,between,in}`; field must exist in `LineId`.
+  - Builds typed operands (float/int/string) based on field cpp_type; for `in/between` on integer types, operand is list of int.
+  - Calls `ragged_data_ops.add_action(..., actions=[action], variant_type)`.
+- `add_label(variant, config, negative_value, new_sample_rate, variant_type)`:
+  - For `variant_type != 'instance'`, calls `add_feature('__LINE_ID__')`.
+  - `config` is required; `new_sample_rate` must be in `(0, 1.0]`.
+  - Parses `config` with `;` task separator; each task `pos_actions:neg_actions:sample_rate` (empty lists allowed). Skips empty trailing parts.
+  - Builds `LabelConf` proto and calls `ragged_data_ops.add_label(..., negative_value, sample_rate=new_sample_rate)`.
+- `scatter_label(variant, config, variant_type)`:
+  - For `variant_type != 'instance'`, calls `add_feature('__LABEL__')` and `add_feature('__LINE_ID__')`.
+  - `config` required; passes through to `ragged_data_ops.scatter_label`.
+- `filter_by_label(variant, label_threshold, filter_equal, variant_type)`:
+  - For `variant_type != 'instance'`, calls `add_feature('__LABEL__')`.
+  - `label_threshold` must be non-empty list.
+  - Calls `ragged_data_ops.filter_by_label(..., filter_equal, variant_type)` and returns boolean tensor.
+- `special_strategy(variant, strategy_list, strategy_conf, variant_type, keep_empty_strategy)`:
+  - For `variant_type != 'instance'`, calls `add_feature('__LABEL__')` and `add_feature('__LINE_ID__')`.
+  - `strategy_conf` is optional; parses comma-separated `strategy:sample_rate` or `strategy:sample_rate:label` entries.
+  - Ensures lengths consistent and each `sample_rate` in `[0,1]`.
+  - Calls `ragged_data_ops.special_strategy(..., keep_empty_strategy, variant_type)`.
+- `negative_sample(variant, drop_rate, label_index, threshold, variant_type, action_priority, per_action_drop_rate)`:
+  - For `variant_type != 'instance'`, calls `add_feature('__LABEL__')`.
+  - `action_priority` and `per_action_drop_rate` are optional strings; if both set, parse lists of actions and per-action drop rates.
+  - Calls `ragged_data_ops.negative_sample(..., priorities, actions, per_action_drop_rate)`.
+- `feature_combine(src1, src2, slot)`:
+  - Requires `tf.RaggedTensor` inputs; calls `ragged_data_ops.feature_combine(..., fid_version=2)`.
+  - If `splits[0]` is `float32`, uses `from_row_splits(values, splits[1])`; else `from_nested_row_splits`.
+- `switch_slot(ragged, slot)`:
+  - Requires `tf.RaggedTensor`; calls `ragged_data_ops.switch_slot(..., fid_version=2)`.
+  - If `splits[0]` is `float32`, returns new ragged from row_splits; else returns `ragged.with_flat_values(values)`.
+- `switch_slot_batch(variant, features, variant_type, suffix)`:
+  - `features` maps feature name → `(inplace, new_slot)`; `variant_type` must be `example` or `example_batch`.
+  - Builds `features`, `inplaces`, `slots` arrays; calls `ragged_data_ops.switch_slot_batch(..., suffix)`.
+- `label_upper_bound(variant, label_upper_bounds, variant_type)`:
+  - `label_upper_bounds` non-empty; calls `ragged_data_ops.label_upper_bound`.
+- `label_normalization(variant, norm_methods, norm_values, variant_type)`:
+  - `norm_methods` length must equal `norm_values`; calls `ragged_data_ops.label_normalization`.
+- `use_field_as_label(variant, field_name, overwrite_invalid_value, label_threshold, variant_type)`:
+  - Calls `ragged_data_ops.use_field_as_label` to overwrite labels from LineId field with optional clamping.
+- Item pool ops:
+  - `create_item_pool(start_num, max_item_num_per_channel, container, shared_name)` asserts `start_num >= 0`, `max_item_num_per_channel > 0`, calls `ItemPoolCreate`.
+  - `item_pool_random_fill`, `item_pool_check(model_path, global_step, nshards, buffer_size)`, `save_item_pool`, `restore_item_pool` delegate to custom ops.
+- `fill_multi_rank_output(variant, enable_draw_as_rank, enable_chnid_as_rank, enable_lineid_rank_as_rank, rank_num, variant_type)`:
+  - For `variant_type != 'instance'`, calls `add_feature('__LINE_ID__')`.
+  - Calls `ragged_data_ops.fill_multi_rank_output`.
+- `use_f100_multi_head(variant, variant_type)`:
+  - Pass-through to `ragged_data_ops.use_f100_multi_head`.
+- `map_id(tensor, map_dict, default)`:
+  - `map_dict` non-empty; passes `from_value`, `to_value`, `default` to `ragged_data_ops.MapId`.
+- `multi_label_gen(variant, head_to_index, head_field, pos_actions, neg_actions, use_origin_label, pos_label, neg_label, action_priority, task_num, variant_type)`:
+  - Builds `head_to_index` string (`head:idx`), computes `task_num` if unset; asserts `max_idx < task_num`.
+  - If `use_origin_label`, `pos_actions` and `neg_actions` must be empty; otherwise `pos_actions` non-empty.
+  - `head_field` must exist in `LineId` descriptor and be int or string.
+  - Calls `ragged_data_ops.multi_label_gen(..., action_priority, pos/neg actions, labels, variant_type)`.
+- `string_to_variant(...)`:
+  - `variant_type` must be `instance|example|examplebatch|example_batch`; converts string tensor into variant using header flags and optional `chnids/datasources`.
+- `string_to_variant_with_transform(...)`:
+  - Similar to `string_to_variant` but accepts `input_type` and `output_type` for on-the-fly transforms.
+- `variant_to_zeros(tensor)`:
+  - Calls `ragged_data_ops.variant_to_zeros` to produce zeroed variant tensor.
+- Kafka ops:
+  - `kafka_resource_init(topics, metadata, input_pb_type, output_pb_type, has_sort_id, lagrangex_header, kafka_dump_prefix, kafka_dump, container, shared_name)` calls `KafkaGroupReadableInit`.
+  - `kafka_read_next`/`kafka_read_next_v2` call `KafkaGroupReadableNext`/`NextV2` with poll/stream timeouts.
+- `has_variant(input, variant_type)`:
+  - Calls `ragged_data_ops.HasVariant`.
+- `gen_fid_mask(ragged, fid)`:
+  - Casts `fid` to `np.uint64` → `int64`; calls `monolith_gen_fid_mask` with row_splits and flat_values.
+- `tf_example_to_example(serialized, sparse_features, dense_features, label, instance_weight)`:
+  - Defaults: empty sparse/dense/label/instance_weight if None.
+  - Validates no overlaps between sparse/dense/label/instance_weight; slot ids unique; each slot id in `[1, 32768)`.
+  - Builds `TFRecordFeatureDescription` proto and calls `MonolithTFExampleToExample` op.
+- Error semantics:
+  - Many checks are `assert` (raising `AssertionError`), some raise `RuntimeError("params error!")` for invalid bytes operands.
+  - Operand file must exist and be used only with `in/not-in` ops; callers rely on these preconditions.
+- I/O formats:
+  - Variant tensor format is custom monolith variant; string inputs for `string_to_variant*` are framed by headers (sort header or lagrangex header) and length-prefixed protos.
+  - Operand file for `operand_filepath` is expected to contain serialized `example_pb2.FilterValues` (see tests).
+  - `tf_example_to_example` expects TF Example serialized bytes and emits Monolith Example variant.
+- Threading/concurrency:
+  - No explicit threading here; concurrency behavior is inside custom ops (e.g., Kafka resources).
+- Determinism/perf:
+  - Performance relies on custom ops; callers expect these to be safe in `tf.data` pipelines (including parallel map/filter). Determinism depends on op implementations; keep semantics stable.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/src` for dataset/feature ops; optionally `monolith-rs/crates/monolith-tf` for TF-runtime-backed kernels.
+- Rust public API surface: `feature_utils` module exposing the same function set (or a `FeatureOps` trait with backend-specific implementations).
+- Data model mapping: TF Variant / RaggedTensor → Rust `Variant`/`Ragged` equivalents (likely in `monolith-data` or `monolith-tensor`).
+- Feature gating: Kafka ops, TFExample conversion, item-pool ops, and label/negative sampling depend on custom kernels; gate behind a TF backend or feature flags.
+- Integration points: parsing (`parsers.py`), datasets (`datasets.py`), hooks (`item_pool_hook.py`), and training pipelines/tests.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Enumerate all custom ops used here and decide per-op strategy: native Rust implementation vs TF runtime binding.
+2. Port validation logic exactly (asserts, `RuntimeError("params error!")`, slot range checks).
+3. Provide Rust equivalents for `LineId` field metadata (from `monolith-proto`) and reuse it for `filter_by_value`/`add_action`/`multi_label_gen`.
+4. Implement operand file reading for `in/not-in` filters using the same `FilterValues` proto.
+5. Implement Ragged feature transforms (`feature_combine`, `switch_slot`, `switch_slot_batch`) with fid-v2 rules.
+6. Add feature registry side effects equivalent to `add_feature`/`add_feature_by_fids` so parsing includes required fields.
+7. Implement item pool ops or wrap TF kernels; include save/restore/check.
+8. Implement label ops (`add_label`, `scatter_label`, `filter_by_label`, `label_upper_bound`, `label_normalization`, `use_field_as_label`, `multi_label_gen`) with identical label-invalid sentinel values.
+9. Implement `string_to_variant` framing rules (headers, length prefix, flags, chnids/datasources) and `tf_example_to_example` conversion.
+10. Add Kafka resource wrappers with poll/stream timeouts and variant conversion.
+11. Add Rust tests mirroring Python expectations (see `feature_utils_test.py`) and cross-language fixtures.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/data/feature_utils_test.py`, `data_ops_test.py`, `eager_mode_test.py` (feature_combine/switch_slot usage).
+- Rust tests: `monolith-rs/crates/monolith-data/tests/feature_utils_*` for filtering, labels, switching slots, map_id, fid mask, string_to_variant, TFExample conversion.
+- Cross-language parity test: run Python test fixtures and compare Rust outputs on identical serialized inputs (including FilterValues operand files).
 
 **Gaps / Notes**
-- TODO (manual)
+- Heavy reliance on `gen_monolith_ops`; Rust must either re-implement kernels or use TF runtime backend (optional per earlier requirement).
+- `filter_by_value` and `filter_by_feature_value` behavior is used in parallel dataset filters; caching/parallel safety must match TF op semantics.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -6366,50 +6465,104 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/data/feature_utils_test.py`
 <a id="monolith-native-training-data-feature-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 1414
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: End-to-end tests for feature_utils ops over `PBDataset` pipelines, including label ops, filters, slot switching, fid masks, string-to-variant framing, and negative sampling.
+- Key symbols/classes/functions: `DataOpsTest`, `pb_dataset_target`, helper generators (`generate_instance`, `write_instance_into_file`), tests for `add_action`, `add_label`, `scatter_label`, `filter_by_*`, `switch_slot_batch`, `map_id`, `multi_label_gen`, `string_to_variant`, `negative_sample`.
+- External dependencies: TensorFlow, `PBDataset`, `parsers` (`parse_instances`, `parse_examples`), `example_pb2.FilterValues`, `proto_parser_pb2.Instance`, temporary file IO.
+- Side effects: creates/deletes temp files, writes serialized Instance files, writes FilterValues proto files, logs sample counts.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `pb_dataset_target(...)` helper:
+  - Chooses input file based on `input_pb_type` (instance/example/examplebatch fixtures under `monolith/native_training/data/training_instance`).
+  - Builds `PBDataset` with header flags; optional `add_action_fn`, optional filter.
+  - For ExampleBatch: applies `instance_reweight` with fixed `action_priority` and `reweight` config, `variant_type` based on output.
+  - Batches, parses via `parse_instance_or_example` or `parse_example_batch`, and returns a list of `return_result_key` slices.
+- Action/format conversions:
+  - `test_input_instance_output_instance`: actions are `[[1,0], ...]` for two batches.
+  - `test_input_instance_output_instance_add_action`: adding action 2 yields `[[1,2], ...]`.
+  - `test_input_instance_output_example`: output actions `[[1,0,0], ...]`.
+  - `test_input_instance_output_example_add_action`: `req_time between [1622667900,1622667911]` adds action 2 in some rows.
+  - `test_input_example_output_instance` and `*_add_action` mirror the above for Example input.
+  - `test_input_example_output_example` and `*_add_action` expect action arrays with 3 columns.
+  - `test_input_example_batch_output_instance` and `*_add_action` expect action arrays starting with `2` and optionally `3`.
+  - `test_input_example_batch_output_example` and `*_add_action` expect action arrays with 3 columns.
+- `test_input_instance_output_instance_add_label`:
+  - Builds a temp Instance file with deterministic action patterns.
+  - Applies `add_label` with config `1,2:3:1.0;4::0.5` and then `filter_by_label`.
+  - Expects total valid instances in range `[340, 360]` for `mock_batch_num=100`.
+- `test_input_instance_output_instance_label_upper_bound`:
+  - `label_upper_bounds=[0.5,0.5]` clamps labels to `[[0,0.5], ...]`.
+- `test_input_instance_output_instance_label_normalization`:
+  - `norm_methods=['scale','repow']`, `norm_values=[0.5,3]` results in labels `[[0,8], ...]`.
+- `test_input_examplebatch_output_instance_use_field_as_label`:
+  - Uses `sample_rate` field as label; with `overwrite_invalid_value` and `label_threshold` combinations expects:
+    - threshold 0 → labels `[[1,1], ...]`.
+    - threshold 1.1 with prior `label_upper_bound` → labels `[[1,1], ...]`.
+    - threshold 0.9 with prior `label_upper_bound` → labels `[[0,0.5], ...]`.
+- `test_input_instance_output_instance_filter_by_label_equals`:
+  - With `filter_equal=False`, expects 100 batches and labels `[[0,1], ...]`.
+  - With `filter_equal=True`, expects 49 batches and labels `[[0,2], ...]`.
+- `test_input_instance_output_instance_scatter_label`:
+  - `scatter_label_config = '100:3,200:1,300:4'` and `filter_by_label` yields 2 valid instances.
+  - Labels contain invalid sentinel `-3.4028235e+38` with the selected index set to original label value.
+- `test_filter_by_bytes_value`:
+  - Filters `req_id` using `endswith` with `filter_by_value` (LineId) and `filter_by_feature_value` (feature list).
+  - Expects 4 outputs `[[b'abckjhfjh'], [b'kjhfjh'], ...]`.
+  - Parallel filter path (`dataset.map(...).filter(...)`) must preserve correctness and use cached feature index.
+- `test_filter_by_float_value`:
+  - Filters `video_play_time > 2.5` using `filter_by_feature_value` (`field_type='float'`).
+  - Expects req_id outputs `[[b'huggfyfixyz'], [b'mbzc'], ...]`.
+- `test_filter_by_value_not_in`:
+  - Writes `FilterValues` proto files (bytes + int64) and uses `operand_filepath` with `in/not-in`.
+  - For bytes: `not-in` filters out `hello/world`, expects `excluded/300/400` (or `300/400` when using file).
+  - For int64: `in` keeps chnid `[20,30,666]`, expects did values `world/excluded/400`.
+  - Both `filter_by_value` and `filter_by_feature_value` must match.
+- `test_filter_by_value_all`:
+  - Uses `filter_by_feature_value` with `op='all'` on `chnids` list; only `did='excluded'` passes.
+- `test_map_id`:
+  - `map_id({123:0,456:1,789:2}, default=-1)` transforms `[123,456,789,912]` → `[0,1,2,-1]`.
+- `test_filter_by_fids`:
+  - Filters instances that contain both slots 2 and 3; verifies resulting ragged values match `get_fid_v1` for indices 1..4.
+- `test_multi_label_gen`:
+  - Builds labels based on `head_to_index` mapping and action rules; expects label vectors with INVALID_LABEL sentinel except for the matched task.
+- `test_string_to_variant`:
+  - Builds framed Instance bytes (with headers); one empty record allowed; `string_to_variant` preserves shape; `variant_to_zeros` callable.
+- `test_has_variant`:
+  - `has_variant` returns `True` for a valid variant tensor.
+- `test_switch_slot_batch`:
+  - `switch_slot_batch` with mix of in-place and copy-to-suffix behavior; verifies slot IDs in resulting ragged tensors (`>> 48` equals shared slot when expected).
+- `test_gen_fid_mask_int64` / `test_gen_fid_mask_int32`:
+  - `gen_fid_mask(ragged, fid=3)` yields `[1.,1.,0.,0.]` for both row_splits dtypes.
+- `test_negative_sample_with_positive_actions`:
+  - Iterates 1000 synthetic samples, applies `negative_sample` with action priority and per-action drop rates.
+  - Asserts deterministic outcomes for positive labels and specific action cases; logs drop-rate ratios for matched/mismatched actions.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/tests` plus any ops crates that implement feature_utils kernels.
+- Rust public API surface: tests should call Rust equivalents of `feature_utils` functions and dataset helpers.
+- Data model mapping: use Rust dataset pipelines to parse the same fixtures and assert outputs.
+- Feature gating: many tests require TF-runtime-backed custom ops (string/variant parsing, label ops, switch-slot, negative sampling).
+- Integration points: `monolith-data` parsing, `monolith-proto` for Instance/Example, and dataset fixtures under `monolith/native_training/data/training_instance`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port helpers to Rust test utilities: serialize `Instance` protos, write framed records (headers + lengths), and parse with Rust pipelines.
+2. Copy the Python expected outputs into Rust assertions (actions arrays, label arrays, invalid label sentinel values).
+3. Implement FilterValues file generation in Rust to test `operand_filepath` parity.
+4. Recreate dataset pipelines for each test case (including ExampleBatch `instance_reweight`).
+5. Add parallel filter test to validate thread-safety/caching behavior.
+6. Keep negative-sample test deterministic for mandatory branches; log or assert ratios only if stable.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file (primary reference).
+- Rust tests: new `feature_utils_tests.rs` with one test per Python case + helpers.
+- Cross-language parity test: run Python and Rust on same temp fixtures; compare arrays and variant validity.
 
 **Gaps / Notes**
-- TODO (manual)
+- Many tests depend on `monolith/native_training/data/training_instance/*.pb` fixtures; ensure these are accessible to Rust tests.
+- INVALID_LABEL sentinel appears as `-3.4028235e+38` in Python output; Rust must match exact float.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -6424,6 +6577,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/data/item_pool_hook.py`
+
 <a id="monolith-native-training-data-item-pool-hook-py"></a>
 
 **Status:** IN PROGRESS (manual)
@@ -6747,50 +6901,106 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/data/parsers.py`
 <a id="monolith-native-training-data-parsers-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 782
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Parsing utilities that turn Monolith Instance/Example/ExampleBatch variant tensors into feature dicts, plus sharding sparse fid helpers and parser context management.
+- Key symbols/classes/functions: `ParserCtx`, `ShardingSparseFidsOpParams`, `ProtoType`, `parse_instances`, `parse_examples`, `parse_example_batch`, `parse_example_batch_list`, `sharding_sparse_fids`, `sharding_sparse_fids_with_context`, `_add_dense_features`, `_add_extra_features`, `_assemble`.
+- External dependencies: TensorFlow, `LineId` proto, `FeatureConfigs` proto, `LabelConf` proto, `FeatureList`, `gen_monolith_ops` custom kernels, `logging_ops`, `native_task_context`, `FLAGS.dataset_use_dataservice`.
+- Side effects: populates TF collections via `add_to_collections`; writes to global parser context; logs timing metrics (`logging_ops.emit_timer`); registers required feature names via `add_feature` when example-batch parsing.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `ParserCtx` (context manager):
+  - Global `_default_parser_ctx` is used if none exists; `get_default_parser_ctx()` creates `ParserCtx(False)` once.
+  - `enable_resource_constrained_roughsort` (class-level flag) injects `item_id` into `extra_features` when parsing instances.
+  - `enable_fused_layout` toggles v2 parsing ops and sharded sparse fid handling.
+  - `parser_type` is set to `'instance'`, `'example'`, or `'examplebatch'` by parse functions.
+  - `sharding_sparse_fids_op_params` holds op configuration (see below) and drives `sharding_sparse_fids_with_context` behavior.
+  - `set/get` store arbitrary per-parse context values (e.g., `batch_size`).
+  - `sharding_sparse_fids_features_insert_to_features` injects nested dict values into `features` with `__sharding_sparse_fids__` prefix; supports two-level dicts only.
+  - `sharding_sparse_fids_features_parse_from_features` reverses the prefixing and removes those keys from `features`.
+- `ShardingSparseFidsOpParams` dataclass:
+  - Fields: `num_ps`, `use_native_multi_hash_table`, `unique` (callable), `transfer_float16`, `sub_table_name_to_config`, `feature_configs`, `enable_gpu_emb`, `use_gpu`.
+- `ProtoType.get_tf_type(proto_type)`:
+  - Maps proto field types to tf dtypes: INT → `tf.int64`, FLOAT → `tf.float32`, STRING → `tf.string`.
+  - Raises `Exception('proto_type {} is not support'.format(proto_type))` for unknown types.
+- `_add_dense_features(names, shapes, types, dense_features, dense_feature_shapes, dense_feature_types)`:
+  - Requires `dense_features` and `dense_feature_shapes` non-null, same length, shapes > 0.
+  - Defaults `dense_feature_types` to `[tf.float32] * len(dense_features)` if None; otherwise lengths must match.
+  - Appends to `names`, `shapes`, `types`.
+- `_add_extra_features(names, shapes, types, extra_features, extra_feature_shapes)`:
+  - Requires `extra_features` and shapes non-null, same length, shapes > 0.
+  - Resolves dtype from `LineId` descriptor per field; raises `Exception(f"{name} is not in line id, pls check!")` if missing.
+- `_assemble(sparse_features, names, shapes, types, out_list, batch_size)`:
+  - For sparse features: takes `split = out_list[i]` (reshaped to `(batch_size+1,)` if batch_size provided) and `value = out_list[i + len(names)]`; returns `tf.RaggedTensor.from_row_splits`.
+  - For dense features: uses `out_list[i]` directly.
+  - Returns dict of feature name → tensor/ragged tensor.
+- `parse_instances(tensor, fidv1_features, fidv2_features, dense_features, dense_feature_shapes, dense_feature_types, extra_features, extra_feature_shapes)`:
+  - If `ParserCtx.enable_resource_constrained_roughsort` is True, ensures `item_id` is in `extra_features` with shape 1.
+  - Validates dense feature inputs and defaults types to `tf.float32`.
+  - Sets parser context type `'instance'` and writes multiple lists to TF collections + context (fidv1/fidv2/dense/extra, shapes/types).
+  - Non-fused layout:
+    - For `fidv1_features`: adds feature names from slots via `get_feature_name_and_slot`; if all entries are strings, resolves slots via `FeatureList.parse()` and raises `RuntimeError("fidv1_features error")` on failure.
+    - Adds `fidv2_features` names; sets shapes to `-1` and types to `tf.int64`.
+    - Asserts no duplicate names.
+    - Calls `parse_instance_ops.parse_instances(...)` and `_assemble` with sparse features.
+  - Fused layout:
+    - If no names, injects `__FAKE_FEATURE__` with shape 1/float32.
+    - Calls `parse_instances_v2` and `_assemble` (no sparse features list).
+    - If `sharding_sparse_fids_op_params` present and (`use_gpu` or `FLAGS.dataset_use_dataservice`), calls `sharding_sparse_fids_with_context(instances, features, ctx)`.
+    - Else stores `instances` under `__sharding_sparse_fids__sparse_features` key.
+    - Removes `__FAKE_FEATURE__` before returning.
+- `parse_examples(...)` and `parse_example_batch(...)`:
+  - Same dense/extra validation pattern as `parse_instances`.
+  - Sets parser context type `'example'` or `'examplebatch'` and stores config in TF collections.
+  - If `is_example_batch()` is True, registers required features via `add_feature`: sparse features, dense features (adds `__LABEL__` for label), and `__LINE_ID__` for extra features.
+  - Non-fused: names from sparse features, shapes `-1`, types `tf.int64`, then calls `parse_examples`/`parse_example_batch` and `_assemble` (batch_size from context for example_batch).
+  - Fused: same `__FAKE_FEATURE__` fallback, uses `parse_examples_v2`/`parse_example_batch_v2`, then `sharding_sparse_fids_with_context` or stores under `__sharding_sparse_fids__sparse_features`.
+- `sharding_sparse_fids(tensor, ps_num, feature_cfgs, unique, input_type, parallel_flag, fid_list_ret_list, version)`:
+  - Normalizes `input_type` (`example_batch` → `examplebatch`).
+  - Builds sorted `table_name_list` from `feature_cfgs.feature_configs[*].table`; `ps_num=1` if 0; `table_count = len(table_name_list) * ps_num`.
+  - Uses `logging_ops.tensors_timestamp` around op call and emits timer `sharding_sparse_fids` with tag `model_name` from `native_task_context`.
+  - Calls versioned custom op (`sharding_sparse_fids_v5/v4/v3/v2` or legacy) returning fid lists, row splits, offsets, and sizes.
+  - Asserts list lengths for versions 5/4; returns either raw lists (if `fid_list_ret_list` or `version==4`) or dicts keyed by `table:ps_index` with row splits and row_split_size.
+- `sharding_sparse_fids_with_context(sparse_features, features, parser_ctx)`:
+  - Calls `sharding_sparse_fids` with params from `parser_ctx.sharding_sparse_fids_op_params`.
+  - If `enable_gpu_emb`: inserts `shards_value`, `shards_row_lengths`, `shards_table_row_lengths`, offsets, `batch_size`, `fid_list_emb_row_lenth` into `features` using prefixed keys.
+  - Else inserts `shards`, offsets, `batch_size`, size stats; if `use_native_multi_hash_table`, also inserts `shards_row_split` and `shards_row_split_size`.
+- `parse_example_batch_list(tensor_list, label_config, positive_label, negative_label, names, shapes, dtypes, extra_features)`:
+  - Optionally parses `label_config` (semicolon-separated tasks, each `pos_actions:neg_actions`) into `LabelConf`, and adds `label` feature with shape `len(tasks)`.
+  - Marks `shapes[i] == -1` as sparse, appends `tf.int64` to `dtypes` for sparse values (to match op output list shape).
+  - Calls `parse_example_batch_list` op with serialized label conf, then `_assemble`.
+- Error semantics:
+  - Extensive `assert` checks for list lengths/shape values, duplicates, and supported types; specific exceptions for invalid LineId fields and fidv1_features name mapping.
+- Metrics/logging:
+  - `sharding_sparse_fids` emits a timer metric named `sharding_sparse_fids` with model_name tag.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/src` (parsing), `monolith-rs/crates/monolith-proto` (LineId/FeatureConfigs), optional TF backend for custom ops.
+- Rust public API surface: `parsers` module with `parse_instances`, `parse_examples`, `parse_example_batch`, and sharding helpers; `ParserCtx` analog for context state.
+- Data model mapping: TF Variant/RaggedTensor → Rust datasets/feature maps; need ragged representation and feature registry.
+- Feature gating: fused layout parsing, sharding_sparse_fids, and GPU embedding paths behind feature flags.
+- Integration points: datasets (`datasets.py`), feature registry (`feature_list.py`), training pipelines expecting collections metadata.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a Rust `ParserCtx` with context manager semantics (scoped override) and a global default.
+2. Port `_add_dense_features`, `_add_extra_features`, and `_assemble` with equivalent validation and ragged construction.
+3. Implement `parse_instances`/`parse_examples`/`parse_example_batch` in Rust, honoring `enable_fused_layout` and `enable_resource_constrained_roughsort` behavior.
+4. Provide `FeatureList` lookups for fidv1 slot-name mapping and raise equivalent errors on failure.
+5. Persist metadata to a Rust collection registry mirroring `add_to_collections` semantics.
+6. Implement sharding_sparse_fids and sharding_sparse_fids_with_context around native kernels or TF runtime bindings; preserve timing metric emission.
+7. Implement parse_example_batch_list with label_config parsing and label feature insertion.
+8. Add tests for parsing shape/type inference, ragged assembly, and sharding outputs using small fixture tensors.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `data_ops_test.py`, `parse_sparse_feature_test.py`, `feature_utils_test.py`, `tf_example_to_example_test.py` (parsing paths).
+- Rust tests: parser unit tests for each parse_* function; sharding_sparse_fids smoke tests (if backend available).
+- Cross-language parity test: parse the same fixture files and compare feature dict keys, shapes, and ragged values.
 
 **Gaps / Notes**
-- TODO (manual)
+- Fused layout paths depend on custom ops (`parse_*_v2` and `sharding_sparse_fids_*`); must be backed by TF runtime or re-implemented.
+- `parse_example_batch_list` mutates dtypes length to match op outputs; replicate this behavior exactly.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -6807,44 +7017,75 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/data/tf_example_to_example_test.py`
 <a id="monolith-native-training-data-tf-example-to-example-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 183
-- Purpose/role: Validates TF Example → Monolith Example conversion and parsing.
-- Key symbols/classes/functions: `TFExampleToExampleTest.test_tf_example_to_example`.
-- External dependencies: `tensorflow`, `tf_example_to_example`, `parse_examples`.
-- Side effects: writes `/tmp/test.tfrecord`.
+- Purpose/role: End-to-end test that converts TF Example records to Monolith Example variants via `tf_example_to_example`, then parses with `parse_examples` and asserts fid/dense defaults.
+- Key symbols/classes/functions: `serialize_example`, `get_fid_v2`, `calc_hash_value`, `TFExampleToExampleTest.test_tf_example_to_example`.
+- External dependencies: TensorFlow TFRecord, numpy RNG, `tf_example_to_example`, `parse_examples`.
+- Side effects: writes `/tmp/test.tfrecord` with 10k TF Examples; uses TF1 session.
 
 **Required Behavior (Detailed)**
-- Generates TFRecord with 10k Examples containing bool/int/string/float features.
-- `tf_example_to_example` maps:
-  - sparse_features `feature0/feature1/feature4` to slots 1/2/3 (fid_v2).
-  - dense_features `feature2`; label `feature3`.
-- Parses with `parse_examples` including non-existent features; expects:
-  - missing sparse -> empty.
-  - missing dense -> zeros.
-  - instance_weight defaults to 1.0.
-  - feature4 fid uses `calc_hash_value`.
+- Helper functions:
+  - `_bytes_feature`, `_float_feature`, `_int64_feature` wrap values into `tf.train.Feature` list types.
+  - `serialize_example(feature0, feature1, feature2, feature3, feature4)` builds a `tf.train.Example` with:
+    - `feature0`: int64 (bool values allowed)
+    - `feature1`: int64
+    - `feature2`: bytes
+    - `feature3`: float
+    - `feature4`: float
+  - `get_fid_v2(slot, signature)` uses `fid_v2_mask=(1<<48)-1` and returns `(slot<<48) | (signature & mask)`.
+  - `calc_hash_value(val)` returns `int(log2(abs(val)+1))`.
+- `test_tf_example_to_example`:
+  - Disables TF2 behavior (`tf.compat.v1.disable_v2_behavior()`), uses TF1 session graph.
+  - Generates 10k samples:
+    - `feature0`: random bools
+    - `feature1`: random ints in [0,4]
+    - `feature2`: bytes from `strings[feature1]`
+    - `feature3`: random normal float
+    - `feature4`: random normal float
+  - Writes TFRecord file `/tmp/test.tfrecord` with serialized Examples.
+  - Dataset pipeline:
+    - `TFRecordDataset` → `map(tf_example_to_example)` with:
+      - `sparse_features={'feature0':1,'feature1':2,'feature4':3}` (fid_v2 slots)
+      - `dense_features=['feature2']`
+      - `label='feature3'`
+      - `instance_weight=None`
+    - Batch size 2 → `map(parse_examples)` with:
+      - `sparse_features=['not_existed1','feature0','feature1','feature4']`
+      - `dense_features=['label','feature2','feature3','not_existed2','instance_weight']`
+      - `dense_feature_types=[float32,string,float32,float32,float32]`
+      - `dense_feature_shapes=[1,1,1,1,1]`
+  - In session loop (5k batches):
+    - `not_existed1` ragged has zero values.
+    - `feature0/feature1` fids equal `get_fid_v2(slot, original int/bool)` per batch.
+    - `feature4` fid uses slot 3 and `calc_hash_value` of float value (log2(abs(val)+1)).
+    - `label` equals original `feature3` (float) per batch.
+    - `feature3` dense output is `[0,0]` (missing in conversion), `not_existed2` is `[0,0]`.
+    - `instance_weight` defaults to `[1.0,1.0]`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-data/tests`.
-- Rust public API surface: TFExample conversion utilities (if present).
-- Data model mapping: TF Example → Monolith example encoding.
-- Feature gating: TFRecord parsing.
-- Integration points: data ingestion pipeline.
+- Target crate/module: `monolith-rs/crates/monolith-data/tests` (TFExample conversion) + `monolith-proto` for Example parsing.
+- Rust public API surface: test helper for TF Example serialization; conversion op `tf_example_to_example` or equivalent.
+- Data model mapping: TF Example bytes → Monolith Example variant → parsed feature dict.
+- Feature gating: TFRecord read/write and TFExample conversion backend.
+- Integration points: `feature_utils.tf_example_to_example` and `parsers.parse_examples` parity.
 
 **Implementation Steps (Detailed)**
-1. Implement TFExample → Example conversion in Rust.
-2. Add tests for missing feature defaults and fid hashing.
+1. Implement TF Example serialization helper in Rust tests (or load TFRecord fixtures generated in Python).
+2. Provide `tf_example_to_example` conversion in Rust with the same slot/fid-v2 behavior and hashing for float feature4.
+3. Ensure missing sparse features emit empty ragged values; missing dense features emit zeros; `instance_weight` defaults to 1.0.
+4. Add a Rust test that mirrors batch size 2 with deterministic input, validating fid values and dense defaults.
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: add conversion tests with fixed fixtures.
-- Cross-language parity test: compare parsed fid values and dense defaults.
+- Rust tests: `tf_example_to_example.rs` (new) that asserts identical fid/dense outputs.
+- Cross-language parity test: generate a fixed TFRecord in Python and run Rust conversion+parse on it; compare outputs.
 
 **Gaps / Notes**
-- Requires TFRecord read/write support in Rust or external tooling.
+- Uses `/tmp/test.tfrecord`; Rust tests should use tempdir paths.
+- The hash for float sparse feature4 is `int(log2(abs(val)+1))`; must match exactly.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -6861,50 +7102,56 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/data/training_instance/python/instance_dataset_op.py`
 <a id="monolith-native-training-data-training-instance-python-instance-dataset-op-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 166
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: TF DatasetSource wrapper around custom `instance_dataset` op for reading serialized Instance records from PB files or stdin, with optional sharding/interleave utilities.
+- Key symbols/classes/functions: `_PBInstanceDataset`, `PBInstanceDatasetV2`, `create_instance_dataset`, alias `PBInstanceDataset`.
+- External dependencies: TensorFlow Dataset internals, `gen_monolith_ops.instance_dataset`, `distributed_dataset.create_dynamic_sharding_dataset`, `ckpt_hooks.disable_iterator_save_restore`, TF matching_files.
+- Side effects: disables iterator save/restore when reading from stdin; logs initialization; uses TF fatal logging on missing file.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_PBInstanceDataset(file_name, use_snappy, has_sort_id, kafka_dump, kafka_dump_prefix)`:
+  - Calls custom op `instance_dataset` with tensors for file name, snappy, and header flags.
+  - `element_spec` is scalar string `TensorSpec([], tf.string)`.
+- `PBInstanceDatasetV2`:
+  - If `file_name` is empty string, treats input as stdin and calls `ckpt_hooks.disable_iterator_save_restore()`.
+  - Creates `_PBInstanceDataset` internally and forwards variant tensor into `DatasetV2`.
+  - `_clone` merges kwargs with stored defaults.
+  - `_inputs()` returns `[]`.
+- `create_instance_dataset(...)`:
+  - `files_list=None` defaults to `['']` (stdin).
+  - If a single file and no glob expansion/sharding/dynamic sharding, returns `PBInstanceDatasetV2` directly; validates existence when file is non-empty and logs fatal on missing file.
+  - `enable_dynamic_sharding=True`:
+    - Converts to dataset via `distributed_dataset.create_dynamic_sharding_dataset` and `flat_map` with `PBInstanceDatasetV2`.
+  - `enable_sharding=True`:
+    - Requires a single file pattern; uses `MatchingFilesDataset`, shards by `shard_num/shard_index`, logs shard info; forces `use_snappy=True`.
+  - Else:
+    - Uses `MatchingFilesDataset` if `expand_glob_path=True`, otherwise `Dataset.from_tensor_slices`.
+  - Final dataset uses `interleave` with `cycle_length`, `block_length`, `num_parallel_calls`, `deterministic=False`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/src` for dataset creation and file reader.
+- Rust public API surface: `pb_instance_dataset` (or similar) and `create_instance_dataset` with matching options.
+- Data model mapping: custom op variant tensor → Rust stream of serialized Instance bytes.
+- Feature gating: stdin mode, dynamic sharding, and TF MatchingFiles behavior.
+- Integration points: datasets (`datasets.py`), training pipelines that expect PBInstanceDataset semantics.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a Rust dataset source that wraps Instance file reading with flags for sort_id/kafka headers and snappy.
+2. Mirror stdin special case and disable iterator save/restore in Rust equivalents.
+3. Implement glob expansion, sharding, and dynamic sharding (or document unsupported) with identical defaults.
+4. Preserve interleave behavior and `deterministic=False` semantics.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `instance_dataset_op_test_stdin.py`, other dataset tests using PBInstanceDataset.
+- Rust tests: dataset source tests for stdin vs file, sharding path, missing file handling.
+- Cross-language parity test: read a fixture PB file in Python and Rust and compare record sequence.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses TF Dataset internals; Rust must define a similar streaming abstraction.
+- Missing file uses `logging.fatal` in TF; decide equivalent behavior in Rust (panic or error).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -6921,50 +7168,47 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/data/training_instance/python/instance_dataset_op_test_stdin.py`
 <a id="monolith-native-training-data-training-instance-python-instance-dataset-op-test-stdin-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 58
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke test for `PBInstanceDataset` reading from stdin (empty file_name), batching, and parsing with `parse_instances`.
+- Key symbols/classes/functions: `PBInstanceDataset`, `parse_instances`, `testInstanceDataset`.
+- External dependencies: TensorFlow v1 session, `instance_dataset_ops`, `parse_instance_ops`.
+- Side effects: expects stdin data stream; logs warnings; runs one batch read.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Defines feature lists:
+  - `FIDV1_FEATURES = [1..9]`
+  - `FIDV2_FEATURES = ['fc_360d_ml_convert_cid', 'fc_360d_ml_convert_advertiser_id']`
+  - `FLOAT_FEATURES = ['fc_muse_finish_rough_10168_uid_d128']` with dim `[128]`
+  - `INT64_FEATURES = ['fc_dense_external_action']` with dim `[1]`
+- `parse(serialized)` calls `parse_instances(serialized, fidv1, fidv2, float_feats, float_dims, int64_feats, int64_dims)`.
+- `testInstanceDataset()`:
+  - Creates `PBInstanceDataset(file_name='', has_sort_id=True, kafka_dump_prefix=True)` (stdin path).
+  - `batch(32)` and `map(parse)`.
+  - Builds one-shot iterator, fetches one batch, logs `elements['sample_rate']`.
+- Script mode: disables eager and runs `testInstanceDataset()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/tests`.
+- Rust public API surface: stdin dataset reader + parse_instances in Rust.
+- Data model mapping: stream of framed Instance records from stdin.
+- Feature gating: stdin support in dataset source; parse_instances.
+- Integration points: dataset source in `instance_dataset_op.py` parity.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add a Rust test that simulates stdin input (e.g., pipe fixture data into the dataset reader).
+2. Ensure parsing handles fidv1/fidv2 and dense features as in Python.
+3. Validate batch size 32 returns expected keys including `sample_rate`.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: add stdin dataset smoke test with a small fixture.
+- Cross-language parity test: compare parsed batch fields from the same stdin fixture.
 
 **Gaps / Notes**
-- TODO (manual)
+- This test assumes stdin provides valid Instance records; Rust tests should supply a controlled fixture stream.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -6981,50 +7225,61 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/data/training_instance/python/instance_negative_gen_dataset_op_test.py`
 <a id="monolith-native-training-data-training-instance-python-instance-negative-gen-dataset-op-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 283
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests negative sample generation dataset (`negative_gen` and `InstanceNegativeGenDataset`) over Instance PB data, including per-channel ring buffer behavior.
+- Key symbols/classes/functions: `InsNegativeDatasetTest`, `parse1`, `testNegativeGen`, `testRingBufferCache`, `testIgnoreReaNegInstance`, `testUseNegInstance`.
+- External dependencies: TensorFlow, `PBDataset`, `InstanceNegativeGenDataset`, `PbType`, custom parse ops `parse_variant_instances`.
+- Side effects: reads fixture `monolith/native_training/data/training_instance/instance.pb`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Constants:
+  - `FILE_NAME` fixture file for Instance PB.
+  - `CHANNEL_SLOT=357`, `GROUP_SLOTS=[200..242]`, `LABEL_FIELD='actions'`, `LABEL_INDEX=0`.
+  - Negative labels `NEGATIVE_LABEL=-2`, `NEGATIVE_LABEL2=-1`.
+  - `GID='gid'` used as misc int64 feature.
+- `parse1(pb_variant)`:
+  - Uses a fixed `FIDV1_FEATURES` list and `parse_variant_instances` with `misc_int64_features=[GID]`.
+- `testNegativeGen`:
+  - Builds `PBDataset` (Instance → Instance) with headers; applies `dataset.negative_gen` with:
+    - `neg_num=7`, `channel_slot`, `group_slots`, `per_channel_sample=True`, `start_num=0`, `max_group_num_per_channel=10000`, `label_field='actions'`, `label_index=0`, `negative_label=-2`, `use_neg_ins=True`.
+  - Batches 8 and parses.
+  - Asserts in first batch that `channel_res[0][0] == channel_res[0][i]` for i in 1..7 (negatives share channel), and label at index 1 equals `NEGATIVE_LABEL`.
+- `testRingBufferCache`:
+  - Same negative_gen config except `max_group_num_per_channel=2`.
+  - Collects ~1024 samples; groups by channel and verifies ring buffer behavior:
+    - For channels with >2 samples, checks that group fids from later samples are not present in the first sample when gids differ.
+  - Logs `valid_count` of checked non-overlapping group features.
+- `testIgnoreReaNegInstance`:
+  - First applies `dataset.negative_gen(..., negative_label=-2, use_neg_ins=True)`.
+  - Then wraps with `InstanceNegativeGenDataset(..., negative_label=-1, use_neg_ins=False)`.
+  - Asserts label at index 1 equals `NEGATIVE_LABEL2` (real negatives ignored).
+- `testUseNegInstance`:
+  - Same as previous but `use_neg_ins=True` in wrapper.
+  - Asserts labels: index1/index2 are `NEGATIVE_LABEL2`, index3/index4 are `NEGATIVE_LABEL` (mix of generated vs real negatives).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/tests` with negative_gen dataset implementation in `monolith-data`.
+- Rust public API surface: `negative_gen` dataset operator and `InstanceNegativeGenDataset` wrapper.
+- Data model mapping: Instance variant streams with channel/group fid slots and label field `actions`.
+- Feature gating: requires negative generation ops + item pool or group cache implementation.
+- Integration points: dataset pipeline in `datasets.py` and negative-gen custom ops in Rust/TF backend.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement `negative_gen` dataset operator and wrapper in Rust with identical parameters.
+2. Ensure per-channel sampling and ring buffer cache behavior match Python semantics.
+3. Expose `use_neg_ins` toggle to include/exclude existing negatives.
+4. Add Rust tests that load the same fixture PB file and verify label/channel/group constraints.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: new `instance_negative_gen_dataset_op_test.rs` mirroring each test case.
+- Cross-language parity test: compare label distributions and channel/group assignments on identical fixtures.
 
 **Gaps / Notes**
-- TODO (manual)
+- Depends on `instance.pb` fixture and custom ops; ensure Rust has compatible dataset and parse op support.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7041,50 +7296,53 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/data/training_instance/python/parse_instance_ops.py`
 <a id="monolith-native-training-data-training-instance-python-parse-instance-ops-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 245
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Instance parsing helpers that wrap custom ops to extract fid and dense features into Ragged/Dense tensors, including LineId fields and repeated fields handling.
+- Key symbols/classes/functions: `_parse_instance_impl`, `parse_instances2`, `parse_instances`, `monolith_raw_parse_instance`.
+- External dependencies: TensorFlow ragged internals (`RowPartition`), `gen_monolith_ops` custom kernels, `get_slot_feature_name`, parser_utils hooks (imported but not used here).
+- Side effects: Builds RaggedTensor with precomputed row ids/nrows; uses default misc feature lists.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_parse_instance_impl(serialized, fidv1_features, fidv2_features, float_features, float_feature_dims, int64_features, int64_feature_dims, string_features, string_feature_dims, misc_float_features, misc_float_dims, misc_int64_features, misc_int64_dims, misc_string_features, misc_string_dims, cc_op)`:
+  - Normalizes all list args to empty lists if None.
+  - Calls `cc_op` (custom op) with counts `N/M/O/P/Q/R/S` and all feature lists/dims.
+  - Builds `ragged_keys` from `fidv1_features` (via `get_slot_feature_name`) plus `fidv2_features`.
+  - For each ragged split/value pair, constructs `RowPartition` with precomputed `value_rowids` and `nrows`, then `tf.RaggedTensor(values, row_partition, internal=True)`.
+  - Returns dict mapping ragged + float + int64 + string + misc_* features to their tensors in order.
+- `parse_instances2(...)`:
+  - Thin wrapper that calls `_parse_instance_impl` with `parse_instance_ops.monolith_parse_instances`.
+- `parse_instances(...)`:
+  - Adds defaults: `misc_float_features=['sample_rate']`, `misc_int64_features=['req_time','uid']`, `misc_repeated_float_features=['label']`.
+  - Normalizes list args to empty lists and sets default dims (1) for misc features.
+  - Calls `parse_instances2` with concatenated misc+repeated feature lists/dims.
+  - Reshapes non-repeated misc float/int64 features to 1-D (`tf.reshape(features[key], [-1])`).
+  - Returns feature dict.
+- `monolith_raw_parse_instance`:
+  - Exposes `parse_instance_ops.MonolithRawParseInstance` for testing only.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/src` for instance parsing; ragged support in `monolith-tensor`.
+- Rust public API surface: `parse_instances`/`parse_instances2` equivalents returning `HashMap<String, Tensor>` with ragged types.
+- Data model mapping: custom op outputs (splits/values) → Rust ragged tensors with cached row ids/nrows.
+- Feature gating: depends on custom parsing kernels or TF runtime.
+- Integration points: dataset parsing pipelines, tests in `parse_instance_ops_test.py` and other training_instance tests.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement Rust wrappers for `monolith_parse_instances` (or bind to TF op) that return splits/values arrays.
+2. Build ragged tensors with cached row metadata to match TF `RowPartition` behavior.
+3. Match default misc feature lists and reshape semantics in `parse_instances`.
+4. Preserve feature key ordering in output map to match downstream expectations.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `parse_instance_ops_test.py`, `instance_dataset_op_test_stdin.py`, `instance_negative_gen_dataset_op_test.py`.
+- Rust tests: parser unit tests for ragged vs dense outputs; ensure misc defaults applied.
+- Cross-language parity test: parse a fixture instance and compare fid/dense outputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses TF internal ragged APIs; Rust must provide equivalent row-partition caching to avoid perf regressions.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7101,50 +7359,63 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/data/training_instance/python/parse_instance_ops_test.py`
 <a id="monolith-native-training-data-training-instance-python-parse-instance-ops-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 185
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Validates instance parsing ops and ragged encoding helpers, including missing field defaults and raw parse concat behavior.
+- Key symbols/classes/functions: `RaggedEncodingHelperTest`, `ParseInstancesTest`, `RawParseInstanceTest`, helper `generate_instance`, `make_fid_v1`, `make_fid_v2`.
+- External dependencies: TensorFlow, `proto_parser_pb2.Instance`, `parse_instance_ops`, `parser_utils.RaggedEncodingHelper`.
+- Side effects: none.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `generate_instance()` builds an Instance with:
+  - fidv1 list `[make_fid_v1(i,i) for i in range(10)]`.
+  - fidv2 feature `name='fidv2'` with `make_fid_v2(100,i)`.
+  - float feature `ue` length 16 (i * 1e-5), int64 feature `int64_feature=100`, string feature `string_feature='test_string'`.
+  - label `[1.1,2.2,3.3]`, line_id fields: uid=110, sample_rate=0.5, req_time=64, actions=[0,100], user_id='123'.
+- `RaggedEncodingHelperTest.testExpandContract`:
+  - Builds a ragged tensor, expands with `RaggedEncodingHelper.expand(..., with_precomputed_value_rowids=True)` and verifies `value_rowids` equals TF-computed.
+  - `contract` returns original ragged values and preserves cached value_rowids.
+- `ParseInstancesTest.testParseInstance`:
+  - Calls `parse_instances2` with explicit fidv1/fidv2/float/int64/string/misc fields and dims.
+  - Asserts:
+    - 10 fidv1 slots returned (`slot_*`).
+    - `slot_1` uses fid_v2 encoding for v1 slot values.
+    - `fidv2` ragged equals `get_test_fidv2()`.
+    - dense features: `int64_feature=[[100]]`, `string_feature=[[b'test_string']]`, `ue` length 16, `sample_rate=[[0.5]]`, `label=[[1.1,2.2,3.3]]`, `uid=[[110]]`, `actions=[[0,100]]`, `user_id=[['123']]`.
+- `ParseInstancesTest.testParseInstanceV1Only`:
+  - `parse_instances2` with `fidv1_features=[1]` yields `slot_1` with fid_v1 encoding.
+- `ParseInstancesTest.testParseInstanceWithMissingFields`:
+  - Requests extra missing fields; expects:
+    - Missing ragged fid slot → empty ragged (`[[]]`).
+    - Missing fidv2 → empty ragged.
+    - Missing float → zeros of specified dim.
+    - Missing int64/string → zeros/empty strings of specified dim.
+- `RawParseInstanceTest.test_concat`:
+  - Calls `monolith_raw_parse_instance` with `fid_output_type='CONCAT'`.
+  - Expects first tensor offsets `[0,1,2,len(fidv2)+2]` and second tensor concatenated fids `[fidv1 slot0, fidv1 slot1] + fidv2 list`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/tests` and ragged utils in `monolith-tensor`.
+- Rust public API surface: ragged encoding helper, `parse_instances2`, raw parse op if exposed.
+- Data model mapping: same fid encoding rules (v1/v2), missing-field defaults.
+- Feature gating: raw parse op requires custom kernel support.
+- Integration points: parse_instance_ops implementation and parser_utils utilities.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement ragged encoding helper in Rust and verify cached rowids/nrows behavior.
+2. Port `parse_instances2` tests with the same synthetic Instance fixture.
+3. Ensure missing fields return empty ragged or zero-filled dense tensors as specified.
+4. If raw parse op is supported, add concat mode test for offsets + fid list order.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: new `parse_instance_ops_test.rs` matching each test case.
+- Cross-language parity test: compare parsed feature dicts for identical serialized Instance.
 
 **Gaps / Notes**
-- TODO (manual)
+- `slot_*` fidv1 encoding differs between v1-only path and v2 conversion; Rust must replicate both behaviors.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7161,50 +7432,52 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/data/training_instance/python/parser_utils.py`
 <a id="monolith-native-training-data-training-instance-python-parser-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 85
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Utilities for parser pipelines, including queued extra-parse steps and ragged encoding expansion/contract helpers.
+- Key symbols/classes/functions: `_extra_parse_steps`, `add_extra_parse_step`, `RaggedEncodingHelper.expand`, `RaggedEncodingHelper.contract`, `advanced_parse`.
+- External dependencies: TensorFlow, `ragged_utils.fused_value_rowids`.
+- Side effects: mutates global deque of extra parse steps; mutates RaggedTensor internal row partition caches during `contract`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_extra_parse_steps`:
+  - Global `deque` used to store parse step callables.
+- `add_extra_parse_step(parse_fn)`:
+  - Appends parse_fn to `_extra_parse_steps`.
+- `RaggedEncodingHelper.expand(name_to_ragged_ids, with_precomputed_nrows=True, with_precomputed_value_rowids=False)`:
+  - For each RaggedTensor value, returns a dict with:
+    - `values`, `row_splits`, optional `nrows` (if flag), optional `value_rowids` computed via `ragged_utils.fused_value_rowids` (if flag).
+  - Non-ragged entries pass through unchanged.
+- `RaggedEncodingHelper.contract(name_to_ragged_ids)`:
+  - For dict entries with `values` and `row_splits`, rebuilds `tf.RaggedTensor.from_row_splits(..., validate=False)`.
+  - If `nrows` present, asserts `_row_partition._nrows` is None before assigning.
+  - If `value_rowids` present, asserts `_row_partition._value_rowids` is None before assigning.
+  - Non-dict entries pass through unchanged.
+- `advanced_parse(features)`:
+  - Pops parse steps from `_extra_parse_steps` in FIFO order and applies each to `features`.
+  - Returns final features dict.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/src` (parser utilities) + `monolith-tensor` for ragged.
+- Rust public API surface: `add_extra_parse_step` and `advanced_parse` equivalents; ragged expand/contract helpers.
+- Data model mapping: RaggedTensor internal encodings → Rust ragged structure with cached rowids/nrows.
+- Feature gating: none.
+- Integration points: `parse_instance_ops_test.py` uses `RaggedEncodingHelper`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a global queue of parse steps (with proper synchronization if used across threads).
+2. Implement ragged expand/contract; ensure cached rowids/nrows are set only once.
+3. Mirror `fused_value_rowids` behavior using Rust ragged utilities.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `parse_instance_ops_test.py` (`RaggedEncodingHelperTest`).
+- Rust tests: add unit tests that expand, contract, and verify rowids/nrows caching.
+- Cross-language parity test: compare ragged values and cached rowids against Python output.
 
 **Gaps / Notes**
-- TODO (manual)
+- Directly mutates internal ragged partition caches; Rust must provide an equivalent escape hatch.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7221,50 +7494,44 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/data/training_instance/python/pb_datasource_ops.py`
 <a id="monolith-native-training-data-training-instance-python-pb-datasource-ops-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 48
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Thin wrappers around `gen_monolith_ops` for filtering and negative sampling on variant tensors in training_instance pipelines.
+- Key symbols/classes/functions: `filter_by_fids`, `filter_by_value`, `negative_sample`, `variant_dummy`.
+- External dependencies: TensorFlow, `gen_monolith_ops` custom kernels.
+- Side effects: none beyond custom op invocation.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `filter_by_fids(variant, filter_fids, has_fids, select_fids, has_actions)`:
+  - Passes list args (defaults to empty) to `pb_datasource_ops.set_filter`.
+- `filter_by_value(variant, field_name, op, operand)`:
+  - Calls `pb_datasource_ops.value_filter` with given field/op/operand.
+- `negative_sample(variant, drop_rate, label_index, threshold)`:
+  - Calls `pb_datasource_ops.negative_sample` with drop/threshold params.
+- `variant_dummy(variant)`:
+  - Calls `pb_datasource_ops.variant_dummy`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/src` (ops wrappers).
+- Rust public API surface: minimal wrappers for filtering/negative sampling on variant streams.
+- Data model mapping: variant tensor → Rust variant representation.
+- Feature gating: custom op availability (TF backend).
+- Integration points: training_instance datasets and tests.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust wrapper functions that call the underlying kernel backend.
+2. Ensure default empty list behavior matches Python.
+3. Expose in public API for dataset pipelines.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: indirectly via `instance_negative_gen_dataset_op_test.py`.
+- Rust tests: minimal unit tests for wrappers if backend available.
+- Cross-language parity test: verify behavior using fixed fixtures.
 
 **Gaps / Notes**
-- TODO (manual)
+- This is a thin wrapper; underlying op semantics are defined in C++/TF kernels.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7281,50 +7548,35 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/data/training_instance/python/test_data_utils.py`
 <a id="monolith-native-training-data-training-instance-python-test-data-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 15
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Placeholder test utility module; currently only imports TensorFlow.
+- Key symbols/classes/functions: none.
+- External dependencies: TensorFlow.
+- Side effects: none.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- No runtime behavior beyond importing TensorFlow.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: none.
+- Rust public API surface: none.
+- Data model mapping: none.
+- Feature gating: none.
+- Integration points: none.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. No Rust port needed unless file is expanded in Python.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: none.
+- Cross-language parity test: none.
 
 **Gaps / Notes**
-- TODO (manual)
+- File is effectively empty; keep an eye on future changes.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7341,50 +7593,72 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/data/transform/transforms.py`
 <a id="monolith-native-training-data-transform-transforms-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 250
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Declarative transform objects that serialize to `TransformConfig` proto for dataset transform pipelines (filters, label generation, logical composition).
+- Key symbols/classes/functions: `Transform` (ABC), `Compose`, `FilterByFid`, `FilterByAction`, `FilterByLabel`, `FilterByValue`, `AddLabel`, `LogicalOr`.
+- External dependencies: `transform_config_pb2`, `LineId` proto descriptor for field validation.
+- Side effects: none; purely builds proto configs with validation asserts.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `Transform` abstract base:
+  - `as_proto()` returns `transform_config_pb2.TransformConfig`.
+  - `_is_leaf_node()` distinguishes leaf vs composite.
+- `Compose(transforms)`:
+  - Requires all items are `Transform` instances.
+  - `as_proto` merges each transform’s proto into a single `TransformConfig` via `MergeFrom` in order.
+  - `_is_leaf_node` returns False.
+- `FilterByFid(has_fids, filter_fids, select_fids)`:
+  - `as_proto` appends a `basic_config.filter_by_fid` entry with respective lists.
+  - `_is_leaf_node` True.
+- `FilterByAction(has_actions)`:
+  - Adds `basic_config.filter_by_action.has_actions`.
+  - `_is_leaf_node` True.
+- `FilterByLabel(thresholds)`:
+  - Adds `basic_config.filter_by_label.thresholds`.
+  - `_is_leaf_node` True.
+- `FilterByValue(field_name, op, operand, keep_empty=False)`:
+  - Validates `op` in `{gt,ge,eq,lt,le,neq,between,in,not-in,all,any,diff,startswith,endswith}`.
+  - Validates `field_name` exists in `LineId` descriptor; `operand` is not None.
+  - Infers operand type based on field cpp_type and op:
+    - Repeated fields (`field.has_options`): only `all/any/diff` allowed; only integer types; operand int or list of int.
+    - Float/double: `between` uses list; otherwise single float.
+    - Int types: `in/not-in/between` use list; otherwise single int.
+    - String: operand is str or list of str; else `RuntimeError("params error!")`.
+  - Stores `float_operand`, `int_operand`, `string_operand`, `keep_empty`.
+  - `as_proto` fills `basic_config.filter_by_value` with operands and flags.
+  - `_is_leaf_node` True.
+- `AddLabel(config, negative_value, new_sample_rate)`:
+  - Parses config `pos_actions:neg_actions:sample_rate` separated by `;` (skips empty parts).
+  - Adds `basic_config.add_label` with negative value + new sample rate and a `task_label_config` entry per task.
+  - `_is_leaf_node` True.
+- `LogicalOr(x, y)`:
+  - Requires both `x` and `y` are leaf nodes.
+  - `as_proto` creates `logical_or_config` and copies `basic_config` from each side.
+  - `_is_leaf_node` False.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/src` (transform config builders).
+- Rust public API surface: `Transform` trait + concrete structs mirroring Python class names; `as_proto()` to `TransformConfig`.
+- Data model mapping: transform structs → `transform_config_pb2::TransformConfig`.
+- Feature gating: none; pure config serialization.
+- Integration points: `TransformDataset` op uses serialized config (see `datasets.py`).
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Create Rust transform trait with `as_proto` and `is_leaf` methods.
+2. Implement concrete transforms with identical validation (asserts or Result errors).
+3. Preserve `Compose` merge ordering and `LogicalOr` leaf-only requirement.
+4. Implement `FilterByValue` operand parsing based on LineId descriptor in Rust.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `transforms_test.py`.
+- Rust tests: unit tests for each transform’s proto encoding and validation.
+- Cross-language parity test: serialize configs in Python and Rust and compare bytes.
 
 **Gaps / Notes**
-- TODO (manual)
+- `FilterByValue` uses `LineId` field metadata to infer types; Rust must mirror the same descriptor mapping.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7401,101 +7675,41 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/data/transform/transforms_test.py`
 <a id="monolith-native-training-data-transform-transforms-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 70
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke tests that build transform configs and log the resulting protobufs; no assertions beyond successful construction.
+- Key symbols/classes/functions: `TransformsTest`, test methods for each transform type.
+- External dependencies: `transforms` module, `absl.logging`, `unittest`.
+- Side effects: logs serialized proto configs.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
-
-**Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
-
-**Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
-
-**Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
-
-**Gaps / Notes**
-- TODO (manual)
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/native_training/data/transform_dataset_test.py`
-<a id="monolith-native-training-data-transform-dataset-test-py"></a>
-
-**Status:** TODO (manual review required)
-
-**Python Summary**
-- Lines: 168
-- Purpose/role: Tests dataset transform pipeline with filters and logical ops.
-- Key symbols/classes/functions: `DataOpsTest.instance_or_example_test`, `transforms.Compose`, `FilterByFid`, `FilterByValue`, `FilterByAction`, `LogicalOr`.
-- External dependencies: `tensorflow`, `PBDataset`, `parse_instances/parse_examples`, `transforms`.
-- Side effects: writes temp files.
-
-**Required Behavior (Detailed)**
-- Generates instance/example records with labels/actions and writes to temp file.
-- Applies transform chain:
-  - Filter by fid (selects a specific fid),
-  - Filter by read_count in {0},
-  - Logical OR of (video_play_time == 0.0) or action includes 2.
-- Parses dataset and counts elements; expects `total_count == 15`.
+- `test_filter_by_fid`: builds `FilterByFid(has_fids=[1], filter_fids=[2,3], select_fids=None)` and logs proto.
+- `test_filter_by_action`: builds `FilterByAction(has_actions=[4])` and logs proto.
+- `test_filter_by_label`: builds `FilterByLabel(thresholds=[-100, -100])` and logs proto.
+- `test_add_label`: builds `AddLabel(config='1,2:3:1.0;4::0.5', negative_value=0.0, new_sample_rate=0.3)` and logs proto.
+- `test_logical_or`: builds `LogicalOr(FilterByAction([1,2]), FilterByFid([10000000]))` and logs proto.
+- `test_compose`: builds `Compose([...])` with multiple transforms including `LogicalOr`, logs proto.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-data/tests`.
-- Rust public API surface: dataset transform operators.
-- Data model mapping: transforms → filter/combinator pipeline.
+- Rust public API surface: transform builders and `as_proto` serialization.
+- Data model mapping: Rust transforms → TransformConfig protobufs.
 - Feature gating: none.
-- Integration points: data pipeline.
+- Integration points: verifies transform config serialization used by `TransformDataset`.
 
 **Implementation Steps (Detailed)**
-1. Implement filter and logical transform composition in Rust datasets.
-2. Add test for counts after transform chain.
+1. Add Rust tests that construct equivalent transforms and ensure `as_proto` succeeds.
+2. Optionally compare serialized proto bytes to Python output for deterministic configs.
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: transform pipeline tests.
-- Cross-language parity test: compare retained counts.
+- Rust tests: `transforms_test.rs` with equivalent constructions.
+- Cross-language parity test: serialize each config in both languages and compare bytes.
 
 **Gaps / Notes**
-- None.
+- Tests are smoke-only; Rust should at least mirror construction and serialization.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7512,50 +7726,53 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/data/utils.py`
 <a id="monolith-native-training-data-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 55
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Simple slot/feature-name helpers for training_instance parsing; global mapping of feature names to slots with TOB env toggle.
+- Key symbols/classes/functions: `enable_tob_env`, `get_slot_feature_name`, `get_slot_from_feature_name`, `register_slots`, globals `TOBENV`, `USED_FREATUE_NAMES`, `NAME_TO_SLOT`.
+- External dependencies: none.
+- Side effects: mutates global dictionaries for name/slot mapping.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Globals:
+  - `TOBENV` default `False` toggles slot name prefix (`slot_` vs `fc_slot_`).
+  - `USED_FREATUE_NAMES` maps arbitrary feature names to assigned slot ids (incrementing).
+  - `NAME_TO_SLOT` maps feature name → slot id (explicit).
+- `enable_tob_env()`:
+  - Sets `TOBENV = True` globally.
+- `get_slot_feature_name(slot)`:
+  - Returns `"fc_slot_{slot}"` if `TOBENV` else `"slot_{slot}"`.
+- `get_slot_from_feature_name(feature_name)`:
+  - If in `NAME_TO_SLOT`, return mapped slot.
+  - Else if name starts with `slot_` or `fc_slot_`, parse suffix int; return int or `None` if non-numeric.
+  - Else use `USED_FREATUE_NAMES`: assign a new slot id (`len+1`) if missing and return it.
+- `register_slots(sparse_features)`:
+  - Accepts list/tuple of ints or dict name→slot.
+  - For list: asserts ints and converts to dict via `get_slot_feature_name`.
+  - Updates `NAME_TO_SLOT` with provided mapping.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/src` (feature utils).
+- Rust public API surface: slot/feature-name mapping utilities with global registry or context-bound mapping.
+- Data model mapping: feature names → slots used by parsing/feature extraction.
+- Feature gating: TOB env toggle.
+- Integration points: `parse_instance_ops` (fidv1 slot naming), feature list parsing.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a global or context-local registry for `NAME_TO_SLOT` and `USED_FEATURE_NAMES` with deterministic assignment.
+2. Provide `enable_tob_env` toggle and `get_slot_feature_name` logic.
+3. Mirror `get_slot_from_feature_name` fallback behavior for unknown names.
+4. Implement `register_slots` with list/dict handling and type checks.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none explicit.
+- Rust tests: add unit tests for TOB/non-TOB naming and deterministic slot assignment.
+- Cross-language parity test: compare mapping outputs for a fixed sequence of names.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses global mutable state; Rust must be careful about concurrency or test isolation.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7572,50 +7789,58 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/debugging/debugging_client.py`
 <a id="monolith-native-training-debugging-debugging-client-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 98
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: CLI client to query debugging server endpoints for variable values or feature embeddings.
+- Key symbols/classes/functions: `main`, CLI flags `type`, `variable_names`, `feature_ids`, `feature_name`, `feature_names`.
+- External dependencies: `requests`, `json`, protobuf `text_format`, `embedding_hash_table_pb2.EntryDump`.
+- Side effects: HTTP POSTs to local debugging server; logs results; raises exceptions on invalid flag combos.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Flags:
+  - `--type` must be `debugging_variables` or `debugging_features`.
+  - `--variable_names` list for variable lookup.
+  - `--feature_ids` list for feature lookup.
+  - `--feature_name` single name to pair with all ids.
+  - `--feature_names` list of names; must be same length as `feature_ids` if provided.
+- `debugging_variables` flow:
+  - If `variable_names` empty → log and return.
+  - POST JSON `{"variable_names": [...]}` to `http://127.0.0.1:<port>/debugging/variables`.
+  - Response JSON contains `STATUS`, `SUCCESS/FAIL`, `MSG` keys; on FAIL log reason and return.
+  - `MSG` is JSON-encoded dict name→value; logs each variable value or "Not exist".
+- `debugging_features` flow:
+  - Disallow providing both `feature_name` and `feature_names`.
+  - If `feature_ids` empty → log and return.
+  - If `feature_name` set, expand to list same length as ids.
+  - Validate `len(feature_names) == len(feature_ids)` else raise.
+  - POST JSON `{"feature_names": [...], "feature_ids": [...]}` to `/debugging/features`.
+  - On FAIL log reason and return.
+  - `MSG` is JSON-encoded dict name→id→textproto of `EntryDump`.
+  - If present, parse textproto into `EntryDump` and log; else log "Not exist".
+- Script mode: sets logging verbosity INFO, disables eager, and runs app.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/debugging` (or CLI crate).
+- Rust public API surface: CLI command for debugging server queries.
+- Data model mapping: JSON request/response; `EntryDump` textproto parsing.
+- Feature gating: requires debugging server running locally.
+- Integration points: `debugging_server.py` endpoints.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a Rust CLI that mirrors flags and validation.
+2. POST to `/debugging/variables` and `/debugging/features` with identical JSON payloads.
+3. Parse response JSON; for features, parse textproto into `EntryDump` (protobuf text format parser).
+4. Match logging output patterns and error handling (exceptions for invalid flags).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: integration tests with a mocked debugging server (or golden responses).
+- Cross-language parity test: compare outputs against Python client for same server responses.
 
 **Gaps / Notes**
-- TODO (manual)
+- Depends on `requests` and protobuf text parsing; Rust needs equivalent libraries.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7630,6 +7855,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/debugging/debugging_server.py`
+
 <a id="monolith-native-training-debugging-debugging-server-py"></a>
 
 **Status:** TODO (manual review required)

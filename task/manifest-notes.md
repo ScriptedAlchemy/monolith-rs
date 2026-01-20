@@ -163,3 +163,12 @@ If later manifests add per-file execution:
 - Use chunking (e.g., 20-50 files per unit) rather than one agent per file.
 - Use a supervisor/reviewer step for high-risk modules (agent_service, hyperparams, ZK fakes, TFServing fakes).
 
+## 5) Next-Agent Implementation Checklist (For Writing manifest.json)
+
+This note is intentionally a blueprint for the *next* agent that will write the actual Unpack module files and generate `manifest.json`.
+
+- Create the phase modules listed in section (2) under `task/*.ai.tsx` and keep them small (one primary agent each).
+- In each producer module, export `assetRef(...)` bindings for the assets that should be consumed elsewhere (section 3).
+- In each consumer module, import the upstream `assetRef` bindings and pin them with `external_needs` to the correct upstream agent id(s).
+- In `task/index.ai.tsx`, import all phase modules in the intended order to establish module-level ordering.
+- Keep outputs bounded: emit md/json summaries for validation/mapping/domain plans; avoid pushing 334-file raw tables into prompt context.
