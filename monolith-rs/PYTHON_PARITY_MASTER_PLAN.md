@@ -459,7 +459,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/distributed_ps_factory.py`](#monolith-native-training-distributed-ps-factory-py) | 262 | IN PROGRESS | monolith-rs/crates/monolith-training/src/ps |  |
 | [`monolith/native_training/distributed_ps_factory_test.py`](#monolith-native-training-distributed-ps-factory-test-py) | 87 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/distributed_ps_sync.py`](#monolith-native-training-distributed-ps-sync-py) | 531 | IN PROGRESS | monolith-rs/crates/monolith-training/src/ps |  |
-| [`monolith/native_training/distributed_ps_sync_test.py`](#monolith-native-training-distributed-ps-sync-test-py) | 109 | TODO | TODO (manual) |  |
+| [`monolith/native_training/distributed_ps_sync_test.py`](#monolith-native-training-distributed-ps-sync-test-py) | 109 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/distributed_ps_test.py`](#monolith-native-training-distributed-ps-test-py) | 979 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distributed_serving_ops.py`](#monolith-native-training-distributed-serving-ops-py) | 160 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distributed_serving_ops_test.py`](#monolith-native-training-distributed-serving-ops-test-py) | 142 | TODO | TODO (manual) |  |
@@ -8871,53 +8871,48 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distributed_ps_sync_test.py`
-
 <a id="monolith-native-training-distributed-ps-sync-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 109
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Validates synchronous alltoall distributed multi-type hash table lookup and gradient updates under Horovod.
+- Key symbols/classes/functions: `DistributedMultiTypeHashTableMpiTest.testBasic`, `gen_test_configs`.
+- External dependencies: Horovod, `distribution_ops.fused_reorder_by_indices`, `distributed_ps_sync.DistributedMultiTypeHashTableMpi`.
+- Side effects: sets `MONOLITH_WITH_HOROVOD=True` and initializes Horovod.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `gen_test_configs()`:
+  - Builds two test hash table configs: slot "1" dim=1 lr=1.0; slot "2" dim=2 with PolynomialDecay LR.
+- `testBasic(use_native_multi_hash_table=False)`:
+  - Initializes Horovod, global_step=0.
+  - Creates table with `DistributedMultiTypeHashTableMpi(hvd.size(), table_factory)`.
+  - `slot_to_ids = {"1": [1,1], "2": [2]}`.
+  - Uses `distribution_ops.fused_reorder_by_indices` to produce `reordred` pack (plus None timestamp).
+  - First lookup returns zeros.
+  - Applies gradients `{1: [[0.5],[0.5]], 2: [[0.5,1.0]]}` with `global_step=0`.
+  - Second lookup returns negative values scaled by `hvd.size()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests`.
+- Rust public API surface: `DistributedMultiTypeHashTableMpi` and reorder helpers.
+- Data model mapping: slot configs, id arrays, gradient arrays.
+- Feature gating: Horovod alltoall support.
+- Integration points: `distributed_ps_sync` implementation.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust test that initializes the sync table and performs lookup + apply_gradients.
+2. Implement fused reorder (or provide equivalent packed inputs).
+3. Validate outputs match expected scaled negatives.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: `distributed_ps_sync_test.rs` with small fixed ids.
+- Cross-language parity test: compare outputs for same ids and gradients.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires Horovod or equivalent alltoall backend; gate test if unavailable.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8932,6 +8927,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distributed_ps_test.py`
+
 <a id="monolith-native-training-distributed-ps-test-py"></a>
 
 **Status:** TODO (manual review required)
