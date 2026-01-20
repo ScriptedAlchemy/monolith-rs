@@ -2869,6 +2869,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
   - `agent_client` -> `monolith.agent_service.agent_client.main`
   - `tfs_client` -> `monolith.agent_service.tfs_client.main`
 - Unknown value raises `ValueError`.
+- Default `bin_name` is `"agent"`; `app.run(main)` invoked in `__main__`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-cli/src/bin/monolith.rs` (dispatcher) or separate binaries.
