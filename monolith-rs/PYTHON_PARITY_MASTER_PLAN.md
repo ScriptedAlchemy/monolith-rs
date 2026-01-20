@@ -463,7 +463,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/distributed_ps_test.py`](#monolith-native-training-distributed-ps-test-py) | 979 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/distributed_serving_ops.py`](#monolith-native-training-distributed-serving-ops-py) | 160 | IN PROGRESS | monolith-rs/crates/monolith-training/src/serving |  |
 | [`monolith/native_training/distributed_serving_ops_test.py`](#monolith-native-training-distributed-serving-ops-test-py) | 142 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
-| [`monolith/native_training/distribution_ops.py`](#monolith-native-training-distribution-ops-py) | 889 | TODO | TODO (manual) |  |
+| [`monolith/native_training/distribution_ops.py`](#monolith-native-training-distribution-ops-py) | 889 | IN PROGRESS | monolith-rs/crates/monolith-training/src/ops |  |
 | [`monolith/native_training/distribution_ops_benchmark.py`](#monolith-native-training-distribution-ops-benchmark-py) | 118 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distribution_ops_fused_benchmark.py`](#monolith-native-training-distribution-ops-fused-benchmark-py) | 61 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distribution_ops_fused_test.py`](#monolith-native-training-distribution-ops-fused-test-py) | 148 | TODO | TODO (manual) |  |
@@ -9115,53 +9115,65 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distribution_ops.py`
-
 <a id="monolith-native-training-distribution-ops-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 889
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Wrapper utilities around custom distribution ops for sharding, embedding layout transforms, and gradient backprop helpers.
+- Key symbols/classes/functions: `split_by_indices`, `ragged_split_by_indices`, `unique_key_with_value_and_offset`, `fill_with_offset_map`, `finalize_shared_tensor`, `reorder_by_indices`, `fused_reorder_by_indices`, `map_id_to_embedding`, `fused_embedding_to_layout` (+ grads), `map_id_to_embedding_gradient_back_prop`, `fused_gather_embeddings_by_input`, `fused_gather_embeddings_by_input_gradient`, reduce/sorted-segment ops.
+- External dependencies: `gen_monolith_ops` custom kernels, `FeatureConfigs` proto.
+- Side effects: registers custom gradients for several ops.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `split_by_indices(indices, tensor, num_splits)`:
+  - Calls `monolith_split_by_indices` custom op; gradient registered via `monolith_split_by_indices_gradient`.
+- `ragged_split_by_indices(indices, num, num_splits)`:
+  - Splits ragged tensor by indices; returns list of ragged tensors + list of corresponding positions.
+- `unique_key_with_value_and_offset(key, dims, generate_buffer=True)`:
+  - Deduplicates ragged keys and returns `unique_key`, `value_offset` (ragged) and `value_buffer` sized by dims.
+- `fill_with_offset_map(pos, value, value_offset_map, value_buffer, dims)`:
+  - Fills `value_buffer` positions from offsets; gradient registered via `fill_with_offset_map_gradient`.
+- `finalize_shared_tensor(shared_tensor_handles, dtype, shape)`:
+  - Finalizes shared tensor handles; gradient returns upstream grad (identity).
+- `reorder_by_indices` / `fused_reorder_by_indices`:
+  - Reorders input ids by shard indices; `fused_reorder_by_indices` returns packed tensors and offsets for fused pipelines.
+- `map_id_to_embedding(ids, embeddings, input)`:
+  - Maps sharded embeddings back to original id order; gradient hook registered.
+- `fused_embedding_to_layout(embeddings_list, fid_offset, feature_offset, nfl_offset, batch_size, ...)`:
+  - Converts flattened embeddings into layout tensors using `FeatureConfigs` and offsets; supports multiple versions and GPU paths.
+  - Gradient functions `_fused_embedding_to_layout_grad_v{1..5}` and `fused_embedding_to_layout_grad` wrap custom ops.
+- `map_id_to_embedding_gradient_back_prop(ids, input, grads)`:
+  - Builds gradients back to sharded embeddings.
+- `gather_embeddings_by_input` / `fused_gather_embeddings_by_input`:
+  - Gathers embedding vectors using ids and offsets; fused variants use offsets and sizes.
+- Reduce ops:
+  - `reduce_mean`, `reduce_sum`, `reduce_sqrtn` with custom gradients.
+  - `fused_sorted_segment_sum`, `fused_reduce_sum_and_split`, `fused_reduce_and_split_gpu` for GPU fused reductions with gradients.
+- `normalize_merged_split(row_split, size)`:
+  - Normalizes row split sizes for merged ragged splits.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/ops` (or `monolith-tensor` for ragged).
+- Rust public API surface: distribution ops wrappers, gradient-friendly functions if TF backend.
+- Data model mapping: ragged tensors, embedding offsets, FeatureConfigs.
+- Feature gating: requires custom kernel bindings or reimplementation.
+- Integration points: distributed_ps, partitioned hash table, sharding pipelines.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Bind or reimplement each custom op with identical signatures and gradient behavior.
+2. Implement ragged split/unique/offset map logic in Rust if not using TF.
+3. Support fused embedding to layout and gradient versions used by PartitionedHashTable.
+4. Add tests for each op with small deterministic tensors.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `distribution_ops_test.py`, `distribution_ops_fused_test.py`.
+- Rust tests: unit tests for each op wrapper; integration tests with PartitionedHashTable.
+- Cross-language parity test: compare outputs for fixed inputs and gradient checks.
 
 **Gaps / Notes**
-- TODO (manual)
+- Many ops are custom kernels; full parity requires substantial backend work.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -9176,6 +9188,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distribution_ops_benchmark.py`
+
 <a id="monolith-native-training-distribution-ops-benchmark-py"></a>
 
 **Status:** TODO (manual review required)
