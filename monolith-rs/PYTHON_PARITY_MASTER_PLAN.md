@@ -581,7 +581,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/model_export/demo_export_test.py`](#monolith-native-training-model-export-demo-export-test-py) | 48 | IN PROGRESS | N/A (TF export test) |  |
 | [`monolith/native_training/model_export/demo_predictor.py`](#monolith-native-training-model-export-demo-predictor-py) | 110 | IN PROGRESS | N/A (demo predictor) |  |
 | [`monolith/native_training/model_export/demo_predictor_client.py`](#monolith-native-training-model-export-demo-predictor-client-py) | 93 | IN PROGRESS | N/A (demo gRPC client) |  |
-| [`monolith/native_training/model_export/export_context.py`](#monolith-native-training-model-export-export-context-py) | 141 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model_export/export_context.py`](#monolith-native-training-model-export-export-context-py) | 141 | IN PROGRESS | N/A (export context) |  |
 | [`monolith/native_training/model_export/export_hooks.py`](#monolith-native-training-model-export-export-hooks-py) | 137 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/export_hooks_test.py`](#monolith-native-training-model-export-export-hooks-test-py) | 141 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/export_state_utils.py`](#monolith-native-training-model-export-export-state-utils-py) | 46 | TODO | TODO (manual) |  |
@@ -16796,50 +16796,59 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_export/export_context.py`
 <a id="monolith-native-training-model-export-export-context-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 141
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Manages export mode state and signatures for model export; provides context manager for export mode.
+- Key symbols/classes/functions: `ExportMode`, `ExportContext`, `enter_export_mode`, `is_exporting*`, `get_current_export_ctx`, `is_dry_run_or_exporting`.
+- External dependencies: TensorFlow, `tf_contextlib`, `monolith_export` decorator.
+- Side effects: Global export mode state; stores signatures in TF collections.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `ExportMode` enum: `NONE`, `STANDALONE`, `DISTRIBUTED`.
+- `SavedModelSignature` namedtuple (`name`, `inputs`, `outputs`).
+- `ExportContext`:
+  - Maintains `sub_graphs` and `dense_sub_graphs` as `defaultdict(tf.Graph)`.
+  - Maintains `_signatures` keyed by graph id; each entry maps name -> SavedModelSignature.
+  - `add_signature` adds to TF collection `signature_name` and stores signature.
+  - `merge_signature` updates existing signature inputs/outputs or creates empty.
+  - `signatures(graph)` returns signature values for given graph id.
+  - `with_remote_gpu` property returns constructor flag.
+  - `sub_graph_num` returns count of sub_graphs.
+- Globals:
+  - `EXPORT_MODE` starts as `NONE`.
+  - `EXPORT_CTX` starts as `None`.
+- `is_exporting` / `is_exporting_standalone` / `is_exporting_distributed`:
+  - Compares `EXPORT_MODE` to enum values.
+- `get_current_export_ctx`:
+  - Returns `EXPORT_CTX`.
+- `enter_export_mode(mode, export_ctx=None)`:
+  - Asserts no nested export (`EXPORT_MODE is NONE` and `EXPORT_CTX is None`).
+  - Creates new `ExportContext()` if not provided.
+  - Sets globals, yields `export_ctx`, then resets globals to defaults in `finally`.
+- `is_dry_run_or_exporting()`:
+  - Returns True if export mode active or default graph has `dry_run` attribute.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A.
+- Rust public API surface: optional export context struct with thread-local state.
+- Data model mapping: signatures map, subgraph registry.
+- Feature gating: export-only.
+- Integration points: model export pipeline.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement export context state in Rust (thread-local/global).
+2. Provide RAII guard for entering/exiting export mode.
+3. Mirror signature tracking and graph association logic if needed.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `export_context` is exercised by export hooks and demo exporters.
+- Rust tests: add unit tests for mode nesting and signature registry.
+- Cross-language parity test: ensure signature names collected match.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses global mutable state; not thread-safe for parallel exports.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
