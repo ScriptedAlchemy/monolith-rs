@@ -640,8 +640,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/summary/utils_test.py`](#monolith-native-training-summary-utils-test-py) | 43 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/sync_hooks.py`](#monolith-native-training-sync-hooks-py) | 176 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/sync_hooks_test.py`](#monolith-native-training-sync-hooks-test-py) | 119 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
-| [`monolith/native_training/sync_training_hooks.py`](#monolith-native-training-sync-training-hooks-py) | 355 | TODO | TODO (manual) |  |
-| [`monolith/native_training/sync_training_hooks_test.py`](#monolith-native-training-sync-training-hooks-test-py) | 92 | TODO | TODO (manual) |  |
+| [`monolith/native_training/sync_training_hooks.py`](#monolith-native-training-sync-training-hooks-py) | 355 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
+| [`monolith/native_training/sync_training_hooks_test.py`](#monolith-native-training-sync-training-hooks-test-py) | 92 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/tensor_utils.py`](#monolith-native-training-tensor-utils-py) | 162 | TODO | TODO (manual) |  |
 | [`monolith/native_training/tensor_utils_test.py`](#monolith-native-training-tensor-utils-test-py) | 175 | TODO | TODO (manual) |  |
 | [`monolith/native_training/test_utils.py`](#monolith-native-training-test-utils-py) | 65 | TODO | TODO (manual) |  |
@@ -21018,50 +21018,56 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/sync_training_hooks.py`
 <a id="monolith-native-training-sync-training-hooks-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 355
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Hooks for synchronized training, parameter sync, forced dumps, and EOF-aware input wrapping.
+- Key symbols/classes/functions: `SyncTrainingBarrierSaverListener`, `ParameterSyncHook`, `SyncTrainingForceDumpHook`, `SyncTrainingSaverControlHook`, `SyncTrainingInfoHook`, `ReqTimeControlDumpHook`, `EofAwareTask`.
+- External dependencies: TensorFlow, Horovod (`hvd_lib`), distributed serving ops, hash table ops.
+- Side effects: Broadcasts control flags, reads marker files, requests stop, modifies input pipeline.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`SyncTrainingBarrierSaverListener`**
+  - Uses `hvd_lib.broadcast` to sync after save.
+- **`ParameterSyncHook(sync_backend, ps_index, refresh_interval=100)`**
+  - Refreshes sync config periodically.
+  - Calls `ParameterSyncClient.create_sync_op` and runs with config feed.
+- **`SyncTrainingForceDumpHook(model_dir, target_timer, step_interval=100)`**
+  - Every `step_interval`, rank 0 checks `dump_{step}` and `stop_{step}` files.
+  - Broadcasts flags to all ranks; enables/disables target_timer based on UTC hour (18–20) and flags.
+  - Requests stop if `should_stop`.
+- **`SyncTrainingSaverControlHook(model_dir, target_timer, step_interval=100)`**
+  - Toggles `target_timer` based on existence of `ONLINE` file.
+- **`SyncTrainingInfoHook`**
+  - Every 600s, logs hash table sizes collected from graph.
+- **`ReqTimeControlDumpHook(model_dir, target_timer, step_interval=1000)`**
+  - Rank 0 reads `req_time` collection and `limit_req_time` file.
+  - Broadcasts values; requests stop if `req_time >= limit`.
+- **`EofAwareTask(task, use_dataservice=False)`**
+  - Wraps `NativeTask` to inject EOF flag into features and stop training across ranks when EOF is reached.
+  - Adds `EofHook` to training hooks using `hvd_lib.allgather`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src`.
+- Rust public API surface: training hooks for sync and EOF handling.
+- Data model mapping: Horovod/allreduce equivalents if used.
+- Feature gating: Horovod/distributed backend required for some hooks.
+- Integration points: training runner and serving parameter sync.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement sync barrier and parameter sync hooks.
+2. Implement dump/stop control via filesystem flags.
+3. Implement EOF-aware task wrapper with distributed stop.
+4. Add tests for EOF-aware task behavior.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/sync_training_hooks_test.py`.
+- Rust tests: add EOF-aware task tests and hook smoke tests.
+- Cross-language parity test: compare EOF stop behavior.
 
 **Gaps / Notes**
-- TODO (manual)
+- Several hooks depend on Horovod; Rust parity depends on distributed backend support.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -21078,50 +21084,42 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/sync_training_hooks_test.py`
 <a id="monolith-native-training-sync-training-hooks-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 92
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests EOF-aware task wrapper with simple datasets.
+- Key symbols/classes/functions: `EofAwareTaskTest`.
+- External dependencies: TensorFlow, `hvd_lib`, `sync_training_hooks`.
+- Side effects: Initializes Horovod.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_basic`:
+  - Defines simple NativeTask with dataset [1,2,3].
+  - Wraps in `EofAwareTask` and trains estimator.
+  - Expects `global_step == 6` (sum of 1+2+3).
+- `test_dict`:
+  - Similar but dataset yields dict `{"1": x}`.
+  - Expects `global_step == 6`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (tests).
+- Rust public API surface: EOF-aware task wrapper.
+- Data model mapping: dataset + global_step.
+- Feature gating: Horovod/distributed backend if used.
+- Integration points: estimator or training loop.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement EOF-aware task wrapper.
+2. Add tests for scalar and dict datasets.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `EofAwareTaskTest` in this file.
+- Rust tests: mirror both cases.
+- Cross-language parity test: compare global_step final value.
 
 **Gaps / Notes**
-- TODO (manual)
+- Tests call `hvd_lib.init()`; Rust may stub if Horovod not supported.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
