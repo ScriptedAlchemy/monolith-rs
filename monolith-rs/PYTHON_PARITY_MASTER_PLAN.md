@@ -554,8 +554,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/learning_rate_functions_test.py`](#monolith-native-training-learning-rate-functions-test-py) | 76 | IN PROGRESS | N/A (no Rust schedule yet) |  |
 | [`monolith/native_training/logging_ops.py`](#monolith-native-training-logging-ops-py) | 56 | IN PROGRESS | N/A (TF custom ops) |  |
 | [`monolith/native_training/logging_ops_test.py`](#monolith-native-training-logging-ops-test-py) | 57 | IN PROGRESS | N/A (TF custom ops) |  |
-| [`monolith/native_training/losses/batch_softmax_loss.py`](#monolith-native-training-losses-batch-softmax-loss-py) | 57 | TODO | TODO (manual) |  |
-| [`monolith/native_training/losses/batch_softmax_loss_test.py`](#monolith-native-training-losses-batch-softmax-loss-test-py) | 35 | TODO | TODO (manual) |  |
+| [`monolith/native_training/losses/batch_softmax_loss.py`](#monolith-native-training-losses-batch-softmax-loss-py) | 57 | IN PROGRESS | N/A (no Rust loss yet) |  |
+| [`monolith/native_training/losses/batch_softmax_loss_test.py`](#monolith-native-training-losses-batch-softmax-loss-test-py) | 35 | IN PROGRESS | N/A (no Rust loss yet) |  |
 | [`monolith/native_training/losses/inbatch_auc_loss.py`](#monolith-native-training-losses-inbatch-auc-loss-py) | 41 | TODO | TODO (manual) |  |
 | [`monolith/native_training/losses/inbatch_auc_loss_test.py`](#monolith-native-training-losses-inbatch-auc-loss-test-py) | 71 | TODO | TODO (manual) |  |
 | [`monolith/native_training/losses/ltr_losses.py`](#monolith-native-training-losses-ltr-losses-py) | 1233 | TODO | TODO (manual) |  |
@@ -14739,50 +14739,49 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/losses/batch_softmax_loss.py`
 <a id="monolith-native-training-losses-batch-softmax-loss-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 57
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Computes batch softmax loss for retrieval-style training.
+- Key symbols/classes/functions: `batch_softmax_loss`.
+- External dependencies: TensorFlow.
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Inputs:
+  - `query` shape `(batch_size, k)`, `item` shape `(batch_size, k)`.
+  - `item_step_interval` shape `(batch_size,)`.
+  - `r` weights (interest) same length as batch.
+  - `normalize` (default True), `temperature` (default 1.0).
+- Validation:
+  - `temperature` must be > 0 else raise `ValueError("temperature should be positive, while got ...")`.
+- Computation:
+  - Optional L2-normalize query/item along axis 1.
+  - `similarity = query @ item^T / temperature`.
+  - Clamp `item_step_interval` to at least 1.0, compute `item_frequency = 1 / item_step_interval`.
+  - Adjust similarity: `exp(similarity - log(item_frequency))`.
+  - Loss: `-sum(r * log(diag(similarity) / reduce_sum(similarity, axis=1)))`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (no Rust loss implementation yet).
+- Rust public API surface: loss function in training/optimizer crate.
+- Data model mapping: Tensor ops for matmul, diag, log, exp.
+- Feature gating: None.
+- Integration points: training loss computation.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement batch_softmax_loss in Rust with the same math and shape checks.
+2. Ensure numerical stability around log/exp and item_frequency.
+3. Add input normalization option.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/losses/batch_softmax_loss_test.py`.
+- Rust tests: new test in `monolith-rs/crates/monolith-training/tests`.
+- Cross-language parity test: compare loss for fixed inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires loss module placement decision in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14799,50 +14798,38 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/losses/batch_softmax_loss_test.py`
 <a id="monolith-native-training-losses-batch-softmax-loss-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 35
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Single test for batch_softmax_loss numeric output.
+- Key symbols/classes/functions: `BatchSoftmaxLossTest.test_batch_softmax_loss`.
+- External dependencies: TensorFlow, NumPy.
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Creates random `query` and `item` tensors `(batch=4, dim=3)`.
+- `item_step_interval` is random integers in `[1,10)`, `r` is ones.
+- Calls `batch_softmax_loss` and asserts loss equals `6.5931373`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A until loss is implemented.
+- Rust public API surface: batch_softmax_loss.
+- Data model mapping: Tensor operations and RNG.
+- Feature gating: None.
+- Integration points: training loss module.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement loss and a deterministic test by seeding RNG or using fixed inputs.
+2. Match Python numeric output if using the same fixed inputs.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/losses/batch_softmax_loss_test.py`.
+- Rust tests: add deterministic equivalent.
+- Cross-language parity test: compare loss for fixed inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python test uses random inputs without setting a seed but asserts a fixed value; likely flaky. Prefer fixing inputs in Rust and note the discrepancy.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
