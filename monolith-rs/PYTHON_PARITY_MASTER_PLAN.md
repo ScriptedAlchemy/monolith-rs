@@ -645,8 +645,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/tensor_utils.py`](#monolith-native-training-tensor-utils-py) | 162 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
 | [`monolith/native_training/tensor_utils_test.py`](#monolith-native-training-tensor-utils-test-py) | 175 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
 | [`monolith/native_training/test_utils.py`](#monolith-native-training-test-utils-py) | 65 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
-| [`monolith/native_training/touched_key_set_ops.py`](#monolith-native-training-touched-key-set-ops-py) | 61 | TODO | TODO (manual) |  |
-| [`monolith/native_training/touched_key_set_ops_test.py`](#monolith-native-training-touched-key-set-ops-test-py) | 51 | TODO | TODO (manual) |  |
+| [`monolith/native_training/touched_key_set_ops.py`](#monolith-native-training-touched-key-set-ops-py) | 61 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/src |  |
+| [`monolith/native_training/touched_key_set_ops_test.py`](#monolith-native-training-touched-key-set-ops-test-py) | 51 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/src |  |
 | [`monolith/native_training/utils.py`](#monolith-native-training-utils-py) | 320 | TODO | TODO (manual) |  |
 | [`monolith/native_training/utils_test.py`](#monolith-native-training-utils-test-py) | 70 | TODO | TODO (manual) |  |
 | [`monolith/native_training/variables.py`](#monolith-native-training-variables-py) | 147 | TODO | TODO (manual) |  |
@@ -21302,50 +21302,94 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/touched_key_set_ops.py`
 <a id="monolith-native-training-touched-key-set-ops-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 61
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Thin Python wrapper for TF custom ops that manage a thread-safe “touched key set” resource (insert IDs, steal+clear IDs).
+- Key symbols/classes/functions: `TOUCHED_KEY_SET_CAPACITY`, `TOUCHED_KEY_SET_CONCURRENCY_LEVEL`, `create_touched_key_set`, `TouchedKeySet`.
+- External dependencies: TensorFlow, `monolith.native_training.runtime.ops.gen_monolith_ops` (custom TF ops).
+- Side effects:
+  - Creates a stateful TF resource (`MonolithTouchedKeySet`) with `shared_name="MonolithTouchedKeySet" + name_suffix`.
+  - `insert`/`steal` are stateful ops that mutate the underlying set.
+  - `TouchedKeySet.__init__` ignores the `name_suffix` argument (potential bug / resource collision risk).
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Constants:
+  - `TOUCHED_KEY_SET_CAPACITY = 64 * 1024 * 1024 // (8 * 4)` → 2,097,152 (matches TF op default capacity).
+  - `TOUCHED_KEY_SET_CONCURRENCY_LEVEL = 1024` (matches TF op default).
+- `create_touched_key_set(capacity, concurrency_level, name_suffix="")`:
+  - Calls TF custom op `MonolithTouchedKeySet` with `capacity`, `concurrency_level`, `shared_name="MonolithTouchedKeySet" + name_suffix`.
+  - Returns a TF resource handle (scalar resource tensor).
+- `TouchedKeySet.__init__(capacity=..., concurrency_level=..., name_suffix="")`:
+  - Creates resource via `create_touched_key_set(capacity, concurrency_level)` **without** passing `name_suffix`.
+  - Stores `_capacity`, `_concurrency_level`, and `_set` (resource handle).
+- `TouchedKeySet.insert(ids)`:
+  - Calls `monolith_touched_key_set_insert(handle, ids)`.
+  - `ids` is `int64` tensor of any shape; op flattens via `NumElements()` and iterates in row-major order.
+  - Returns `total_dropped_num` (int64) = sum of dropped keys across this call’s inserts.
+  - Dropped keys semantics (from C++ hopscotch set):
+    - On insert: if current size **> capacity**, the set is **cleared**, and `dropped_keys = size_before_clear`.
+    - For each inserted ID, the per-key `Insert` returns `dropped_keys` (0 if no clear, `size_before_clear` if cleared during that insert).
+    - Duplicate inserts return `dropped_keys` without increasing size.
+  - The TF op allocates a 1-element tensor output; tests treat it as scalar.
+- `TouchedKeySet.steal()`:
+  - Calls `monolith_touched_key_set_steal(handle)`.
+  - Returns all currently stored keys as a 1-D int64 tensor; **clears** the set.
+  - Output order is **non-deterministic** (internal hopscotch table + `absl::flat_hash_set` iteration).
+- Threading/concurrency:
+  - Insert is thread-safe with per-bucket locks; `concurrency_level` controls lock count (rounded to power of two).
+  - `steal` obtains a global clear lock and locks all buckets, blocking concurrent inserts while it drains.
+- Determinism:
+  - Output order of `steal` is unspecified; callers sort when comparing.
+  - Overflow behavior is “clear-all” once size exceeds capacity (no partial eviction).
+- Performance characteristics:
+  - Average O(1) inserts; table size = next power of two of `capacity * 1.2`.
+  - Uses extra overflow set (`absl::flat_hash_set`) when hopscotch insertion fails.
+  - Lazy initialization to reduce memory until first insert.
+- Metrics/logging: none.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-hash-table/src` (new `touched_key_set.rs` or equivalent).
+- Rust public API surface:
+  - `struct TouchedKeySet { capacity: u32, concurrency_level: u32, ... }`
+  - `fn new(capacity: u32, concurrency_level: u32, name_suffix: Option<&str>) -> Self`
+  - `fn insert(&self, ids: &[i64]) -> i64`
+  - `fn steal(&self) -> Vec<i64>`
+  - Accessors: `capacity()`, `concurrency_level()`.
+- Data model mapping:
+  - TF resource handle ↔ Rust in-process set instance.
+  - If TF runtime backend is enabled, wrap the custom op handles instead of in-process implementation.
+- Feature gating:
+  - Default Rust-native implementation (no TF).
+  - Optional `tf-runtime` feature: if a real `saved_model.pb` and custom ops are present, use TF-backed ops for parity.
+- Integration points:
+  - Parameter sync / hash table touched key tracking (see `runtime/ops/parameter_sync_tf_bridge.*` and `hash_table_op.cc` for Python-side wiring).
+  - Rust hash-table or parameter-sync module should consume `TouchedKeySet` to report touched keys.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Define Rust `TouchedKeySet` API and decide backend selection (native vs TF runtime).
+2. Port hopscotch hash set semantics (clear-all on `size > capacity`, duplicate-insert behavior, `steal` order nondeterminism).
+3. Preserve lazy initialization (defer allocation until first insert) or document the deviation if eager.
+4. Implement concurrency: shard locks by `concurrency_level`, match power-of-two rounding.
+5. Ensure `insert` returns **total dropped count** per call (sum of per-key clears).
+6. Implement `steal` to return all keys and clear; order undefined.
+7. Add feature flag wiring in `monolith-rs` to switch to TF runtime custom ops when available.
+8. Document the `name_suffix` bug in Python (ignored in `TouchedKeySet.__init__`) and decide whether Rust mirrors it or fixes it.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/touched_key_set_ops_test.py`.
+- Rust tests:
+  - `test_basic`: insert 0..999 into capacity 1000, `insert` returns 0, `steal` returns all keys (sorted match).
+  - `test_overflow_clear`: insert 0..1004 into capacity 1000; `insert` returns 1001; `steal` returns {1001..1004}.
+  - `test_duplicate_inserts`: repeated inserts do not increase size or return drops.
+  - `test_thread_safety`: concurrent inserts + steal does not panic and preserves clear semantics.
+- Cross-language parity test:
+  - Run Python op + Rust implementation with same inserts; compare `total_dropped_num` and sorted `steal` output.
 
 **Gaps / Notes**
-- TODO (manual)
+- `TouchedKeySet.__init__` accepts `name_suffix` but never passes it to `create_touched_key_set` (likely unintended).
+- TF op returns a 1-element tensor for `total_dropped_num` even though shape inference says scalar.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -21362,50 +21406,51 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/touched_key_set_ops_test.py`
 <a id="monolith-native-training-touched-key-set-ops-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 51
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Validates basic `TouchedKeySet` behavior (insert/steal) and overflow clear semantics.
+- Key symbols/classes/functions: `TouchedKeySetOpsTest`, `test_touched_key_set_basic`, `test_touched_key_set_overflow`.
+- External dependencies: TensorFlow, `TouchedKeySet` wrapper.
+- Side effects: Creates TF resource-backed touched key set.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_touched_key_set_basic`:
+  - Create `TouchedKeySet(1000, 1)`.
+  - Insert `ids = [0..999]`, expect `total_dropped_num == 0`.
+  - `steal()` returns exactly those IDs (order ignored; test sorts).
+- `test_touched_key_set_overflow`:
+  - Create `TouchedKeySet(1000, 1)`.
+  - Insert `ids = [0..1004]`, expect `total_dropped_num == 1001` (clear-all on overflow).
+  - `steal()` returns `[1001, 1002, 1003, 1004]` (sorted).
+- Uses TF v1 session execution (`tf.test.TestCase` + `self.session()`).
+- `tf.compat.v1.disable_eager_execution()` in `__main__`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-hash-table/src` (new touched key set tests).
+- Rust public API surface: `TouchedKeySet::new`, `insert`, `steal`.
+- Data model mapping: `Vec<i64>` ↔ TF int64 tensor equivalents.
+- Feature gating: if TF backend is optional, tests should run against native implementation; add TF-backed parity tests under feature flag.
+- Integration points: unit tests in hash table crate; optional integration test comparing to Python output.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port `test_touched_key_set_basic` as Rust unit test (sort results before compare).
+2. Port `test_touched_key_set_overflow` to validate clear-all behavior.
+3. Add a Rust test for duplicate insert (not in Python, but covers insert semantics).
+4. Add optional cross-language test (Python vs Rust) if CI can run TF custom ops.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `TouchedKeySetOpsTest.test_touched_key_set_basic`, `.test_touched_key_set_overflow`.
+- Rust tests:
+  - `touched_key_set_basic`
+  - `touched_key_set_overflow`
+  - `touched_key_set_duplicate_insert` (optional but recommended)
+- Cross-language parity test:
+  - Compare Python session outputs vs Rust outputs for the two scenarios above.
 
 **Gaps / Notes**
-- TODO (manual)
+- Output ordering from `steal` is non-deterministic; tests must sort before compare.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
