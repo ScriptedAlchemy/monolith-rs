@@ -625,8 +625,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/runtime/ops/gen_monolith_ops.py`](#monolith-native-training-runtime-ops-gen-monolith-ops-py) | 23 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/save_utils.py`](#monolith-native-training-save-utils-py) | 1309 | IN PROGRESS | monolith-rs/crates/monolith-checkpoint/src |  |
 | [`monolith/native_training/save_utils_test.py`](#monolith-native-training-save-utils-test-py) | 1740 | IN PROGRESS | monolith-rs/crates/monolith-checkpoint/src |  |
-| [`monolith/native_training/service_discovery.py`](#monolith-native-training-service-discovery-py) | 481 | TODO | TODO (manual) |  |
-| [`monolith/native_training/service_discovery_test.py`](#monolith-native-training-service-discovery-test-py) | 407 | TODO | TODO (manual) |  |
+| [`monolith/native_training/service_discovery.py`](#monolith-native-training-service-discovery-py) | 481 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
+| [`monolith/native_training/service_discovery_test.py`](#monolith-native-training-service-discovery-test-py) | 407 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/serving_ps_test.py`](#monolith-native-training-serving-ps-test-py) | 231 | TODO | TODO (manual) |  |
 | [`monolith/native_training/session_run_hooks.py`](#monolith-native-training-session-run-hooks-py) | 171 | TODO | TODO (manual) |  |
 | [`monolith/native_training/session_run_hooks_test.py`](#monolith-native-training-session-run-hooks-test-py) | 144 | TODO | TODO (manual) |  |
@@ -20149,50 +20149,69 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/service_discovery.py`
 <a id="monolith-native-training-service-discovery-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 481
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Service discovery abstraction with Consul, TF_CONFIG, Zookeeper, and MLP implementations.
+- Key symbols/classes/functions: `ServiceDiscoveryType`, `ServiceDiscovery`, `ConsulServiceDiscovery`, `TfConfigServiceDiscovery`, `ZKServiceDiscovery`, `MLPServiceDiscovery`, `deregister_all`.
+- External dependencies: Consul client, Kazoo (ZK), `MonolithKazooClient`, `MLPEnv`.
+- Side effects: Registers/deregisters nodes in external systems; spawns periodic registration threads for ZK.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`ServiceDiscoveryType`**: `PRIMUS`, `CONSUL`, `ZK`, `MLP`.
+- **`ServiceDiscovery`** abstract methods: `register`, `deregister`, `query`; optional `close`.
+- **`retry_with_socket_error`**:
+  - Retries callable up to 5 times on `socket.error` with randomized backoff (≤ `_RETRY_MAX_BACKOFF_SECS`).
+- **`ConsulServiceDiscovery(consul_id, retry_time_secs=3.0)`**
+  - `register`: best-effort de-register existing index, register via tags `{index,name,ip}`, then poll until visible (or raise `OSError` after ~180s).
+  - `deregister`: removes entry by port.
+  - `query_all`: returns `{name: {index: "ip:port"}}` from Consul lookup.
+  - `query(name)`: returns mapping for that name.
+- **`TfConfigServiceDiscovery(tf_config)`**
+  - `register`/`deregister`: no-ops.
+  - `query('ps')` uses `cluster['ps']`.
+  - `query('worker')` prepends `cluster['chief']` if present.
+  - `server_type`: `'worker'` if task type is `'chief'`, else task type.
+  - `addr`: address for current task.
+  - `index`: if chief exists and task is worker, index+1.
+- **`ZKServiceDiscovery(job_name, zk_server=None, max_tries=3, delay=5)`**
+  - Uses `MonolithKazooClient`, `ZKListener`, and Children/Data watches to maintain `_cluster`.
+  - Registers nodes under `/monolith/{job_name}/{server_type}.{index}` as ephemeral.
+  - Periodically re-registers every `_ZK_REGISTRATION_PERIOD` using background threads.
+  - `query(name)` returns mapping for that name.
+  - `close()` stops client and threads.
+- **`MLPServiceDiscovery`**
+  - Validates registration against `MLPEnv` expected roles/ports.
+  - Maintains `_filters` to hide deregistered entries.
+  - `query(name, skip_port_check=False)` returns address map; for PS checks port connectivity unless skipped.
+  - `deregister_all` filters all roles.
+  - `query_all` returns maps for `ps/worker/chief`.
+  - `server_type` and `index` derived from `MLPEnv`.
+- **`deregister_all(consul_id)`**: deregisters all entries in Consul for id.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src`.
+- Rust public API surface: discovery trait + Consul/ZK/TF_CONFIG/MLP implementations.
+- Data model mapping: `name -> index -> addr`.
+- Feature gating: Consul/ZK/MLP clients behind optional features.
+- Integration points: runner utilities and distributed training orchestration.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Define discovery trait and type enum.
+2. Implement TF_CONFIG discovery (pure JSON).
+3. Implement Consul discovery with retry + blacklist behavior.
+4. Implement ZK discovery with watchers and periodic registration threads.
+5. Implement MLP discovery with filter logic and port checks.
+6. Add `deregister_all`.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/service_discovery_test.py`.
+- Rust tests: mock clients and validate mappings, duplicate registration, retry behavior.
+- Cross-language parity test: compare mapping outputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- ZK implementation is stateful and thread-based; Rust must emulate or adapt.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -20209,50 +20228,52 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/service_discovery_test.py`
 <a id="monolith-native-training-service-discovery-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 407
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Unit tests for Consul, TF_CONFIG, ZK service discovery and deregistration helpers.
+- Key symbols/classes/functions: `FakeConsul`, `FakeKazooClient`, `ConsultServiceDiscovery`, `TfConfigServiceDiscoveryTest`, `ZKServiceDiscoveryTest`, `UtilsTest`.
+- External dependencies: `unittest`, `mock`, `kazoo` exceptions, `service_discovery`.
+- Side effects: Uses mocked clients; no real network.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **Consul tests**
+  - `test_basic`: register two entries, query returns mapping, deregister removes all.
+  - `test_duplicate_registration`: re-register same index replaces addr.
+  - `test_multi_names`: independent maps for `ps` and `worker`.
+  - `test_retry`: mocked socket timeout triggers retry and eventually raises.
+  - `test_registration_failed`: blacklist causes `OSError`.
+- **TF_CONFIG tests**
+  - `test_tf_conf_sd`: verifies ps and worker lists (chief prepended), addr, server_type, and index behavior.
+- **ZK tests**
+  - `test_basic`: register, query, deregister works.
+  - `test_duplicate_registration`: re-register same index updates addr.
+  - `test_multi_names`: multi service names.
+  - `test_periodic_registration`: with shortened period, corrupted data is repaired.
+  - `test_listener`: LOST then CONNECTED triggers re-registration.
+- **Utils test**
+  - `test_deregister_all`: deregister_all removes all entries.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (tests).
+- Rust public API surface: discovery implementations and deregister_all.
+- Data model mapping: in-memory mocks for Consul/ZK.
+- Feature gating: optional client dependencies.
+- Integration points: service discovery unit tests.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add mock Consul client with register/lookup/deregister.
+2. Add mock ZK client with watches and ephemeral nodes.
+3. Port tests for duplicate registration, retry, periodic registration, and listener behavior.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: replicate with mocks.
+- Cross-language parity test: compare mapping outputs and failure behaviors.
 
 **Gaps / Notes**
-- TODO (manual)
+- No direct tests for `MLPServiceDiscovery` in Python.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
