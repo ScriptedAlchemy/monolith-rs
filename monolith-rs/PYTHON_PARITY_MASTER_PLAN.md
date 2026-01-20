@@ -571,7 +571,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/mlp_utils.py`](#monolith-native-training-mlp-utils-py) | 444 | IN PROGRESS | N/A (TF distributed runtime) |  |
 | [`monolith/native_training/model.py`](#monolith-native-training-model-py) | 182 | IN PROGRESS | N/A (test model) |  |
 | [`monolith/native_training/model_comp_test.py`](#monolith-native-training-model-comp-test-py) | 183 | IN PROGRESS | N/A (TF/Horovod test) |  |
-| [`monolith/native_training/model_dump/dump_utils.py`](#monolith-native-training-model-dump-dump-utils-py) | 757 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model_dump/dump_utils.py`](#monolith-native-training-model-dump-dump-utils-py) | 757 | IN PROGRESS | N/A (TF model dump) |  |
 | [`monolith/native_training/model_dump/graph_utils.py`](#monolith-native-training-model-dump-graph-utils-py) | 845 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_dump/graph_utils_test.py`](#monolith-native-training-model-dump-graph-utils-test-py) | 86 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/__init__.py`](#monolith-native-training-model-export-init-py) | 22 | TODO | TODO (manual) |  |
@@ -16093,50 +16093,107 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_dump/dump_utils.py`
 <a id="monolith-native-training-model-dump-dump-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 757
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Central model dump utility that records feature/slice metadata, input/output tensors, signatures, and graph defs into `ModelDump` protobufs.
+- Key symbols/classes/functions: `DumpUtils`, `parse_input_fn_result`, wrappers `record_feature`, `record_slice`, `record_receiver`.
+- External dependencies: TensorFlow graph/ops internals, protobufs (`model_dump` protos), pickle, `tf.io.gfile`, export context, data parsers.
+- Side effects: Monkeypatches `util.parse_input_fn_result`; stores `ProtoModel` on default graph; writes/reads dump files.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `DumpUtils` is a singleton (`_instance`), `__init__` initializes fields only once:
+  - `enable`, `_params`, `_run_config`, `_user_params`, train/infer `ProtoModel` + graph defs, sub-model caches, table configs, slice dims, feature combiners.
+- `model_dump` property:
+  - Attaches `ProtoModel()` to default graph as `graph.monolith_model_dump`.
+- `update_kwargs_with_default(func, kwargs)`:
+  - Fills `kwargs` entries with function default values when `None`.
+- `record_feature(func)` wrapper:
+  - When `need_record`, appends to `model_dump.features`.
+  - Copies args/kwargs into proto, converting integer `feature_name` via `get_feature_name_and_slot`.
+  - Logs warnings if field missing in proto.
+- `record_slice(func)` wrapper:
+  - Forbids `learning_rate_fn` (raises `Exception`).
+  - Records slice config into `model_dump.emb_slices` including initializer/optimizer/compressor protos.
+  - Calls wrapped function and appends output tensor names.
+- `record_receiver(func)` wrapper:
+  - Records serving input receiver features and receiver tensors into `serving_input_receiver_fn`.
+  - Stores ragged tensors as `{values,row_splits,is_ragged}`; dense tensors include dtype/last_dim.
+- `record_params(model)`:
+  - Captures non-callable, non-private attrs except a skip list into `_params`.
+- `get_params_bytes(model)`:
+  - Pickles model attributes (including deep-copied `p` and serialized `_layout_dict`).
+  - Returns pickled bytes; used by `add_model_fn`.
+- `add_signature` / `restore_signature`:
+  - Syncs signatures with current export context, mapping tensor names.
+- `add_model_fn(model, mode, features, label, loss, pred, head_name, is_classification)`:
+  - Fills `model_fn` proto with labels, loss, predictions, head names, classification flags.
+  - Adds user summaries from `GraphKeys.SUMMARIES`.
+  - Records non-ragged features not already registered.
+  - Records extra losses from graph `__losses`.
+  - Records `export_outputs` as `extra_output.fetch_dict`.
+  - Enforces that only `ItemPoolSaveRestoreHook` is allowed in `__training_hooks`.
+  - Stores signatures and SaveSliceInfo for variables.
+  - Snapshots graph_def for TRAIN vs INFER into `train_graph`/`infer_graph`.
+- `add_input_fn(results)`:
+  - Records input feature tensor names and ragged flags; records label if present.
+  - Stores parser type and item pool name.
+- `add_sub_model(sub_model_type, name, graph)` / `restore_sub_model(sub_model_type)`:
+  - Stores/restore sub-graph defs for PS or dense submodels via export context subgraphs.
+- `add_optimizer(optimizer)`:
+  - Pickles optimizer into `model_dump.optimizer`.
+- `dump(fname)`:
+  - Builds `ModelDump` proto with run config, user params, train/infer graphs, sub-models, table configs, slice dims, combiners.
+  - Writes serialized bytes to `fname` using `tf.io.gfile`.
+- `load(fname)`:
+  - Reads `ModelDump` and reconstructs train/infer graph defs, table configs, feature slices, combiners, user params, sub-models.
+- `get_graph_helper(mode)`:
+  - Builds `GraphDefHelper` with SaveSliceInfo from train/infer model dump.
+  - Caches on graph as `graph.graph_def_helper`.
+- `restore_params()`:
+  - Unpickles model params; rebuilds `_layout_dict` from `OutConfig` proto bytes.
+  - Deletes `_training_hooks` key if present; raises if layout_dict missing.
+- `need_record`:
+  - True when `enable` and graph does not have `DRY_RUN` attribute.
+- `table_configs` property/setter:
+  - Converts between proto configs and `entry.HashTableConfigInstance`.
+  - Setter disallows non-numeric `learning_rate_fns`.
+- `feature_slice_dims` property/setter:
+  - Converts between proto list and dict of dims.
+- `feature_combiners` property/setter:
+  - Maps `ReduceSum/ReduceMean/FirstN` to/from proto enum `Combiner`.
+- `get_slot_to_occurrence_threshold` / `get_slot_to_expire_time`:
+  - Builds slot->value maps; warns if slot resolution fails.
+- `has_collected`:
+  - True if table configs, slice dims, combiners all non-empty; otherwise asserts they are empty.
+- `parse_input_fn_result(result)`:
+  - If `DatasetV2`, makes iterator + `_DatasetInitializerHook`.
+  - Else uses `DatasetInitHook` from collection `mkiter`.
+  - Calls `DumpUtils().add_input_fn` and returns parsed iterator result + input hooks.
+  - Monkeypatches `util.parse_input_fn_result`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (TF graph/proto dump infrastructure not in Rust).
+- Rust public API surface: if parity required, add a model-dump module capturing graph metadata and feature configs.
+- Data model mapping: Protobuf `ModelDump` -> Rust structs; tensor names as strings.
+- Feature gating: TF runtime only if applicable.
+- Integration points: model export, serving input receivers, embedding table configs.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Decide whether Rust needs model dump/export parity; define equivalent data structures.
+2. Implement feature/slice recording and tensor-name capture.
+3. Implement save/load of graph metadata and signatures.
+4. Mirror validation (learning_rate_fn disallow, training hooks restrictions).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none in repo.
+- Rust tests: add serialization/deserialization tests if implemented.
+- Cross-language parity test: compare dumped proto fields for a simple model.
 
 **Gaps / Notes**
-- TODO (manual)
+- `export_outputs` branch uses `ts` variable that may be undefined when outputs are not dict (possible bug).
+- `parse_input_fn_result` monkeypatch changes global TF estimator behavior.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
