@@ -1880,7 +1880,8 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: ZK reads/writes, prints status, env setup.
 
 **Required Behavior (Detailed)**
-- `LoadSate` dataclass: `portal: bool`, `publish: bool`, `service: dict`.
+- Flags: `cmd_type` enum (`hb`, `gr`, `addr`, `get`, `clean`, `load`, `unload`, `meta`, `status`, `profile`), `zk_servers`, `bzid`, `model_name`, `target`, `input_type`, `input_file`.
+- `LoadSate` dataclass: `portal: bool`, `publish: bool`, `service: dict` (default empty).
 - `ServingClient.__init__`:
   - Creates `MonolithKazooClient` and `ZKMirror(zk, bzid)`; starts mirror with `is_client=True`.
 - `load(model_name, model_dir, ckpt=None, num_shard=-1)`:
@@ -1890,12 +1891,15 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - `unload(model_name)`:
   - Delete portal node if exists; else log warning.
 - `get_status(model_name)`:
-  - `portal` True if `/bzid/portal/{model_name}` exists.
+  - `portal` True if `/bzid/portal/{model_name}` exists (via `kazoo.exists`).
   - `publish` True if any `/bzid/publish/{shard}:{replica}:{model_name}` exists.
-  - `service` map from `server_type:task:replica` to `ReplicaMeta.stat` for all replicas under `/bzid/service/{model_name}`.
+  - `service` map `{node}:{replica} -> ReplicaMeta.stat` for all replicas under `/bzid/service/{model_name}`.
 - `main`:
-  - Requires `zk_servers` and `bzid` flags.
-  - `cmd_type` `load` or `unload`, otherwise prints `get_status`.
+  - Calls `env_utils.setup_host_ip()`.
+  - Requires `zk_servers` and `bzid` flags; asserts `model_name` provided.
+  - `cmd_type == load`: requires `model_dir`; calls `client.load(model_name, model_dir, ckpt, num_shard)`.
+  - `cmd_type == unload`: calls `client.unload(model_name)`.
+  - Else: prints `client.get_status(model_name)`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-cli/src/bin/serving_client.rs`.
