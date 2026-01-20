@@ -562,7 +562,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/metric/cli.py`](#monolith-native-training-metric-cli-py) | 28 | IN PROGRESS | N/A (stub) |  |
 | [`monolith/native_training/metric/deep_insight_ops.py`](#monolith-native-training-metric-deep-insight-ops-py) | 134 | IN PROGRESS | N/A (TF custom ops) |  |
 | [`monolith/native_training/metric/deep_insight_ops_test.py`](#monolith-native-training-metric-deep-insight-ops-test-py) | 33 | IN PROGRESS | N/A (empty test) |  |
-| [`monolith/native_training/metric/exit_hook.py`](#monolith-native-training-metric-exit-hook-py) | 48 | TODO | TODO (manual) |  |
+| [`monolith/native_training/metric/exit_hook.py`](#monolith-native-training-metric-exit-hook-py) | 48 | IN PROGRESS | N/A (no Rust hook) |  |
 | [`monolith/native_training/metric/kafka_utils.py`](#monolith-native-training-metric-kafka-utils-py) | 119 | TODO | TODO (manual) |  |
 | [`monolith/native_training/metric/metric_hook.py`](#monolith-native-training-metric-metric-hook-py) | 563 | TODO | TODO (manual) |  |
 | [`monolith/native_training/metric/metric_hook_test.py`](#monolith-native-training-metric-metric-hook-test-py) | 189 | TODO | TODO (manual) |  |
@@ -15320,50 +15320,54 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/metric/exit_hook.py`
 <a id="monolith-native-training-metric-exit-hook-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 48
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Installs signal handlers and an `atexit` hook that emits an "exit_hook" counter when the process exits due to a signal.
+- Key symbols/classes/functions: `sig_no`, `sig_handler`, `exit_hook`.
+- External dependencies: `atexit`, `signal`, `sys`, `monolith.native_training.utils`, `native_task_context`, `metric.cli`.
+- Side effects: Registers signal handlers on import; registers an `atexit` handler; may call `sys.exit` on signal.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Module global `sig_no` initialized to `None`.
+- `sig_handler(signo, frame)`:
+  - Sets global `sig_no = signo`.
+  - Calls `sys.exit(signo)` to terminate process.
+- On import, installs handlers:
+  - `signal.signal(signal.SIGHUP, sig_handler)`
+  - `signal.signal(signal.SIGINT, sig_handler)`
+  - `signal.signal(signal.SIGTERM, sig_handler)`
+- `exit_hook()` (decorated with `@atexit.register`):
+  - Fetches context via `native_task_context.get()`.
+  - Builds metric client: `cli.get_cli(utils.get_metric_prefix())`.
+  - `index = ctx.worker_index` if `ctx.server_type == 'worker'`, else `ctx.ps_index`.
+  - Builds tags: `server_type`, `index` (string), `sig` (stringified `sig_no`).
+  - Only emits counter if `sig_no is not None`: `mcli.emit_counter("exit_hook", 1, tags)`.
+- No explicit error handling; depends on `native_task_context` and `cli` behavior.
+- Determinism: signal arrival timing; otherwise deterministic.
+- Logging/metrics: emits a counter metric when terminating due to signal.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (no Rust signal/exit hook yet).
+- Rust public API surface: optional `exit_hook` module that registers signal handlers + exit hook.
+- Data model mapping: tag map `server_type/index/sig` -> metrics client.
+- Feature gating: none; only needed if Rust training/runtime needs parity.
+- Integration points: metrics client (Rust equivalent of `cli.get_cli`), task context.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement signal handling in Rust (e.g., `signal-hook`) for HUP/INT/TERM.
+2. Record the signal number in a global and trigger process exit.
+3. Register an exit hook that emits `exit_hook` counter with identical tags.
+4. Mirror `server_type`/index selection from `native_task_context`.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: optional integration test using signal simulation.
+- Cross-language parity test: validate emitted tags and counter name.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python `cli.get_cli` is a stub; metric emission may be a no-op unless replaced.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
