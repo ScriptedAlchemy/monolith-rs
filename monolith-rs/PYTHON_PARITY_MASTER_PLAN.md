@@ -595,7 +595,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/model_export/warmup_data_gen.py`](#monolith-native-training-model-export-warmup-data-gen-py) | 253 | IN PROGRESS | N/A (warmup generator) |  |
 | [`monolith/native_training/model_export/warmup_example_batch.py`](#monolith-native-training-model-export-warmup-example-batch-py) | 57 | IN PROGRESS | N/A (warmup example batch) |  |
 | [`monolith/native_training/monolith_export.py`](#monolith-native-training-monolith-export-py) | 18 | IN PROGRESS | N/A (decorator) |  |
-| [`monolith/native_training/multi_hash_table_ops.py`](#monolith-native-training-multi-hash-table-ops-py) | 695 | TODO | TODO (manual) |  |
+| [`monolith/native_training/multi_hash_table_ops.py`](#monolith-native-training-multi-hash-table-ops-py) | 695 | IN PROGRESS | N/A (TF custom ops) |  |
 | [`monolith/native_training/multi_hash_table_ops_test.py`](#monolith-native-training-multi-hash-table-ops-test-py) | 249 | TODO | TODO (manual) |  |
 | [`monolith/native_training/multi_type_hash_table.py`](#monolith-native-training-multi-type-hash-table-py) | 435 | TODO | TODO (manual) |  |
 | [`monolith/native_training/multi_type_hash_table_test.py`](#monolith-native-training-multi-type-hash-table-test-py) | 326 | TODO | TODO (manual) |  |
@@ -17647,50 +17647,57 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/multi_hash_table_ops.py`
 <a id="monolith-native-training-multi-hash-table-ops-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 695
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Implements multi-hash-table ops wrapper around custom TF ops, including lookup/assign/optimize and checkpoint save/restore hooks.
+- Key symbols/classes/functions: `CachedConfig`, `MultiHashTable`, `MultiHashTableCheckpointSaverListener`, `MultiHashTableCheckpointRestorerListener`, `MultiHashTableRestorerSaverListener`.
+- External dependencies: TensorFlow custom ops (`gen_monolith_ops`), hash table protobufs, save_utils, distributed_serving_ops.
+- Side effects: Registers proto functions, adds tables to TF collections, writes ckpt info files.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Constants: `_TIMEOUT_IN_MS` (1 hour), `_MULTI_HASH_TABLE_GRAPH_KEY`.
+- `CachedConfig`:
+  - Stores configs, table_names, serialized mconfig, tensor, dims, slot_expire_time_config.
+- `infer_dims`/`convert_to_cached_config`:
+  - Builds `MultiEmbeddingHashTableConfig`, sets entry_type=SERVING when exporting.
+  - Serializes config and returns `CachedConfig`.
+- `MultiHashTable`:
+  - Creates/reads multi hash table handle via custom ops, registers resource, adds to collection.
+  - `from_cached_config` sets device based on table type (gpucuco -> GPU).
+  - Lookup/assign/add/optimize operations delegate to custom ops.
+  - `raw_lookup`, `raw_assign`, `raw_apply_gradients` use ragged ids and flat values.
+  - Provides fused lookup/optimize for sync training.
+  - `save`/`restore` use custom ops with basename.
+  - `to_proto`/`from_proto` allow graph serialization.
+- Helpers: ragged concatenation and flattening utilities for input/outputs.
+- Checkpoint listeners:
+  - `MultiHashTableCheckpointSaverListener` saves tables before saver, optionally writes `ckpt.info-<step>` with feature counts.
+  - `MultiHashTableCheckpointRestorerListener` restores tables before restore, with optional PS monitor skip.
+  - `MultiHashTableRestorerSaverListener` triggers restore after save.
+- Registers proto functions on `_MULTI_HASH_TABLE_GRAPH_KEY` and marks `IsHashTableInitialized` as not differentiable.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (TF custom ops).
+- Rust public API surface: would require binding the custom multi-hash-table ops.
+- Data model mapping: protobuf configs, table handles, ragged IDs.
+- Feature gating: TF runtime + custom ops.
+- Integration points: embedding tables, checkpointing, distributed serving.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Bind custom ops for multi-hash-table if TF runtime backend is enabled.
+2. Mirror ragged-id flattening and value slicing for embeddings.
+3. Implement checkpoint listeners or hook equivalents for save/restore.
+4. Match proto serialization for export/import.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `multi_hash_table_ops_test.py`.
+- Rust tests: none.
+- Cross-language parity test: compare lookup/assign outputs and checkpoint restores.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires custom ops and protobuf definitions; no Rust equivalent today.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
