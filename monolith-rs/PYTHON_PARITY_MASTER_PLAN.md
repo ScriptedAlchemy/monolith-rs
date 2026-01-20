@@ -464,7 +464,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/distributed_serving_ops.py`](#monolith-native-training-distributed-serving-ops-py) | 160 | IN PROGRESS | monolith-rs/crates/monolith-training/src/serving |  |
 | [`monolith/native_training/distributed_serving_ops_test.py`](#monolith-native-training-distributed-serving-ops-test-py) | 142 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/distribution_ops.py`](#monolith-native-training-distribution-ops-py) | 889 | IN PROGRESS | monolith-rs/crates/monolith-training/src/ops |  |
-| [`monolith/native_training/distribution_ops_benchmark.py`](#monolith-native-training-distribution-ops-benchmark-py) | 118 | TODO | TODO (manual) |  |
+| [`monolith/native_training/distribution_ops_benchmark.py`](#monolith-native-training-distribution-ops-benchmark-py) | 118 | IN PROGRESS | monolith-rs/crates/monolith-training/benches |  |
 | [`monolith/native_training/distribution_ops_fused_benchmark.py`](#monolith-native-training-distribution-ops-fused-benchmark-py) | 61 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distribution_ops_fused_test.py`](#monolith-native-training-distribution-ops-fused-test-py) | 148 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distribution_ops_test.py`](#monolith-native-training-distribution-ops-test-py) | 536 | TODO | TODO (manual) |  |
@@ -9188,53 +9188,45 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distribution_ops_benchmark.py`
-
 <a id="monolith-native-training-distribution-ops-benchmark-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 118
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Benchmarks `map_id_to_embedding` and `gather_embeddings_by_input` with/without multi-threading; optional profiler output.
+- Key symbols/classes/functions: `DistributionOpsBenchmarkTest.map_id_to_embedding`, `test_gather_embeddings_by_ids_basic`, `test_gather_embeddings_by_ids_multi_threads`.
+- External dependencies: TensorFlow profiler, `distribution_ops`.
+- Side effects: writes profiler logs under `/tmp/distribution_ops_benchmark/*`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `map_id_to_embedding(use_multi_threads)`:
+  - Creates 1e6 ids, dim=16, ps_num=10; splits ids/embeddings and maps back.
+  - Asserts mapped embeddings equal original; starts/stops TF profiler in log dir.
+- `test_gather_embeddings_by_ids_basic`:
+  - Benchmarks gather with 100k features; runs for dim=32 and dim=256, different input lengths.
+- `test_gather_embeddings_by_ids_multi_threads`:
+  - Same as above but `use_multi_threads=True`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/benches`.
+- Rust public API surface: bench harness for distribution ops.
+- Data model mapping: ids/embeddings tensors.
+- Feature gating: multi-threaded execution support.
+- Integration points: `distribution_ops` implementation.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement Rust benchmarks for `map_id_to_embedding` and `gather_embeddings_by_input`.
+2. Mirror tensor sizes and check correctness for small sizes; run benchmarks for large sizes.
+3. Add optional profiling hooks.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: benches or microbench harness.
+- Cross-language parity test: not required beyond correctness checks.
 
 **Gaps / Notes**
-- TODO (manual)
+- Pure benchmark; not a correctness test.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -9249,6 +9241,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distribution_ops_fused_benchmark.py`
+
 <a id="monolith-native-training-distribution-ops-fused-benchmark-py"></a>
 
 **Status:** TODO (manual review required)
