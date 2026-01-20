@@ -469,8 +469,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/distribution_ops_fused_test.py`](#monolith-native-training-distribution-ops-fused-test-py) | 148 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/distribution_ops_test.py`](#monolith-native-training-distribution-ops-test-py) | 536 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests |  |
 | [`monolith/native_training/distribution_utils.py`](#monolith-native-training-distribution-utils-py) | 443 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
-| [`monolith/native_training/embedding_combiners.py`](#monolith-native-training-embedding-combiners-py) | 102 | TODO | TODO (manual) |  |
-| [`monolith/native_training/embedding_combiners_test.py`](#monolith-native-training-embedding-combiners-test-py) | 47 | TODO | TODO (manual) |  |
+| [`monolith/native_training/embedding_combiners.py`](#monolith-native-training-embedding-combiners-py) | 102 | IN PROGRESS | monolith-rs/crates/monolith-layers/src |  |
+| [`monolith/native_training/embedding_combiners_test.py`](#monolith-native-training-embedding-combiners-test-py) | 47 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests |  |
 | [`monolith/native_training/entry.py`](#monolith-native-training-entry-py) | 630 | TODO | TODO (manual) |  |
 | [`monolith/native_training/entry_test.py`](#monolith-native-training-entry-test-py) | 84 | TODO | TODO (manual) |  |
 | [`monolith/native_training/env_utils.py`](#monolith-native-training-env-utils-py) | 32 | TODO | TODO (manual) |  |
@@ -9557,50 +9557,60 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/embedding_combiners.py`
 <a id="monolith-native-training-embedding-combiners-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 102
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Defines embedding combiner strategies for ragged inputs (sum/mean pooling and FirstN sequence padding).
+- Key symbols/classes/functions: `Combiner`, `ReduceSum`, `ReduceMean`, `FirstN`.
+- External dependencies: `tensorflow`, `distribution_ops`, `ragged_utils`, `device_utils`.
+- Side effects: None beyond device placement in `FirstN.combine`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `Combiner`:
+  - Stores `max_seq_length` and exposes `combine(...)` abstract method.
+- `ReduceSum.combine(key, embedding, name=None)`:
+  - Uses `ragged_utils.fused_value_rowids(key)` to map values to row ids.
+  - Calls `distribution_ops.reduce_sum(expand_dims(rowids), embedding, expand_dims(key.nrows(), 0), name=name)`.
+- `ReduceMean.combine(key, embedding, name=None)`:
+  - Same as `ReduceSum` but calls `distribution_ops.reduce_mean`.
+- `FirstN.__init__(seq_length)`:
+  - Asserts `seq_length > 0`, sets `max_seq_length` to `seq_length`.
+- `FirstN.combine(key, embedding, name=None)`:
+  - If `embedding` is not a `tf.Tensor`, converts it.
+  - Computes `batch_size_tensor = key.nrows()`.
+  - Converts `key` to sparse (`key_sparse = key.to_sparse()`), uses `key_sparse.indices` to scatter.
+  - Builds `shape = [batch_size, max(max_seq_length, key_sparse.dense_shape[1]), embedding_dim]` with `embedding.shape.as_list()[1]`.
+  - Under `device_utils.maybe_device_if_allowed('/device:GPU:0')`, calls `tf.scatter_nd(indices, embedding, shape)`.
+  - Returns `tf.slice(scattered, [0,0,0], [-1, max_seq_length, -1])` to enforce sequence length.
+  - Rows with fewer embeddings are zero-padded by scatter.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/src/embedding.rs` and/or new `monolith-rs/crates/monolith-layers/src/combiner.rs`.
+- Rust public API surface:
+  - `Combiner` trait with `combine(key, embedding) -> Tensor`.
+  - `ReduceSum` and `ReduceMean` pooling for ragged sequences.
+  - `FirstN` equivalent using `SequenceEmbeddingLookup` or a new combiner wrapper.
+- Data model mapping: Ragged input represented as `(values, row_lengths)` or `(values, row_splits)`; must map to pooled or padded tensors.
+- Feature gating: TF runtime path can call distribution_ops; Candle backend should implement native pooling and padding.
+- Integration points: use in `feature.py`/`feature_utils.py` equivalents and embedding table lookup paths.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Define a Rust `Combiner` trait and enums for `ReduceSum`, `ReduceMean`, `FirstN`.
+2. Implement pooling for ragged sequences using row lengths (sum/mean) with deterministic order.
+3. Implement `FirstN` by zero-padding to `[batch, max_seq_length, dim]` and truncating when longer.
+4. Preserve shape inference behavior: unknown batch size => dynamic dimension, but known `max_seq_length` and embedding dim.
+5. If TF runtime is enabled, optionally route to distribution_ops to match TF kernels exactly.
+6. Add device placement logic for GPU (if supported) and document when CPU is forced.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/embedding_combiners_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/embedding_combiners_test.rs` (new) or extend `monolith-layers/src/embedding.rs` tests.
+- Cross-language parity test: compare pooled and padded outputs for the same ragged inputs and ensure shape inference matches.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses `ragged_utils.fused_value_rowids` and custom reduce ops; Rust must replicate row-id logic exactly.
+- `FirstN` uses `scatter_nd` behavior; ensure zero-fill for missing entries and correct truncation.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -9617,50 +9627,45 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/embedding_combiners_test.py`
 <a id="monolith-native-training-embedding-combiners-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 47
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Validates `ReduceSum` and `FirstN` combiners, including unknown shape handling.
+- Key symbols/classes/functions: `CombinerTest` test cases.
+- External dependencies: `tensorflow`, `embedding_combiners`.
+- Side effects: Uses TF v1 graph mode when run as main.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `testReduceSum`:
+  - `key = RaggedTensor.from_row_lengths([1,2,3], [1,2])` and `emb=[[1.0],[2.0],[3.0]]`.
+  - `ReduceSum.combine` returns `[[1.0],[5.0]]`.
+- `testFirstN`:
+  - `key = RaggedTensor.from_row_lengths([1,2,3,4,5,6], [1,2,3])`, `emb` 6x1.
+  - `FirstN(2)` returns `[[[1.0],[0.0]], [[2.0],[3.0]], [[4.0],[5.0]]]` (zero-padded for row 0).
+- `testFirstNUnknownShape`:
+  - `key` is ragged placeholder, `emb` placeholder `[None,6]`.
+  - `FirstN(2)` result shape is `[None, 2, 6]`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/embedding_combiners_test.rs` (new) or `monolith-rs/crates/monolith-layers/src/embedding.rs` unit tests.
+- Rust public API surface: `ReduceSum`, `FirstN` combiners or equivalent pooling + sequence embedding logic.
+- Data model mapping: ragged input modeled as `(values, row_lengths)`; tests should construct identical ragged cases.
+- Feature gating: none for Candle backend; TF runtime tests optional.
+- Integration points: `embedding_combiners` module or embedded in `embedding` layers.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust tests mirroring the three cases above.
+2. Ensure `FirstN` produces zero-padded outputs for short rows.
+3. Verify output shape inference for unknown batch size, but fixed `max_seq_length` and embedding dim.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/embedding_combiners_test.py`.
+- Rust tests: add parity tests in `monolith-rs/crates/monolith-layers/tests/embedding_combiners_test.rs`.
+- Cross-language parity test: compare outputs for the same ragged inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses ragged tensors; Rust tests must define an equivalent ragged representation.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
