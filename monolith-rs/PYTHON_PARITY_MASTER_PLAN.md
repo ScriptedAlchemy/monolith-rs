@@ -462,7 +462,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/distributed_ps_sync_test.py`](#monolith-native-training-distributed-ps-sync-test-py) | 109 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/distributed_ps_test.py`](#monolith-native-training-distributed-ps-test-py) | 979 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/distributed_serving_ops.py`](#monolith-native-training-distributed-serving-ops-py) | 160 | IN PROGRESS | monolith-rs/crates/monolith-training/src/serving |  |
-| [`monolith/native_training/distributed_serving_ops_test.py`](#monolith-native-training-distributed-serving-ops-test-py) | 142 | TODO | TODO (manual) |  |
+| [`monolith/native_training/distributed_serving_ops_test.py`](#monolith-native-training-distributed-serving-ops-test-py) | 142 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/distribution_ops.py`](#monolith-native-training-distribution-ops-py) | 889 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distribution_ops_benchmark.py`](#monolith-native-training-distribution-ops-benchmark-py) | 118 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distribution_ops_fused_benchmark.py`](#monolith-native-training-distribution-ops-fused-benchmark-py) | 61 | TODO | TODO (manual) |  |
@@ -9058,53 +9058,49 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distributed_serving_ops_test.py`
-
 <a id="monolith-native-training-distributed-serving-ops-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 142
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests parameter sync client/server ops and sync config generation for ZK backend and replica watcher.
+- Key symbols/classes/functions: `ParameterSyncOpsTest`, `test_parameter_sync_client`, `test_refresh_sync_config_1`, `test_refresh_sync_config_2`.
+- External dependencies: `DummySyncServer`, `ParameterSyncClient`, agent_service backend mocks, FakeKazooClient, `parameter_sync_pb2`.
+- Side effects: creates dummy sync servers and ZK backend state; uses fake clients.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_parameter_sync_client`:
+  - Creates two `DummySyncServer`s, gets ports.
+  - Builds `ParameterSyncClient` with targets; creates hash table with `sync_client`.
+  - Runs lookup + apply_gradients; expects embeddings `[[0.2,0.2,0.2],[0.1,0.1,0.1]]`.
+  - Calls `client.create_sync_op` with config; prints JSON; shuts down servers.
+- `test_refresh_sync_config_1`:
+  - Mocks `ReplicaWatcher` with FakeKazooClient; sets replica meta with address `localhost:8500`.
+  - `refresh_sync_config` should set `model_name='ps_1'` and targets `['localhost:8500']`.
+- `test_refresh_sync_config_2`:
+  - Sets up ZK backend with container services; syncs available saved models.
+  - `refresh_sync_config` with ps_index 1 yields `model_name='test_ffm_model:ps_1'` and targets `['localhost:8888']`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests`.
+- Rust public API surface: parameter sync client/server wrappers + config refresh.
+- Data model mapping: ZK backend or equivalent; ClientConfig proto.
+- Feature gating: requires sync backend mocks or fixtures.
+- Integration points: distributed_serving_ops + agent_service backends.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement dummy sync server/client wrappers in Rust for test harness.
+2. Add tests that apply gradients and verify embedding updates.
+3. Add mock backend tests for `refresh_sync_config` with ZK-style data.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: `distributed_serving_ops_test.rs` with mocks.
+- Cross-language parity test: compare ClientConfig bytes and target lists.
 
 **Gaps / Notes**
-- TODO (manual)
+- Depends on agent_service backends; Rust will need lightweight mocks.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -9119,6 +9115,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distribution_ops.py`
+
 <a id="monolith-native-training-distribution-ops-py"></a>
 
 **Status:** TODO (manual review required)
