@@ -2662,22 +2662,42 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: reads cgroup files, runs shell commands, reads filesystem/HDFS.
 
 **Required Behavior (Detailed)**
-- `_get_pod_cgroup_path()` reads `/proc/1/cgroup` and extracts memory cgroup path.
-- `exists(dirname)` uses `tf.io.gfile.isdir` or `tf.io.gfile.exists`.
-- `open_hdfs(fname)` runs `${_HADOOP_BIN} fs -text` and yields non-empty lines.
+- `_get_pod_cgroup_path()`:
+  - Runs `cat /proc/1/cgroup`, finds line containing `:memory:`, returns trailing path without slashes.
+  - On error returns `None`.
+  - `_POD_CGROUP_PATH` computed at import time.
+- `exists(dirname)` -> `tf.io.gfile.isdir(dirname) or tf.io.gfile.exists(dirname)`.
+- `open_hdfs(fname)`:
+  - Builds cmd `[_HADOOP_BIN, 'fs', '-text', ...]` (global `_HADOOP_BIN` expected).
+  - Accepts string or list/tuple of paths.
+  - Retries up to 3 times; logs exceptions; asserts output list is not None.
+  - Yields non-empty stripped lines.
 - `cal_model_info_v2(exported_models_path, ckpt=None, version=None)`:
-  - Resolves absolute path; asserts exists.
-  - Lists sub_model names under exported_models_path.
-  - Determines `ckpt` from `tf.train.get_checkpoint_state` if missing; derives `global_step`.
-  - Determines version: uses `export_state_utils` or lists numeric dirs; intersects across sub_models; uses latest if not specified.
-  - Sums file sizes under each sub_model/version path.
-  - Adds assets size from `{ckpt}.assets` files matching regex `^.+_(\d+)-\d+-of-\d+$`.
-  - Returns map `{sub_model_name: (size, version_path)}`.
-- `total_memory`/`cal_available_memory`: read cgroup memory limit/usage; fall back to `MY_MEM_LIMIT` env.
-- `total_memory_v2`/`cal_available_memory_v2`: use `psutil.virtual_memory()`.
-- `CPU` helper reads cpuacct usage and computes usage delta.
-- `num_cpu` uses cgroup `cpu.cfs_quota_us` and `cpu.cfs_period_us`, fallback `MY_CPU_LIMIT`.
-- `cal_cpu_usage` samples CPU usage over 5 seconds and averages; `cal_cpu_usage_v2` uses `psutil.cpu_percent()`.
+  - Normalizes path to absolute (rstrip `/`), requires `tf.io.gfile.exists`.
+  - Initializes `model_info` with each sub_model under export dir (excluding dotfiles) size 0.
+  - If `ckpt` None: uses `tf.train.get_checkpoint_state(ckpt_base_path)` and basename of `model_checkpoint_path`.
+  - `global_step = -1` if ckpt None else `int(ckpt.split('-')[-1])`.
+  - If `version` None:
+    - For each sub_model, attempt `export_state_utils.get_export_saver_listener_state(tfs_base_path)`; if state and `global_step>=0`, collect versions from entries and pick matching `global_step`.
+    - Else list numeric subdirs under sub_model.
+    - Intersect versions across sub_models; pick max if `version` still None.
+  - Else cast `version` to int.
+  - For each sub_model: sum all file sizes under `exported_models_path/sub_model/version` via `tf.io.gfile.walk`.
+  - If assets dir `ckpt_base_path/{ckpt}.assets` exists:
+    - For files matching `ROW` regex, add size to `model_info['ps_{index}']`.
+  - Returns `{sub_model_name: (size, version_path)}`.
+- Memory helpers:
+  - `total_memory` reads `/sys/fs/cgroup/memory/{_POD_CGROUP_PATH}/memory.limit_in_bytes`; if 0 uses `MY_MEM_LIMIT`.
+  - `total_memory_v2` uses `psutil.virtual_memory().total`.
+  - `cal_available_memory` reads cgroup `memory.usage_in_bytes` and `memory.limit_in_bytes`, returns limit - usage.
+  - `cal_available_memory_v2` uses `psutil.virtual_memory().available`.
+- CPU helpers:
+  - `CPU.wall_clock()` uses `time.time_ns()` (fallback to `date +%s%N` subprocess).
+  - `CPU.cpu_clock()` reads cpuacct usage from file.
+  - `CPU.cpu_usage()` returns delta_cpu/delta_wall and updates stored clocks.
+  - `num_cpu()` reads `cpu.cfs_quota_us` and `cpu.cfs_period_us`, fallback to `MY_CPU_LIMIT` if period 0.
+  - `cal_cpu_usage()` samples 5 times, 1s sleep, averages `round(cpu_usage*100,2)`.
+  - `cal_cpu_usage_v2()` uses `psutil.cpu_percent()`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/resource_utils.rs`.
@@ -2722,8 +2742,10 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: reads system stats.
 
 **Required Behavior (Detailed)**
-- `test_cal_avaiable_memory_v2`: asserts `0 < available < total`.
-- `test_cal_cpu_usage_v2`: asserts CPU usage is in `[0, 100]`.
+- `test_cal_avaiable_memory_v2`:
+  - Calls `total_memory_v2()` and `cal_available_memory_v2()`; asserts `0 < available < total`.
+- `test_cal_cpu_usage_v2`:
+  - Calls `cal_cpu_usage_v2()`; asserts `0 <= usage <= 100`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/resource_utils.rs`.
