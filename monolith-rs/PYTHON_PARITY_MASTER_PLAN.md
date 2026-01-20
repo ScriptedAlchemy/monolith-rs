@@ -600,7 +600,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/multi_type_hash_table.py`](#monolith-native-training-multi-type-hash-table-py) | 435 | IN PROGRESS | N/A (hash table wrapper) |  |
 | [`monolith/native_training/multi_type_hash_table_test.py`](#monolith-native-training-multi-type-hash-table-test-py) | 326 | IN PROGRESS | N/A (hash table tests) |  |
 | [`monolith/native_training/native_model.py`](#monolith-native-training-native-model-py) | 1109 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
-| [`monolith/native_training/native_task.py`](#monolith-native-training-native-task-py) | 213 | TODO | TODO (manual) |  |
+| [`monolith/native_training/native_task.py`](#monolith-native-training-native-task-py) | 213 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/native_task_context.py`](#monolith-native-training-native-task-context-py) | 58 | TODO | TODO (manual) |  |
 | [`monolith/native_training/nested_tensors.py`](#monolith-native-training-nested-tensors-py) | 110 | TODO | TODO (manual) |  |
 | [`monolith/native_training/nested_tensors_test.py`](#monolith-native-training-nested-tensors-test-py) | 57 | TODO | TODO (manual) |  |
@@ -18205,50 +18205,107 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/native_task.py`
 <a id="monolith-native-training-native-task-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 213
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Defines the `NativeTask` base class (TF-native training/eval/serving) and the `NativeContext` helper for feature slot creation, embedding gradient application, and async functions.
+- Key symbols/classes/functions: `NativeContext`, `NativeTask`.
+- External dependencies: TensorFlow, `monolith.core.base_task.BaseTask`, `monolith.core.hyperparams`,
+  `monolith.native_training.feature`, `monolith.native_training.prefetch_queue`,
+  `monolith.native_training.model_export.export_context.ExportMode`.
+- Side effects:
+  - Raises `ValueError` if both `feature_factory` and `layout_factory` are provided in `NativeContext`.
+  - Delegates to async function manager (may enqueue TF ops).
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`NativeContext(feature_factory=None, async_function_mgr=None, layout_factory=None)`**
+  - Stores `feature_factory`, `async_function_mgr`, `layout_factory`.
+  - If both `feature_factory` and `layout_factory` are set, raises:
+    - `ValueError("Cannot set feature_factory and layout_factory in the same time")`.
+- **`NativeContext.create_feature_slot(config)`**
+  - If `layout_factory` present, delegates to `layout_factory.create_feature_slot(config)`.
+  - Else uses `feature_factory.create_feature_slot(config)`.
+  - No TF ops are created by this call (per docstring).
+- **`NativeContext.apply_embedding_gradients(grads_and_vars, scale=1)`**
+  - If `layout_factory` present, delegates to `layout_factory.apply_gradients(grads_and_vars)`.
+  - Else delegates to `feature_factory.apply_gradients(grads_and_vars, scale=scale)`.
+  - Expects `grads_and_vars` from `FeatureColumn.get_all_embeddings_concatenated`.
+- **`NativeContext.add_async_function(target, args=None, kwargs=None, is_async=None, queue_name="async_queue")`**
+  - Delegates to `async_function_mgr.add_async_function(...)`.
+  - Returns enqueue op if async, else result of `target`.
+  - Semantic contract (documented): tensors used by async function should be passed via args/kwargs only.
+- **`NativeTask(BaseTask, abc.ABC)`**
+  - `params()` extends BaseTask params with:
+    - `metrics.*`:
+      - `enable_deep_insight` (default False), `deep_insight_target` ("ctr_head"),
+        `deep_insight_name` (None), `deep_insight_sample_ratio` (0.01),
+        `extra_fields_keys` (list),
+        `enable_throughput_hook` (True),
+        `enable_kafka_metrics` (False),
+        `enable_tf2_profiler_hook` (True),
+        `enable_file_metrics` (False),
+        `file_base_name` ("/vepfs/jaguar_deepinsight_results"),
+        `file_ext` ("txt"),
+        `parse_fn`/`key_fn`/`layout_fn` (None),
+        `dump_filename` (""),
+        `use_data_service` (False).
+    - `mode`: `tf.estimator.ModeKeys.TRAIN` (temporary; doc says will be removed).
+    - `train.*`:
+      - `max_pending_seconds_for_barrier` (30),
+      - `slow_start_steps` (0),
+      - `sample_bias` (0.0),
+      - `use_gpu_emb_table` (False),
+      - `use_fountain` (False),
+      - `fountain_zk_host` (""), `fountain_model_name` (""), `fountain_parse_on_server` (False),
+        `fountain_precompute_value_rowids` (False).
+    - `serving.*`:
+      - `export_with_gpu_allowed` (False),
+      - `export_with_cleared_entry_devices` (False),
+      - `export_when_saving` (False),
+      - `export_dir_base` ("exported_models"),
+      - `export_mode` (`ExportMode.DISTRIBUTED`),
+      - `shared_embedding` (True),
+      - `with_remote_gpu` (False).
+  - `__init__(params)`:
+    - Calls `BaseTask.__init__` and sets `self._ctx = NativeContext()` and `self.p = params`.
+  - `ctx` property returns `self._ctx`.
+  - Abstract methods:
+    - `create_input_fn(self, mode)`
+    - `create_model_fn(self)`
+  - `create_serving_input_receiver_fn()`:
+    - Returns `None` by default; callers must override when `serving.export_when_saving` is enabled.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (task base + context), `monolith-rs/crates/monolith-data` (feature factories/layouts).
+- Rust public API surface:
+  - `NativeContext` struct with `create_feature_slot`, `apply_embedding_gradients`, `add_async_function`.
+  - `NativeTask` trait with `params()`, `create_input_fn`, `create_model_fn`, `create_serving_input_receiver_fn`.
+- Data model mapping:
+  - `feature_factory` ↔ `FeatureFactory` trait.
+  - `layout_factory` ↔ `EmbeddingLayoutFactory` trait (optional, mutually exclusive).
+- Feature gating:
+  - Async function manager (prefetch queue) behind feature flag if not supported by backend.
+  - Export-related params gated by serving feature.
+- Integration points:
+  - `NativeTask` becomes base for `MonolithBaseModel` in Rust; param defaults must match Python.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port `NativeContext` with mutual exclusion validation and delegation to feature/layout factories.
+2. Implement an async function manager interface in Rust (or stubs if backend lacks it).
+3. Port `NativeTask.params()` with identical defaults and nested param groups.
+4. Implement `NativeTask` base that stores `params` and `ctx`.
+5. Add validation hooks so `create_serving_input_receiver_fn` must be overridden when export is enabled.
+6. Add unit tests for parameter defaults and mutual exclusion errors.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none dedicated; covered indirectly by model/task usage.
+- Rust tests: add unit tests for `NativeContext` validation and param defaults.
+- Cross-language parity test: compare serialized defaults from Python vs Rust `params()` output.
 
 **Gaps / Notes**
-- TODO (manual)
+- `OutConfig`, `OutType`, `TensorShape` are imported but unused in this file (no runtime effect).
+- `create_serving_input_receiver_fn` returning `None` is explicitly invalid when export is enabled; Rust should enforce or document this.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
