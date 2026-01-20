@@ -632,8 +632,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/session_run_hooks_test.py`](#monolith-native-training-session-run-hooks-test-py) | 144 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/signal_utils.py`](#monolith-native-training-signal-utils-py) | 37 | IN PROGRESS | monolith-rs/crates/monolith-core/src |  |
 | [`monolith/native_training/signal_utils_test.py`](#monolith-native-training-signal-utils-test-py) | 30 | IN PROGRESS | monolith-rs/crates/monolith-core/src |  |
-| [`monolith/native_training/static_reshape_op.py`](#monolith-native-training-static-reshape-op-py) | 58 | TODO | TODO (manual) |  |
-| [`monolith/native_training/static_reshape_op_test.py`](#monolith-native-training-static-reshape-op-test-py) | 79 | TODO | TODO (manual) |  |
+| [`monolith/native_training/static_reshape_op.py`](#monolith-native-training-static-reshape-op-py) | 58 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
+| [`monolith/native_training/static_reshape_op_test.py`](#monolith-native-training-static-reshape-op-test-py) | 79 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/summary/summary_ops.py`](#monolith-native-training-summary-summary-ops-py) | 78 | TODO | TODO (manual) |  |
 | [`monolith/native_training/summary/summary_ops_test.py`](#monolith-native-training-summary-summary-ops-test-py) | 122 | TODO | TODO (manual) |  |
 | [`monolith/native_training/summary/utils.py`](#monolith-native-training-summary-utils-py) | 114 | TODO | TODO (manual) |  |
@@ -20568,50 +20568,43 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/static_reshape_op.py`
 <a id="monolith-native-training-static-reshape-op-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 58
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Wrapper for custom static reshape op and a small builder utility.
+- Key symbols/classes/functions: `static_reshape`, `StaticReshapeNBuilder`.
+- External dependencies: `gen_monolith_ops.monolith_static_reshape_n`.
+- Side effects: None beyond calling custom op.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`static_reshape(inputs, shapes, enable_parallelism=True)`**
+  - Calls `monolith_static_reshape_n` custom op.
+  - Returns `(outputs, sizes)` where `sizes` are flattened output sizes.
+- **`StaticReshapeNBuilder`**
+  - Collects `inputs` and `shapes`.
+  - `add(input, shape)` appends and returns index.
+  - `build()` calls `static_reshape` with collected lists.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tf/src`.
+- Rust public API surface: `static_reshape` wrapper and builder.
+- Data model mapping: list of tensors + shape tuples with optional `None`.
+- Feature gating: requires custom op library.
+- Integration points: preprocessing pipelines needing fast reshape.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Bind to custom op `monolith_static_reshape_n` or implement equivalent.
+2. Implement builder helper with index mapping.
+3. Add tests for sizes and shape constraints.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/static_reshape_op_test.py`.
+- Rust tests: add tests for sizes and nested structure indexing.
+- Cross-language parity test: compare output shapes and sizes.
 
 **Gaps / Notes**
-- TODO (manual)
+- Custom op semantics must match exactly; shapes include `None` placeholders.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -20628,50 +20621,43 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/static_reshape_op_test.py`
 <a id="monolith-native-training-static-reshape-op-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 79
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests static reshape custom op and builder.
+- Key symbols/classes/functions: `StaticReshapeOpTest`.
+- External dependencies: TensorFlow, NumPy, `static_reshape_op`.
+- Side effects: Runs sessions to execute custom op.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_static_reshape_n`:
+  - Reshapes three inputs to target shapes with `None` dimensions.
+  - Asserts `sizes == [5, 40, 12]`.
+  - Verifies each output shape matches specified non-`None` dims.
+- `test_nested_reshape_n`:
+  - Uses `StaticReshapeNBuilder` with nested structures.
+  - Flattens tensors via `tf.nest.map_structure` and builds op.
+  - Validates outputs match expected flattened arrays.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tf/src` (tests).
+- Rust public API surface: `static_reshape` and builder.
+- Data model mapping: nested structure flattening.
+- Feature gating: requires custom op.
+- Integration points: custom op tests.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add tests for sizes output and shape constraints.
+2. Add nested structure test using builder indices.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `StaticReshapeOpTest` in this file.
+- Rust tests: mirror both tests.
+- Cross-language parity test: compare outputs for same inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Relies on custom op `monolith_static_reshape_n`.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
