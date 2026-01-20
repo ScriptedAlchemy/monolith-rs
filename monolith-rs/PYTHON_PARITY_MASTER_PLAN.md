@@ -4892,7 +4892,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
     - Returns merged or non-merged placeholder map based on `env._merge_vector`.
 - `FeatureColumn3D`:
   - Constructor sets `max_seq_length`, logs it, registers with slot.
-  - `embedding_lookup(...)` delegates to `Env._seq_embedding_lookup`.
+  - `embedding_lookup(...)` delegates to `Env._seq_embedding_lookup` using `self._max_seq_length` (ignores passed `max_seq_length` arg).
   - `size_tensor_lookup()` delegates to `Env._size_tensor_lookup`.
   - `feature_slice_to_tf_placeholder` returns 3D placeholder map.
 - `Env`:
@@ -4988,20 +4988,30 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Required Behavior (Detailed)**
 - `FeatureSlotTest.test_has_bias`:
-  - `FeatureSlot(has_bias=True)` creates one bias slice with `dim=1`, `slice_index=0`.
+  - Builds `_params.Params()` and defines required fields (`qr_multi_hashing`, `qr_hashing_threshold`, `qr_collision_rate`, `use_random_init_embedding_for_oov`, `merge_vector`).
+  - `env = Env({}, params)`, `FeatureSlot(env, slot_id=1, has_bias=True)`.
+  - Asserts `len(feature_slices)==1`, dim=1, slice_index=0.
 - `FeatureSlotTest.test_add_feature_slice`:
-  - Additional slices get incrementing `slice_index` and correct dims.
+  - Same params/env setup; `FeatureSlot(..., has_bias=True)`.
+  - `add_feature_slice(dim=10)` results in 2 slices: bias (dim 1, idx 0) and new slice (dim 10, idx 1).
 - `FeatureColumnV1Test.test_add_feature_column`:
-  - Creating a feature column appends to `FeatureSlot._feature_columns`.
+  - Same params/env setup; `FeatureSlot(has_bias=True)` then `add_feature_slice(dim=10)`.
+  - `FeatureColumnV1(fs_1, 'fc_name_1')` registers in `_feature_columns` (len==1).
 - `FeatureColumnV1Test.test_merge_split_vector_in_same_slot`:
   - With `merge_vector=True`:
-    - `_merge_vector_in_same_slot()` populates `_merged_feature_slices` and merged placeholder maps per slot and column.
-    - Expected merged dims:
-      - slot 1 (bias+2) -> merged dims `[1,2]`
-      - slot 2 (bias only) -> `[1]`
-      - slot 3 (no bias, 2+3) -> `[5]`
-      - slot 4 (bias+2+3+4) -> `[1,9]`
-    - `_split_merged_embedding()` splits merged embeddings into per-slice tensors with exact contents as asserted.
+    - Creates slots/slices:
+      - slot1 has_bias True + slice dim 2.
+      - slot2 has_bias True only.
+      - slot3 has_bias False + slices dim 2 and 3.
+      - slot4 has_bias True + slices dim 2,3,4.
+    - Creates FeatureColumnV1s for slots; calls `embedding_lookup` to populate placeholders.
+    - Calls `env._merge_vector_in_same_slot()` and asserts merged slice counts and dims:
+      - fs1 merged dims [1,2]; fs2 [1]; fs3 [5]; fs4 [1,9].
+      - Each FeatureColumn has merged placeholders for expected slices.
+    - Split test:
+      - Sets `env._tpu_features` with merged tensors: `fc_name_1_0`, `fc_name_1_1`, `fc_name_2_0`, `fc_name_3_0`, `fc_name_4_0`, `fc_name_4_1`, `fc_name_5_0`, `fc_name_5_1`.
+      - Runs `_split_merged_embedding` for fs1..fs4 inside session.
+      - Asserts split tensors match expected per-slice values for fc_name_3 (2+3 split), fc_name_4/5 (bias + 2 + 3 + 4 split).
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/src/feature.rs`.
@@ -7152,7 +7162,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Cross-language parity test: not applicable.
 
 **Gaps / Notes**
-- None.
+- Bugs/quirks to preserve or fix explicitly:
+  - `Env.is_finalized()` returns `self.is_finalized` (recursive), and is referenced without call in some asserts, so the assert always passes.
+  - `_embedding_lookup` references `slot_id` without defining it (should be `feature_column.feature_slot.slot_id()`), may raise `NameError` if QR path is executed.
+  - `_seq_embedding_lookup` uses `feature_slice.init_minval_for_oov/init_maxval_for_oov` which are not defined on `FeatureSlice`.
+  - `collections.namedtuple` imported but unused.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
