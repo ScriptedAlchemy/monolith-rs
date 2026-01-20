@@ -475,10 +475,10 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/entry_test.py`](#monolith-native-training-entry-test-py) | 84 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/tests |  |
 | [`monolith/native_training/env_utils.py`](#monolith-native-training-env-utils-py) | 32 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/env_utils_test.py`](#monolith-native-training-env-utils-test-py) | 23 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
-| [`monolith/native_training/estimator.py`](#monolith-native-training-estimator-py) | 667 | TODO | TODO (manual) |  |
-| [`monolith/native_training/estimator_dist_test.py`](#monolith-native-training-estimator-dist-test-py) | 166 | TODO | TODO (manual) |  |
-| [`monolith/native_training/estimator_mode_test.py`](#monolith-native-training-estimator-mode-test-py) | 417 | TODO | TODO (manual) |  |
-| [`monolith/native_training/estimator_test.py`](#monolith-native-training-estimator-test-py) | 112 | TODO | TODO (manual) |  |
+| [`monolith/native_training/estimator.py`](#monolith-native-training-estimator-py) | 667 | IN PROGRESS | monolith-rs/crates/monolith-training/src/estimator.rs |  |
+| [`monolith/native_training/estimator_dist_test.py`](#monolith-native-training-estimator-dist-test-py) | 166 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
+| [`monolith/native_training/estimator_mode_test.py`](#monolith-native-training-estimator-mode-test-py) | 417 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
+| [`monolith/native_training/estimator_test.py`](#monolith-native-training-estimator-test-py) | 112 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/feature.py`](#monolith-native-training-feature-py) | 663 | TODO | TODO (manual) |  |
 | [`monolith/native_training/feature_test.py`](#monolith-native-training-feature-test-py) | 266 | TODO | TODO (manual) |  |
 | [`monolith/native_training/feature_utils.py`](#monolith-native-training-feature-utils-py) | 419 | TODO | TODO (manual) |  |
@@ -9951,50 +9951,94 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/estimator.py`
 <a id="monolith-native-training-estimator-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 667
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: High-level Estimator API for local/distributed training, evaluation, prediction, and saved_model export/import.
+- Key symbols/classes/functions: `EstimatorSpec`, `RunConfig`, `Estimator`, `import_saved_model`.
+- External dependencies: TensorFlow Estimator, Kazoo/ZK, AgentService, CpuTraining, RunnerConfig, service discovery, DumpUtils, device_utils, distribution_utils.
+- Side effects: mutates env vars, initializes ZK clients/backends, logs metrics, writes model dumps, may start/stop distributed services.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `EstimatorSpec` (namedtuple):
+  - Fields: `label`, `pred`, `head_name`, `loss`, `optimizer`, `classification`.
+  - `__new__` sets defaults `head_name=None`, `loss=None`, `optimizer=None`, `classification=True`.
+  - `_replace` forbids changing `mode` if present in kwargs and different from existing (defensive check).
+- `RunConfig` (dataclass_json):
+  - Fields include: `is_local`, `num_ps`, `num_workers`, timeout settings, layout flags, retry settings, parameter-sync fields, checkpoint/export settings, profiling flags, alias map settings, kafka settings, metrics flags, summary/log cadence.
+  - `to_runner_config()`:
+    - Builds `RunnerConfig` with key fields.
+    - For each RunConfig field, if value differs from RunConfig default and differs from current conf value, updates conf (preserves CLI overrides).
+    - Converts `ServiceDiscoveryType.CONSUL` to `ServiceDiscoveryType.ZK`.
+    - If `enable_gpu_training` is False, ensures `embedding_prefetch_capacity >= 1` and `enable_embedding_postpush=True`.
+    - If `enable_parameter_sync` is True, sets `enable_realtime_training` or `enable_parameter_sync` on `RunnerConfig` (raises if neither exists).
+  - `__post_init__`:
+    - Serializes to JSON and records config in `DumpUtils`.
+    - Records user params that differ from defaults to `DumpUtils`.
+- `Estimator.__init__(model, conf, warm_start_from=None)`:
+  - Converts `RunConfig` to `RunnerConfig` if needed.
+  - Sets deep-insight metrics on the model based on local vs distributed and runner_conf values.
+  - If realtime training on PS, initializes sync backend via ZK (either `ZKBackend` or `ReplicaWatcher` with `MonolithKazooClient`).
+  - Applies `params_override` JSON to model `.p` or `.params` when present.
+  - Attempts `env_utils.setup_hdfs_env()` if `HADOOP_HDFS_HOME` missing (logs errors).
+  - Exports env vars `TF_GRPC_WORKER_CACHE_THREADS` and `MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER` from runner_conf.
+- `Estimator._est` (lazy property):
+  - Deep-copies model; sets mode `PREDICT` and instantiates `CpuTraining` task.
+  - Deletes `TF_CONF` env var if present.
+  - Constructs `tf.estimator.Estimator` with `model_fn`, `model_dir`, and `RunConfig(log_step_count_steps=...)`, with `warm_start_from` if provided.
+- `Estimator.train(steps=None, max_steps=None, hooks=None)`:
+  - Validates hooks are `tf.estimator.SessionRunHook`.
+  - Sets metric prefix `monolith.training.<deep_insight_name>`.
+  - Deep-copies model, sets mode `TRAIN`, overrides steps/max_steps if provided.
+  - If local: choose model_dir (default `/tmp/<user>/<model>`), call `local_train_internal`, and write `DumpUtils` to `model_dump`.
+  - If distributed: disable DumpUtils; start sync backend and subscribe model; log env + flags + params.
+    - If `enable_full_sync_training`: call `init_sync_train_and_update_conf` then `distributed_sync_train`.
+    - Else: use `monolith_discovery` context; if `enable_gpu_training` -> `device_utils.enable_gpu_training()` and disable `use_gpu_emb_table`; if partial sync and worker -> `try_init_cuda()` and set `device_fn`.
+    - Call `distributed_train`.
+  - Calls `close()` at end.
+- `Estimator.evaluate(steps=None, hooks=None)`:
+  - Mirrors `train()` but uses mode `EVAL` and `distributed_train` (no user hooks in distributed eval except full sync).
+- `Estimator.predict(...)`:
+  - Creates estimator via `_est`, builds input_fn, calls `est.predict(...)`, then `close()`.
+- `Estimator.export_saved_model(batch_size=64, name=None, dense_only=False, enable_fused_layout=False)`:
+  - Copies model/conf; sets `enable_fused_layout`, model name, batch size, mode `PREDICT`.
+  - Creates `CpuTraining` task and exporter; uses `ParserCtx(enable_fused_layout=...)`.
+  - Calls `exporter.export_saved_model` with `serving_input_receiver_fn`.
+- `import_saved_model(saved_model_path, input_name='instances', output_name='output', signature=None)`:
+  - Context manager that resolves latest numeric version directory if `saved_model_path` not numeric.
+  - Loads SavedModel with `tf.saved_model.load`, chooses signature (default serving).
+  - Builds placeholders dict from requested inputs.
+  - Builds output dict from requested outputs or all outputs if none provided.
+  - Returns `infer(features)` callable that runs session and maps output tensor names to output names.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/estimator.rs` plus new `run_config.rs`/`runner_config.rs` and export/import helpers.
+- Rust public API surface:
+  - `EstimatorSpec` struct analog for model outputs.
+  - `RunConfig` struct with JSON serialization + `to_runner_config` merge semantics.
+  - `Estimator` wrapper that orchestrates training/eval/predict, plus saved-model import/export if TF runtime is enabled.
+- Data model mapping: use `monolith-training` model traits (`ModelFn`) for Candle backend; optional TF runtime path for SavedModel import/export.
+- Feature gating: `tf-runtime` feature for SavedModel and TF Estimator parity; default Candle backend implements local training only.
+- Integration points: `cpu_training`/`distributed_train` equivalents, service discovery, device utils, dump utilities, parameter sync backend.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement `RunConfig` in Rust with all fields and defaults; add JSON serialization to match Python `dataclass_json`.
+2. Implement `to_runner_config` merge logic (only override when RunConfig value differs from default and from current runner config).
+3. Implement `Estimator` struct with local training/eval/predict flows mirroring Python.
+4. Add optional ZK/AgentService integration or stub with clear errors when unavailable.
+5. Implement env var exports (`TF_GRPC_WORKER_CACHE_THREADS`, `MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER`).
+6. Implement SavedModel export/import only when TF runtime is enabled; otherwise document as unsupported.
+7. Add parity tests for RunConfig merging and local train/eval/predict call flow.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `estimator_test.py`, `estimator_dist_test.py`, `estimator_mode_test.py`.
+- Rust tests: add `estimator_test.rs` for local flow and config merging; integration tests for distributed modes as available.
+- Cross-language parity test: compare config merge outputs, model_dir resolution, and SavedModel import/export behavior.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python relies on TF Estimator and distributed training stack; Rust currently has only stubs for distributed execution.
+- SavedModel import/export likely requires TF runtime and custom ops.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -10011,50 +10055,53 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/estimator_dist_test.py`
 <a id="monolith-native-training-estimator-dist-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 166
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Integration test for distributed training/eval using TF_CONFIG-style discovery and multi-process PS/worker setup.
+- Key symbols/classes/functions: `EstimatorTrainTest`, `get_cluster`, `get_free_port`.
+- External dependencies: `tensorflow`, `RunnerConfig`, `TestFFMModel`, `TfConfigServiceDiscovery`, `Estimator`.
+- Side effects: Spawns multiple processes, binds local ports, writes checkpoints under tmp.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `get_free_port()`:
+  - Binds a local socket on port 0 to find an available port; closes socket and returns port.
+- `get_cluster(ps_num, worker_num)`:
+  - Returns dict with `ps`, `worker`, and `chief` addresses on free ports (workers exclude chief).
+- `EstimatorTrainTest.setUpClass`:
+  - Removes existing `model_dir` if present.
+  - Creates `TestFFMModel` params with deep insight disabled and batch size 64.
+- `EstimatorTrainTest.train()`:
+  - Spawns `ps_num` PS processes and `worker_num` worker/chief processes.
+  - Each process builds `TF_CONFIG`-like dict, uses `TfConfigServiceDiscovery`, constructs `RunnerConfig`, and calls `Estimator.train(steps=10)`.
+  - Waits for all processes; asserts exitcode 0 for each.
+- `EstimatorTrainTest.eval()`:
+  - Same as train but calls `Estimator.evaluate(steps=10)`.
+- `test_dist`:
+  - Runs `train()` then `eval()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/estimator_dist_test.rs` (new).
+- Rust public API surface: distributed training harness and config discovery equivalent.
+- Data model mapping: distributed cluster config (ps/worker/chief), runner config, model params.
+- Feature gating: likely `tf-runtime` or `distributed` feature; skip if distributed stack not available.
+- Integration points: service discovery and process orchestration.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a Rust integration test that spawns multiple processes (or threads) for PS/worker roles.
+2. Provide a discovery config equivalent to `TfConfigServiceDiscovery` and ensure `Estimator` can use it.
+3. Run short train/eval steps and assert clean exit.
+4. Add timeouts and cleanup for spawned processes and temp directories.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/estimator_dist_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/estimator_dist_test.rs` (integration).
+- Cross-language parity test: verify training/eval complete under equivalent cluster topology.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses real multi-process TF; Rust currently lacks distributed PS/worker runtime.
+- Port binding is fragile; consider deterministic port assignment for CI.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -10071,50 +10118,64 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/estimator_mode_test.py`
 <a id="monolith-native-training-estimator-mode-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 417
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: End-to-end integration tests for multiple distributed modes (CPU, sparse+ dense GPU, full GPU) by launching the training binary with various env/config permutations.
+- Key symbols/classes/functions: `DistributedTrainTest`, `_run_test`, `run_cpu`, `sparse_dense_run`, `full_gpu_run`.
+- External dependencies: TensorFlow, `RunnerConfig`, training binary `monolith/native_training/tasks/sparse_dense_gpu/model`, `gen_input_file`, `MultiHeadModel`, `test_util`.
+- Side effects: Creates temp dataset files, spawns multiple processes (including mpirun), sets many env vars, writes logs, deletes temp dirs.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `setUpClass`:
+  - Generates dataset file via `gen_input_file` and creates symlinks for suffixes 0..9.
+  - Updates `FLAGS.dataset_input_patterns` to include `{INT(0,99)}`.
+- `find_free_port(count)`:
+  - Finds `count` available local ports (no reuse).
+- `_run_test(...)`:
+  - Creates `cur_modir` under test tmp dir; removes existing.
+  - Builds `args_tmpl` list for the training binary with flags:
+    - mode=train, model_dir, num_ps/workers, uuid, dataset flags, discovery settings, timeouts, metrics disable, dataservice toggle, cluster type.
+  - Populates MLP_* env vars per role via `fill_host_env`.
+  - Allocates ports for PS/worker/dsworker/dispatcher and sets env accordingly.
+  - `start_process`:
+    - For `use_mpi_run=True`, writes a hostfile and uses `mpirun` with Horovod-related env exports.
+    - Else, spawns subprocess per role with `MLP_ROLE`, `MLP_ROLE_INDEX`, `MLP_PORT`, and `MLP_SSH_PORT` envs, writing logs to files.
+  - Starts dispatcher, dsworker, ps, worker processes.
+  - `wait_for_process` enforces timeouts; may terminate on timeout when `ignore_timeout=True`.
+  - Cleans up log files and removes `cur_modir`.
+- `run_cpu(...)`:
+  - Skips if GPU is available; runs CPU cases with `enable_gpu_training=False`, `enable_sync_training=False` and embedding prefetch/postpush flags.
+- `sparse_dense_run(...)`:
+  - Requires GPU; uses MPI run and sets sync training flags, partial sync, params_override, and dataset service.
+- `full_gpu_run(...)`:
+  - Requires GPU; uses MPI run with `enable_sync_training`, `reorder_fids_in_data_pipeline`, `filter_type=probabilistic_filter`, `enable_async_optimize=False`.
+- Test variants:
+  - CPU tests `test_cpu0..3` vary `enable_fused_layout` and `use_native_multi_hash_table`.
+  - Sparse+Dense GPU tests `test_sparse_dense0..3` vary layout and native hash table.
+  - Full GPU tests `test_full_gpu_0..3` vary layout and native hash table.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/estimator_mode_test.rs` (new) or CI scripts.
+- Rust public API surface: distributed training CLI entrypoint and env-based cluster discovery.
+- Feature gating: GPU and MPI required; tests should be behind `gpu`/`mpi` feature flags and skipped in CI by default.
+- Integration points: training binary CLI, dataset service, Horovod/BytePS integration.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement or stub the Rust training binary to accept similar CLI flags.
+2. Add integration tests that spawn subprocesses with env roles for PS/worker/dsworker/dispatcher.
+3. Add MPI-based test harness if Horovod/BytePS parity is required.
+4. Ensure temp dirs and logs are cleaned up even on failure.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/estimator_mode_test.py`.
+- Rust tests: integration tests in `monolith-rs/crates/monolith-training/tests/` or CI scripts.
+- Cross-language parity test: compare training completion and exit codes across CPU/GPU modes.
 
 **Gaps / Notes**
-- TODO (manual)
+- Heavy integration tests require external binaries and GPU; likely to be skipped in Rust CI.
+- Port allocation is fragile; may need reserved port ranges.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -10131,50 +10192,48 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/estimator_test.py`
 <a id="monolith-native-training-estimator-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 112
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Local-mode Estimator smoke tests for train/eval/predict/export/import flow.
+- Key symbols/classes/functions: `EstimatorTrainTest`, `get_saved_model_path`.
+- External dependencies: TensorFlow, `RunnerConfig`, `TestFFMModel`, `generate_ffm_example`, `import_saved_model`.
+- Side effects: Writes checkpoints and exported models under temp dirs; performs inference loops.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `setUpClass`:
+  - Removes existing model_dir if present.
+  - Sets model params: deep insight disabled, batch size 64, export dir base, `shared_embedding=True`.
+  - Creates `RunnerConfig(is_local=True, num_ps=0, model_dir=..., use_native_multi_hash_table=False)`.
+- `train/eval/predict`:
+  - Instantiate `Estimator` and call the respective method (steps=10 for train/eval).
+- `export_saved_model`:
+  - Calls `Estimator.export_saved_model()` with defaults.
+- `import_saved_model`:
+  - Uses latest saved model dir from `export_base`.
+  - Runs inference through `import_saved_model` context for 10 iterations, with generated FFM examples.
+- `test_local`:
+  - Runs train, eval, predict, export, and import in sequence.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/estimator_test.rs` (new).
+- Rust public API surface: local Estimator train/eval/predict/export/import.
+- Feature gating: SavedModel export/import requires `tf-runtime`; otherwise stub or skip.
+- Integration points: training data generation, model definition, export path handling.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a local-only Estimator test in Rust that runs train/eval/predict with a simple model.
+2. Add SavedModel export/import tests behind `tf-runtime` feature.
+3. Ensure temp dirs are cleaned up after tests.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/estimator_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/estimator_test.rs`.
+- Cross-language parity test: compare export/import outputs on fixed inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python import_saved_model uses TF sessions and custom ops; Rust parity likely requires TF runtime.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
