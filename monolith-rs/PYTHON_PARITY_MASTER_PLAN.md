@@ -533,7 +533,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/feature_seq_test.py`](#monolith-native-training-layers-feature-seq-test-py) | 126 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/feature_seq_test.rs |  |
 | [`monolith/native_training/layers/feature_trans.py`](#monolith-native-training-layers-feature-trans-py) | 340 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/feature_trans.rs |  |
 | [`monolith/native_training/layers/feature_trans_test.py`](#monolith-native-training-layers-feature-trans-test-py) | 140 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/feature_trans_test.rs |  |
-| [`monolith/native_training/layers/layer_ops.py`](#monolith-native-training-layers-layer-ops-py) | 131 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/layer_ops.py`](#monolith-native-training-layers-layer-ops-py) | 131 | IN PROGRESS | monolith-rs/crates/monolith-layers/src |  |
 | [`monolith/native_training/layers/layer_ops_test.py`](#monolith-native-training-layers-layer-ops-test-py) | 232 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/lhuc.py`](#monolith-native-training-layers-lhuc-py) | 296 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/lhuc_test.py`](#monolith-native-training-layers-lhuc-test-py) | 73 | TODO | TODO (manual) |  |
@@ -13436,50 +13436,63 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/layer_ops.py`
 <a id="monolith-native-training-layers-layer-ops-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 131
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Python wrappers around custom TensorFlow ops (FFM, FeatureInsight, MonolithFidCounter) and their gradients.
+- Key symbols/classes/functions: `ffm`, `feature_insight`, `fid_counter` and registered gradients `_ffm_grad`, `_feature_insight`, `_fid_counter_grad`.
+- External dependencies: `gen_monolith_ops` custom op library, TensorFlow gradient registry.
+- Side effects: Registers gradients for custom ops; uses TF summary in downstream layers.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `ffm(left, right, dim_size, int_type='multiply')`:
+  - Calls `layer_ops_lib.FFM` with given attrs and returns the op output.
+  - `int_type` determines multiply vs dot behavior.
+- `_ffm_grad` (gradient for `FFM`):
+  - Calls `layer_ops_lib.FFMGrad` with `grad`, `left`, `right`, `dim_size`, `int_type`.
+  - Returns `(left_grad, right_grad)`.
+- `feature_insight(input_embedding, weight, segment_sizes, aggregate=False)`:
+  - Asserts `segment_sizes` provided and `input_embedding.shape[-1] == weight.shape[0]`.
+  - Calls `FeatureInsight` custom op.
+  - If `aggregate=True`:
+    - Builds `segment_ids` of length `k * num_feature` where `k = weight.shape[-1]`.
+    - Returns `transpose(segment_sum(transpose(out * out), segment_ids))`.
+  - Else returns `out` directly.
+- `_feature_insight` (gradient for `FeatureInsight`):
+  - Calls `FeatureInsightGrad` with `grad`, `input`, `weight`, `segment_sizes`, `K`.
+  - Returns gradients for input_embedding and weight.
+- `fid_counter(counter, counter_threshold, step=1.0)`:
+  - Calls `MonolithFidCounter` op with `counter`, `step`, `counter_threshold`.
+  - Adds `step` to counter, then clamps at threshold.
+  - Docstring notes counter slice should use `SgdOptimizer(1.0)` and suggests `Fp32Compressor`.
+- `_fid_counter_grad`:
+  - Gradient is `-step` (as a constant) until `counter >= counter_threshold`, then zero.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: custom ops would live in `monolith-rs/crates/monolith-tf` (TF runtime) or in native Rust layers (for pure Rust path).
+- Rust public API surface:
+  - Provide equivalents for `ffm`, `feature_insight`, `fid_counter` if needed by higher-level layers.
+- Data model mapping:
+  - `int_type` → Rust enum for multiply/dot.
+  - `segment_sizes` and `aggregate` → explicit API arguments.
+- Feature gating: TF runtime only for custom ops unless reimplemented in Rust.
+- Integration points: `feature_cross.GroupInt` uses `ffm`; other code may rely on `feature_insight` or `fid_counter`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Decide whether to reimplement `FFM`, `FeatureInsight`, and `MonolithFidCounter` in Rust or provide TF-runtime wrappers.
+2. If TF runtime is used, expose safe Rust bindings and gradient equivalents.
+3. For pure Rust path, implement `ffm` and its backward, plus feature_insight/ fid_counter logic.
+4. Add tests for forward and backward (if training supported).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: None dedicated in this file (covered by layer tests).
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/layer_ops_test.rs` (new, if implemented).
+- Cross-language parity test:
+  - Compare FFM outputs/gradients and fid_counter behavior between Python and Rust.
 
 **Gaps / Notes**
-- TODO (manual)
+- `feature_insight` and `fid_counter` depend on custom TF ops; Rust currently lacks equivalents.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
