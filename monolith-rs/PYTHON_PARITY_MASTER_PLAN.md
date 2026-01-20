@@ -529,7 +529,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/dense_test.py`](#monolith-native-training-layers-dense-test-py) | 147 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/dense_test.rs |  |
 | [`monolith/native_training/layers/feature_cross.py`](#monolith-native-training-layers-feature-cross-py) | 805 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/feature_cross.rs |  |
 | [`monolith/native_training/layers/feature_cross_test.py`](#monolith-native-training-layers-feature-cross-test-py) | 286 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/feature_cross_test.rs |  |
-| [`monolith/native_training/layers/feature_seq.py`](#monolith-native-training-layers-feature-seq-py) | 361 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/feature_seq.py`](#monolith-native-training-layers-feature-seq-py) | 361 | IN PROGRESS | monolith-rs/crates/monolith-layers/src |  |
 | [`monolith/native_training/layers/feature_seq_test.py`](#monolith-native-training-layers-feature-seq-test-py) | 126 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/feature_trans.py`](#monolith-native-training-layers-feature-trans-py) | 340 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/feature_trans_test.py`](#monolith-native-training-layers-feature-trans-test-py) | 140 | TODO | TODO (manual) |  |
@@ -13152,50 +13152,81 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/feature_seq.py`
 <a id="monolith-native-training-layers-feature-seq-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 361
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Sequence feature models: DIN attention, DIEN interest evolution, DMR_U2I sequence matching.
+- Key symbols/classes/functions: `DIN`, `DIEN`, `DMR_U2I`.
+- External dependencies: TensorFlow/Keras (`Layer`, `Dense`, `GRUCell`, activations/initializers/regularizers), Monolith layers (`MLP`, `AGRUCell`, `dynamic_rnn_with_attention`), `monolith_export`, `with_params`.
+- Side effects: Adds nested layer weights/regularization losses; uses TF summary in DIN when mask provided.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `DIN`:
+  - Inputs: `queries` `[B,H]`, `keys` `[B,T,H]`; optional `mask` in kwargs.
+  - Builds MLP (`dense_tower`) with `hidden_units` (last dim must be 1).
+  - Call:
+    - Tile `queries` to `[B,T,H]`.
+    - `din_all = concat([q, k, q-k, q*k], axis=-1)` -> `[B,T,4H]`.
+    - `attention_weight = dense_tower(din_all)` -> `[B,T,1]`.
+    - If `decay`, divide by `sqrt(H)`.
+    - If `mask`: zero out masked positions and emit summary histogram `{name}_attention_outputs`.
+    - If `mode == 'sum'`: `attention_out = matmul(attention_weight, keys, transpose_a=True)` -> `[B,1,H]`, squeeze to `[B,H]`.
+    - Else: elementwise `keys * attention_weight` -> `[B,T,H]`.
+- `DIEN`:
+  - Builds:
+    - GRUCell for interest extraction (`gru_cell`).
+    - AGRUCell (`augru_cell`) for interest evolution (note: `att_type` argument exists but build hard-codes `att_type='AGRU'`).
+    - Attention weight matrix `weight` `(num_units, num_units)`.
+  - `_attention(queries, keys)`:
+    - `query_weight = matmul(queries, weight, transpose_b=True)` reshape to `[B, H, 1]`.
+    - `logit = squeeze(matmul(keys, query_weight))` -> `[B,T]`.
+    - `softmax(logit)` returns attention scores.
+  - `call`:
+    - Accepts `queries` and `keys` from args/kwargs (mask optional but unused).
+    - `outputs = dynamic_rnn(gru_cell, keys)` -> `[B,T,H]`.
+    - `attn_scores = _attention(queries, outputs)` -> `[B,T]`.
+    - `_, final_state = dynamic_rnn_with_attention(augru_cell, outputs, attn_scores)`.
+    - Returns `final_state` `[B,H]`.
+- `DMR_U2I`:
+  - Build: `pos_emb (seq_len, cmp_dim)`, `emb_weight (ue_size, cmp_dim)`, `z_weight (cmp_dim,1)`, `bias (cmp_dim)`, `linear Dense` to `ie_size`.
+  - Call:
+    - `emb_cmp = user_seq @ emb_weight`.
+    - `comped = pos_emb + emb_cmp + bias`.
+    - `alpha = softmax(comped @ z_weight, axis=1)` -> `[B,seq_len,1]`.
+    - `user_seq_merged = squeeze(transpose(user_seq) @ alpha)` -> `[B, ue_size]`.
+    - `user_seq_merged = linear(user_seq_merged)` -> `[B, ie_size]`.
+    - Output `user_seq_merged * items` (elementwise).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module:
+  - `monolith-rs/crates/monolith-layers/src/din.rs` (DIN).
+  - `monolith-rs/crates/monolith-layers/src/dien.rs` (DIEN).
+  - `monolith-rs/crates/monolith-layers/src/dmr.rs` (DMR_U2I).
+- Rust public API surface:
+  - `DINAttention`/`DINConfig`, `DIENLayer`/`DIENConfig`, `DMRU2I`.
+- Data model mapping:
+  - Python `mode` (`sum` vs elementwise) → Rust `DINOutputMode`.
+  - Activation strings → Rust `ActivationType`.
+  - AGRU/GRU cell configs → Rust GRU/AUGRU implementations.
+- Feature gating: None.
+- Integration points: AGRU, MLP, Dense, activation registry.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Verify DIN attention math and mask handling match Python (including decay scaling and summary logging).
+2. Ensure DIEN uses the same attention formula; decide whether to respect Python’s `att_type` parameter (currently ignored).
+3. Align DIEN to use AGRU vs AUGRU to match Python behavior.
+4. Implement DMR_U2I using Dense + activation as in Python, including position embeddings.
+5. Add config serialization for all three layers.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/feature_seq_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/feature_seq_test.rs` (new).
+- Cross-language parity test:
+  - Fixed inputs and weights; compare outputs for DIN (sum/elementwise), DIEN, and DMR_U2I.
 
 **Gaps / Notes**
-- TODO (manual)
+- DIEN’s `att_type` argument is not used in build (hard-coded `'AGRU'`); decide whether to mirror this bug or fix with a flag.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
