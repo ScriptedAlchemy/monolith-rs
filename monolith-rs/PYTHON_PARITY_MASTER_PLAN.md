@@ -556,8 +556,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/logging_ops_test.py`](#monolith-native-training-logging-ops-test-py) | 57 | IN PROGRESS | N/A (TF custom ops) |  |
 | [`monolith/native_training/losses/batch_softmax_loss.py`](#monolith-native-training-losses-batch-softmax-loss-py) | 57 | IN PROGRESS | N/A (no Rust loss yet) |  |
 | [`monolith/native_training/losses/batch_softmax_loss_test.py`](#monolith-native-training-losses-batch-softmax-loss-test-py) | 35 | IN PROGRESS | N/A (no Rust loss yet) |  |
-| [`monolith/native_training/losses/inbatch_auc_loss.py`](#monolith-native-training-losses-inbatch-auc-loss-py) | 41 | TODO | TODO (manual) |  |
-| [`monolith/native_training/losses/inbatch_auc_loss_test.py`](#monolith-native-training-losses-inbatch-auc-loss-test-py) | 71 | TODO | TODO (manual) |  |
+| [`monolith/native_training/losses/inbatch_auc_loss.py`](#monolith-native-training-losses-inbatch-auc-loss-py) | 41 | IN PROGRESS | N/A (TF custom op) |  |
+| [`monolith/native_training/losses/inbatch_auc_loss_test.py`](#monolith-native-training-losses-inbatch-auc-loss-test-py) | 71 | IN PROGRESS | N/A (TF custom op) |  |
 | [`monolith/native_training/losses/ltr_losses.py`](#monolith-native-training-losses-ltr-losses-py) | 1233 | TODO | TODO (manual) |  |
 | [`monolith/native_training/metric/cli.py`](#monolith-native-training-metric-cli-py) | 28 | TODO | TODO (manual) |  |
 | [`monolith/native_training/metric/deep_insight_ops.py`](#monolith-native-training-metric-deep-insight-ops-py) | 134 | TODO | TODO (manual) |  |
@@ -14846,50 +14846,39 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/losses/inbatch_auc_loss.py`
 <a id="monolith-native-training-losses-inbatch-auc-loss-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 41
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Wrapper for custom TF op `InbatchAucLoss` and its gradient registration.
+- Key symbols/classes/functions: `inbatch_auc_loss`, `_inbatch_auc_loss_grad`.
+- External dependencies: `gen_monolith_ops` custom op.
+- Side effects: Registers gradient for `InbatchAucLoss`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `inbatch_auc_loss(label, logit, neg_weight=1.0)`:
+  - Calls `inbatch_auc_loss_ops.inbatch_auc_loss`.
+- Gradient:
+  - `InbatchAucLoss` gradient returns `None` for label and computed gradient for logit via `inbatch_auc_loss_grad`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (custom TF op not bound in Rust).
+- Rust public API surface: None.
+- Data model mapping: Would need TF runtime binding.
+- Feature gating: TF-runtime only if implemented.
+- Integration points: loss computation in training.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust binding for `InbatchAucLoss` op if TF runtime backend is used.
+2. Expose gradient or compute manually if training is supported.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/losses/inbatch_auc_loss_test.py`.
+- Rust tests: N/A until binding exists.
+- Cross-language parity test: compare loss/grad values for fixed inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Depends on custom TF ops; currently missing in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -14906,50 +14895,43 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/losses/inbatch_auc_loss_test.py`
 <a id="monolith-native-training-losses-inbatch-auc-loss-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 71
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Unit tests for inbatch_auc_loss and its gradient op.
+- Key symbols/classes/functions: `InbatchAucLossTest.test_inbatch_auc_loss`, `test_inbatch_auc_loss_grad`.
+- External dependencies: TensorFlow, Python math.
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_inbatch_auc_loss`:
+  - Uses labels `[1,0,0,1]` and logits `[0.5,-0.2,-0.4,0.8]`.
+  - Computes expected loss by summing `log(sigmoid(diff))` over all pos-neg pairs.
+  - Asserts almost equal to TF op output.
+- `test_inbatch_auc_loss_grad`:
+  - Calls custom op grad with `grad=2`.
+  - Computes expected gradient by pairwise contributions.
+  - Asserts close.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A until custom op binding exists.
+- Rust public API surface: inbatch_auc_loss and grad.
+- Data model mapping: pairwise log-sigmoid over pos-neg pairs.
+- Feature gating: TF runtime only.
+- Integration points: training loss.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement loss (or bind op) and deterministic tests with the same inputs.
+2. Validate gradient against manual computation.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/losses/inbatch_auc_loss_test.py`.
+- Rust tests: add once implementation exists.
+- Cross-language parity test: compare loss/grad for fixed inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Depends on custom TF op; no Rust binding yet.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
