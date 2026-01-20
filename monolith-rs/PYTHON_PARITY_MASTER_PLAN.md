@@ -466,7 +466,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/distribution_ops.py`](#monolith-native-training-distribution-ops-py) | 889 | IN PROGRESS | monolith-rs/crates/monolith-training/src/ops |  |
 | [`monolith/native_training/distribution_ops_benchmark.py`](#monolith-native-training-distribution-ops-benchmark-py) | 118 | IN PROGRESS | monolith-rs/crates/monolith-training/benches |  |
 | [`monolith/native_training/distribution_ops_fused_benchmark.py`](#monolith-native-training-distribution-ops-fused-benchmark-py) | 61 | IN PROGRESS | monolith-rs/crates/monolith-training/benches |  |
-| [`monolith/native_training/distribution_ops_fused_test.py`](#monolith-native-training-distribution-ops-fused-test-py) | 148 | TODO | TODO (manual) |  |
+| [`monolith/native_training/distribution_ops_fused_test.py`](#monolith-native-training-distribution-ops-fused-test-py) | 148 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/distribution_ops_test.py`](#monolith-native-training-distribution-ops-test-py) | 536 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distribution_utils.py`](#monolith-native-training-distribution-utils-py) | 443 | TODO | TODO (manual) |  |
 | [`monolith/native_training/embedding_combiners.py`](#monolith-native-training-embedding-combiners-py) | 102 | TODO | TODO (manual) |  |
@@ -9290,53 +9290,46 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distribution_ops_fused_test.py`
-
 <a id="monolith-native-training-distribution-ops-fused-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 148
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests for `fused_reorder_by_indices` correctness and embedding offset outputs.
+- Key symbols/classes/functions: `_test_fused_reorder_by_indices`, `test_fused_reorder_by_indices`, `test_ragged_tensor_workflow`.
+- External dependencies: TensorFlow, `distribution_ops`.
+- Side effects: none.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_benchmark`: runs a large random `fused_reorder_by_indices` to smoke test.
+- `_test_fused_reorder_by_indices`:
+  - Calls `fused_reorder_by_indices(ids_list, num_of_shards, dim_sizes)`.
+  - Asserts output order, split sizes, and sharded slot sizes; optionally checks embedding offsets.
+- `test_fused_reorder_by_indices`:
+  - Multiple cases: single slot, extra empty slot, plus offset ids, empty slots, different shard counts, and dim_sizes for offsets.
+- `test_ragged_tensor_workflow`:
+  - Builds merged slot values from ragged tensors and validates fused reorder output.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests`.
+- Rust public API surface: `fused_reorder_by_indices` op.
+- Data model mapping: list of id tensors → reordered ids + split sizes.
+- Feature gating: fused distribution ops.
+- Integration points: partitioned hash table lookup pipeline.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement Rust tests mirroring each expected output case.
+2. Validate embedding offsets for dim_sizes cases.
+3. Include ragged workflow test for merged slots.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: `distribution_ops_fused_test.rs`.
+- Cross-language parity test: compare outputs and offsets for fixed inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses Python list inputs; Rust tests should use deterministic tensors.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -9351,6 +9344,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distribution_ops_test.py`
+
 <a id="monolith-native-training-distribution-ops-test-py"></a>
 
 **Status:** TODO (manual review required)
