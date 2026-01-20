@@ -630,8 +630,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/serving_ps_test.py`](#monolith-native-training-serving-ps-test-py) | 231 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/session_run_hooks.py`](#monolith-native-training-session-run-hooks-py) | 171 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/session_run_hooks_test.py`](#monolith-native-training-session-run-hooks-test-py) | 144 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
-| [`monolith/native_training/signal_utils.py`](#monolith-native-training-signal-utils-py) | 37 | TODO | TODO (manual) |  |
-| [`monolith/native_training/signal_utils_test.py`](#monolith-native-training-signal-utils-test-py) | 30 | TODO | TODO (manual) |  |
+| [`monolith/native_training/signal_utils.py`](#monolith-native-training-signal-utils-py) | 37 | IN PROGRESS | monolith-rs/crates/monolith-core/src |  |
+| [`monolith/native_training/signal_utils_test.py`](#monolith-native-training-signal-utils-test-py) | 30 | IN PROGRESS | monolith-rs/crates/monolith-core/src |  |
 | [`monolith/native_training/static_reshape_op.py`](#monolith-native-training-static-reshape-op-py) | 58 | TODO | TODO (manual) |  |
 | [`monolith/native_training/static_reshape_op_test.py`](#monolith-native-training-static-reshape-op-test-py) | 79 | TODO | TODO (manual) |  |
 | [`monolith/native_training/summary/summary_ops.py`](#monolith-native-training-summary-summary-ops-py) | 78 | TODO | TODO (manual) |  |
@@ -20467,50 +20467,42 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/signal_utils.py`
 <a id="monolith-native-training-signal-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 37
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Installs a SIGUSR1 handler that prints stack traces.
+- Key symbols/classes/functions: `print_stack_trace`, `add_siguser1_handler`.
+- External dependencies: `signal`, `traceback`.
+- Side effects: Registers a SIGUSR1 handler at import time.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `print_stack_trace(sig, frame)`:
+  - Prints each line from `traceback.format_stack(frame)`.
+- `add_siguser1_handler()`:
+  - Captures current SIGUSR1 handler (`signal.getsignal`).
+  - Registers new handler that calls previous handler (if callable) then prints stack trace.
+- Module import calls `add_siguser1_handler()` immediately.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src`.
+- Rust public API surface: signal handler registration and stack trace printing.
+- Data model mapping: signal handling and backtrace capture.
+- Feature gating: may be platform-specific (POSIX only).
+- Integration points: runtime diagnostics.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Register SIGUSR1 handler on module init.
+2. Chain previous handler if present.
+3. Print backtrace to stdout/stderr.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/signal_utils_test.py`.
+- Rust tests: add signal handler test (if supported).
+- Cross-language parity test: verify handler chaining and output.
 
 **Gaps / Notes**
-- TODO (manual)
+- Signal handling is OS-specific; Rust may need conditional compilation.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -20527,50 +20519,39 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/signal_utils_test.py`
 <a id="monolith-native-training-signal-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 30
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Verifies SIGUSR1 handler registration and chaining.
+- Key symbols/classes/functions: `SignalUtilsTest`.
+- External dependencies: `signal`, `signal_utils`.
+- Side effects: Raises SIGUSR1 signal.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `testBasic`:
+  - Calls `add_siguser1_handler()` twice to ensure chaining works.
+  - Raises SIGUSR1 signal via `signal.raise_signal`.
+  - Test passes if no exception is raised.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src` (tests).
+- Rust public API surface: signal handler registration.
+- Data model mapping: SIGUSR1 handling.
+- Feature gating: OS-specific support.
+- Integration points: runtime diagnostics.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add test that registers handler twice and raises SIGUSR1.
+2. Ensure no panic/crash.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `SignalUtilsTest` in this file.
+- Rust tests: add signal handler test if supported.
+- Cross-language parity test: ensure handler chaining does not error.
 
 **Gaps / Notes**
-- TODO (manual)
+- Signal handling tests may be flaky on non-POSIX systems.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
