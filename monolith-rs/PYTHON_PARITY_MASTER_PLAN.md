@@ -442,7 +442,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/data/transform/transforms.py`](#monolith-native-training-data-transform-transforms-py) | 250 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/data/transform/transforms_test.py`](#monolith-native-training-data-transform-transforms-test-py) | 70 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/data/transform_dataset_test.py`](#monolith-native-training-data-transform-dataset-test-py) | 168 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
-| [`monolith/native_training/data/utils.py`](#monolith-native-training-data-utils-py) | 55 | TODO | TODO (manual) |  |
+| [`monolith/native_training/data/utils.py`](#monolith-native-training-data-utils-py) | 55 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/debugging/debugging_client.py`](#monolith-native-training-debugging-debugging-client-py) | 98 | TODO | TODO (manual) |  |
 | [`monolith/native_training/debugging/debugging_server.py`](#monolith-native-training-debugging-debugging-server-py) | 217 | TODO | TODO (manual) |  |
 | [`monolith/native_training/demo.py`](#monolith-native-training-demo-py) | 57 | TODO | TODO (manual) |  |
@@ -7724,53 +7724,55 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/data/utils.py`
-
 <a id="monolith-native-training-data-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 55
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Simple slot/feature-name helpers for training_instance parsing; global mapping of feature names to slots with TOB env toggle.
+- Key symbols/classes/functions: `enable_tob_env`, `get_slot_feature_name`, `get_slot_from_feature_name`, `register_slots`, globals `TOBENV`, `USED_FREATUE_NAMES`, `NAME_TO_SLOT`.
+- External dependencies: none.
+- Side effects: mutates global dictionaries for name/slot mapping.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Globals:
+  - `TOBENV` default `False` toggles slot name prefix (`slot_` vs `fc_slot_`).
+  - `USED_FREATUE_NAMES` maps arbitrary feature names to assigned slot ids (incrementing).
+  - `NAME_TO_SLOT` maps feature name → slot id (explicit).
+- `enable_tob_env()`:
+  - Sets `TOBENV = True` globally.
+- `get_slot_feature_name(slot)`:
+  - Returns `"fc_slot_{slot}"` if `TOBENV` else `"slot_{slot}"`.
+- `get_slot_from_feature_name(feature_name)`:
+  - If in `NAME_TO_SLOT`, return mapped slot.
+  - Else if name starts with `slot_` or `fc_slot_`, parse suffix int; return int or `None` if non-numeric.
+  - Else use `USED_FREATUE_NAMES`: assign a new slot id (`len+1`) if missing and return it.
+- `register_slots(sparse_features)`:
+  - Accepts list/tuple of ints or dict name→slot.
+  - For list: asserts ints and converts to dict via `get_slot_feature_name`.
+  - Updates `NAME_TO_SLOT` with provided mapping.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/src` (feature utils).
+- Rust public API surface: slot/feature-name mapping utilities with global registry or context-bound mapping.
+- Data model mapping: feature names → slots used by parsing/feature extraction.
+- Feature gating: TOB env toggle.
+- Integration points: `parse_instance_ops` (fidv1 slot naming), feature list parsing.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a global or context-local registry for `NAME_TO_SLOT` and `USED_FEATURE_NAMES` with deterministic assignment.
+2. Provide `enable_tob_env` toggle and `get_slot_feature_name` logic.
+3. Mirror `get_slot_from_feature_name` fallback behavior for unknown names.
+4. Implement `register_slots` with list/dict handling and type checks.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none explicit.
+- Rust tests: add unit tests for TOB/non-TOB naming and deterministic slot assignment.
+- Cross-language parity test: compare mapping outputs for a fixed sequence of names.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses global mutable state; Rust must be careful about concurrency or test isolation.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7785,6 +7787,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/debugging/debugging_client.py`
+
 <a id="monolith-native-training-debugging-debugging-client-py"></a>
 
 **Status:** TODO (manual review required)
