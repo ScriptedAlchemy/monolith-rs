@@ -619,7 +619,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/ragged_utils.py`](#monolith-native-training-ragged-utils-py) | 29 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
 | [`monolith/native_training/ragged_utils_test.py`](#monolith-native-training-ragged-utils-test-py) | 32 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
 | [`monolith/native_training/remote_predict_ops.py`](#monolith-native-training-remote-predict-ops-py) | 0 | IN PROGRESS | N/A (empty stub) |  |
-| [`monolith/native_training/restore_test.py`](#monolith-native-training-restore-test-py) | 240 | TODO | TODO (manual) |  |
+| [`monolith/native_training/restore_test.py`](#monolith-native-training-restore-test-py) | 240 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/runner_utils.py`](#monolith-native-training-runner-utils-py) | 396 | TODO | TODO (manual) |  |
 | [`monolith/native_training/runner_utils_test.py`](#monolith-native-training-runner-utils-test-py) | 108 | TODO | TODO (manual) |  |
 | [`monolith/native_training/runtime/ops/gen_monolith_ops.py`](#monolith-native-training-runtime-ops-gen-monolith-ops-py) | 23 | TODO | TODO (manual) |  |
@@ -19655,50 +19655,61 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/restore_test.py`
 <a id="monolith-native-training-restore-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 240
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Integration tests for partial and full checkpoint restore across parameter servers (with and without PS monitor).
+- Key symbols/classes/functions: `_generate_config`, `_get_id_tensor`, `PartialRestoreTest`.
+- External dependencies: TensorFlow distributed server APIs, `basic_restore_hook`, `hash_table_ops`, `save_utils`, `utils`.
+- Side effects: Creates local TF servers, writes checkpoints to `TEST_TMPDIR`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`_generate_config(servers, job_name=utils.PS_JOB_NAME)`**
+  - Builds a `ClusterDef` with one job and tasks derived from `server.target` (strip `grpc://`).
+  - Returns `ConfigProto` with `experimental.share_session_state_in_clusterspec_propagation = True`.
+- **`_get_id_tensor(x)`** returns `tf.constant(x, dtype=tf.int64)`.
+- **`PartialRestoreTest.build_graph()`**
+  - On `ps_device(0)`:
+    - Creates `global_step`, increments, `v0`, `op0`, hash table 0, assign_add, lookup.
+  - On `ps_device(1)`:
+    - Creates `v1`, `op1`, hash table 1, assign_add, lookup.
+  - Returns `(train_op, v0, v1, lookup0, lookup1)` where `train_op` groups ops.
+- **`test_restore_with_ps_monitor`**
+  - Uses `PartialRecoverySaver` with `PsMonitor(2)` and `NoFirstSaveCheckpointSaverHook`.
+  - Uses `HashTableCheckpointSaverListener` and `HashTableCheckpointRestorerListener`.
+  - Creates two local servers, saves checkpoint after one step.
+  - Runs a second session without restore hooks to mutate variables.
+  - Creates new servers and restores full checkpoint; asserts values back to 1.
+  - Creates a cluster with only one of the original PS servers and restores partially; asserts v0/lookup0 restored to 2 while v1/lookup1 restored to 1.
+- **`test_restore_without_ps_monitor`**
+  - Same as above but without `PsMonitor`:
+    - Save checkpoint after one step.
+    - Mutate values in a second session.
+    - Restore all variables in a third session; assert values back to 1.
+- `__main__`: disables eager execution and runs `tf.test.main()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (checkpoint restore tests).
+- Rust public API surface: restore hooks, saver utilities, hash table checkpoint listeners.
+- Data model mapping: distributed cluster config and PS device placement.
+- Feature gating: TF runtime backend required.
+- Integration points: `save_utils` and `hash_table_ops` parity.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Provide Rust equivalents for `PartialRecoverySaver`, `PsMonitor`, and restore hooks.
+2. Implement hash table checkpoint save/restore listeners for embedding tables.
+3. Build a local distributed test harness that supports multiple PS servers.
+4. Port both tests: full restore and partial restore with PS monitor.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `PartialRestoreTest` in this file.
+- Rust tests: add integration tests for checkpoint restore paths.
+- Cross-language parity test: compare restored values across identical checkpoints.
 
 **Gaps / Notes**
-- TODO (manual)
+- Heavy reliance on TF distributed runtime and custom hash table ops.
+- Partial restore logic depends on PS monitor and server set differences.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
