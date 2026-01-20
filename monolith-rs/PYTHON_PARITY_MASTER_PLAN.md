@@ -549,7 +549,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/pooling_test.py`](#monolith-native-training-layers-pooling-test-py) | 141 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/pooling_test.rs |  |
 | [`monolith/native_training/layers/sparse_nas.py`](#monolith-native-training-layers-sparse-nas-py) | 31 | IN PROGRESS | N/A (stub) |  |
 | [`monolith/native_training/layers/sparse_nas_test.py`](#monolith-native-training-layers-sparse-nas-test-py) | 23 | IN PROGRESS | N/A (empty test) |  |
-| [`monolith/native_training/layers/utils.py`](#monolith-native-training-layers-utils-py) | 159 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/utils.py`](#monolith-native-training-layers-utils-py) | 159 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/merge.rs |  |
 | [`monolith/native_training/learning_rate_functions.py`](#monolith-native-training-learning-rate-functions-py) | 112 | TODO | TODO (manual) |  |
 | [`monolith/native_training/learning_rate_functions_test.py`](#monolith-native-training-learning-rate-functions-test-py) | 76 | TODO | TODO (manual) |  |
 | [`monolith/native_training/logging_ops.py`](#monolith-native-training-logging-ops-py) | 56 | TODO | TODO (manual) |  |
@@ -14452,50 +14452,58 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/utils.py`
 <a id="monolith-native-training-layers-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 159
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Shared utilities for layer code: merge semantics, shape helpers, and Gumbel-based subset sampling.
+- Key symbols/classes/functions: `MergeType`, `DCNType`, `check_dim`, `dim_size`, `merge_tensor_list`, `gumbel_keys`, `continuous_topk`, `sample_subset`.
+- External dependencies: TensorFlow, NumPy.
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `MergeType`: string constants `concat`, `stack`, `None`.
+- `DCNType`: string constants `vector`, `matrix`, `mixed`.
+- `check_dim(dim)`:
+  - `None` → `-1`, `int` → itself, `tf.compat.v1.Dimension` → `.value`, else raise.
+- `dim_size(inputs, axis)`:
+  - Uses static shape; if unknown (`-1`), returns dynamic `array_ops.shape(inputs)[axis]`.
+- `merge_tensor_list(tensor_list, merge_type='concat', num_feature=None, axis=1, keep_list=False)`:
+  - Accepts tensor or list; if single tensor, uses shape to decide:
+    - 3D: `stack` returns `[tensor]` or tensor; `concat` reshapes to `[B, num_feat*emb]`; `None` unstack on axis.
+    - 2D with `num_feature>1`: `stack` reshapes to `[B, num_feature, emb]`; `concat` returns as-is; `None` unstack.
+    - 2D without `num_feature`: returns as-is.
+    - Else: raise shape error.
+  - For list length >1: `stack`, `concat`, or return list.
+- `gumbel_keys(w)`: samples Gumbel noise and adds to `w`.
+- `continuous_topk(w, k, t, separate=False)`:
+  - Iteratively computes soft top-k masks; returns sum or list.
+- `sample_subset(w, k, t=0.1)`:
+  - `w = gumbel_keys(w)` then `continuous_topk`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/src/merge.rs` for merge utilities; DCNType maps to `monolith-layers/src/dcn.rs` (`DCNMode`).
+- Rust public API surface: `MergeType`, `merge_tensor_list`, `merge_tensor_list_tensor`.
+- Data model mapping:
+  - `MergeType::None` corresponds to `MergeOutput::List`.
+  - `check_dim`/`dim_size` are implicit in Rust shape handling; consider helper utilities.
+  - Gumbel subset sampling functions not currently present in Rust.
+- Feature gating: None.
+- Integration points: feature_cross, feature_trans, senet, etc.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Verify `merge_tensor_list` semantics in Rust match Python (including single-tensor reshape/unstack cases).
+2. Add Rust equivalents for `check_dim`/`dim_size` if needed for dynamic shapes.
+3. Implement Gumbel subset sampling helpers if required by future layers.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none specific.
+- Rust tests: add unit tests in `monolith-rs/crates/monolith-layers/tests/merge_test.rs` if not present.
+- Cross-language parity test:
+  - Compare merge outputs for 2D/3D inputs with `num_feature` and `keep_list` settings.
 
 **Gaps / Notes**
-- TODO (manual)
+- Gumbel subset sampling utilities are missing in Rust; add if used elsewhere.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
