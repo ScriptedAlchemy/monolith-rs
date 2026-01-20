@@ -485,7 +485,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/feature_utils_test.py`](#monolith-native-training-feature-utils-test-py) | 144 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/file_ops.py`](#monolith-native-training-file-ops-py) | 51 | IN PROGRESS | monolith-rs/crates/monolith-training/src/file_ops.rs (new) |  |
 | [`monolith/native_training/file_ops_test.py`](#monolith-native-training-file-ops-test-py) | 56 | IN PROGRESS | monolith-rs/crates/monolith-training/tests/file_ops.rs (new) |  |
-| [`monolith/native_training/fused_embedding_to_layout_test.py`](#monolith-native-training-fused-embedding-to-layout-test-py) | 1333 | TODO | TODO (manual) |  |
+| [`monolith/native_training/fused_embedding_to_layout_test.py`](#monolith-native-training-fused-embedding-to-layout-test-py) | 1333 | IN PROGRESS | monolith-rs/crates/monolith-training/tests/fused_embedding_to_layout.rs (new) |  |
 | [`monolith/native_training/gen_seq_mask.py`](#monolith-native-training-gen-seq-mask-py) | 26 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/gen_seq_mask_test.py`](#monolith-native-training-gen-seq-mask-test-py) | 42 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests |  |
 | [`monolith/native_training/gflags_utils.py`](#monolith-native-training-gflags-utils-py) | 282 | IN PROGRESS | monolith-rs/crates/monolith-cli/src |  |
@@ -826,6 +826,89 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Gaps / Notes**
 - Tests rely on `TEST_TMPDIR` env var; Rust tests should mirror temp dir handling.
+
+### `monolith/native_training/fused_embedding_to_layout_test.py`
+<a id="monolith-native-training-fused-embedding-to-layout-test-py"></a>
+
+**Status:** IN PROGRESS (manual review complete)
+
+**Python Summary**
+- Lines: 1333
+- Purpose/role: Validates `distribution_ops.fused_embedding_to_layout` output and gradients across multiple op versions, sharding modes, and example/example_batch variants.
+- Key symbols/classes/functions: `infer_shape`, `pooling`, `FusedEmbeddingToLayoutTest`, `FusedEmbeddingToLayoutFitPreTest`.
+- External dependencies: TensorFlow, `distribution_ops`, `parse_examples`, `sharding_sparse_fids`, Example/ExampleBatch protos.
+- Side effects: Disables TF v2 behavior, sets RNG seed, logs debug output.
+
+**Required Behavior (Detailed)**
+- Helpers:
+  - `infer_shape(out_conf, out_type, max_sequence_length=0)`:
+    - Populates `out_conf.shape` for `OutType.NONE/CONCAT/STACK/ADDN`.
+    - Uses `[-1, ...]` batch dimension, optionally `[max_sequence_length]`.
+  - `get_key(ln, sc)` returns `"{layout}_{feature_name}_{start}_{end}"`.
+  - `pooling(pooling_type, in_data, max_length)`:
+    - `SUM`: elementwise sum.
+    - `MEAN`: elementwise mean.
+    - Else: returns padded/truncated sequence matrix of shape `(max_length, dim)`.
+- `FusedEmbeddingToLayoutTest`:
+  - `get_feature_cfg` builds per-feature/table metadata and indices (sorted by table/feature names).
+  - `test_fused_embedding_to_layout(...)`:
+    - Builds `FeatureConfigs` with multiple tables, slice configs, pooling types, and output configs (`bias`, `vec`, `ffm1`, `ffm2`, `firstN`).
+    - Generates random fids per slot and expected pooled outputs.
+    - Builds offsets (`fid_offset_list`, `feature_offset_list`, `nfl_offset_list`) and embedding lists per PS/table.
+    - If `shard_op_version` provided, uses `parse_examples` + `sharding_sparse_fids` to generate offsets.
+    - Calls `distribution_ops.fused_embedding_to_layout` with `version` and `parallel_flag`, optionally GPU.
+    - Asserts output tensors match numpy-truth via `np.allclose`.
+  - Variants:
+    - `test_fused_embedding_to_layout_use_shard_op` (version 2).
+    - `test_fused_embedding_to_layout_use_shard_op3(_gpu)` (version 3, GPU optional).
+    - `test_fused_embedding_to_layout_use_shard_op4(_gpu)` (version 4, GPU optional).
+    - `test_fused_embedding_to_layout_parallel` (parallel_flag=0).
+  - `test_fused_embedding_to_layout_grad(...)`:
+    - Constructs inputs similarly, computes `tf.gradients` of layouts w.r.t embeddings.
+    - Builds “truth” counts for each fid (SUM/MEAN/FIRSTN handling).
+    - For version 4, splits gradients to per-table/per-ps ordering.
+    - Asserts grads are uniform per fid and equal to expected count.
+    - Wrapper tests mirror the output tests for shard op versions and GPU.
+- `FusedEmbeddingToLayoutFitPreTest`:
+  - `test_fused_embedding_to_layout`:
+    - Uses `ExampleBatch` with shared/individual features; sets `SHARD_BIT` for shared.
+    - Builds offsets, embeddings, and expected outputs for `bias/vec/ffm1/ffm2`.
+    - Calls `fused_embedding_to_layout` version 1 (variant_type `example_batch`) and compares outputs.
+  - `test_fused_embedding_to_layout_grad`:
+    - Smaller gradient test (version 1) on `Example` input; verifies gradient counts.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/fused_embedding_to_layout.rs` (new).
+- Rust public API surface: `distribution_ops::fused_embedding_to_layout` equivalent + gradient support.
+- Data model mapping:
+  - Example/ExampleBatch proto parsing + fid offsets.
+  - Output layout configs (`FeatureConfigs`, `OutConfig`, `SliceConfig`).
+- Feature gating:
+  - GPU tests under a `cuda`/GPU feature.
+  - Sharding op versions (2/3/4) require corresponding Rust implementations.
+- Integration points:
+  - `distribution_ops`, `parser_utils`, and fused layout feature pipeline.
+
+**Implementation Steps (Detailed)**
+1. Implement fused layout op in Rust with version semantics (1–4) and `parallel_flag`.
+2. Port sharding_sparse_fids logic for versions 2/3/4 so test inputs can be generated.
+3. Implement pooling semantics and expected-shape inference for test verification.
+4. Add gradient checks (per-fid uniform gradient, equals usage counts).
+5. Provide GPU test path for versions >=3.
+
+**Tests (Detailed)**
+- Python tests: this file (multiple output + gradient tests).
+- Rust tests:
+  - `fused_embedding_to_layout_v1_example_batch`
+  - `fused_embedding_to_layout_v2_v3_v4` (CPU/GPU)
+  - `fused_embedding_to_layout_grad` variants
+- Cross-language parity test:
+  - Generate identical inputs in Python and Rust and compare layout outputs + grads.
+
+**Gaps / Notes**
+- For `op_version >= 3` without `shard_op_version`, the test raises `TypeError('Not imple')`.
+- GPU tests require `test_util.use_gpu()` and only run for versions 3/4.
+- Uses global RNG seeds (`np.random.seed(2)` and `random.randint`), so determinism depends on Python RNG behavior.
 
 ### `monolith/agent_service/__init__.py`
 <a id="monolith-agent-service-init-py"></a>
