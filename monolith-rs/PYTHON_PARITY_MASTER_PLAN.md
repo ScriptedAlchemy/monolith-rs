@@ -445,7 +445,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/data/utils.py`](#monolith-native-training-data-utils-py) | 55 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/debugging/debugging_client.py`](#monolith-native-training-debugging-debugging-client-py) | 98 | IN PROGRESS | monolith-rs/crates/monolith-training/src/debugging |  |
 | [`monolith/native_training/debugging/debugging_server.py`](#monolith-native-training-debugging-debugging-server-py) | 217 | IN PROGRESS | monolith-rs/crates/monolith-training/src/debugging |  |
-| [`monolith/native_training/demo.py`](#monolith-native-training-demo-py) | 57 | TODO | TODO (manual) |  |
+| [`monolith/native_training/demo.py`](#monolith-native-training-demo-py) | 57 | IN PROGRESS | monolith-rs/crates/monolith-training/examples |  |
 | [`monolith/native_training/dense_reload_utils.py`](#monolith-native-training-dense-reload-utils-py) | 457 | TODO | TODO (manual) |  |
 | [`monolith/native_training/dense_reload_utils_test.py`](#monolith-native-training-dense-reload-utils-test-py) | 192 | TODO | TODO (manual) |  |
 | [`monolith/native_training/device_utils.py`](#monolith-native-training-device-utils-py) | 231 | TODO | TODO (manual) |  |
@@ -7923,53 +7923,49 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/demo.py`
-
 <a id="monolith-native-training-demo-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 57
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Minimal demo entrypoint to run a local CPU training job for `TestFFMModel` with export enabled.
+- Key symbols/classes/functions: `main`, CLI flags `num_ps`, `model_dir`.
+- External dependencies: `cpu_training.local_train`, `TestFFMModel`, `ExportMode`.
+- Side effects: launches a training run, writes checkpoints/exports to `model_dir`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- CLI flags:
+  - `--num_ps`: number of parameter servers; `0` runs locally.
+  - `--model_dir`: output directory.
+- `main`:
+  - Builds params via `TestFFMModel.params()` and sets:
+    - `params.name = 'test_ffm_model'`
+    - `params.train.per_replica_batch_size = 64`
+    - `params.serving.export_when_saving = True`
+    - `params.serving.export_mode = ExportMode.DISTRIBUTED`
+  - Calls `cpu_training.local_train(..., steps=100, save_checkpoints_steps=50)`.
+- Script mode: enables INFO logging and disables eager execution.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/examples` (or CLI).
+- Rust public API surface: demo binary that runs a comparable CPU training flow.
+- Data model mapping: params/config to Rust training config.
+- Feature gating: requires training pipeline parity with Python.
+- Integration points: `cpu_training` equivalent and model definition in Rust.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a Rust demo that configures an equivalent model and training loop.
+2. Mirror flags (`num_ps`, `model_dir`) and default values.
+3. Ensure checkpoint/export cadence matches (`steps=100`, `save_checkpoints_steps=50`).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: optional smoke test that runs a short training stub.
+- Cross-language parity test: compare produced artifacts for a short run (if feasible).
 
 **Gaps / Notes**
-- TODO (manual)
+- Depends on `TestFFMModel` and `cpu_training` parity in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7984,6 +7980,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/dense_reload_utils.py`
+
 <a id="monolith-native-training-dense-reload-utils-py"></a>
 
 **Status:** TODO (manual review required)
