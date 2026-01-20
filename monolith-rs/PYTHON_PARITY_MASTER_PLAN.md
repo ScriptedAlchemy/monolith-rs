@@ -611,7 +611,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/optimizers/rmsprop.py`](#monolith-native-training-optimizers-rmsprop-py) | 102 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
 | [`monolith/native_training/optimizers/rmsprop_test.py`](#monolith-native-training-optimizers-rmsprop-test-py) | 77 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
 | [`monolith/native_training/optimizers/rmspropv2_test.py`](#monolith-native-training-optimizers-rmspropv2-test-py) | 112 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
-| [`monolith/native_training/optimizers/shampoo.py`](#monolith-native-training-optimizers-shampoo-py) | 207 | TODO | TODO (manual) |  |
+| [`monolith/native_training/optimizers/shampoo.py`](#monolith-native-training-optimizers-shampoo-py) | 207 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
 | [`monolith/native_training/prefetch_queue.py`](#monolith-native-training-prefetch-queue-py) | 379 | TODO | TODO (manual) |  |
 | [`monolith/native_training/prefetch_queue_test.py`](#monolith-native-training-prefetch-queue-test-py) | 305 | TODO | TODO (manual) |  |
 | [`monolith/native_training/ps_benchmark.py`](#monolith-native-training-ps-benchmark-py) | 273 | TODO | TODO (manual) |  |
@@ -19045,50 +19045,106 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/optimizers/shampoo.py`
 <a id="monolith-native-training-optimizers-shampoo-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 207
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Implements a dense-only Shampoo optimizer variant with eigen-based preconditioning, warmup blending, and AdaGrad-style normalization.
+- Key symbols/classes/functions: `eigen_inverse_root`, `apply_sparse_precond`, `ShampooOptimizer`.
+- External dependencies: TensorFlow v1 optimizer APIs, `tf.linalg.eigh`, `tensorflow.python.ops.state_ops`, `io_ops`.
+- Side effects: Creates multiple slot variables per tensor dimension and updates them on each step.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`eigen_inverse_root(mat, p, head, tail, damping=1e-3)`** (`@tf.function`):
+  - Computes eigen-decomposition `eval, evec = tf.linalg.eigh(mat)`.
+  - `alpha = -1.0 / p`, `dim = mat.shape[0]`.
+  - `non_zero = tf.where(eval > damping)`.
+  - `zeros` is:
+    - `min(non_zero)` if non_zero not empty,
+    - else `0`.
+  - `eval_p = pow(max(eval, damping), alpha)`.
+  - Head/tail selection adjustments:
+    - If `head + tail > dim`: set `zeros = 0`, `head = dim`, `tail = 0`.
+    - Else if `zeros + head + tail > dim`: set `zeros = dim - head - tail`.
+  - Selects eigenvalues/vectors:
+    - `eval_ht = concat(eval_p[zeros:zeros+head], eval_p[dim-tail:])`
+    - `evec_ht = concat(evec[:, zeros:zeros+head], evec[:, dim-tail:], axis=1)`
+  - `offset`:
+    - `0.0` if `zeros + head + tail == dim`,
+    - else `mean(eval[zeros+head:dim-tail])`.
+  - Returns `(evec_ht, eval_ht - offset, offset)`.
+- **`apply_sparse_precond(tensor, pvec, pval, offset)`**
+  - Applies preconditioner using `tensordot`:
+    - `tensor_tmp_1 = tensordot(tensor, pvec, axes=[[0],[0]])`
+    - `tensor_tmp_2 = tensor_tmp_1 * pval`
+    - `tensor_tmp_3 = tensordot(tensor_tmp_2, pvec, axes=[[-1],[-1]])`
+  - Computes `tensor_transpose = transpose(tensor, perm=[1..rank-1,0])`.
+  - Returns `tensor_tmp_3 + tensor_transpose * offset`.
+- **`ShampooOptimizer(tf.compat.v1.train.Optimizer)`**
+  - `__init__(learning_rate=0.03, beta_1=0.9, beta_2=1.0, warmup=5000, tau_1=200, tau_2=20, eigen_head=100, eigen_tail=100, damping_epsilon=1e-3, use_locking=False, name="Shampoo", **kwargs)`:
+    - Stores parameters; passes `**kwargs` to base optimizer.
+  - `_create_slots(var_list)`:
+    - For each variable and each dimension `i`:
+      - Creates `s{i}` and `g{i}` slots of shape `[dim, dim]`.
+      - Computes `eigens = min(dim, eigen_head + eigen_tail)` and creates:
+        - `pvec{i}` `[dim, eigens]`
+        - `pval{i}` `[eigens]`
+        - `o{i}` scalar.
+    - Creates zero slots `d`, `m`, `pm` for each variable.
+  - `_resource_apply_dense(grad, var)`:
+    - Computes:
+      - `global_step = tf.cast(tf.train.get_global_step(), int32)`.
+      - `if_update_stat = (global_step % tau_2 == 0)`.
+      - `if_warmed_up = global_step > warmup`.
+      - `if_update_precond = if_warmed_up AND (global_step % tau_1 == 0)`.
+      - `warmup_rate = clamp(global_step / warmup - 1, 0, 1)`.
+      - `if_stat_momentum = beta_2 < 1.0 - 1e-10`.
+    - For each dimension `i`:
+      - `g_t`: if_update_stat → assign `tensordot(grad, grad, axes=[axes, axes])`, else identity.
+      - `s_t`: if_stat_momentum → `s = beta_2*s + (1-beta_2)*g_t`, else `s += g_t`.
+      - `pvec/pval/offset`: if_update_precond → compute from `eigen_inverse_root(s_t, 2*rank, ...)` and assign; else identity.
+      - Updates `grad_precond = apply_sparse_precond(grad_precond, pvec_t, pval_t, offset_t)`.
+    - Accumulates `d_t = d + grad*grad`.
+    - `m_t = beta_1*m + (1-beta_1)*grad*rsqrt(d_t + 1e-30)`.
+    - `pm_t = beta_1*pm + (1-beta_1)*grad_precond`.
+    - `update_diag = lr * m_t`.
+    - `update_second = lr * norm(m_t) / (norm(pm_t) + 1e-10) * pm_t`.
+    - `var_t`:
+      - If warmed up: `var -= (1-warmup_rate)*update_diag + warmup_rate*update_second`.
+      - Else: `var -= update_diag`.
+    - Returns `tf.group(*ops)` of all state updates.
+  - `_resource_apply_sparse(grad, var)`:
+    - `raise tf.no_op()` (note: this raises an op, likely unintended but must match).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-optimizer/src`.
+- Rust public API surface:
+  - `ShampooOptimizer` with identical hyperparameters.
+  - Helper functions for eigen inverse root and preconditioning.
+- Data model mapping:
+  - Slot tensors for each dimension (`s`, `g`, `pvec`, `pval`, `o`, `d`, `m`, `pm`).
+  - Requires eigen decomposition and matrix operations.
+- Feature gating:
+  - This optimizer is heavy; consider optional feature or backend requirement (eigen decomposition support).
+- Integration points:
+  - Training loop should only enable for dense tensors.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement `eigen_inverse_root` and `apply_sparse_precond` with identical axis semantics.
+2. Implement slot creation per dimension and scalar slots `d/m/pm`.
+3. Mirror update scheduling via `tau_1`, `tau_2`, `warmup`, and global step.
+4. Implement warmup blending and normalization exactly.
+5. Decide handling of sparse gradients (match Python error).
+6. Add tests that validate slot shapes and a small numeric step.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none in this repo for Shampoo.
+- Rust tests: add shape/slot tests and a small-step numeric sanity check.
+- Cross-language parity test: optional, requires TF reference run.
 
 **Gaps / Notes**
-- TODO (manual)
+- `_resource_apply_sparse` raises an op (`tf.no_op()`), which likely throws; Rust should match behavior or document deviation.
+- Eigen decomposition and slicing logic is subtle; deterministic ordering must be preserved.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
