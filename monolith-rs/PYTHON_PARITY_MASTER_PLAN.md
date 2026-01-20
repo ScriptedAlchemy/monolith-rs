@@ -458,7 +458,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/distributed_ps_benchmark.py`](#monolith-native-training-distributed-ps-benchmark-py) | 168 | IN PROGRESS | monolith-rs/crates/monolith-training/benches |  |
 | [`monolith/native_training/distributed_ps_factory.py`](#monolith-native-training-distributed-ps-factory-py) | 262 | IN PROGRESS | monolith-rs/crates/monolith-training/src/ps |  |
 | [`monolith/native_training/distributed_ps_factory_test.py`](#monolith-native-training-distributed-ps-factory-test-py) | 87 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
-| [`monolith/native_training/distributed_ps_sync.py`](#monolith-native-training-distributed-ps-sync-py) | 531 | TODO | TODO (manual) |  |
+| [`monolith/native_training/distributed_ps_sync.py`](#monolith-native-training-distributed-ps-sync-py) | 531 | IN PROGRESS | monolith-rs/crates/monolith-training/src/ps |  |
 | [`monolith/native_training/distributed_ps_sync_test.py`](#monolith-native-training-distributed-ps-sync-test-py) | 109 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distributed_ps_test.py`](#monolith-native-training-distributed-ps-test-py) | 979 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distributed_serving_ops.py`](#monolith-native-training-distributed-serving-ops-py) | 160 | TODO | TODO (manual) |  |
@@ -8796,53 +8796,67 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distributed_ps_sync.py`
-
 <a id="monolith-native-training-distributed-ps-sync-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 531
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Horovod/BytePS synchronous all-to-all embedding lookup and update for distributed multi-type hash tables.
+- Key symbols/classes/functions: `DistributedMultiTypeHashTableMpi.lookup`, `.apply_gradients`, `.as_op`.
+- External dependencies: Horovod/BytePS env flags, `distribution_ops`, `feature_utils` (control/dense_opt ops), `prefetch_queue`.
+- Side effects: uses enqueue queues for pipelined execution; emits alltoall metrics summaries when enabled.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Environment flags:
+  - `MONOLITH_WITH_HOROVOD`, `MONOLITH_WITH_OPTIMIZED_HOROVOD`, `MONOLITH_WITH_BYTEPS` and related G2G/GDR flags determine alltoall backend and GPU paths.
+  - `FLAGS.enable_alltoall_metrics` + `enable_alltoall_metrics_for_slot` control summary emission.
+- `DistributedMultiTypeHashTableMpi.__init__(shard_num, table_factory, queue_configs)`:
+  - Determines rank from BytePS or Horovod; builds local shard table via `table_factory`.
+  - Stores output dims, queue configs, and dependency ops.
+- `lookup(slot_to_id, auxiliary_bundle, early_reorder_indicies_res_pack)`:
+  - Requires `early_reorder_indicies_res_pack` (support for `reorder_fids_in_data_pipeline=False` dropped).
+  - Unpacks `(all_fids, shard_sizes, sharded_slot_sizes, emb_offset_sz, fused_embedding_offsets, req_time)`.
+  - Performs alltoall on fids and per-slot sizes via BPS/HVD/custom optimized HVD.
+  - Stores key tensors in `auxiliary_bundle` (id_flat_t, id_size_flat_t, emb offsets, recv splits, etc.).
+  - Calls `self._table.fused_lookup(...)` on GPU, yielding `fused_embeddings`, splits, offsets, indices.
+  - Performs embedding alltoall (fwd) and queues prefetch if configured.
+  - Uses `distribution_ops.fused_gather_embeddings_by_input` to assemble per-slot embeddings on GPU.
+  - Returns `(slot_to_embedding, auxiliary_bundle)`.
+- `apply_gradients(slot_to_grad, auxiliary_bundle, global_step, req_time, scale)`:
+  - Uses `feature_utils.control_ops` dependency.
+  - Computes `grad_flat` via `fused_gather_embeddings_by_input_gradient`.
+  - Optionally casts for BPS bwd.
+  - Enqueues async optimize queue if configured.
+  - Performs backward alltoall using BPS/HVD/custom optimized HVD.
+  - Emits alltoall metrics summaries when enabled.
+  - Calls `self._table.fused_apply_gradient` with id/grad buffers and offsets.
+  - Supports async optimize queue via `AsyncPushHook`.
+- `assign/assign_add/reinitialize`:
+  - Not implemented (raises `NotImplementedError`).
+- `as_op`:
+  - Returns `self._table.as_op` with dependency ops.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/ps`.
+- Rust public API surface: synchronous alltoall embedding lookup/update for multi-type tables.
+- Data model mapping: packed fid buffers and fused embedding offsets.
+- Feature gating: Horovod/BytePS support; GPU alltoall paths.
+- Integration points: `distributed_ps_factory.create_in_worker_multi_type_hash_table`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement Rust backend selection for alltoall (HVD/BPS equivalents) or gate feature.
+2. Port `fused_lookup` + `fused_gather_embeddings_by_input` and gradient counterparts.
+3. Preserve auxiliary_bundle keys and queue-based pipelining.
+4. Mirror alltoall metric summaries (if logging/metrics available in Rust).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `distributed_ps_sync_test.py`.
+- Rust tests: integration tests with small shard_num and deterministic ids.
+- Cross-language parity test: compare embeddings and gradients for small fixtures.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires GPU kernels and alltoall comms; may need staged parity.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8857,6 +8871,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distributed_ps_sync_test.py`
+
 <a id="monolith-native-training-distributed-ps-sync-test-py"></a>
 
 **Status:** TODO (manual review required)
