@@ -461,7 +461,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/distributed_ps_sync.py`](#monolith-native-training-distributed-ps-sync-py) | 531 | IN PROGRESS | monolith-rs/crates/monolith-training/src/ps |  |
 | [`monolith/native_training/distributed_ps_sync_test.py`](#monolith-native-training-distributed-ps-sync-test-py) | 109 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/distributed_ps_test.py`](#monolith-native-training-distributed-ps-test-py) | 979 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
-| [`monolith/native_training/distributed_serving_ops.py`](#monolith-native-training-distributed-serving-ops-py) | 160 | TODO | TODO (manual) |  |
+| [`monolith/native_training/distributed_serving_ops.py`](#monolith-native-training-distributed-serving-ops-py) | 160 | IN PROGRESS | monolith-rs/crates/monolith-training/src/serving |  |
 | [`monolith/native_training/distributed_serving_ops_test.py`](#monolith-native-training-distributed-serving-ops-test-py) | 142 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distribution_ops.py`](#monolith-native-training-distribution-ops-py) | 889 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distribution_ops_benchmark.py`](#monolith-native-training-distribution-ops-benchmark-py) | 118 | TODO | TODO (manual) |  |
@@ -8995,53 +8995,55 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distributed_serving_ops.py`
-
 <a id="monolith-native-training-distributed-serving-ops-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 160
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Remote predict and parameter sync client/server utilities for distributed serving; wraps custom ops for TF Serving RPC and sync.
+- Key symbols/classes/functions: `remote_predict`, `create_parameter_sync_clients`, `parameter_sync_client_from_config`, `refresh_sync_config`, `ParameterSyncClient`, `DummySyncServer`.
+- External dependencies: `gen_monolith_ops`, `parameter_sync_pb2`, `SyncBackend`, `ServerType`.
+- Side effects: creates sync clients/servers on PS devices; uses RPC to remote predict.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `remote_predict(...)`:
+  - Validates `model_name` non-null.
+  - Calls `tf_serving_remote_predict` custom op with input/output aliases, model name, task, version, deadline, signature; returns output tensors (index 2 of op result).
+- `create_parameter_sync_clients(ps_num)`:
+  - For `ps_num==0`, returns single client.
+  - Else creates one client per PS on PS device (unless exporting standalone).
+- `parameter_sync_client_from_config(config, name_suffix)`:
+  - Creates `MonolithParameterSyncClient` op with serialized config and shared_name.
+- `refresh_sync_config(sync_backend, ps_index)`:
+  - Fetches sync targets; populates `ClientConfig` with targets and extra info; sets model name, signature `hashtable_assign`, timeout 3000ms; returns serialized bytes.
+- `create_dummy_sync_client` / `create_dummy_sync_server`:
+  - Wrap dummy sync ops.
+- `ParameterSyncClient`:
+  - `create_sync_op` calls `monolith_parameter_sync` op with client handle and config string.
+  - `as_op` wraps client handle with `tf.group`.
+- `DummySyncServer`:
+  - `shutdown` and `get_port` wrap dummy server ops; `as_op` groups server handle.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/serving` or `monolith-serving`.
+- Rust public API surface: remote predict wrapper + parameter sync client/server wrappers.
+- Data model mapping: `ClientConfig` protobuf and sync target lists.
+- Feature gating: TF runtime + custom ops for remote predict and sync.
+- Integration points: distributed PS and export paths.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement RPC wrapper for remote predict (TF Serving or custom stub).
+2. Implement parameter sync client creation and config refresh logic.
+3. Provide dummy client/server for tests.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `distributed_serving_ops_test.py`.
+- Rust tests: integration tests for config building and dummy sync ops.
+- Cross-language parity test: compare serialized config bytes.
 
 **Gaps / Notes**
-- TODO (manual)
+- `remote_predict` relies on custom op; Rust likely needs TF C API bindings.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -9056,6 +9058,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distributed_serving_ops_test.py`
+
 <a id="monolith-native-training-distributed-serving-ops-test-py"></a>
 
 **Status:** TODO (manual review required)
