@@ -483,8 +483,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/feature_test.py`](#monolith-native-training-feature-test-py) | 266 | IN PROGRESS | monolith-rs/crates/monolith-core/tests |  |
 | [`monolith/native_training/feature_utils.py`](#monolith-native-training-feature-utils-py) | 419 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/feature_utils_test.py`](#monolith-native-training-feature-utils-test-py) | 144 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
-| [`monolith/native_training/file_ops.py`](#monolith-native-training-file-ops-py) | 51 | TODO | TODO (manual) |  |
-| [`monolith/native_training/file_ops_test.py`](#monolith-native-training-file-ops-test-py) | 56 | TODO | TODO (manual) |  |
+| [`monolith/native_training/file_ops.py`](#monolith-native-training-file-ops-py) | 51 | IN PROGRESS | monolith-rs/crates/monolith-training/src/file_ops.rs (new) |  |
+| [`monolith/native_training/file_ops_test.py`](#monolith-native-training-file-ops-test-py) | 56 | IN PROGRESS | monolith-rs/crates/monolith-training/tests/file_ops.rs (new) |  |
 | [`monolith/native_training/fused_embedding_to_layout_test.py`](#monolith-native-training-fused-embedding-to-layout-test-py) | 1333 | TODO | TODO (manual) |  |
 | [`monolith/native_training/gen_seq_mask.py`](#monolith-native-training-gen-seq-mask-py) | 26 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/gen_seq_mask_test.py`](#monolith-native-training-gen-seq-mask-test-py) | 42 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests |  |
@@ -713,6 +713,119 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Performance risks documented
 - [ ] Rust tests added and passing
 - [ ] Cross-language parity test completed
+
+### `monolith/native_training/file_ops.py`
+<a id="monolith-native-training-file-ops-py"></a>
+
+**Status:** IN PROGRESS (manual review complete)
+
+**Python Summary**
+- Lines: 51
+- Purpose/role: TensorFlow custom-op wrappers for writing to files inside graph execution; provides a close hook.
+- Key symbols/classes/functions: `WritableFile`, `FileCloseHook`.
+- External dependencies: TensorFlow, `gen_monolith_ops` (custom ops).
+- Side effects: Creates/updates files on disk via custom ops.
+
+**Required Behavior (Detailed)**
+- `WritableFile.__init__(filename)`:
+  - Calls `monolith_writable_file(filename)` and stores a resource handle.
+- `WritableFile.append(content)`:
+  - Appends a 0-D string tensor to the file (via `monolith_writable_file_append`).
+- `WritableFile.append_entry_dump(item_id, bias, embedding)`:
+  - Calls `monolith_entry_dump_file_append(handle, item_id, bias, embedding)`.
+  - Used for embedding entry dump format (custom op handles encoding).
+- `WritableFile.close()`:
+  - Calls `monolith_writable_file_close(handle)`.
+- `FileCloseHook(files)`:
+  - `files` must be a `list` of `WritableFile`.
+  - Builds `_close_ops = [f.close() for f in files]`.
+  - `end(session)` runs all close ops.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-training/src/file_ops.rs` (new).
+- Rust public API surface:
+  - `struct WritableFile { handle: ... }`
+  - `impl WritableFile { fn new(path: &str) -> Self; fn append(&self, s: &str) -> Op; fn append_entry_dump(...); fn close(&self) -> Op }`
+  - `struct FileCloseHook` implementing a hook/callback trait.
+- Data model mapping:
+  - TF custom ops ↔ Rust TF runtime wrapper (if using TF backend).
+  - Native backend may use direct file I/O instead of graph ops.
+- Feature gating:
+  - TF runtime required for graph-op parity; native mode may use std::fs writes.
+- Integration points:
+  - Used by summary/export logic that writes per-worker outputs.
+
+**Implementation Steps (Detailed)**
+1. Add Rust wrappers for the custom file ops (or a native file writer in non-TF mode).
+2. Ensure `append` supports scalar string tensors and preserves order.
+3. Implement `append_entry_dump` with the same encoding as the TF op.
+4. Provide a hook that closes files at session end.
+
+**Tests (Detailed)**
+- Python tests: `monolith/native_training/file_ops_test.py`.
+- Rust tests:
+  - `writable_file_basic` (append 1000 times and verify content).
+  - `file_close_hook_runs` (MonitoredSession equivalent if TF backend).
+- Cross-language parity test:
+  - Compare output file contents after a fixed sequence of appends.
+
+**Gaps / Notes**
+- `WritableFile.append` assumes a scalar string tensor; no Python-side validation.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/file_ops_test.py`
+<a id="monolith-native-training-file-ops-test-py"></a>
+
+**Status:** IN PROGRESS (manual review complete)
+
+**Python Summary**
+- Lines: 56
+- Purpose/role: Tests `WritableFile` append behavior and `FileCloseHook` closure semantics.
+- Key symbols/classes/functions: `WritableFileTest.test_basic`, `WritableFileTest.test_hook`.
+- External dependencies: TensorFlow, `file_ops`, `tf.io.gfile`.
+- Side effects: Writes files under `TEST_TMPDIR`.
+
+**Required Behavior (Detailed)**
+- `test_basic`:
+  - Create `WritableFile`, append `"1234"` in a `tf.function` loop `times=1000`, close.
+  - Verify file content equals `"1234" * times`.
+- `test_hook`:
+  - Create `WritableFile`, run append in a `MonitoredSession` with `FileCloseHook`.
+  - Verify file content equals `"1234"`.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/file_ops.rs` (new).
+- Rust public API surface: `WritableFile`, `FileCloseHook`.
+- Data model mapping: TF runtime session + ops (TF backend).
+- Feature gating: tests require TF backend custom ops.
+- Integration points: file ops wrapper + hook system.
+
+**Implementation Steps (Detailed)**
+1. Port `test_basic` using Rust TF runtime or native file writer.
+2. Port `test_hook` with a session hook that triggers close at end.
+3. Ensure file output matches exact concatenation ordering.
+
+**Tests (Detailed)**
+- Python tests: `WritableFileTest.test_basic`, `.test_hook`.
+- Rust tests:
+  - `writable_file_basic`
+  - `writable_file_close_hook`
+- Cross-language parity test:
+  - Compare file bytes for identical append sequences.
+
+**Gaps / Notes**
+- Tests rely on `TEST_TMPDIR` env var; Rust tests should mirror temp dir handling.
 
 ### `monolith/agent_service/__init__.py`
 <a id="monolith-agent-service-init-py"></a>
