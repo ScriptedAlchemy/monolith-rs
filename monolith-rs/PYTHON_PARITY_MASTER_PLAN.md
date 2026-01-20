@@ -3925,7 +3925,8 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
   - Sets env vars:
     - `HEAPPROFILE` path
     - `HEAP_PROFILE_INUSE_INTERVAL` and `HEAP_PROFILE_ALLOCATION_INTERVAL` scaled by `1/sample_ratio`
-    - `HEAP_PROFILE_SAMPLE_RATIO`, `HEAP_PROFILE_TIME_INTERVAL`, `HEAP_PROFILE_MMAP`.
+    - `HEAP_PROFILE_SAMPLE_RATIO`, `HEAP_PROFILE_TIME_INTERVAL`, `HEAP_PROFILE_MMAP` (lowercased bool).
+  - Defaults: `heap_profile_inuse_interval=104857600`, `heap_profile_allocation_interval=1073741824`, `heap_profile_time_interval=0`, `sample_ratio=1.0`, `heap_profile_mmap=False`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-training/src/mem_profiling.rs`.
