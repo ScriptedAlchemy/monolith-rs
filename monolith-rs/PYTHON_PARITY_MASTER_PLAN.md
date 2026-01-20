@@ -164,7 +164,14 @@ These enable all module ports:
 - `model_export/**`
 - `distribution_ops.py`, `distributed_ps.py`
 
-**Status:** TODO (not started)
+**Status:** PLANNED (not started)
+
+**Plan (Detailed)**
+1. Enumerate native_training subpackages and group by runtime (data, runtime, model_export).
+2. For each subpackage, expand per-file parity checklists into this master doc with required behavior.
+3. Identify runtime dependencies (TF, Horovod, ZK/Consul, HDFS/GCS) and tag with feature gates.
+4. Define Rust crate ownership per subpackage (training/data/checkpoint/serving) and update mapping table.
+5. Add test parity plan per subpackage (unit tests + integration parity vectors).
 
 ### 5.4 `monolith/utils.py` + helpers
 - `path_utils.py`
@@ -184,7 +191,14 @@ These enable all module ports:
 - Signature-based tensor mapping
 - Output decoding consistent with Python
 
-**Status:** TODO (tracked separately with sub-plan embedded into this doc)
+**Status:** PLANNED (tracked separately with sub-plan embedded into this doc)
+
+**Plan (Detailed)**
+1. Define TF runtime feature flags (`tf-runtime`, `tf-custom-ops`) and dynamic loader API surface.
+2. Specify SavedModel loading contract (signature inputs/outputs, dtype mapping, batch handling).
+3. Document custom op discovery and load order (env var paths + explicit config).
+4. Add runtime health checks and capability detection (presence of `saved_model.pb`, libtensorflow).
+5. Create parity test harness that runs identical inputs through Python TF and Rust TF runtime.
 
 ---
 
@@ -286,15 +300,23 @@ This is the first incremental mapping pass. It will be expanded **file-by-file**
 
 ### 13.2 `monolith/core/**` → `monolith-rs/crates/monolith-core` + `monolith-rs/crates/monolith-layers`
 
-**Status:** TODO (mapping pending)
+**Status:** PLANNED (mapping pending)
 **Notes:** Use per-file checklists under `monolith-rs/parity/monolith/core/*.md` as the canonical mapping source until this table is populated.
+**Plan (Detailed)**
+1. Promote each core file from checklist to this table with final crate/module target.
+2. Record public API surface and ownership for each core module (core vs layers).
+3. Flag modules requiring TF runtime vs Candle-only behavior.
 
 ---
 
 ### 13.3 `monolith/native_training/**` → `monolith-rs/crates/monolith-training`, `monolith-rs/crates/monolith-data`, `monolith-rs/crates/monolith-checkpoint`, `monolith-rs/crates/monolith-serving`
 
-**Status:** TODO (mapping pending)
+**Status:** PLANNED (mapping pending)
 **Notes:** Use per-file checklists under `monolith-rs/parity/monolith/native_training/**/*.md` as the canonical mapping source until this table is populated.
+**Plan (Detailed)**
+1. Promote each native_training file from checklist to this table with final crate/module target.
+2. Split runtime vs data pipeline vs export ownership and note feature gates.
+3. Add cross-module dependencies (e.g., runtime ↔ serving) to the table notes.
 
 ---
 
@@ -1328,7 +1350,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Implementation Steps (Detailed)**
 1. Add AgentConfig wiring to Rust AgentService (support v1/v2/v3 equivalent selection).
-2. Port `ReplicaWatcher` + `ZKMirror` behaviors or stub with clear TODOs and guards.
+2. Port `ReplicaWatcher` + `ZKMirror` behaviors or stub with explicit guards and tracking notes.
 3. Implement `dc_aware` key rewriting in HeartBeat response.
 4. Implement `GetResource` response with local IP and memory (port parity).
 5. Add AgentDataProvider path for v3-style maps.
@@ -3517,7 +3539,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
   - `get_cmd` returns command only.
   - `get_server_schedule_iter(server_type)`:
     - Mixed/PS: for PS yields indices where `i % num_shard == shard_id`; else yields None.
-    - Dense: if server_type dense, yields `replica_id` (commented TODO about bug).
+    - Dense: if server_type dense, yields `replica_id` (commented NOTE about bug).
     - Else yields None.
 - Model config generation:
   - `_gen_model_server_config(server_type)`:
@@ -5307,12 +5329,12 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 5. Validate frozen behavior and nested mutability.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/core/hyperparams_test.py`.
+- Rust tests: add unit tests in `monolith-rs/crates/monolith-core/tests/hyperparams.rs` mirroring each Python test case and expected error strings.
+- Cross-language parity test: run Python tests to generate expected strings/structures, then compare Rust outputs to those fixtures.
 
 **Gaps / Notes**
-- TODO (manual)
+- String formatting parity is brittle; capture exact expected text from Python tests as golden fixtures.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -6887,11 +6909,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: add `cluster_manager_test` in `monolith-rs/crates/monolith-training/tests` that writes/reads a temp PS cluster file and asserts exact content.
+- Cross-language parity test: run Python test to produce the file format and compare Rust read results against that output.
 
 **Gaps / Notes**
-- TODO (manual)
+- Ensure temp dir handling mirrors `TEST_TMPDIR` semantics used by TF tests.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7010,11 +7032,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: add mocked HTTP client tests in `monolith-rs/crates/monolith-training/tests/consul.rs` to cover lookup/register/deregister success paths and error status handling.
+- Cross-language parity test: capture Python mocked payloads and compare Rust decoding output shapes and fields.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python test uses `six.moves.http_client.OK`; ensure Rust test uses numeric 200 status and equivalent JSON decoding.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7665,11 +7687,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: add integration test in `monolith-rs/crates/monolith-data/tests/data_service.rs` that spins a local dispatcher/worker (or mocked service) and verifies dual consumer exhaustion with total count 19.
+- Cross-language parity test: use the same file list and expected count in Python and Rust, compare emitted element sequence length.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires a Rust equivalent of TF data service; otherwise gate the test behind a feature and document as unsupported.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7797,11 +7819,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: create fixture-based parsing tests in `monolith-rs/crates/monolith-data/tests` that load the same serialized examples used by Python and assert parsed feature values/types.
+- Cross-language parity test: generate golden parsed outputs from Python, then compare Rust parsing outputs field-by-field.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires deterministic fixture generation for each PB type (Example/ExampleBatch/Instance).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7967,11 +7989,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: none.
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: N/A (no Rust surface; no behavior to test).
+- Cross-language parity test: N/A.
 
 **Gaps / Notes**
-- TODO (manual)
+- Keep this section in case future feature-list tests are added; no current parity work required.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8346,11 +8368,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: add save/restore test in `monolith-rs/crates/monolith-data/tests/item_pool.rs` that mirrors pool size, shard count, and deterministic content checks.
+- Cross-language parity test: generate a Python item-pool shard set and verify Rust restore yields identical items.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires a deterministic RNG seed to keep pool contents stable across languages.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8401,11 +8423,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file (integration).
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: add a mocked Kafka consumer test (no real broker) plus optional integration test gated by `KAFKA_BROKER` env.
+- Cross-language parity test: use a shared fixture topic payload and compare parsed feature batches between Python and Rust.
 
 **Gaps / Notes**
-- TODO (manual)
+- Integration tests require credentials/cluster; document env vars and mark optional.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8455,11 +8477,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: add split/merge tests in `monolith-rs/crates/monolith-data/tests/flow.rs` verifying batch counts, batch sizes, and header parsing.
+- Cross-language parity test: use the same synthetic input to compare split/merge output ordering and sizes across Python/Rust.
 
 **Gaps / Notes**
-- TODO (manual)
+- Need a Rust equivalent of lagrangex header parsing before parity tests can pass.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8508,11 +8530,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: add unit tests in `monolith-rs/crates/monolith-data/tests/negative_gen.rs` for channel-based and global sampling counts, verifying bounds and determinism.
+- Cross-language parity test: feed identical inputs and RNG seed to Python/Rust and compare sampled negatives.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires deterministic RNG behavior across languages to make parity meaningful.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8562,11 +8584,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file (extensive).
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: add `parse_sparse_feature` suite in `monolith-rs/crates/monolith-data/tests/parse_sparse_feature.rs` to mirror each sharding/scatter case and expected offsets.
+- Cross-language parity test: generate Python outputs for shard maps/offsets and compare Rust results for identical configs and inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires parity for `FeatureConfigs` parsing and consistent fid ordering rules.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
