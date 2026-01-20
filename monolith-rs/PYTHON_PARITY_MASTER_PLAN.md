@@ -614,8 +614,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/optimizers/shampoo.py`](#monolith-native-training-optimizers-shampoo-py) | 207 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
 | [`monolith/native_training/prefetch_queue.py`](#monolith-native-training-prefetch-queue-py) | 379 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/prefetch_queue_test.py`](#monolith-native-training-prefetch-queue-test-py) | 305 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
-| [`monolith/native_training/ps_benchmark.py`](#monolith-native-training-ps-benchmark-py) | 273 | TODO | TODO (manual) |  |
-| [`monolith/native_training/ps_benchmark_test.py`](#monolith-native-training-ps-benchmark-test-py) | 57 | TODO | TODO (manual) |  |
+| [`monolith/native_training/ps_benchmark.py`](#monolith-native-training-ps-benchmark-py) | 273 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
+| [`monolith/native_training/ps_benchmark_test.py`](#monolith-native-training-ps-benchmark-test-py) | 57 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/ragged_utils.py`](#monolith-native-training-ragged-utils-py) | 29 | TODO | TODO (manual) |  |
 | [`monolith/native_training/ragged_utils_test.py`](#monolith-native-training-ragged-utils-test-py) | 32 | TODO | TODO (manual) |  |
 | [`monolith/native_training/remote_predict_ops.py`](#monolith-native-training-remote-predict-ops-py) | 0 | TODO | TODO (manual) |  |
@@ -19353,50 +19353,90 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/ps_benchmark.py`
 <a id="monolith-native-training-ps-benchmark-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 273
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Implements a parameter-server throughput benchmark task that measures PS performance and selects top PS nodes.
+- Key symbols/classes/functions: `BenchmarkConfig`, `_BenchmarkWorkerHook`, `_DummyCheckpointSaverHook`, `PsBenchMarkTask`.
+- External dependencies: TensorFlow, `native_task.NativeTask`, `utils.ps_device`, `cpu_training` (tests), `logging_ops`, `service_discovery` (imported, unused).
+- Side effects:
+  - Mutates `BenchmarkConfig.ps_list` after benchmark completion.
+  - Writes TF variables and metrics; uses session hooks.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`BenchmarkConfig` dataclass**
+  - Fields:
+    - `ps_list: List`
+    - `num_ps_required: int`
+    - `num_workers: int`
+    - `index: int`
+    - `benchmark_secs: float = 60.0`
+    - `ps_str_overridden: str = ""` (comma-separated override list; skips benchmark).
+- **`_BenchmarkWorkerHook(SessionRunHook)`**
+  - Creates variables in scope `_SCOPE_NAME`:
+    - `_result` (string), `_ready` (bool list), `_done` (bool list),
+      `_make_ready`/`_make_done` assigns, `_result_placeholder` + `_result_assign`.
+  - `after_create_session`:
+    - Marks self ready; waits until `sum(ready) >= int(num_workers * 0.9)`.
+    - Sleeps 1 second, records `_start_time`.
+  - `before_run`:
+    - If `ps_str_overridden` set, assigns `_result` to override value.
+    - Reads `_result`; if non-empty, raises `tf.errors.OutOfRangeError` to stop.
+  - `after_run`:
+    - Logs duration and requests stop.
+  - `end`:
+    - Marks done; waits until all workers done (timeout 10s).
+    - If `index == 0` and no override:
+      - Reads `throughput_tensor` (mean tensor metric).
+      - Sorts PS nodes by throughput.
+      - Logs per-PS throughput and then adjusts throughput by IP (sums for same IP).
+      - Selects top `num_ps_required` PS entries and writes comma-separated string to `_result`.
+    - Waits until `_result` is non-empty, then replaces `bm_config.ps_list` with selected list.
+  - `_wait(cond, timeout=3600)` polls condition every 0.5s.
+- **`_DummyCheckpointSaverHook`**
+  - Extends `CheckpointSaverHook`, but overrides lifecycle methods to no-op.
+  - Default `checkpoint_dir` is `$HOME/tmp` if not provided.
+  - `_save` returns False (prevents saving).
+- **`PsBenchMarkTask(NativeTask)`**
+  - `params()` adds `bm_config`.
+  - `create_input_fn` returns dataset of constant vector `[0.12, 0.23, 0.34, 0.45]` repeating and prefetching.
+  - `create_model_fn`:
+    - For each PS in `bm_config.ps_list`, creates a 256×256 variable on that PS.
+    - Builds a while loop that performs heavy math (splits/concat/sqrt) until `benchmark_secs` elapsed.
+    - Computes throughput `j / (ts_now - ts_before)` per PS.
+    - Uses `tf.compat.v1.metrics.mean_tensor(tf.stack(throughputs))`.
+    - Adds `_BenchmarkWorkerHook` and `_DummyCheckpointSaverHook`.
+    - `PREDICT` returns predictions `0.0`.
+    - `TRAIN/EVAL` returns EstimatorSpec with loss 0 and train_op group of metric update + global step increment.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (benchmark task).
+- Rust public API surface:
+  - `BenchmarkConfig` struct.
+  - Benchmark task or command that measures PS throughput.
+- Data model mapping:
+  - Use equivalent session hooks / callbacks for multi-worker coordination.
+- Feature gating:
+  - PS benchmark likely only for TF runtime backend; may be optional.
+- Integration points:
+  - PS device placement logic (`ps_device`) and distributed training orchestration.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port `BenchmarkConfig` and its semantics (override skipping).
+2. Implement a benchmark task that measures throughput per PS (or stub with TF backend only).
+3. Implement worker coordination and result selection logic (including IP aggregation).
+4. Ensure `ps_list` is mutated to selected subset after completion.
+5. Add tests mirroring Python behavior for override and selection count.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/ps_benchmark_test.py`.
+- Rust tests: add tests for override behavior and list truncation.
+- Cross-language parity test: compare selected PS list with identical throughput inputs (if TF backend available).
 
 **Gaps / Notes**
-- TODO (manual)
+- Imports `logging_ops` and `service_discovery` but does not use them in this file.
+- Benchmark uses heavy TF ops; not suitable for pure Candle backend without substantial rework.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -19413,50 +19453,44 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/ps_benchmark_test.py`
 <a id="monolith-native-training-ps-benchmark-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 57
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests `PsBenchMarkTask` behavior in local CPU training.
+- Key symbols/classes/functions: `PsBenchmarkTest`.
+- External dependencies: TensorFlow, `cpu_training.local_train`, `utils.get_test_tmp_dir`.
+- Side effects: Runs local training which mutates `bm_config.ps_list`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `testBasic`:
+  - Creates `BenchmarkConfig` with `ps_list=["ps0","ps1"]`, `num_ps_required=1`, `num_workers=1`, `index=0`, `benchmark_secs=1.0`.
+  - Calls `cpu_training.local_train` with `num_ps=2`.
+  - Asserts `len(p.bm_config.ps_list) == 1` after run.
+- `testSkipBenchmark`:
+  - Same config but sets `ps_str_overridden="overridden"`.
+  - After training, expects `p.bm_config.ps_list[0] == "overridden"`.
+- `__main__`: disables eager execution and runs test via `absl.app`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (tests).
+- Rust public API surface: PS benchmark task and local training harness.
+- Data model mapping: `BenchmarkConfig` with override string.
+- Feature gating: likely TF runtime only.
+- Integration points: local training driver for PS benchmark.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Provide a local training harness for benchmark task (or mock).
+2. Ensure `ps_list` is reduced to `num_ps_required` entries.
+3. Ensure override string bypasses benchmark.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `PsBenchmarkTest` in this file.
+- Rust tests: add unit tests for selection and override behavior.
+- Cross-language parity test: compare resulting `ps_list` for identical config.
 
 **Gaps / Notes**
-- TODO (manual)
+- Test relies on `cpu_training.local_train` which is not yet mapped in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
