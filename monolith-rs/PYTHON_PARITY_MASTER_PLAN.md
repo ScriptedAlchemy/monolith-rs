@@ -4227,28 +4227,114 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: reads vocab file (possibly from HDFS), constructs TF datasets and embedding configs.
 
 **Required Behavior (Detailed)**
-- `params()` defines many embedding-related flags, including vocab sizing, QR hashing, deepinsight, host call metrics, file input ranges, and stopping signals.
-- `__init__`:
-  - Sets flags, builds vocab dict (from file or downloaded from HDFS), constructs `Env`.
+- `params()`:
+  - Defines embedding params:
+    - `vocab_size_per_slot=None`, `custom_vocab_size_mapping=None`, `vocab_size_offset=None`.
+    - `qr_multi_hashing=False`, `qr_hashing_threshold=100000000`, `qr_collision_rate=4`.
+    - `vocab_file_path=None`, `enable_deepinsight=False`.
+    - `enable_host_call_scalar_metrics=False`, `enable_host_call_norm_metrics=False`.
+    - `files_interleave_cycle_length=4`, `deterministic=False`.
+    - `gradient_multiplier=1.0`, `enable_caching_with_tpu_var_mode=False`.
+    - `top_k_sampling_num_per_core=6`, `use_random_init_embedding_for_oov=False`.
+    - `merge_vector=False`.
+  - Defines training params:
+    - `train.file_folder=None`, `train.date_and_file_name_format="*/*/part*"`.
+    - `train.start_date=None`, `train.end_date=None`.
+    - `train.vocab_file_folder_prefix=None`.
+- `__init__(params)`:
+  - Calls `super().__init__`, stores `self.p`.
+  - Sets `_enable_deepinsight`, `_enable_host_call_scalar_metrics`, `_enable_caching_with_tpu_var_mode`, `_top_k_sampling_num_per_core`.
+  - Logs fixed vocab settings when `vocab_size_per_slot` or `custom_vocab_size_mapping` provided.
+  - Builds `vocab_size_dict = _create_vocab_dict()` and `Env(vocab_size_dict, params)`.
+  - Initializes `_feature_to_config_dict` and `_table_to_config_dict` as empty dicts.
 - `download_vocab_size_file_from_hdfs()`:
-  - Downloads a single `part*.csv` from HDFS into temp folder; updates `p.vocab_file_path` if successful.
+  - Deletes and recreates local `temp/` folder.
+  - Builds HDFS path: `"{vocab_file_folder_prefix}{end_date}/part*.csv"`.
+  - Runs `hadoop fs -copyToLocal` to temp folder.
+  - If returncode==0 and exactly one file downloaded:
+    - Sets `p.vocab_file_path` to that file path.
+  - Else logs downloaded files and keeps existing `p.vocab_file_path`.
 - `_create_vocab_dict()`:
-  - Reads vocab file (tsv slot_id -> count), applies overrides and offsets, returns dict.
-- `create_input_fn(mode)`:
-  - Only supports TRAIN.
-  - If `file_pattern` provided, uses `tf.data.Dataset.list_files` (no shuffle); else uses `file_folder` + `date_and_file_name_format` and `util.range_dateset` with `start_date/end_date`.
-  - Shards files per TPU host call index.
-  - Interleaves files with `cycle_length` and parses examples via `_get_feature_map` and `_post_process_example`.
-  - If `enable_stopping_signals`, appends a final batch with stop signal flag via `auto_checkpoint_feed_hook`.
-  - Prefetches with AUTOTUNE.
-- `_post_process_example`:
-  - Converts embedding tensors to SparseTensor; applies vocab size mods, QR hashing, and FeatureColumn3D row_lengths.
-  - Adds UID bucket for AUC sampling if `_UID` exists.
+  - If `train.end_date` and `train.vocab_file_folder_prefix` set, calls `download_vocab_size_file_from_hdfs()`.
+  - Asserts `p.vocab_file_path` exists.
+  - Reads TSV with 2 fields per line; ignores non-numeric slot IDs.
+  - For each slot:
+    - `distinct_count = vocab_size_per_slot` if set, else parsed count, overridden by `custom_vocab_size_mapping` when present.
+    - Applies `vocab_size_offset` if set.
+    - Stores `vocab_size_dict[slot_id] = distinct_count`.
+  - Logs dict; returns it.
+- `_parse_inputs(return_values)`:
+  - If tuple: returns `(features, labels)`; else `(return_values, None)`.
+- `create_input_fn(mode=TRAIN)`:
+  - Asserts TRAIN mode only.
+  - `file_pattern = p.train.file_pattern`.
+  - `tf_example_parser` builds feature_map via `_get_feature_map`, parses batch with `tf.io.parse_example`, then `_post_process_example`.
+  - `insert_stopping_signal(stop, batch_size, name)`:
+    - Adds `name` bool tensor: ones if `stop`, zeros otherwise.
+    - For sparse tensors, replaces with empty SparseTensor when `stop=True`.
+  - `input_fn(params)`:
+    - If `params["cpu_test"]` True:
+      - `TFRecordDataset(file_pattern)` -> batch(drop_remainder) -> map(tf_example_parser) -> repeat.
+    - Else:
+      - If `file_pattern` provided: `Dataset.list_files(file_pattern, shuffle=False)`.
+      - Else:
+        - Require `train.file_folder` + `train.date_and_file_name_format`.
+        - Build `file_pattern_` and list_files (shuffle=False).
+        - Require `train.end_date` and `params["enable_stopping_signals"]` not None.
+        - Apply `util.range_dateset(..., start_date, end_date)`.
+      - Shard files: `_, call_index, num_calls, _ = params["context"].current_input_fn_deployment()` then `files.shard(num_calls, call_index)`.
+      - `files.interleave(TFRecordDataset, cycle_length=files_interleave_cycle_length, num_parallel_calls=AUTOTUNE, deterministic=p.deterministic)`.
+      - Batch + map tf_example_parser (AUTOTUNE, deterministic=p.deterministic).
+      - If `p.train.repeat`: assert `enable_stopping_signals` is False, then `dataset.repeat()`.
+      - If `enable_stopping_signals`:
+        - `user_provided_dataset = dataset.map(insert_stopping_signal(stop=False), deterministic=False)`.
+        - `final_batch_dataset = dataset.repeat().map(insert_stopping_signal(stop=True), deterministic=False)`.
+        - `dataset = user_provided_dataset.concatenate(final_batch_dataset)`.
+      - `dataset.prefetch(AUTOTUNE)`.
+    - Returns dataset.
+- `logits_fn()`: abstract, raises `NotImplementedError`.
+- `init_slot_to_env()`:
+  - Logs, calls `self.logits_fn()` (to register slots), then `self._env.finalize()`.
+- `create_model_fn()`: abstract, raises `NotImplementedError('Abstract method.')`.
+- `_get_feature_map()`: abstract, raises `NotImplementedError`.
+- `_post_process_example(example)`:
+  - For each `(slot_id, feature_slot)` in `env.slot_id_to_feature_slot`:
+    - Skip if `feature_columns` empty.
+    - For each `feature_column`:
+      - `embedding_tensor = example[f"{fc_name}_0"]`.
+      - If `FeatureColumn3D`: `embedding_tensor.to_sparse()`, then clamp values >=0; else clamp values on SparseTensor.
+      - If `vocab_size_per_slot`: mod values; else set `vocab_size = env._vocab_size_dict.get(slot_id,10)` and apply `custom_vocab_size_mapping` if present.
+      - If `qr_multi_hashing` and `vocab_size > qr_hashing_threshold`:
+        - `R_vocab_size = vocab_size // qr_collision_rate + 1`, `Q_vocab_size = qr_collision_rate + 1`.
+        - Deletes original `example[f"{fc_name}_0"]`.
+        - For each feature_slice: add `fc_name_{slice}_0` (floormod by R) and `fc_name_{slice}_1` (floordiv by R).
+      - Else:
+        - If `FeatureColumn3D`: compute `row_lengths`, store `"{fc_name}_0_row_lengths"`, and slice sparse tensor to `max_seq_length`.
+        - Set `example[f"{fc_name}_0"] = tf.sparse.reorder(new_sparse)`.
+        - For each `feature_slice` where `slice_index != 0`, alias to the `_0` sparse tensor.
+  - If `_UID` in example: compute `uid_bucket = uid % _RATIO_N` and store as int32 under `_UID_BUCKET`.
+  - Returns example.
 - `create_feature_and_table_config_dict()`:
-  - Builds `tpu_embedding.TableConfig` and `FeatureConfig` per slot/feature slice, including QR hashing tables.
-- `process_features_for_cpu_test()`:
-  - Creates embedding variables with random init and uses `safe_embedding_lookup_sparse`.
-  - Clears internal feature/table config dicts after processing.
+  - Asserts env finalized.
+  - For each slot/feature_column/feature_slice:
+    - `vocab_size = env.vocab_size_dict.get(slot_id,1)`.
+    - If `qr_multi_hashing` and vocab_size > threshold:
+      - Create remainder and quotient `TableConfig`s and `FeatureConfig`s (`*_0`, `*_1`) if not already present.
+    - Always create base `table_{slot}_{slice}` if missing.
+    - Create `FeatureConfig` for `fc_name_{slice}`; for `FeatureColumn3D`, include `max_sequence_length`.
+  - Returns `(feature_to_config_dict, table_to_config_dict)`.
+- `cross_shard_optimizer(optimizer, params)`:
+  - If `params["cpu_test"]`: return optimizer; else wrap with `tf.tpu.CrossShardOptimizer`.
+- `process_features_for_cpu_test(features)`:
+  - For each SparseTensor feature:
+    - Look up `FeatureConfig`/`TableConfig` to get `dim`, `max_sequence_length`, `vocab_size`.
+    - Random init array shaped `[vocab_size, dim]` or `[vocab_size, max_seq_len*dim]`, cast to float32.
+    - Create `tf.get_variable(name=feature_name, initializer=initvalue)`.
+    - Mod feature ids by vocab_size; `safe_embedding_lookup_sparse(..., combiner="sum")`.
+    - If max_sequence_length != 0: reshape to `[-1, max_seq_len, dim]`.
+    - Store in `processed_features`.
+  - Non-sparse features passed through.
+  - Clears `_feature_to_config_dict` and `_table_to_config_dict` before return.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/src/base_embedding_task.rs`.
