@@ -431,9 +431,9 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/data/parse_sparse_feature_test.py`](#monolith-native-training-data-parse-sparse-feature-test-py) | 1833 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/data/parsers.py`](#monolith-native-training-data-parsers-py) | 782 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/data/tf_example_to_example_test.py`](#monolith-native-training-data-tf-example-to-example-test-py) | 183 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
-| [`monolith/native_training/data/training_instance/python/instance_dataset_op.py`](#monolith-native-training-data-training-instance-python-instance-dataset-op-py) | 166 | TODO | TODO (manual) |  |
-| [`monolith/native_training/data/training_instance/python/instance_dataset_op_test_stdin.py`](#monolith-native-training-data-training-instance-python-instance-dataset-op-test-stdin-py) | 58 | TODO | TODO (manual) |  |
-| [`monolith/native_training/data/training_instance/python/instance_negative_gen_dataset_op_test.py`](#monolith-native-training-data-training-instance-python-instance-negative-gen-dataset-op-test-py) | 283 | TODO | TODO (manual) |  |
+| [`monolith/native_training/data/training_instance/python/instance_dataset_op.py`](#monolith-native-training-data-training-instance-python-instance-dataset-op-py) | 166 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
+| [`monolith/native_training/data/training_instance/python/instance_dataset_op_test_stdin.py`](#monolith-native-training-data-training-instance-python-instance-dataset-op-test-stdin-py) | 58 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
+| [`monolith/native_training/data/training_instance/python/instance_negative_gen_dataset_op_test.py`](#monolith-native-training-data-training-instance-python-instance-negative-gen-dataset-op-test-py) | 283 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/data/training_instance/python/parse_instance_ops.py`](#monolith-native-training-data-training-instance-python-parse-instance-ops-py) | 245 | TODO | TODO (manual) |  |
 | [`monolith/native_training/data/training_instance/python/parse_instance_ops_test.py`](#monolith-native-training-data-training-instance-python-parse-instance-ops-test-py) | 185 | TODO | TODO (manual) |  |
 | [`monolith/native_training/data/training_instance/python/parser_utils.py`](#monolith-native-training-data-training-instance-python-parser-utils-py) | 85 | TODO | TODO (manual) |  |
@@ -7100,53 +7100,58 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/data/training_instance/python/instance_dataset_op.py`
-
 <a id="monolith-native-training-data-training-instance-python-instance-dataset-op-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 166
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: TF DatasetSource wrapper around custom `instance_dataset` op for reading serialized Instance records from PB files or stdin, with optional sharding/interleave utilities.
+- Key symbols/classes/functions: `_PBInstanceDataset`, `PBInstanceDatasetV2`, `create_instance_dataset`, alias `PBInstanceDataset`.
+- External dependencies: TensorFlow Dataset internals, `gen_monolith_ops.instance_dataset`, `distributed_dataset.create_dynamic_sharding_dataset`, `ckpt_hooks.disable_iterator_save_restore`, TF matching_files.
+- Side effects: disables iterator save/restore when reading from stdin; logs initialization; uses TF fatal logging on missing file.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_PBInstanceDataset(file_name, use_snappy, has_sort_id, kafka_dump, kafka_dump_prefix)`:
+  - Calls custom op `instance_dataset` with tensors for file name, snappy, and header flags.
+  - `element_spec` is scalar string `TensorSpec([], tf.string)`.
+- `PBInstanceDatasetV2`:
+  - If `file_name` is empty string, treats input as stdin and calls `ckpt_hooks.disable_iterator_save_restore()`.
+  - Creates `_PBInstanceDataset` internally and forwards variant tensor into `DatasetV2`.
+  - `_clone` merges kwargs with stored defaults.
+  - `_inputs()` returns `[]`.
+- `create_instance_dataset(...)`:
+  - `files_list=None` defaults to `['']` (stdin).
+  - If a single file and no glob expansion/sharding/dynamic sharding, returns `PBInstanceDatasetV2` directly; validates existence when file is non-empty and logs fatal on missing file.
+  - `enable_dynamic_sharding=True`:
+    - Converts to dataset via `distributed_dataset.create_dynamic_sharding_dataset` and `flat_map` with `PBInstanceDatasetV2`.
+  - `enable_sharding=True`:
+    - Requires a single file pattern; uses `MatchingFilesDataset`, shards by `shard_num/shard_index`, logs shard info; forces `use_snappy=True`.
+  - Else:
+    - Uses `MatchingFilesDataset` if `expand_glob_path=True`, otherwise `Dataset.from_tensor_slices`.
+  - Final dataset uses `interleave` with `cycle_length`, `block_length`, `num_parallel_calls`, `deterministic=False`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/src` for dataset creation and file reader.
+- Rust public API surface: `pb_instance_dataset` (or similar) and `create_instance_dataset` with matching options.
+- Data model mapping: custom op variant tensor → Rust stream of serialized Instance bytes.
+- Feature gating: stdin mode, dynamic sharding, and TF MatchingFiles behavior.
+- Integration points: datasets (`datasets.py`), training pipelines that expect PBInstanceDataset semantics.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a Rust dataset source that wraps Instance file reading with flags for sort_id/kafka headers and snappy.
+2. Mirror stdin special case and disable iterator save/restore in Rust equivalents.
+3. Implement glob expansion, sharding, and dynamic sharding (or document unsupported) with identical defaults.
+4. Preserve interleave behavior and `deterministic=False` semantics.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `instance_dataset_op_test_stdin.py`, other dataset tests using PBInstanceDataset.
+- Rust tests: dataset source tests for stdin vs file, sharding path, missing file handling.
+- Cross-language parity test: read a fixture PB file in Python and Rust and compare record sequence.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses TF Dataset internals; Rust must define a similar streaming abstraction.
+- Missing file uses `logging.fatal` in TF; decide equivalent behavior in Rust (panic or error).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7163,50 +7168,47 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/data/training_instance/python/instance_dataset_op_test_stdin.py`
 <a id="monolith-native-training-data-training-instance-python-instance-dataset-op-test-stdin-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 58
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke test for `PBInstanceDataset` reading from stdin (empty file_name), batching, and parsing with `parse_instances`.
+- Key symbols/classes/functions: `PBInstanceDataset`, `parse_instances`, `testInstanceDataset`.
+- External dependencies: TensorFlow v1 session, `instance_dataset_ops`, `parse_instance_ops`.
+- Side effects: expects stdin data stream; logs warnings; runs one batch read.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Defines feature lists:
+  - `FIDV1_FEATURES = [1..9]`
+  - `FIDV2_FEATURES = ['fc_360d_ml_convert_cid', 'fc_360d_ml_convert_advertiser_id']`
+  - `FLOAT_FEATURES = ['fc_muse_finish_rough_10168_uid_d128']` with dim `[128]`
+  - `INT64_FEATURES = ['fc_dense_external_action']` with dim `[1]`
+- `parse(serialized)` calls `parse_instances(serialized, fidv1, fidv2, float_feats, float_dims, int64_feats, int64_dims)`.
+- `testInstanceDataset()`:
+  - Creates `PBInstanceDataset(file_name='', has_sort_id=True, kafka_dump_prefix=True)` (stdin path).
+  - `batch(32)` and `map(parse)`.
+  - Builds one-shot iterator, fetches one batch, logs `elements['sample_rate']`.
+- Script mode: disables eager and runs `testInstanceDataset()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/tests`.
+- Rust public API surface: stdin dataset reader + parse_instances in Rust.
+- Data model mapping: stream of framed Instance records from stdin.
+- Feature gating: stdin support in dataset source; parse_instances.
+- Integration points: dataset source in `instance_dataset_op.py` parity.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add a Rust test that simulates stdin input (e.g., pipe fixture data into the dataset reader).
+2. Ensure parsing handles fidv1/fidv2 and dense features as in Python.
+3. Validate batch size 32 returns expected keys including `sample_rate`.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: add stdin dataset smoke test with a small fixture.
+- Cross-language parity test: compare parsed batch fields from the same stdin fixture.
 
 **Gaps / Notes**
-- TODO (manual)
+- This test assumes stdin provides valid Instance records; Rust tests should supply a controlled fixture stream.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7223,50 +7225,61 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/data/training_instance/python/instance_negative_gen_dataset_op_test.py`
 <a id="monolith-native-training-data-training-instance-python-instance-negative-gen-dataset-op-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 283
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests negative sample generation dataset (`negative_gen` and `InstanceNegativeGenDataset`) over Instance PB data, including per-channel ring buffer behavior.
+- Key symbols/classes/functions: `InsNegativeDatasetTest`, `parse1`, `testNegativeGen`, `testRingBufferCache`, `testIgnoreReaNegInstance`, `testUseNegInstance`.
+- External dependencies: TensorFlow, `PBDataset`, `InstanceNegativeGenDataset`, `PbType`, custom parse ops `parse_variant_instances`.
+- Side effects: reads fixture `monolith/native_training/data/training_instance/instance.pb`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Constants:
+  - `FILE_NAME` fixture file for Instance PB.
+  - `CHANNEL_SLOT=357`, `GROUP_SLOTS=[200..242]`, `LABEL_FIELD='actions'`, `LABEL_INDEX=0`.
+  - Negative labels `NEGATIVE_LABEL=-2`, `NEGATIVE_LABEL2=-1`.
+  - `GID='gid'` used as misc int64 feature.
+- `parse1(pb_variant)`:
+  - Uses a fixed `FIDV1_FEATURES` list and `parse_variant_instances` with `misc_int64_features=[GID]`.
+- `testNegativeGen`:
+  - Builds `PBDataset` (Instance → Instance) with headers; applies `dataset.negative_gen` with:
+    - `neg_num=7`, `channel_slot`, `group_slots`, `per_channel_sample=True`, `start_num=0`, `max_group_num_per_channel=10000`, `label_field='actions'`, `label_index=0`, `negative_label=-2`, `use_neg_ins=True`.
+  - Batches 8 and parses.
+  - Asserts in first batch that `channel_res[0][0] == channel_res[0][i]` for i in 1..7 (negatives share channel), and label at index 1 equals `NEGATIVE_LABEL`.
+- `testRingBufferCache`:
+  - Same negative_gen config except `max_group_num_per_channel=2`.
+  - Collects ~1024 samples; groups by channel and verifies ring buffer behavior:
+    - For channels with >2 samples, checks that group fids from later samples are not present in the first sample when gids differ.
+  - Logs `valid_count` of checked non-overlapping group features.
+- `testIgnoreReaNegInstance`:
+  - First applies `dataset.negative_gen(..., negative_label=-2, use_neg_ins=True)`.
+  - Then wraps with `InstanceNegativeGenDataset(..., negative_label=-1, use_neg_ins=False)`.
+  - Asserts label at index 1 equals `NEGATIVE_LABEL2` (real negatives ignored).
+- `testUseNegInstance`:
+  - Same as previous but `use_neg_ins=True` in wrapper.
+  - Asserts labels: index1/index2 are `NEGATIVE_LABEL2`, index3/index4 are `NEGATIVE_LABEL` (mix of generated vs real negatives).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/tests` with negative_gen dataset implementation in `monolith-data`.
+- Rust public API surface: `negative_gen` dataset operator and `InstanceNegativeGenDataset` wrapper.
+- Data model mapping: Instance variant streams with channel/group fid slots and label field `actions`.
+- Feature gating: requires negative generation ops + item pool or group cache implementation.
+- Integration points: dataset pipeline in `datasets.py` and negative-gen custom ops in Rust/TF backend.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement `negative_gen` dataset operator and wrapper in Rust with identical parameters.
+2. Ensure per-channel sampling and ring buffer cache behavior match Python semantics.
+3. Expose `use_neg_ins` toggle to include/exclude existing negatives.
+4. Add Rust tests that load the same fixture PB file and verify label/channel/group constraints.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: new `instance_negative_gen_dataset_op_test.rs` mirroring each test case.
+- Cross-language parity test: compare label distributions and channel/group assignments on identical fixtures.
 
 **Gaps / Notes**
-- TODO (manual)
+- Depends on `instance.pb` fixture and custom ops; ensure Rust has compatible dataset and parse op support.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7281,6 +7294,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/data/training_instance/python/parse_instance_ops.py`
+
 <a id="monolith-native-training-data-training-instance-python-parse-instance-ops-py"></a>
 
 **Status:** TODO (manual review required)
