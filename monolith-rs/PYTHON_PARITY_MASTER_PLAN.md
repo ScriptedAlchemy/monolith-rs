@@ -451,7 +451,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/device_utils.py`](#monolith-native-training-device-utils-py) | 231 | IN PROGRESS | monolith-rs/crates/monolith-training/src/device |  |
 | [`monolith/native_training/device_utils_test.py`](#monolith-native-training-device-utils-test-py) | 104 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/distribute/distributed_dataset.py`](#monolith-native-training-distribute-distributed-dataset-py) | 81 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
-| [`monolith/native_training/distribute/distributed_dataset_test.py`](#monolith-native-training-distribute-distributed-dataset-test-py) | 124 | TODO | TODO (manual) |  |
+| [`monolith/native_training/distribute/distributed_dataset_test.py`](#monolith-native-training-distribute-distributed-dataset-test-py) | 124 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/distribute/str_queue.py`](#monolith-native-training-distribute-str-queue-py) | 114 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distribute/str_queue_test.py`](#monolith-native-training-distribute-str-queue-test-py) | 67 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distributed_ps.py`](#monolith-native-training-distributed-ps-py) | 2108 | TODO | TODO (manual) |  |
@@ -8326,53 +8326,53 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distribute/distributed_dataset_test.py`
-
 <a id="monolith-native-training-distribute-distributed-dataset-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 124
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests dynamic sharding dataset expansion, EOF handling, composition with TextLineDataset, and iterator save/restore.
+- Key symbols/classes/functions: `DynamicShardingDatasetTest`, `gen_test_files`, `testBasic`, `testEof`, `testWithOtherDataset`, `testSaveRestore`.
+- External dependencies: TensorFlow, `distributed_dataset.create_dynamic_sharding_dataset`, `session_hooks.SetCurrentSessionHook`.
+- Side effects: writes temp files under `TEST_TMPDIR` and saves/loads iterator checkpoints.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `gen_test_files(files_dir)`:
+  - Creates files `a_0.txt`..`e_1.txt` with two lines each: `a.0.0`, `a.0.1`, etc.
+- `setUp`:
+  - Uses `TEST_TMPDIR` and creates data dir + files if missing.
+  - Builds glob patterns `a_*.txt`..`e_*.txt`.
+- `get_test_session()`:
+  - Returns `SingularMonitoredSession` with `SetCurrentSessionHook`.
+- `testBasic`:
+  - Reads 10 filenames from dynamic sharding dataset; expects ordered list of `a_0..e_1` full paths.
+- `testEof`:
+  - With empty patterns, iterator should raise `OutOfRangeError`; verifies dependent op does not mutate variable `v`.
+- `testWithOtherDataset`:
+  - `filename_dataset.flat_map(TextLineDataset)` yields lines; first three lines are `a.0.0`, `a.0.1`, `a.1.0`.
+- `testSaveRestore`:
+  - Creates saveable iterator; reads `a.0.0`, saves; reads `a.0.1`, restores; next read is still `a.0.1`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/tests`.
+- Rust public API surface: dynamic sharding dataset + iterator save/restore (if supported).
+- Data model mapping: file list → dataset → line dataset.
+- Feature gating: iterator save/restore may depend on TF runtime.
+- Integration points: `distributed_dataset` implementation.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement Rust tests that generate temp files and validate ordered filename emission.
+2. Verify EOF behavior for empty patterns.
+3. Test composition with line reader and save/restore semantics.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: `distributed_dataset_test.rs` with tempdir fixtures.
+- Cross-language parity test: compare file order and resume position after restore.
 
 **Gaps / Notes**
-- TODO (manual)
+- `saveable` iterator behavior is TF-specific; Rust may need explicit checkpointing support.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8387,6 +8387,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distribute/str_queue.py`
+
 <a id="monolith-native-training-distribute-str-queue-py"></a>
 
 **Status:** TODO (manual review required)
