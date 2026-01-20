@@ -518,7 +518,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/hooks/session_hooks_test.py`](#monolith-native-training-hooks-session-hooks-test-py) | 33 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/hvd_lib.py`](#monolith-native-training-hvd-lib-py) | 65 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/input.py`](#monolith-native-training-input-py) | 45 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
-| [`monolith/native_training/layers/__init__.py`](#monolith-native-training-layers-init-py) | 46 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/__init__.py`](#monolith-native-training-layers-init-py) | 46 | IN PROGRESS | monolith-rs/crates/monolith-layers/src |  |
 | [`monolith/native_training/layers/add_bias.py`](#monolith-native-training-layers-add-bias-py) | 110 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/add_bias_test.py`](#monolith-native-training-layers-add-bias-test-py) | 65 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/advanced_activations.py`](#monolith-native-training-layers-advanced-activations-py) | 217 | TODO | TODO (manual) |  |
@@ -12265,50 +12265,69 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/__init__.py`
 <a id="monolith-native-training-layers-init-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 46
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Aggregates and re-exports Keras layers plus Monolith custom layers, then patches Keras layer classes with a `params()` helper for InstantiableParams construction.
+- Key symbols/classes/functions:
+  - Re-exported custom layers: `MLP`, `Dense` (custom override), `AddBias`, `LHUCTower`, `LogitCorrection`, `LayerNorm`, `GradNorm`, `SumPooling`, `AvgPooling`, `MaxPooling`, `MergeType`, `DCNType`, `MMoE`, `SNR`, plus everything from `feature_cross`, `feature_trans`, `feature_seq`, `advanced_activations`.
+  - `keras_layers` dict: name → Keras layer class with `params` monkey-patched.
+- External dependencies: `tensorflow` (`tf.keras.layers`, `Layer`), `types.MethodType`, `monolith.native_training.utils.params` (`params` helper).
+- Side effects: Module import-time monkey-patching of Keras layer classes to inject `params()`; removal of wildcard-imported `Dense` symbol to replace with custom Dense.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Import order and namespace behavior:
+  - `from tensorflow.keras.layers import *` makes all Keras layer classes available in module namespace.
+  - `del globals()['Dense']` removes the Keras `Dense` symbol created by the wildcard import.
+  - `from monolith.native_training.layers.dense import Dense` inserts the custom Dense in its place.
+- Custom layer re-exports:
+  - Re-exports layer modules so downstream Python code can do `from monolith.native_training.layers import X` for both Keras layers and custom layers.
+- Keras layer patching:
+  - Creates `keras_layers = {}`.
+  - Iterates `dir(tf.keras.layers)`, skipping names that start with `_` or are exactly `"Layer"`.
+  - For each candidate:
+    - Retrieves `cls = getattr(tf.keras.layers, name)`.
+    - If `issubclass(cls, Layer)` and `cls` does **not** already have `params`, then attaches `cls.params = MethodType(_params, cls)` and inserts `keras_layers[name] = cls`.
+    - All errors in this process are swallowed (`except: pass`) to avoid import-time failures for non-class attributes or invalid `issubclass` checks.
+  - Result: `keras_layers` includes only Keras layer classes that were patched.
+- Error handling and determinism:
+  - No explicit errors thrown; all reflection errors are suppressed.
+  - Determinism is not relevant; import-time logic is pure reflection/patching.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/src/lib.rs` + `monolith-rs/crates/monolith-layers/src/prelude` (existing `prelude` module).
+- Rust public API surface:
+  - Provide a `prelude` module that re-exports Monolith layers analogous to Python's `__init__` aggregator.
+  - Ensure `Dense` refers to the Monolith implementation (`monolith_layers::Dense`).
+  - Expose `MergeType` and `DCNType` equivalents (`MergeType` already exists; map Python `DCNType` to Rust `DCNMode` or add an alias if necessary).
+- Data model mapping:
+  - Python's `params()` returns `InstantiableParams`; Rust should expose a `LayerParams`/`BuildConfig` trait that returns serializable config metadata per layer, or central registry entries.
+- Feature gating:
+  - If TF runtime backend is enabled (`cfg(feature = "tf-runtime")`), consider an optional registry for TensorFlow-native layers.
+  - Otherwise, provide Monolith-only registry/prelude without TF/Keras dependencies.
+- Integration points:
+  - Downstream uses `monolith.native_training.layers` as a convenience import; in Rust this maps to `monolith_layers::prelude::*` or a `layers` module in the top-level crate.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Confirm `monolith_layers::prelude` exports all custom layers used in Python (`AddBias`, `MLP`, `LHUCTower`, `LogitCorrection`, `LayerNorm`, `GradNorm`, pooling layers, `MMoE`, `SNR`, feature cross/trans/seq layers).
+2. Add missing exports or alias types in `monolith-rs/crates/monolith-layers/src/lib.rs` to mirror Python names (`DCNType` alias if needed).
+3. Create an optional `LayerRegistry` (e.g., `HashMap<&'static str, LayerFactory>`) to mimic `keras_layers` if dynamic layer lookup is required; document that Python only registers patched Keras layers.
+4. Implement a `LayerParams` trait or per-layer config builder to mirror Python `params()` (if used by config/codegen tooling).
+5. Add a top-level `monolith-rs/crates/monolith/src/layers.rs` (or re-export from `monolith_layers`) to provide a single import path similar to Python.
+6. Document that there is no exact Keras wildcard import equivalent; in Rust, this is replaced by explicit prelude exports and optional registry for dynamic construction.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: None directly for `layers/__init__.py`.
+- Rust tests:
+  - Add a compile-time test that `monolith_layers::prelude::*` includes expected names (e.g., `Dense`, `MLP`, `AddBias`, pooling layers).
+  - If a registry is added, include a test that registry contains expected layer names and no duplicates.
+- Cross-language parity test:
+  - (Optional) capture list of exported layer names in Python and compare to Rust prelude/registry list for overlap.
 
 **Gaps / Notes**
-- TODO (manual)
+- `keras_layers` is only populated for Keras classes missing `params`; if Rust introduces a registry, decide whether it should include only "patched" entries or the full set of Rust layers.
+- Python explicitly suppresses all errors during reflection; Rust should avoid panicking on optional registry population.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
