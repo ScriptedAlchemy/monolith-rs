@@ -6233,31 +6233,77 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: initializes Horovod, configures GPU visibility, trains/evaluates model, writes summaries.
 
 **Required Behavior (Detailed)**
-- CLI flags: `task`, `model_dir`, `save_checkpoints_steps`, `mode` (`train|eval|train_and_eval`).
-- `GPURunner.__init__`:
-  - Reads flags and task_param; sets `_mode`.
+- CLI flags (absl):
+  - `task` (string, required by caller).
+  - `model_dir` (string, model + summaries).
+  - `save_checkpoints_steps` (int, None means no checkpoints).
+  - `mode` enum: `"train_and_eval" | "train" | "eval"` (default `"train"`).
+- `GPURunner.__init__(task_param, ...)`:
+  - Calls `BaseRunner.__init__`.
+  - Reads flags into `_model_dir`, `_save_checkpoints_steps`, `_mode`.
+  - Stores `_task_param`.
 - `create_estimator(model_fn)`:
-  - If `task_param.accelerator == 'horovod'`:
-    - `hvd.rank()` controls checkpoint saving (only rank 0).
-    - Configures `tf.compat.v1.ConfigProto` with XLA JIT ON and GPU memory growth.
-    - Sets `visible_device_list` to local rank.
-    - `num_gpus = hvd.size()`.
-  - Else: `num_gpus = 1` and uses `tf.compat.v1.estimator.RunConfig`.
-  - Returns `tf.compat.v1.estimator.Estimator` with params: train/eval batch sizes, accelerator, num_replicas, hvd_rank.
+  - If `self._task_param.accelerator == "horovod"`:
+    - `model_dir = self._model_dir` (comment notes same dir for all ranks).
+    - `save_checkpoints_steps = self._save_checkpoints_steps` **only if** `hvd.rank() == 0`, else `None`.
+    - Builds `tf.compat.v1.ConfigProto()`:
+      - `config.graph_options.optimizer_options.global_jit_level = tf.compat.v1.OptimizerOptions.ON_1`.
+      - `config.gpu_options.allow_growth = True`.
+      - `config.gpu_options.visible_device_list = str(hvd.local_rank())`.
+    - Wraps in `tf.estimator.RunConfig(model_dir=..., save_checkpoints_steps=..., session_config=config)`.
+    - Sets `num_gpus = hvd.size()`.
+  - Else:
+    - `num_gpus = 1`.
+    - Uses `tf.compat.v1.estimator.RunConfig(model_dir=..., save_checkpoints_steps=...)`.
+  - Returns `tf.compat.v1.estimator.Estimator` with `params`:
+    - `"train_batch_size"`: `task_param.train.per_replica_batch_size`.
+    - `"eval_batch_size"`: `task_param.eval.per_replica_batch_size`.
+    - `"accelerator"`: `task_param.accelerator`.
+    - `"num_replicas"`: `num_gpus`.
+    - `"hvd_rank"`: `hvd.rank()` if horovod else `0`.
 - `run()`:
-  - Loads global step (or 0).
-  - Instantiates task; builds input_fn_train/eval and model_fn.
-  - If horovod: `hvd.init()`, sets visible GPU.
-  - For `train`:
-    - Horovod: uses `BroadcastGlobalVariablesHook(0)`.
-    - Non-horovod: `est.train`.
-  - For `eval`:
-    - Computes `num_steps` from `eval_examples` and batch size.
-    - Runs `est.evaluate` and writes summary under `model_dir/eval`.
-  - For `train_and_eval`:
-    - Loop train for `steps_per_eval` up to max_steps, evaluate and write summary.
-    - Horovod uses MPI barrier after each eval cycle.
-- `main`: fetches task params from registry and runs `GPURunner`.
+  - Loads `current_step` via `tf.train.load_variable(model_dir, GLOBAL_STEP)`;
+    on `TypeError`, `ValueError`, or `tf.errors.NotFoundError`, uses `0`.
+  - Instantiates task: `task = task_param.instantiate()`.
+  - Creates `input_fn_train`, `input_fn_eval`, and `model_fn`.
+  - If horovod:
+    - `hvd.init()`.
+    - Lists GPUs via `tf.config.experimental.list_physical_devices('GPU')`.
+    - For each GPU:
+      - `set_memory_growth(gpu, True)`.
+      - `set_visible_devices(gpus[hvd.local_rank()], 'GPU')` (inside loop).
+  - Creates estimator and starts timer (`start_timestamp = time.time()`).
+  - `mode == 'train'`:
+    - If horovod: uses `hvd.BroadcastGlobalVariablesHook(0)` and passes to `est.train`.
+    - Else: `est.train(input_fn_train, max_steps=task_param.train.max_steps)`.
+  - `mode == 'eval'`:
+    - `eval_output_dir = os.path.join(model_dir, 'eval')`, `tf.io.gfile.makedirs`.
+    - `total_examples = task_param.input.eval_examples`.
+    - `eval_batch_size = task_param.eval.per_replica_batch_size`.
+    - `num_steps = total_examples // eval_batch_size` (floor).
+    - `eval_results = est.evaluate(input_fn_eval, steps=num_steps)`.
+    - Writes summaries via `tf.compat.v1.summary.FileWriter(eval_output_dir)` and
+      `self.write_summary(eval_results, summary_writer, current_step)`.
+  - `mode == 'train_and_eval'`:
+    - `steps_per_eval = task_param.eval.steps_per_eval`, `max_steps = task_param.train.max_steps`.
+    - Creates `eval_output_dir` and loops while `current_step < max_steps`:
+      - `next_checkpoint = min(current_step + steps_per_eval, max_steps)`.
+      - Trains to `next_checkpoint` (horovod uses broadcast hook).
+      - Sets `current_step = next_checkpoint`.
+      - Logs elapsed seconds since `start_timestamp`.
+      - Computes `num_steps = total_examples // eval_batch_size`.
+      - If not horovod **or** `hvd.rank() == 0`:
+        - Logs "Starting to evaluate.", sleeps 10 seconds, then `est.evaluate`.
+        - Writes eval summary with `current_step`.
+      - If horovod: `MPI.COMM_WORLD.barrier()` (sync all workers).
+    - After loop: logs total elapsed time as `int(time.time() - start_timestamp)`.
+- `main(unused_argv)`:
+  - Looks up task params via `model_registry.GetParams(FLAGS.task)`.
+  - Logs task params, creates `GPURunner`, and calls `run()`.
+- `__main__`:
+  - `logging.set_verbosity(logging.INFO)`.
+  - `tf.compat.v1.disable_v2_behavior()`.
+  - `app.run(main)`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-training/src/gpu_runner.rs` (or CLI bin).
