@@ -566,8 +566,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/metric/kafka_utils.py`](#monolith-native-training-metric-kafka-utils-py) | 119 | IN PROGRESS | N/A (no Rust Kafka wrapper) |  |
 | [`monolith/native_training/metric/metric_hook.py`](#monolith-native-training-metric-metric-hook-py) | 563 | IN PROGRESS | N/A (TF hooks + Kafka) |  |
 | [`monolith/native_training/metric/metric_hook_test.py`](#monolith-native-training-metric-metric-hook-test-py) | 189 | IN PROGRESS | N/A (TF hooks) |  |
-| [`monolith/native_training/metric/utils.py`](#monolith-native-training-metric-utils-py) | 104 | TODO | TODO (manual) |  |
-| [`monolith/native_training/metric/utils_test.py`](#monolith-native-training-metric-utils-test-py) | 50 | TODO | TODO (manual) |  |
+| [`monolith/native_training/metric/utils.py`](#monolith-native-training-metric-utils-py) | 104 | IN PROGRESS | N/A (TF custom ops) |  |
+| [`monolith/native_training/metric/utils_test.py`](#monolith-native-training-metric-utils-test-py) | 50 | IN PROGRESS | N/A (TF custom ops) |  |
 | [`monolith/native_training/mlp_utils.py`](#monolith-native-training-mlp-utils-py) | 444 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model.py`](#monolith-native-training-model-py) | 182 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_comp_test.py`](#monolith-native-training-model-comp-test-py) | 183 | TODO | TODO (manual) |  |
@@ -15685,50 +15685,66 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/metric/utils.py`
 <a id="monolith-native-training-metric-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 104
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Convenience wrapper to emit Deep Insight metrics using custom TF ops (v1 or v2).
+- Key symbols/classes/functions: `write_deep_insight`.
+- External dependencies: TensorFlow, `deep_insight_ops`, Python `logging`.
+- Side effects: Calls custom ops that create clients and emit metrics; logs when disabling.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `write_deep_insight(features, sample_ratio, model_name, labels=None, preds=None, target=None, targets=None, labels_list=None, preds_list=None, sample_rates_list=None, extra_fields_keys=[], enable_deep_insight_metrics=True, enable_kafka_metrics=False, dump_filename=None)`:
+  - Requires `features["req_time"]`; if missing:
+    - Logs "Disabling deep_insight because req_time is absent".
+    - Returns `tf.no_op()`.
+  - `is_fake = enable_kafka_metrics or (dump_filename is not None and len(dump_filename) > 0)`.
+  - Creates client: `deep_insight_ops.deep_insight_client(enable_deep_insight_metrics, is_fake, dump_filename)`.
+  - `req_times = reshape(features["req_time"], [-1])`.
+  - **Single-target path** (`not targets`):
+    - `uids = reshape(features["uid"], [-1])`.
+    - `sample_rates = reshape(features["sample_rate"], [-1])`.
+    - Calls `deep_insight_ops.write_deep_insight` with `labels`, `preds`, `model_name`, `target`, `sample_ratio`, `return_msgs=is_fake`.
+  - **Multi-target path** (`targets` truthy):
+    - `labels = stack([label if rank==1 else reshape(label, (-1,)) for label in labels_list if label is not None])`.
+    - `preds = stack([pred if rank==1 else reshape(pred, (-1,)) for pred in preds_list if pred is not None])`.
+    - `sample_rates_list` handling:
+      - If falsy: uses `features["sample_rate"]` reshaped to [-1] and repeats `len(targets)` times.
+      - If list/tuple: reshapes each to rank 1; filters out None.
+      - Else raises `Exception("sample_rates_list error!")`.
+    - `sample_rates = stack(sample_rates_list)`.
+    - Ensures `"uid"` in `extra_fields_keys` (mutates list default).
+    - Builds `extra_fields_values` by reshaping each `features[key]` to [-1].
+    - Calls `deep_insight_ops.write_deep_insight_v2` with `targets`, `extra_fields_*`, `return_msgs=is_fake`.
+  - Returns the op tensor from deep_insight ops.
+- Error cases:
+  - Missing `uid`/`sample_rate`/extra fields -> `KeyError`.
+  - Empty `labels_list`/`preds_list` -> `tf.stack` error.
+  - `sample_rates_list` non-list and truthy -> raises generic `Exception`.
+- Mutability note: `extra_fields_keys` default list is mutated when adding `"uid"`.
+- No threading; deterministic aside from op behavior.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (custom TF ops not bound in Rust).
+- Rust public API surface: optional wrapper around TF runtime deep insight ops.
+- Data model mapping: feature tensors, string targets, list-of-tensors for multi-target.
+- Feature gating: TF runtime + custom ops only.
+- Integration points: metrics pipeline in training.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add TF runtime bindings for deep insight ops if needed.
+2. Mirror single-target vs multi-target branching.
+3. Preserve `is_fake` semantics and `return_msgs`.
+4. Avoid mutable default pitfalls if porting (but keep behavior if parity requires).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/metric/utils_test.py`.
+- Rust tests: N/A until ops are bound.
+- Cross-language parity test: verify that v1/v2 calls receive the same tensors/flags.
 
 **Gaps / Notes**
-- TODO (manual)
+- `extra_fields_keys` uses a mutable default list; repeated calls may accumulate `"uid"`.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -15745,50 +15761,43 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/metric/utils_test.py`
 <a id="monolith-native-training-metric-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 50
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests basic call path for `utils.write_deep_insight` using a mocked op.
+- Key symbols/classes/functions: `DeepInsightTest.test_basic`.
+- External dependencies: TensorFlow, `unittest.mock`.
+- Side effects: None (deep insight op is mocked).
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_basic`:
+  - Patches `deep_insight_ops.write_deep_insight` and sets a side-effect function.
+  - `fake_call` evaluates `uids` tensor in a session and asserts it equals `[1,2,3]`.
+  - Constructs `features` with `uid`, `req_time`, `sample_rate` tensors.
+  - Creates `labels`, `preds`, `model_name`, `target`.
+  - Calls `utils.write_deep_insight(...)`.
+  - Note: Call uses positional arguments in a non-obvious order; still exercises `uids` extraction.
+- `__main__` disables eager execution and runs `tf.test.main()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A.
+- Rust public API surface: none.
+- Data model mapping: none.
+- Feature gating: TF runtime only.
+- Integration points: deep insight wrapper tests if implemented.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. If deep insight ops are bound in Rust, add a unit test to ensure `uid` extraction and reshape behavior.
+2. Prefer explicit keyword arguments to avoid positional mis-ordering.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/metric/utils_test.py`.
+- Rust tests: N/A until implementation exists.
+- Cross-language parity test: verify tensor shapes/values passed to op.
 
 **Gaps / Notes**
-- TODO (manual)
+- The test passes arguments positionally in a confusing order relative to the function signature; keep behavior but consider fixing in Python if allowed.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
