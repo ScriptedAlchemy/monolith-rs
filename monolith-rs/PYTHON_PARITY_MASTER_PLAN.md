@@ -456,7 +456,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/distribute/str_queue_test.py`](#monolith-native-training-distribute-str-queue-test-py) | 67 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/distributed_ps.py`](#monolith-native-training-distributed-ps-py) | 2108 | IN PROGRESS | monolith-rs/crates/monolith-training/src/ps |  |
 | [`monolith/native_training/distributed_ps_benchmark.py`](#monolith-native-training-distributed-ps-benchmark-py) | 168 | IN PROGRESS | monolith-rs/crates/monolith-training/benches |  |
-| [`monolith/native_training/distributed_ps_factory.py`](#monolith-native-training-distributed-ps-factory-py) | 262 | TODO | TODO (manual) |  |
+| [`monolith/native_training/distributed_ps_factory.py`](#monolith-native-training-distributed-ps-factory-py) | 262 | IN PROGRESS | monolith-rs/crates/monolith-training/src/ps |  |
 | [`monolith/native_training/distributed_ps_factory_test.py`](#monolith-native-training-distributed-ps-factory-test-py) | 87 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distributed_ps_sync.py`](#monolith-native-training-distributed-ps-sync-py) | 531 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distributed_ps_sync_test.py`](#monolith-native-training-distributed-ps-sync-test-py) | 109 | TODO | TODO (manual) |  |
@@ -8672,53 +8672,60 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distributed_ps_factory.py`
-
 <a id="monolith-native-training-distributed-ps-factory-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 262
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Factory helpers to build distributed or local multi-type hash tables and partitioned hash tables with different network/packet-reduction strategies.
+- Key symbols/classes/functions: `MultiHashTableFactory`, `create_in_worker_multi_type_hash_table`, `create_multi_type_hash_table`, `create_native_multi_hash_table`, `create_in_worker_native_multi_hash_table`, `create_partitioned_hash_table`.
+- External dependencies: `distributed_ps`, `distributed_ps_sync`, `hash_table_ops`, `hash_filter_ops`, `multi_type_hash_table`, `multi_hash_table_ops`, `entry.HashTableConfigInstance`.
+- Side effects: none beyond table creation.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `MultiHashTableFactory`:
+  - Caches converted configs via `multi_hash_table_ops.convert_to_cached_config` keyed by `id(slot_to_config)`.
+  - `__call__(idx, slot_to_config)` returns `MultiHashTable.from_cached_config` using hash_filter and sync_client for shard `idx`.
+- `create_in_worker_multi_type_hash_table(shard_num, slot_to_config, hash_filter, sync_client, queue_configs)`:
+  - Builds a `MergedMultiTypeHashTable` whose underlying factory is `DistributedMultiTypeHashTableMpi` (alltoall) created from a per-worker `MultiTypeHashTable` factory.
+- `create_multi_type_hash_table(num_ps, slot_to_config, hash_filters, sync_clients, reduce_network_packets, max_rpc_deadline_millis)`:
+  - Validates sync_clients length; fills with None if missing.
+  - `num_ps==0`: returns local `MergedMultiTypeHashTable` backed by `MultiTypeHashTable` and local hash tables.
+  - `reduce_network_packets=False`: uses `DistributedHashTable` per slot within `MultiTypeHashTable` (dedup on worker, distribute to PS).
+  - `reduce_network_packets=True`: uses `DistributedMultiTypeHashTable` (multi-type on PS) to reduce RPC count.
+- `create_native_multi_hash_table(num_ps, slot_to_config, hash_filters, sync_clients, max_rpc_deadline_millis)`:
+  - `num_ps==0`: returns local `MultiHashTable.from_configs`.
+  - Else returns `DistributedMultiTypeHashTable` with `MultiHashTableFactory`.
+- `create_in_worker_native_multi_hash_table(shard_num, slot_to_config, hash_filter, sync_client, queue_configs)`:
+  - Returns `DistributedMultiTypeHashTableMpi` with a local native `MultiHashTable` per shard.
+- `create_partitioned_hash_table(num_ps, use_native_multi_hash_table, max_rpc_deadline_millis, hash_filters, sync_clients, enable_gpu_emb, queue_configs)`:
+  - Normalizes hash_filters/sync_clients lists.
+  - Chooses `multi_type_factory` based on native vs non-native multi-hash table:
+    - Native: `MultiHashTableFactory`.
+    - Non-native: `MultiTypeHashTable` with hash tables created per PS.
+  - Returns `distributed_ps.PartitionedHashTable` with queue configs.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/ps`.
+- Rust public API surface: factory functions for hash table backends (local vs distributed).
+- Data model mapping: slot configs → hash tables; shard selection logic.
+- Feature gating: `reduce_network_packets`, native multi-hash table, GPU embedding.
+- Integration points: used by training setup to instantiate embedding tables.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement Rust factories mirroring the three strategies (local, distributed per slot, distributed multi-type).
+2. Preserve caching for expensive config conversion (if needed).
+3. Ensure `num_ps==0` uses local tables and no RPC.
+4. Add `PartitionedHashTable` factory with queue config propagation.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `distributed_ps_factory_test.py`.
+- Rust tests: unit tests for factory selection logic and returned table types.
+- Cross-language parity test: compare selected strategy for given flags.
 
 **Gaps / Notes**
-- TODO (manual)
+- Depends on TF custom ops for hash tables; Rust must provide equivalent backends.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8733,6 +8740,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distributed_ps_factory_test.py`
+
 <a id="monolith-native-training-distributed-ps-factory-test-py"></a>
 
 **Status:** TODO (manual review required)
