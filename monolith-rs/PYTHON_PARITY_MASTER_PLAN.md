@@ -526,7 +526,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/agru.py`](#monolith-native-training-layers-agru-py) | 295 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/agru.rs |  |
 | [`monolith/native_training/layers/agru_test.py`](#monolith-native-training-layers-agru-test-py) | 112 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/agru_test.rs |  |
 | [`monolith/native_training/layers/dense.py`](#monolith-native-training-layers-dense-py) | 307 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/dense.rs |  |
-| [`monolith/native_training/layers/dense_test.py`](#monolith-native-training-layers-dense-test-py) | 147 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/dense_test.py`](#monolith-native-training-layers-dense-test-py) | 147 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/dense_test.rs |  |
 | [`monolith/native_training/layers/feature_cross.py`](#monolith-native-training-layers-feature-cross-py) | 805 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/feature_cross_test.py`](#monolith-native-training-layers-feature-cross-test-py) | 286 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/feature_seq.py`](#monolith-native-training-layers-feature-seq-py) | 361 | TODO | TODO (manual) |  |
@@ -12914,50 +12914,63 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/dense_test.py`
 <a id="monolith-native-training-layers-dense-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 147
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests Dense instantiation, serialization, forward, kernel norm, inactive-ReLU monitoring, and variable partitioning.
+- Key symbols/classes/functions: `DenseTest` methods `test_dense_instantiate`, `test_dense_serde`, `test_dense_call`, `test_dense_kernel_norm_call`, `test_inactive_relu_monitor`, `test_dense_with_explicit_partition`, `test_dense_with_implicit_partition`.
+- External dependencies: TensorFlow v1 session mode, NumPy.
+- Side effects: Uses graph collections and variable partitioning.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_dense_instantiate`:
+  - Builds `Dense.params()` template, sets `units=100`, `activation=sigmoid`, `kernel_initializer=GlorotNormal`, instantiates.
+  - Also constructs `Dense(...)` directly; both must succeed.
+- `test_dense_serde`:
+  - Instantiates via params, calls `get_config`, and `Dense.from_config(cfg)`.
+- `test_dense_call`:
+  - Creates Dense with sigmoid activation, input `(100, 100)` ones; sums output and runs session.
+- `test_dense_kernel_norm_call`:
+  - Dense with `allow_kernel_norm=True`, `kernel_norm_trainable=True`; runs forward without errors.
+- `test_inactive_relu_monitor`:
+  - Dense with `activation=relu` and `inactive_relu_monitor=True`.
+  - After calling on a constant input, asserts graph contains node name `Dense/inactive_relu_count_moving_avg_1`.
+- `test_dense_with_explicit_partition`:
+  - Dense with explicit `partitioner` and kernel_norm enabled.
+  - Input shape `(100, 294)`; validates output shape `(100, 1024)`.
+  - Collects per-shard kernel dims (expected `[59, 59, 59, 59, 58]` but not asserted).
+- `test_dense_with_implicit_partition`:
+  - Uses `variable_scope` partitioner; Dense with `partitioner=None` to inherit scope.
+  - Verifies kernel shard dims equal `[59, 59, 59, 59, 58]`.
+  - Validates output shape `(100, 1024)`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/dense_test.rs`.
+- Rust public API surface: `Dense`, activation handling, kernel norm config.
+- Data model mapping:
+  - Params-based instantiation ↔ Rust builder/config.
+  - `get_config`/`from_config` ↔ serde round-trip.
+- Feature gating: None.
+- Integration points: `monolith_layers::dense`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust tests for constructor + config serde round-trip.
+2. Add forward tests for base Dense and kernel_norm-enabled Dense.
+3. If activation is moved out of Dense in Rust, adapt tests to apply activation separately but keep parity cases documented.
+4. Decide how to mirror partitioner behavior:
+   - If not supported, add explicit test that documents the unsupported feature.
+5. Add inactive-ReLU monitoring metrics if implemented; otherwise document absence.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/dense_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/dense_test.rs` (new).
+- Cross-language parity test:
+  - Fixed weights/bias and compare output sums for kernel_norm on/off.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python partitioner behavior has no Rust equivalent; needs explicit parity plan or documented limitation.
+- The expected partition shard sizes are implicit to TF partitioner; Rust may not replicate.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
