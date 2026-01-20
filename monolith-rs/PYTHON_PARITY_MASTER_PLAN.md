@@ -267,20 +267,20 @@ This is the first incremental mapping pass. It will be expanded **file-by-file**
 
 | Python File | Rust Target | Status | Notes |
 |---|---|---|---|
-| `monolith/agent_service/agent_service.py` | `monolith-rs/crates/monolith-serving/src/grpc_agent.rs` (gRPC), `monolith-rs/crates/monolith-serving/src/server.rs` (runtime) | TODO | Split responsibilities between coordination gRPC and serving runtime. |
-| `monolith/agent_service/agent_controller.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Needs model layout/config orchestration parity. |
-| `monolith/agent_service/agent_v1.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Defines agent logic; map to server + manager abstractions. |
-| `monolith/agent_service/agent_v3.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Advanced routing / layout logic; likely new Rust module. |
-| `monolith/agent_service/backends.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Backend abstraction for layout + storage. |
-| `monolith/agent_service/replica_manager.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Replica discovery + updates. |
-| `monolith/agent_service/model_manager.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Model lifecycle + watcher loops. |
-| `monolith/agent_service/tfs_client.py` | `monolith-rs/crates/monolith-serving/src/tfserving.rs` | TODO | Map client utilities to Rust TF Serving client. |
-| `monolith/agent_service/tfs_wrapper.py` | `monolith-rs/crates/monolith-serving/src/tfserving.rs` | TODO | Wrapper logic around Predict/ModelStatus. |
-| `monolith/agent_service/tfs_monitor.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Monitoring + metrics; may need new module. |
-| `monolith/agent_service/utils.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Config parsing, model specs, helper utilities. |
-| `monolith/agent_service/constants.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Constants + enums. |
-| `monolith/agent_service/data_def.py` | `monolith-rs/crates/monolith-serving/src/*` | TODO | Data definition structures. |
-| Tests in `monolith/agent_service/*_test.py` | `monolith-rs/crates/monolith-serving/tests/*` | TODO | Port test cases and fixtures. |
+| `monolith/agent_service/agent_service.py` | `monolith-rs/crates/monolith-serving/src/grpc_agent.rs` (gRPC), `monolith-rs/crates/monolith-serving/src/server.rs` (runtime) | IN PROGRESS | Split responsibilities between coordination gRPC and serving runtime. |
+| `monolith/agent_service/agent_controller.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Needs model layout/config orchestration parity. |
+| `monolith/agent_service/agent_v1.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Defines agent logic; map to server + manager abstractions. |
+| `monolith/agent_service/agent_v3.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Advanced routing / layout logic; likely new Rust module. |
+| `monolith/agent_service/backends.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Backend abstraction for layout + storage. |
+| `monolith/agent_service/replica_manager.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Replica discovery + updates. |
+| `monolith/agent_service/model_manager.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Model lifecycle + watcher loops. |
+| `monolith/agent_service/tfs_client.py` | `monolith-rs/crates/monolith-serving/src/tfserving.rs` | IN PROGRESS | Map client utilities to Rust TF Serving client. |
+| `monolith/agent_service/tfs_wrapper.py` | `monolith-rs/crates/monolith-serving/src/tfserving.rs` | IN PROGRESS | Wrapper logic around Predict/ModelStatus. |
+| `monolith/agent_service/tfs_monitor.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Monitoring + metrics; may need new module. |
+| `monolith/agent_service/utils.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Config parsing, model specs, helper utilities. |
+| `monolith/agent_service/constants.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Constants + enums. |
+| `monolith/agent_service/data_def.py` | `monolith-rs/crates/monolith-serving/src/*` | IN PROGRESS | Data definition structures. |
+| Tests in `monolith/agent_service/*_test.py` | `monolith-rs/crates/monolith-serving/tests/*` | IN PROGRESS | Port test cases and fixtures. |
 
 ---
 
@@ -495,7 +495,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/hash_filter_ops.py`](#monolith-native-training-hash-filter-ops-py) | 326 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/hash_filter_ops_test.py`](#monolith-native-training-hash-filter-ops-test-py) | 228 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests |  |
 | [`monolith/native_training/hash_table_ops.py`](#monolith-native-training-hash-table-ops-py) | 738 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
-| [`monolith/native_training/hash_table_ops_benchmark.py`](#monolith-native-training-hash-table-ops-benchmark-py) | 148 | IN PROGRESS | TODO (manual) |  |
+| [`monolith/native_training/hash_table_ops_benchmark.py`](#monolith-native-training-hash-table-ops-benchmark-py) | 148 | IN PROGRESS | monolith-rs/crates/monolith-examples/src/bin/hash_table_ops_benchmark.rs (new) |  |
 | [`monolith/native_training/hash_table_ops_test.py`](#monolith-native-training-hash-table-ops-test-py) | 1200 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests |  |
 | [`monolith/native_training/hash_table_utils.py`](#monolith-native-training-hash-table-utils-py) | 50 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/src |  |
 | [`monolith/native_training/hash_table_utils_test.py`](#monolith-native-training-hash-table-utils-test-py) | 45 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/tests |  |
