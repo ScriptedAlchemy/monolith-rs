@@ -540,7 +540,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/logit_correction.py`](#monolith-native-training-layers-logit-correction-py) | 88 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/logit_correction.rs |  |
 | [`monolith/native_training/layers/logit_correction_test.py`](#monolith-native-training-layers-logit-correction-test-py) | 65 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/logit_correction_test.rs |  |
 | [`monolith/native_training/layers/mlp.py`](#monolith-native-training-layers-mlp-py) | 211 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/mlp.rs |  |
-| [`monolith/native_training/layers/mlp_test.py`](#monolith-native-training-layers-mlp-test-py) | 78 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/mlp_test.py`](#monolith-native-training-layers-mlp-test-py) | 78 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/mlp_test.rs |  |
 | [`monolith/native_training/layers/multi_task.py`](#monolith-native-training-layers-multi-task-py) | 448 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/multi_task_test.py`](#monolith-native-training-layers-multi-task-test-py) | 128 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/norms.py`](#monolith-native-training-layers-norms-py) | 343 | TODO | TODO (manual) |  |
@@ -13919,50 +13919,52 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/mlp_test.py`
 <a id="monolith-native-training-layers-mlp-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 78
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke tests for MLP instantiation, serialization, and forward call with batch normalization and mixed activation list.
+- Key symbols/classes/functions: `MLPTest` methods `test_mlp_instantiate`, `test_mlp_serde`, `test_mlp_call`.
+- External dependencies: TensorFlow v1 session mode, NumPy.
+- Side effects: Checks internal `_stacked_layers` length.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_mlp_instantiate`:
+  - Params-based instantiate with `output_dims=[1,3,4,5]`, `activations=None`, `initializers=GlorotNormal`.
+  - Direct constructor with same output dims and `initializers=HeUniform`.
+- `test_mlp_serde`:
+  - Instantiate via params, `get_config` and `MLP.from_config(cfg)` should succeed.
+- `test_mlp_call`:
+  - Params-based instantiate with:
+    - `output_dims=[100,50,10,1]`,
+    - `enable_batch_normalization=True`,
+    - `activations=['relu', tanh, PReLU, None]`,
+    - `initializers=GlorotNormal`.
+  - Input shape `(100,100)`; sums output.
+  - Asserts `len(layer._stacked_layers) == 11`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/mlp_test.rs`.
+- Rust public API surface: `MLP`, `MLPConfig`, `ActivationType`.
+- Data model mapping:
+  - Activation list includes mixed string/function/class; Rust should accept equivalent `ActivationType`.
+  - `_stacked_layers` count corresponds to Dense + optional BN + activation for each layer; ensure layering logic matches.
+- Feature gating: None.
+- Integration points: `monolith_layers::mlp`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust tests for constructor and config serialization.
+2. Add forward test with batch normalization and mixed activations; assert output shape/sum.
+3. Add check on internal layer count if exposed (or infer via config).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/mlp_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/mlp_test.rs` (new).
+- Cross-language parity test:
+  - Fix weights and inputs; compare output sums and layer counts.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses `tf.keras.layers.PReLU` class in activations list; Rust must map to `ActivationType::PReLU` with default params.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
