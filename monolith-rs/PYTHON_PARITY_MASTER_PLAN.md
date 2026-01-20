@@ -467,7 +467,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/distribution_ops_benchmark.py`](#monolith-native-training-distribution-ops-benchmark-py) | 118 | IN PROGRESS | monolith-rs/crates/monolith-training/benches |  |
 | [`monolith/native_training/distribution_ops_fused_benchmark.py`](#monolith-native-training-distribution-ops-fused-benchmark-py) | 61 | IN PROGRESS | monolith-rs/crates/monolith-training/benches |  |
 | [`monolith/native_training/distribution_ops_fused_test.py`](#monolith-native-training-distribution-ops-fused-test-py) | 148 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
-| [`monolith/native_training/distribution_ops_test.py`](#monolith-native-training-distribution-ops-test-py) | 536 | TODO | TODO (manual) |  |
+| [`monolith/native_training/distribution_ops_test.py`](#monolith-native-training-distribution-ops-test-py) | 536 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests |  |
 | [`monolith/native_training/distribution_utils.py`](#monolith-native-training-distribution-utils-py) | 443 | TODO | TODO (manual) |  |
 | [`monolith/native_training/embedding_combiners.py`](#monolith-native-training-embedding-combiners-py) | 102 | TODO | TODO (manual) |  |
 | [`monolith/native_training/embedding_combiners_test.py`](#monolith-native-training-embedding-combiners-test-py) | 47 | TODO | TODO (manual) |  |
@@ -9347,50 +9347,93 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 <a id="monolith-native-training-distribution-ops-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 536
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: TensorFlow test coverage for custom distribution ops (split/reorder, ragged routing, embedding gather, reduction, fused GPU ops).
+- Key symbols/classes/functions: `DistributionOpsTest` test cases.
+- External dependencies: `numpy`, `tensorflow`, `tensorflow.python.framework.test_util`, `random`, `monolith.native_training.distribution_ops`.
+- Side effects: Requires GPU for `@test_util.run_gpu_only` tests; uses TF v1 sessions and graph mode.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_split_by_indices`:
+  - `ids=[0,1,2,2,3]`, `indices=ids % 3`, `split_by_indices(..., num_splits=3)` -> `[[0,3],[1],[2,2]]`.
+- `test_reorder_by_indices`:
+  - `ids=[0,1,2,2,3,5]`, `indices=ids % 3`, `reorder_by_indices(..., num_of_shards=3)` -> `output=[3,0,1,5,2]`, `split_sizes=[2,1,2]`.
+- `test_split_by_indices_gradient`:
+  - Gradient of split over `tensor=[[0,0],[1,1],[2,2]]` returns all ones.
+- `test_split_by_indices_empty_gradient`:
+  - Empty inputs return empty gradient `[]`.
+- `test_ragged_split_by_indices`:
+  - Ragged `num=[[],[],[4,3,2],[1],[],[]]`, `indices=[0,1,0,1]` -> `splits` and `pos` arrays match expected nested ragged values.
+- `test_unique_key_with_value_and_offset_and_fill_with_offset_map`:
+  - `unique_key_with_value_and_offset` over ragged keys returns:
+    - `unique_key=[[],[0,1,2],[0,1],[]]`
+    - `value_offset=[[],[[0,8],[2,6],[4]],[[10,16],[13]],[]]`
+  - `fill_with_offset_map` + `finalize_shared_tensor` yields `buffer=[0,1,2,3,4,5,2,3,0,1,6,7,8,9,10,11,6,7,8]`.
+  - Gradient of `buffer` wrt `value` equals `[8,10,8,10,4,5,26,28,30,13,14,15]`.
+- `test_fill_with_offset_map_error_case`:
+  - When `value` length too small (10 vs expected 12), evaluating `filled_tensor` raises `InvalidArgumentError`.
+- `test_unique_key_with_value_and_offset_empty`:
+  - Empty ragged keys -> empty `unique_key`/`value_offset`.
+- `test_map_id_to_embedding`:
+  - Map ids `[1]`,`[2]` to embeddings `[[1,1]]`,`[[2,2]]` and input `[[1],[2]]` -> output `[[[1,1]],[[2,2]]]`.
+- `test_map_id_to_embedding_multi_threads`:
+  - 1k ids, 16-dim embeddings, `ps_num=10` -> multi-threaded mapping returns exact original embeddings.
+- `test_map_id_to_embedding_gradient`:
+  - Loss vs target `[[2,2],[2,2],[2,2]]` yields gradients `embeddings1=[[-2,-2]]`, `embeddings2=[[-1,-1]]`.
+- `test_gather_embeddings_by_ids`:
+  - `ids=[1,2,3]`, `embeddings=[[1,1],[2,2],[3,3]]`, input `[[2],[1],[2]]` -> output `[[[2,2]],[[1,1]],[[2,2]]]`, `index_mapping=[[1],[0],[1]]`.
+- `test_gather_embeddings_by_ids_gradient`:
+  - Gradient wrt embeddings equals `[[-2,-2],[-1,-1],[0,0]]`.
+- `test_gather_embeddings_by_ids_gradient_back_prop`:
+  - `ids=[2,3,1]`, `grads` + `index_mapping=[1,0,1,2]` -> output `[[2,2],[5,5],[8,8]]`.
+- `test_fused_gather_embeddings_by_input` (GPU only):
+  - Uses fused embeddings + offsets with large SCALE; expects exact outputs per slot (repeated SCALE times).
+- `test_fused_gather_embeddings_by_input_gradient` (GPU only):
+  - `fused_embeddings_size=22`, `embedding_dims=[3,2]`, SCALE=888 -> output length 22 and expected sums scaled; tolerance `rtol=1e-7 * SCALE`.
+- `test_reduce_mean` and `test_reduce_mean_gradient`:
+  - Mean reductions produce expected values; gradients are `[-1,-1]` per row.
+- `test_reduce_sum` and `test_reduce_sum_gradient`:
+  - Sum reductions produce expected values; gradients are `[-1,-1]` per row.
+- `test_reduce_sqrtn`, `test_reduce_sqrtn_gradient`, `test_reduce_sqrtn_gradient_zero`:
+  - Sqrt-N reductions and gradients match expected numeric values; zero inputs yield zero gradients.
+- `test_fused_reduce_sum_and_split`:
+  - CPU-only; verifies split sizes `[2,1]` and `[1,2]` for consecutive/non-consecutive indices, with zero-filled rows for gaps.
+- `test_fused_reduce_sum_and_split_grad`:
+  - Gradient wrt id_values is all ones.
+- `test_fused_reduce_scatter` (GPU only):
+  - `fused_sorted_segment_sum` matches `scatter_nd` output and gradient across multiple shapes (includes empty tensor case).
+- `test_fused_reduce_and_split_gpu` (GPU only):
+  - For ragged rows and many embedding lengths, outputs match scatter+split and gradients match for all outputs.
+- `test_aligned_concat_split` (GPU only):
+  - Random tensors round-trip through `monolith_aligned_flat_concat`/`monolith_aligned_flat_split`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tf` (TF runtime adapter) + new tests.
+- Rust public API surface: wrappers in `monolith-rs/crates/monolith-tf/src/distribution_ops.rs` (new) and tests in `monolith-rs/crates/monolith-tf/tests/distribution_ops_test.rs` and `monolith-rs/crates/monolith-tf/tests/distribution_ops_gpu_test.rs`.
+- Data model mapping: TF tensors (dense and ragged), custom op handles, gradient support for TF runtime.
+- Feature gating: `tf-runtime` feature for these tests; GPU-only tests gated on CUDA availability.
+- Integration points: custom op library load (libmonolith_ops) before creating the TF graph/session.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add TF runtime harness in Rust: build graph/session, load `libmonolith_ops`, wrap op invocation.
+2. Implement CPU tests for `split_by_indices`, `reorder_by_indices`, `ragged_split_by_indices`, `unique_key_with_value_and_offset`, `fill_with_offset_map`, `finalize_shared_tensor`, `map_id_to_embedding`, `gather_embeddings_by_input`, and `reduce_*` ops.
+3. Add gradient checks using TF gradient API; if Rust bindings do not expose gradients, run parity via Python harness and document skip in Rust.
+4. Add GPU-only tests for fused gather, fused reduce scatter, fused reduce+split GPU, and aligned concat/split; skip when CUDA/custom ops missing.
+5. Seed RNG or replace random tensors with deterministic values to avoid flakiness (especially `test_aligned_concat_split`).
+6. Validate error handling for `fill_with_offset_map` with invalid input sizes (InvalidArgumentError).
+7. Document Candle backend deviations: these ops require TF custom kernels and are only supported under the TF runtime feature.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/distribution_ops_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-tf/tests/distribution_ops_test.rs` (CPU) and `monolith-rs/crates/monolith-tf/tests/distribution_ops_gpu_test.rs` (GPU).
+- Cross-language parity test: run Python and Rust TF tests on identical inputs; compare tensors within tolerance and verify gradients.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires TF custom ops build + dynamic loading; without this, Rust tests must be skipped.
+- GPU tests are sensitive to CUDA availability and may need CI skips.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
