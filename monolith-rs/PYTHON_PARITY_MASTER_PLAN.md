@@ -564,8 +564,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/metric/deep_insight_ops_test.py`](#monolith-native-training-metric-deep-insight-ops-test-py) | 33 | IN PROGRESS | N/A (empty test) |  |
 | [`monolith/native_training/metric/exit_hook.py`](#monolith-native-training-metric-exit-hook-py) | 48 | IN PROGRESS | N/A (no Rust hook) |  |
 | [`monolith/native_training/metric/kafka_utils.py`](#monolith-native-training-metric-kafka-utils-py) | 119 | IN PROGRESS | N/A (no Rust Kafka wrapper) |  |
-| [`monolith/native_training/metric/metric_hook.py`](#monolith-native-training-metric-metric-hook-py) | 563 | TODO | TODO (manual) |  |
-| [`monolith/native_training/metric/metric_hook_test.py`](#monolith-native-training-metric-metric-hook-test-py) | 189 | TODO | TODO (manual) |  |
+| [`monolith/native_training/metric/metric_hook.py`](#monolith-native-training-metric-metric-hook-py) | 563 | IN PROGRESS | N/A (TF hooks + Kafka) |  |
+| [`monolith/native_training/metric/metric_hook_test.py`](#monolith-native-training-metric-metric-hook-test-py) | 189 | IN PROGRESS | N/A (TF hooks) |  |
 | [`monolith/native_training/metric/utils.py`](#monolith-native-training-metric-utils-py) | 104 | TODO | TODO (manual) |  |
 | [`monolith/native_training/metric/utils_test.py`](#monolith-native-training-metric-utils-test-py) | 50 | TODO | TODO (manual) |  |
 | [`monolith/native_training/mlp_utils.py`](#monolith-native-training-mlp-utils-py) | 444 | TODO | TODO (manual) |  |
@@ -15468,50 +15468,122 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/metric/metric_hook.py`
 <a id="monolith-native-training-metric-metric-hook-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 563
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Collection of TensorFlow Estimator hooks for metrics, profiling, Kafka/file logging, and telemetry.
+- Key symbols/classes/functions: `ThroughputMetricHook`, `StepLossMetricHook`, `CustomMetricHook`, `Tf2ProfilerHook`, `ByteCCLTelemetryHook`, `NVProfilerHook`, `KafkaMetricHook`, `FileMetricHook`, `WriteOnlyFileAndStat`, helper functions (`default_parse_fn`, `default_layout_fn`, `vepfs_layout_fn`, `vepfs_key_fn`).
+- External dependencies: TensorFlow Estimator hooks, TF profiler, BytePS telemetry, Kafka (via `KProducer`), `tf.io.gfile`, `absl.flags/logging`, `alert_manager`, `alert_pb2`.
+- Side effects: Registers exit hook via import (`exit_hook`), starts background threads, writes to Kafka/files, may start TF profiler server on port 6666.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Module globals:
+  - `FLAGS = flags.FLAGS` used by `Tf2ProfilerHook`.
+  - Importing `exit_hook` executes signal/atexit registration for metrics.
+- `ThroughputMetricHook`:
+  - `__init__(model_name, start_time_secs, cluster_type="stable", run_every_n_secs=30)`:
+    - Initializes counters and `self._mcli = cli.get_cli(utils.get_metric_prefix())`.
+    - If alert manager exists, creates `AlertProto` and registers rules with prefix.
+  - `begin()`: sets `self._global_step_tensor = tf.compat.v1.train.get_global_step()`.
+  - `before_run(run_context)`:
+    - On first step, reads `global_step` via `session.run`.
+    - Records `emit_time` (int seconds).
+    - If `start_time_secs` provided, emits timer `run_start_elapsed_time.all` with tags `{model_name, cluster_type}`.
+    - Returns `SessionRunArgs({"global_step": global_step_tensor})`.
+  - `after_run(run_context, run_values)`:
+    - If elapsed wall time >= `run_every_n_secs`, emits:
+      - `run_steps.all` counter (step interval).
+      - `run_steps_elapsed_time.all` timer (elapsed_time / step_interval).
+    - Updates emit step/time. (No guard against `step_interval == 0`.)
+- `StepLossMetricHook`:
+  - `__init__(loss_tensor)` stores tensor and mcli.
+  - `before_run`: requests loss tensor.
+  - `after_run`: emits `step_loss` store with loss value.
+- `CustomMetricHook`:
+  - `__init__(metric_tensors)`:
+    - Validates each tensor is scalar (rank 0) and dtype in `{tf.float32, tf.int32}`.
+    - Raises `ValueError` if invalid or if metric list empty.
+  - `before_run`: requests all metric tensors.
+  - `after_run`: emits each metric as float via `emit_store`.
+- `Tf2ProfilerHook`:
+  - `__init__(logdir, init_step_range, save_steps=None, save_secs=None, options=None)`:
+    - Validates `end_step > start_step` when provided.
+    - Sets `delta = end_step - start_step` or default 10.
+    - If `save_steps` provided and `<= delta`, raises `ValueError`.
+    - Creates `SecondOrStepTimer(every_steps=save_steps, every_secs=save_secs)`.
+  - `begin()`:
+    - If `FLAGS.enable_sync_training` tries `tf.profiler.experimental.server.start(6666)`; logs warning on failure.
+  - `before_run`:
+    - If profiling, creates `_pywrap_traceme.TraceMe("TraceContext", graph_type="train", step_num=current_step)` for step-time graph fix.
+    - Returns `SessionRunArgs(fetches=None)`.
+  - `after_run`:
+    - Increments `current_step`.
+    - Stops TraceMe if active.
+    - If `start_step` is None, defers profiling to `current_step + 500` with default delta.
+    - Stops profiling when `current_step >= end_step`.
+    - If timer triggers, starts profiling and sets new `[start_step, end_step)` window.
+  - `end(sess)`: stops profiling if active.
+  - `_start_profiling()`: `tf.profiler.experimental.start(logdir, options)`; ignores `AlreadyExistsError`.
+  - `_stop_profiling()`: calls `tf.profiler.experimental.stop()`; ignores `UnavailableError`.
+- `ByteCCLTelemetryHook`:
+  - Requires global step tensor (`training_util._get_or_create_global_step_read()`), else `RuntimeError`.
+  - Logs telemetry every `interval` steps by sampling BytePS ops on rank 0.
+  - `_log_telemetry()` filters ops containing `alltoall` or first 3 `PushPull` entries.
+- `NVProfilerHook`:
+  - Subclass of `Tf2ProfilerHook` with `logdir=None`.
+  - Loads `libcudart.so` and calls `cudaProfilerStart/Stop`.
+- `KafkaMetricHook` (singleton):
+  - Uses `KAFKA_BROKER_LIST` and `KAFKA_TOPIC_NAME` env vars to create `KProducer`.
+  - `__init__`: loads `deep_insight_op` from TF collection if not provided; stores as tensor dict.
+  - `after_run`: sends `deep_insight_op` messages to Kafka if any.
+  - `end`: closes producer, logs success/failed counts.
+- Helper functions:
+  - `default_parse_fn`: JSON-decodes strings/bytes; otherwise returns input.
+  - `default_layout_fn`: returns string or JSON dump; falls back to `repr` on error.
+  - `vepfs_layout_fn`: formats deep insight record as `req_time;gid;uid;predict_scores;labels`.
+  - `vepfs_key_fn`: builds path `base/model_name/date/worker_{id}`.
+- `WriteOnlyFileAndStat`:
+  - Holds buffered output; rotates partitions after `partition_size` lines (default 1e6).
+  - Uses `tf.io.gfile` to write `part_XXXXXX.{file_ext}` under `key` directory.
+  - `write()` buffers formatted strings; `flush()` writes and rotates; `close()` closes stream.
+  - `is_available()` returns True if updated within last 24 hours.
+  - Note: uses `List`/`Dict` typing annotations without importing them (potential NameError at runtime).
+- `FileMetricHook` (singleton):
+  - Initializes from `deep_insight_op` collection if not provided.
+  - Requires `key_fn` for routing items; if `None`, `_send` will fail when called.
+  - Spawns background thread on first `after_run`.
+  - Enqueues messages (handles list/tuple/np.ndarray or scalar).
+  - `_send` parses items, writes to per-key `WriteOnlyFileAndStat`, and cleans up inactive files every 10 minutes.
+  - `end` waits for queue to drain, stops thread, closes open files.
+- Threading/concurrency: multiple background threads; queue for metrics, RLock in file writer.
+- Determinism: depends on timing, Kafka/network, filesystem.
+- Logging/metrics: uses `mcli.emit_*`, absl logging, Kafka/file outputs.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (TF Estimator hooks and Kafka/file hooks not present in Rust).
+- Rust public API surface: if needed, add a training hooks module with metrics, profiling, and output sinks.
+- Data model mapping: map TF hooks to Rust training loop callbacks; map `deep_insight_op` outputs to Rust equivalents.
+- Feature gating: Kafka and profiler hooks should be optional (feature flags).
+- Integration points: training loop, metrics client, optional BytePS/collective telemetry.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Decide which hooks are needed in Rust training (throughput, loss, custom metrics).
+2. Implement throughput/loss hooks as callbacks in Rust training loop.
+3. Provide profiling hooks only if profiling support exists (TF2/NV profilers likely N/A).
+4. Implement Kafka/File output sinks if required; reuse Rust Kafka + filesystem abstractions.
+5. Match environment-variable configuration for Kafka (`KAFKA_BROKER_LIST`, `KAFKA_TOPIC_NAME`).
+6. Preserve thread/queue behavior and file partitioning semantics.
+7. Add tests for validation errors (CustomMetricHook), file rotation, and queue draining.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/metric/metric_hook_test.py`.
+- Rust tests: N/A until hooks exist.
+- Cross-language parity test: validate emitted metrics names/tags and file output formatting.
 
 **Gaps / Notes**
-- TODO (manual)
+- `List`/`Dict` are used in annotations without import; may require adding `from typing import List, Dict` in Python for runtime use.
+- `FileMetricHook` will fail if `key_fn` is not provided; ensure callers pass `vepfs_key_fn` or a custom function.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -15528,50 +15600,75 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/metric/metric_hook_test.py`
 <a id="monolith-native-training-metric-metric-hook-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 189
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests for `Tf2ProfilerHook` and `FileMetricHook` behaviors.
+- Key symbols/classes/functions: `Tf2ProfilerHookTest`, `FileMetricHookTest`.
+- External dependencies: TensorFlow, `os`, `time`, `json`, `random`, `datetime`.
+- Side effects: Writes profiling data under `TEST_TMPDIR` and file metrics under `$HOME/tmp/file_metric_hook`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `Tf2ProfilerHookTest`:
+  - `setUp`:
+    - `logdir = $TEST_TMPDIR/<test_name>`.
+    - `filepattern = logdir/plugins/profile/*`.
+    - Creates a graph with global_step and train_op (`assign_add` by 1).
+  - `_count_files()` returns count of files matching pattern.
+  - `test_steps`:
+    - Hook: `Tf2ProfilerHook(logdir, init_step_range=[0,10], save_steps=50)`.
+    - Runs one step in `SingularMonitoredSession`.
+    - Expects exactly 1 profile file.
+  - `test_multiple_steps_1`:
+    - Hook with `save_steps=30`, runs 30 steps with 0.15s sleep.
+    - Expects 1 file (profile only at 0~9).
+  - `test_multiple_steps_2`:
+    - Same hook, runs 31 steps with 0.15s sleep.
+    - Expects 2 files (0~9 and step 30).
+  - `test_secs_1`:
+    - Hook with `save_secs=1`, runs 10 steps with 0.15s sleep.
+    - Expects at least 1 file.
+  - `test_secs_2`:
+    - Hook with `save_secs=3`, runs 21 steps with 0.15s sleep.
+    - Expects at least 2 files.
+- `FileMetricHookTest`:
+  - `setUpClass`:
+    - `model_name='test_model'`, `base_name=$HOME/tmp/file_metric_hook`.
+    - Creates `FileMetricHook(worker_id=0, key_fn=vepfs_key_fn, layout_fn=vepfs_layout_fn, batch_size=8, partition_size=32)`.
+  - `tearDownClass`:
+    - Calls `hook.end(None)` to flush/close.
+    - For each of last 8 days, asserts:
+      - date directory exists under `base_name/model_name/<YYYYMMDD>/worker_0/`.
+      - exactly 2 files exist; each has 32 lines.
+  - `test_vepfs_key_fn`:
+    - Asserts path formatting for fixed data.
+  - `test_vepfs_layout_fn`:
+    - Asserts formatted string with predict/label JSON and fallback `gid`.
+  - `test_after_run`:
+    - Builds `RunValue` wrapper with `results={'deep_insight_op':[json.dumps(rv)]}`.
+    - For last 8 days, sends 64 records/day with random predict/label values.
+    - Calls `hook.after_run` to enqueue metrics; file writing validated in `tearDownClass`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (TF profiler and FileMetricHook not implemented in Rust).
+- Rust public API surface: if implemented, provide equivalent tests for profiling triggers and file partitioning.
+- Data model mapping: file output format must match `vepfs_layout_fn` and `vepfs_key_fn`.
+- Feature gating: profiling/Kafka/file outputs should be optional.
+- Integration points: Rust training hook system.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. If Rust supports profiling hooks, add tests for step/second trigger behavior.
+2. If file output hook is implemented, port these tests with deterministic data (no randomness).
+3. Ensure file partitioning at 32 lines and 2 files per day for 64 records.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/metric/metric_hook_test.py`.
+- Rust tests: N/A until hooks are implemented.
+- Cross-language parity test: compare file outputs and profile dump counts if available.
 
 **Gaps / Notes**
-- TODO (manual)
+- Tests rely on filesystem and time sleeps; may be flaky or slow.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
