@@ -628,8 +628,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/service_discovery.py`](#monolith-native-training-service-discovery-py) | 481 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/service_discovery_test.py`](#monolith-native-training-service-discovery-test-py) | 407 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/serving_ps_test.py`](#monolith-native-training-serving-ps-test-py) | 231 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
-| [`monolith/native_training/session_run_hooks.py`](#monolith-native-training-session-run-hooks-py) | 171 | TODO | TODO (manual) |  |
-| [`monolith/native_training/session_run_hooks_test.py`](#monolith-native-training-session-run-hooks-test-py) | 144 | TODO | TODO (manual) |  |
+| [`monolith/native_training/session_run_hooks.py`](#monolith-native-training-session-run-hooks-py) | 171 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
+| [`monolith/native_training/session_run_hooks_test.py`](#monolith-native-training-session-run-hooks-test-py) | 144 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/signal_utils.py`](#monolith-native-training-signal-utils-py) | 37 | TODO | TODO (manual) |  |
 | [`monolith/native_training/signal_utils_test.py`](#monolith-native-training-signal-utils-test-py) | 30 | TODO | TODO (manual) |  |
 | [`monolith/native_training/static_reshape_op.py`](#monolith-native-training-static-reshape-op-py) | 58 | TODO | TODO (manual) |  |
@@ -20352,50 +20352,51 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/session_run_hooks.py`
 <a id="monolith-native-training-session-run-hooks-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 171
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: SessionRunHooks for tide-aware stopping and delayed worker start based on global step.
+- Key symbols/classes/functions: `before`, `tide_available_now`, `CustomGlobalStepWaiterHook`, `TideStoppingHook`.
+- External dependencies: TensorFlow session hooks, `training_util`, `datetime`, `random`.
+- Side effects: Sleeps and may request session stop.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`before(hour1, minute1, hour2, minute2)`**:
+  - Returns True if time1 < time2 (lexicographic hour/minute).
+- **`tide_available_now(start_h, start_m, end_h, end_m)`**:
+  - Determines if current UTC time is within tide window; handles wrap-around (start > end).
+- **`CustomGlobalStepWaiterHook(wait_until_step, tide_*, max_non_tide_wait_minute=10)`**
+  - `begin`: creates global step tensor; raises if missing.
+  - `before_run`:
+    - If already started or wait_until_step <= 0, returns immediately.
+    - If tide window configured and tide not available, logs and requests stop.
+    - Polls global step until >= wait_until_step; sets `_worker_is_started`.
+    - Also starts a timer once global_step > 1; if wait exceeds `max_non_tide_wait_minute` (+ random 0–600s), starts anyway.
+    - Sleeps 0.5s between checks and logs periodically.
+- **`TideStoppingHook(tide_*)`**
+  - `before_run`: if tide not available, logs and requests stop.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src`.
+- Rust public API surface: session hooks for wait-until-step and tide stopping.
+- Data model mapping: global step access and session stop request.
+- Feature gating: none.
+- Integration points: training runner hooks.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement time window logic (`tide_available_now`) with UTC time.
+2. Implement wait hook with global step polling and timeout behavior.
+3. Implement tide stopping hook for graceful shutdown.
+4. Add tests using time freezing/mocking.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/session_run_hooks_test.py`.
+- Rust tests: add tests for tide availability and wait logic.
+- Cross-language parity test: compare tide window evaluations.
 
 **Gaps / Notes**
-- TODO (manual)
+- `CustomGlobalStepWaiterHook` uses random extra wait time (0–600s) in timeout calculation.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -20412,50 +20413,44 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/session_run_hooks_test.py`
 <a id="monolith-native-training-session-run-hooks-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 144
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests for tide availability logic and global step waiter hook.
+- Key symbols/classes/functions: `GlobalStepWaiterHookTest`, `TideStoppingHookTest`.
+- External dependencies: TensorFlow, `freezegun`, `time`, `session_run_hooks`.
+- Side effects: Uses frozen time and mocked `time.sleep`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `GlobalStepWaiterHookTest`:
+  - `test_not_wait_for_step_zero`: `wait_until_step=0` returns immediately.
+  - `test_not_wait_if_tide_not_available`: with tide window outside current time, hook returns without waiting.
+  - `test_wait_for_step`: mocks `time.sleep` to advance global_step; expects hook to loop twice.
+- `TideStoppingHookTest`:
+  - `test_stop_if_tide_not_available`: when tide not available, `request_stop` is called.
+  - `test_do_not_stop_if_tide_available`: when tide available, no stop requested.
+- `__main__`: disables eager execution and runs tests.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (tests).
+- Rust public API surface: wait hook and tide stopping hook.
+- Data model mapping: global step mock and session context.
+- Feature gating: none.
+- Integration points: training runner.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add tests for immediate return when wait_until_step=0.
+2. Mock time and global step updates to test waiting loop.
+3. Add tests for tide stopping behavior.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: mirror with mocked time and global step.
+- Cross-language parity test: compare tide-window logic outputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses freezegun; Rust tests should use deterministic time control.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
