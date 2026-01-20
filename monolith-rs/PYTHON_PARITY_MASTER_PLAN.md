@@ -498,7 +498,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/hash_table_ops_benchmark.py`](#monolith-native-training-hash-table-ops-benchmark-py) | 148 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hash_table_ops_test.py`](#monolith-native-training-hash-table-ops-test-py) | 1200 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests |  |
 | [`monolith/native_training/hash_table_utils.py`](#monolith-native-training-hash-table-utils-py) | 50 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/src |  |
-| [`monolith/native_training/hash_table_utils_test.py`](#monolith-native-training-hash-table-utils-test-py) | 45 | TODO | TODO (manual) |  |
+| [`monolith/native_training/hash_table_utils_test.py`](#monolith-native-training-hash-table-utils-test-py) | 45 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/tests |  |
 | [`monolith/native_training/hooks/ckpt_hooks.py`](#monolith-native-training-hooks-ckpt-hooks-py) | 193 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hooks/ckpt_hooks_test.py`](#monolith-native-training-hooks-ckpt-hooks-test-py) | 181 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hooks/ckpt_info.py`](#monolith-native-training-hooks-ckpt-info-py) | 98 | TODO | TODO (manual) |  |
@@ -10967,50 +10967,39 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hash_table_utils_test.py`
 <a id="monolith-native-training-hash-table-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 45
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests `iterate_table_and_apply` paging across shards.
+- Key symbols/classes/functions: `HashTableUtilsTest.test_iterate_table_and_apply`.
+- External dependencies: TensorFlow, `hash_table_utils`, `hash_table_ops`.
+- Side effects: Creates a test hash table and updates a counter variable.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Creates a test hash table with 100 ids.
+- Uses `iterate_table_and_apply` with `limit=2` and `nshards=10` to iterate.
+- `count_fn` increments a counter by `tf.size(dump)` for each batch.
+- Final count must equal 100.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-hash-table/tests/hash_table_utils_test.rs` (new).
+- Rust public API surface: table iteration helper and callback support.
+- Feature gating: TF runtime or native hash table required.
+- Integration points: hash table test helper equivalent.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a Rust test that fills a table with 100 entries.
+2. Iterate with small limit and shard count; accumulate total dumped entries.
+3. Assert total count equals 100.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/hash_table_utils_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-hash-table/tests/hash_table_utils_test.rs`.
+- Cross-language parity test: compare counts for same config.
 
 **Gaps / Notes**
-- TODO (manual)
+- Depends on `save_as_tensor` semantics; ensure Rust matches offset/limit behavior.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
