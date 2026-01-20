@@ -491,7 +491,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/gflags_utils.py`](#monolith-native-training-gflags-utils-py) | 282 | TODO | TODO (manual) |  |
 | [`monolith/native_training/gflags_utils_test.py`](#monolith-native-training-gflags-utils-test-py) | 217 | TODO | TODO (manual) |  |
 | [`monolith/native_training/graph_meta.py`](#monolith-native-training-graph-meta-py) | 30 | TODO | TODO (manual) |  |
-| [`monolith/native_training/graph_utils.py`](#monolith-native-training-graph-utils-py) | 26 | TODO | TODO (manual) |  |
+| [`monolith/native_training/graph_utils.py`](#monolith-native-training-graph-utils-py) | 26 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/hash_filter_ops.py`](#monolith-native-training-hash-filter-ops-py) | 326 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hash_filter_ops_test.py`](#monolith-native-training-hash-filter-ops-test-py) | 228 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hash_table_ops.py`](#monolith-native-training-hash-table-ops-py) | 738 | TODO | TODO (manual) |  |
@@ -10581,50 +10581,39 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/graph_utils.py`
 <a id="monolith-native-training-graph-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 26
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Adds batch-norm moving average assign ops into TF UPDATE_OPS collection.
+- Key symbols/classes/functions: `add_batch_norm_into_update_ops`.
+- External dependencies: TensorFlow.
+- Side effects: Mutates default graph collections.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `add_batch_norm_into_update_ops()`:
+  - Scans default graph operations.
+  - Selects ops where `"AssignMovingAvg"` is in the op name and `op.type == "AssignSubVariableOp"`.
+  - Adds each to `tf.GraphKeys.UPDATE_OPS` collection.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: TF runtime utility module (e.g., `monolith-rs/crates/monolith-tf/src/graph_utils.rs`).
+- Rust public API surface: `add_batch_norm_into_update_ops` equivalent for TF graphs.
+- Feature gating: `tf-runtime` only.
+- Integration points: training graph construction when using batch norm layers.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement graph op scan in TF runtime bindings.
+2. Filter ops by name substring and op type.
+3. Add ops to UPDATE_OPS collection.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: add a small TF graph with batch norm and verify UPDATE_OPS contains moving average assigns.
+- Cross-language parity test: compare the count of added ops for a known graph.
 
 **Gaps / Notes**
-- TODO (manual)
+- No-op for Candle backend; document as TF-only behavior.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
