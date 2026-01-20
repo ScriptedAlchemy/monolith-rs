@@ -530,7 +530,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/feature_cross.py`](#monolith-native-training-layers-feature-cross-py) | 805 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/feature_cross.rs |  |
 | [`monolith/native_training/layers/feature_cross_test.py`](#monolith-native-training-layers-feature-cross-test-py) | 286 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/feature_cross_test.rs |  |
 | [`monolith/native_training/layers/feature_seq.py`](#monolith-native-training-layers-feature-seq-py) | 361 | IN PROGRESS | monolith-rs/crates/monolith-layers/src |  |
-| [`monolith/native_training/layers/feature_seq_test.py`](#monolith-native-training-layers-feature-seq-test-py) | 126 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/feature_seq_test.py`](#monolith-native-training-layers-feature-seq-test-py) | 126 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/feature_seq_test.rs |  |
 | [`monolith/native_training/layers/feature_trans.py`](#monolith-native-training-layers-feature-trans-py) | 340 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/feature_trans_test.py`](#monolith-native-training-layers-feature-trans-test-py) | 140 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/layer_ops.py`](#monolith-native-training-layers-layer-ops-py) | 131 | TODO | TODO (manual) |  |
@@ -13243,50 +13243,49 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/feature_seq_test.py`
 <a id="monolith-native-training-layers-feature-seq-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 126
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke tests for DIN, DIEN, and DMR_U2I layers.
+- Key symbols/classes/functions: `FeatureSeqTest` methods for instantiate/serde/call.
+- External dependencies: TensorFlow v1 session mode, NumPy.
+- Side effects: Runs TF sessions; eager disabled in main guard.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- DIN:
+  - Instantiate via params and direct constructor (`hidden_units=[10,1]`).
+  - `test_din_call`: query `(100,10)`, keys `(100,15,10)`.
+- DIEN:
+  - Instantiate via params and direct constructor (`num_units=10`).
+  - `test_dien_call`: query `(100,10)`, keys `(100,15,10)`.
+- DMR_U2I:
+  - Instantiate via params and direct constructor (`cmp_dim=10`, `activation='relu'`).
+  - `test_dmr_call`: query `(100,10)`, keys `(100,15,10)`.
+- All tests compute sum of outputs and run session initialization.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/feature_seq_test.rs`.
+- Rust public API surface: `DINAttention`/`DINConfig`, `DIENLayer`, `DMRU2I`.
+- Data model mapping:
+  - Params-based instantiation ↔ Rust config/builder.
+  - `get_config`/`from_config` ↔ serde round-trip.
+- Feature gating: None.
+- Integration points: `monolith_layers::din`, `monolith_layers::dien`, `monolith_layers::dmr`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust tests for constructor and config serialization for each layer.
+2. Add forward tests with the same input shapes.
+3. Add deterministic assertions (output shapes and sums) for parity.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/feature_seq_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/feature_seq_test.rs` (new).
+- Cross-language parity test:
+  - Fix weights and inputs; compare output sums for DIN, DIEN, DMR_U2I.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python tests do not assert numeric values; Rust should add explicit assertions.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
