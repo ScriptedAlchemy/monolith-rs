@@ -471,8 +471,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/distribution_utils.py`](#monolith-native-training-distribution-utils-py) | 443 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/embedding_combiners.py`](#monolith-native-training-embedding-combiners-py) | 102 | IN PROGRESS | monolith-rs/crates/monolith-layers/src |  |
 | [`monolith/native_training/embedding_combiners_test.py`](#monolith-native-training-embedding-combiners-test-py) | 47 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests |  |
-| [`monolith/native_training/entry.py`](#monolith-native-training-entry-py) | 630 | TODO | TODO (manual) |  |
-| [`monolith/native_training/entry_test.py`](#monolith-native-training-entry-test-py) | 84 | TODO | TODO (manual) |  |
+| [`monolith/native_training/entry.py`](#monolith-native-training-entry-py) | 630 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/src |  |
+| [`monolith/native_training/entry_test.py`](#monolith-native-training-entry-test-py) | 84 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/tests |  |
 | [`monolith/native_training/env_utils.py`](#monolith-native-training-env-utils-py) | 32 | TODO | TODO (manual) |  |
 | [`monolith/native_training/env_utils_test.py`](#monolith-native-training-env-utils-test-py) | 23 | TODO | TODO (manual) |  |
 | [`monolith/native_training/estimator.py`](#monolith-native-training-estimator-py) | 667 | TODO | TODO (manual) |  |
@@ -9682,50 +9682,94 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/entry.py`
 <a id="monolith-native-training-entry-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 630
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Defines optimizer/initializer/compressor wrappers and hash table config helpers that emit `embedding_hash_table_pb2` proto configs for Monolith hash tables.
+- Key symbols/classes/functions: `Optimizer`, `SgdOptimizer`, `AdagradOptimizer`, `AdadeltaOptimizer`, `AdamOptimizer`, `AmsgradOptimizer`, `BatchSoftmaxOptimizer`, `MomentumOptimizer`, `MovingAverageOptimizer`, `RmspropOptimizer`, `RmspropV2Optimizer`, `FTRLWithGroupSparsityOptimizer`, `AdaGradWithGroupLassoOptimizer`, `DynamicWdAdagradOptimizer`, `FtrlOptimizer`, `Initializer`, `ZerosInitializer`, `ConstantsInitializer`, `RandomUniformInitializer`, `BatchSoftmaxInitializer`, `Compressor`, `OneBitCompressor`, `FixedR8Compressor`, `Fp16Compressor`, `Fp32Compressor`, `CombineAsSegment`, `HashTableConfig`, `CuckooHashTableConfig`, `HashTableConfigInstance`.
+- External dependencies: `tensorflow`, `monolith_export`, `embedding_hash_table_pb2` (package `monolith.hash_table`).
+- Side effects: None (pure config assembly), except for exceptions in constructors and learning-rate helpers.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_convert_to_proto(obj, proto)`:
+  - Calls `proto.SetInParent()`.
+  - Iterates `obj.__dict__` and assigns any non-`None` field values to the proto fields with the same name.
+- `Optimizer` (abstract): `as_proto()` returns `embedding_hash_table_pb2.OptimizerConfig`.
+- `StochasticRoundingFloat16OptimizerWrapper(optimizer)`:
+  - Wraps any optimizer; `as_proto()` calls inner optimizer then sets `stochastic_rounding_float16 = True` on the returned config.
+- Optimizers (all call `_convert_to_proto` on their respective `OptimizerConfig` sub-message):
+  - `SgdOptimizer(learning_rate=None)` -> `opt.sgd`.
+  - `AdagradOptimizer(learning_rate=None, initial_accumulator_value=None, hessian_compression_times=1, warmup_steps=0, weight_decay_factor=0.0)` -> `opt.adagrad`.
+  - `AdadeltaOptimizer(learning_rate=None, weight_decay_factor=0.0, averaging_ratio=0.9, epsilon=0.01, warmup_steps=0)` -> `opt.adadelta`.
+  - `AdamOptimizer(learning_rate=None, beta1=0.9, beta2=0.99, use_beta1_warmup=False, weight_decay_factor=0.0, use_nesterov=False, epsilon=0.01, warmup_steps=0)` -> `opt.adam`.
+  - `AmsgradOptimizer(learning_rate=None, beta1=0.9, beta2=0.99, weight_decay_factor=0.0, use_nesterov=False, epsilon=0.01, warmup_steps=0)` -> `opt.amsgrad` (not `monolith_export`).
+  - `BatchSoftmaxOptimizer(learning_rate=None)` -> `opt.batch_softmax`.
+  - `MomentumOptimizer(learning_rate=None, weight_decay_factor=0.0, use_nesterov=False, momentum=0.9, warmup_steps=0)` -> `opt.momentum`.
+  - `MovingAverageOptimizer(momentum=0.9)` -> `opt.moving_average` (not `monolith_export`).
+  - `RmspropOptimizer(learning_rate=None, weight_decay_factor=0.0, momentum=0.9)` -> `opt.rmsprop`.
+  - `RmspropV2Optimizer(learning_rate=None, weight_decay_factor=0.0, momentum=0.9)` -> `opt.rmspropv2`.
+  - `FTRLWithGroupSparsityOptimizer(learning_rate=None, initial_accumulator_value=None, beta=None, warmup_steps=0, l1_regularization=None, l2_regularization=None)` -> `opt.group_ftrl` with `l1_regularization_strength` and `l2_regularization_strength` fields set.
+  - `AdaGradWithGroupLassoOptimizer(learning_rate=None, beta=None, initial_accumulator_value=None, l2_regularization=None, weight_decay_factor=0.0, warmup_steps=0)` -> `opt.group_adagrad` with `l2_regularization_strength` set.
+  - `DynamicWdAdagradOptimizer(learning_rate=None, initial_accumulator_value=None, hessian_compression_times=1, warmup_steps=0, weight_decay_factor=0.0, decouple_weight_decay=True, enable_dynamic_wd=True, flip_direction=True, dynamic_wd_temperature=1.0)` -> `opt.dynamic_wd_adagrad`.
+  - `FtrlOptimizer(learning_rate=None, initial_accumulator_value=None, beta=None, warmup_steps=0, l1_regularization=None, l2_regularization=None)` -> `opt.ftrl` with `l1_regularization_strength` and `l2_regularization_strength` fields set.
+- `Initializer` (abstract): `as_proto()` returns `embedding_hash_table_pb2.InitializerConfig`.
+  - `ZerosInitializer()` -> `init.zeros`.
+  - `ConstantsInitializer(constant)` -> `init.constants` with `constant` set.
+  - `RandomUniformInitializer(minval=None, maxval=None)` -> `init.random_uniform`.
+  - `BatchSoftmaxInitializer(init_step_interval)`:
+    - Raises `ValueError` if `init_step_interval < 1`.
+    - Stores `constant = init_step_interval` and returns `init.constants`.
+- `Compressor` (abstract): `as_proto()` returns `embedding_hash_table_pb2.FloatCompressorConfig`.
+  - `OneBitCompressor(step_size=200, amplitude=0.05)` -> `comp.one_bit` with `step_size` and `amplitude`.
+  - `FixedR8Compressor(fixed_range=1.0)` -> `comp.fixed_r8` with `r` field set.
+  - `Fp16Compressor()` -> `comp.fp16`.
+  - `Fp32Compressor()` -> `comp.fp32`.
+- `CombineAsSegment(dim_size, initializer, optimizer, compressor)`:
+  - Accepts either wrapper objects or raw proto configs.
+  - Creates `EntryConfig.Segment`, sets `dim_size`, and `CopyFrom` for init/opt/comp configs.
+- `HashTableConfig` (abstract): `mutate_table(table_config)`.
+- `CuckooHashTableConfig(initial_capacity=1, feature_evict_every_n_hours=0)`:
+  - `mutate_table` sets `table_config.initial_capacity` and `table_config.cuckoo.SetInParent()`.
+  - If `feature_evict_every_n_hours > 0`, sets `enable_feature_eviction=True` and `feature_evict_every_n_hours`.
+- `HashTableConfigInstance(table_config, learning_rate_fns, extra_restore_names=None)`:
+  - Stores a copy of `extra_restore_names` (default `[]`).
+  - `__str__` returns `TableConfigPB:<serialized>, LearningRateFns:[<fn_strs>]` where proto is `SerializeToString()` and each fn uses `str(fn)`.
+  - `call_learning_rate_fns()`:
+    - Under name scope `learning_rate`, calls each fn if callable, else casts to `tf.float32`.
+    - Returns `tf.stack(learning_rates)`; raises `Exception` if list is empty.
+  - `call_learning_rate_fns_fewer_ops()`:
+    - Same call rules but returns raw list (no `tf.cast` for non-callables) and raises if empty.
+  - `set_learning_rate_tensor()` stores computed tensor; `learning_rate_tensor` property exposes it.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-hash-table/src` plus proto types in `monolith-rs/crates/monolith-proto` (`monolith::hash_table::*`).
+- Rust public API surface:
+  - Builder structs mirroring the optimizer/initializer/compressor wrappers (e.g., `SgdOptimizerConfig`, `AdamOptimizerConfig`, `RandomUniformInitializerConfig`, `OneBitCompressorConfig`).
+  - `CombineAsSegment` equivalent that produces `monolith::hash_table::EntryConfig::Segment`.
+  - `HashTableConfig` trait and `CuckooHashTableConfig` implementation.
+  - `HashTableConfigInstance` struct holding a `EmbeddingHashTableConfig`, learning-rate fn list, and extra restore names.
+- Data model mapping: Use `monolith::hash_table::OptimizerConfig`, `InitializerConfig`, `FloatCompressorConfig`, `EmbeddingHashTableConfig` from `monolith-proto`.
+- Feature gating: none for Candle backend; TF runtime should reuse the same proto configs.
+- Integration points: `feature.py`, `hash_table_ops.py`, `multi_hash_table_ops.py`, and `cpu_training.py` equivalents.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust config builder types that mirror field names and defaults from Python (including `None`-skip semantics).
+2. Implement a `_convert_to_proto` equivalent that only sets fields when they are `Some(...)`.
+3. Implement `StochasticRoundingFloat16OptimizerWrapper` as a decorator that toggles `stochastic_rounding_float16` on `OptimizerConfig`.
+4. Implement `CombineAsSegment` with enum inputs to accept either builder or direct proto.
+5. Port `HashTableConfigInstance.__str__` to a deterministic `Display` implementation using serialized proto bytes + fn string signatures.
+6. Implement `call_learning_rate_fns` and `call_learning_rate_fns_fewer_ops` using Candle/Tensor APIs; preserve error messages when list is empty.
+7. Add unit tests for each builder and for `CombineAsSegment` output.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/entry_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-hash-table/tests/entry_test.rs` (new) to mirror optimizer/initializer/compressor config creation and `HashTableConfigInstance.__str__` behavior.
+- Cross-language parity test: compare serialized proto bytes produced by Python and Rust for each optimizer/initializer/compressor config.
 
 **Gaps / Notes**
-- TODO (manual)
+- Proto fields must match Python names exactly; default handling must skip `None` to avoid overwriting proto defaults.
+- `HashTableConfigInstance.__str__` depends on `SerializeToString()` ordering; ensure Rust uses the same proto serialization (protobuf binary) for parity.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -9742,50 +9786,53 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/entry_test.py`
 <a id="monolith-native-training-entry-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 84
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke tests for optimizer/initializer/compressor config builders and `HashTableConfigInstance` string equality.
+- Key symbols/classes/functions: `EntryTest` test cases.
+- External dependencies: `entry`, `learning_rate_functions`, `embedding_hash_table_pb2`.
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_optimizers`:
+  - Instantiates each optimizer class and calls `as_proto()` without error.
+  - Covers: `SgdOptimizer`, `AdagradOptimizer`, `FtrlOptimizer`, `DynamicWdAdagradOptimizer`, `AdadeltaOptimizer`, `AdamOptimizer`, `AmsgradOptimizer`, `MomentumOptimizer`, `MovingAverageOptimizer`, `RmspropOptimizer`, `RmspropV2Optimizer`, `BatchSoftmaxOptimizer`.
+- `test_initializer`:
+  - Calls `as_proto()` for `ZerosInitializer`, `RandomUniformInitializer(-0.5,0.5)`, `BatchSoftmaxInitializer(1.0)`.
+- `test_compressor`:
+  - Calls `as_proto()` for `Fp16Compressor`, `Fp32Compressor`, `FixedR8Compressor`, `OneBitCompressor`.
+- `test_combine`:
+  - Calls `CombineAsSegment(5, ZerosInitializer(), SgdOptimizer(), Fp16Compressor())` and expects no error.
+- `test_hashtable_config`:
+  - Instantiates `CuckooHashTableConfig`.
+- `test_hashtable_config_entrance`:
+  - Creates `EmbeddingHashTableConfig` instances and `HashTableConfigInstance` wrappers.
+  - Validates `str(config1) == str(config2)` for same numeric learning rate.
+  - Validates `str(config3) == str(config4)` for same callable learning-rate function.
+  - Validates `str(config1) != str(config3)`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-hash-table/tests/entry_test.rs` (new).
+- Rust public API surface: config builder types mirroring the Python constructors and `as_proto` equivalents.
+- Data model mapping: `monolith::hash_table::EmbeddingHashTableConfig` from `monolith-proto`.
+- Feature gating: none.
+- Integration points: `HashTableConfigInstance` display and equality semantics.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust tests that call each builder and assert proto creation succeeds.
+2. Verify `CombineAsSegment` builds a segment with `dim_size=5` and correct config types.
+3. Implement `HashTableConfigInstance` string or equality behavior to match Python `__str__` semantics.
+4. Add test cases that compare string outputs for numeric vs callable learning rate functions.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/entry_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-hash-table/tests/entry_test.rs`.
+- Cross-language parity test: compare serialized proto bytes and `__str__` outputs for the same configs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses `learning_rate_functions.PolynomialDecay` for callable learning-rate fns; Rust needs an equivalent or a stub to produce deterministic string output.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
