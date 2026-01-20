@@ -521,7 +521,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/__init__.py`](#monolith-native-training-layers-init-py) | 46 | IN PROGRESS | monolith-rs/crates/monolith-layers/src |  |
 | [`monolith/native_training/layers/add_bias.py`](#monolith-native-training-layers-add-bias-py) | 110 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/add_bias.rs |  |
 | [`monolith/native_training/layers/add_bias_test.py`](#monolith-native-training-layers-add-bias-test-py) | 65 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/add_bias_test.rs |  |
-| [`monolith/native_training/layers/advanced_activations.py`](#monolith-native-training-layers-advanced-activations-py) | 217 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/advanced_activations.py`](#monolith-native-training-layers-advanced-activations-py) | 217 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/activation.rs |  |
 | [`monolith/native_training/layers/advanced_activations_test.py`](#monolith-native-training-layers-advanced-activations-test-py) | 84 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/agru.py`](#monolith-native-training-layers-agru-py) | 295 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/agru_test.py`](#monolith-native-training-layers-agru-test-py) | 112 | TODO | TODO (manual) |  |
@@ -12500,50 +12500,78 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/advanced_activations.py`
 <a id="monolith-native-training-layers-advanced-activations-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 217
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Defines activation layer wrappers, exports advanced activation classes, and provides `get/serialize/deserialize` helpers for activation identifiers.
+- Key symbols/classes/functions:
+  - Classes: `ReLU`, `LeakyReLU`, `ELU`, `Softmax`, `ThresholdedReLU`, `PReLU` (from TF), plus custom Layer wrappers `Tanh`, `Sigmoid`, `Sigmoid2`, `Linear`, `Gelu`, `Selu`, `Softsign`, `Softplus`, `Exponential`, `HardSigmoid`, `Swish`.
+  - `get(identifier)`, `serialize(activation)`, `deserialize(identifier)`.
+  - `__all__`, `__all_activations`, `ALL_ACTIVATION_NAMES`.
+- External dependencies: TensorFlow Keras activations/layers, `types.MethodType`, Monolith `_params`, `monolith_export`.
+- Side effects: Monkey-patches `params` method onto activation layer classes.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Class setup:
+  - Defines lightweight `Layer` subclasses via `type(...)` for Tanh/Sigmoid/etc; each implements `call` with the corresponding TF activation function.
+  - Adds `.params = MethodType(_params, cls)` for all activation classes listed (including TF-provided advanced activations).
+- Export lists:
+  - `__all__` includes names of all activation layers and wrappers.
+  - `__all_activations` maps lowercase names (and synonyms like `hard_sigmoid`/`hardsigmoid`) to classes.
+  - `ALL_ACTIVATION_NAMES = set(__all_activations.keys())`.
+- `get(identifier)`:
+  - `None` → `None`.
+  - `str`:
+    - If `identifier.lower()` in `__all_activations`: return a **new instance** of that class.
+    - Else `eval(identifier)`; if dict, call `deserialize`; otherwise raise `TypeError`.
+  - `dict`: call `deserialize`.
+  - `callable`:
+    - If has `params`, try `issubclass(identifier, Layer)`: if true, return new instance; else return identifier.
+    - If `identifier` is a `Layer` instance: create new instance based on its class name.
+    - Else try `identifier.__name__` and map to `__all_activations`; if not found return identifier.
+  - Else: raise `TypeError('Could not interpret activation function identifier: ...')`.
+- `serialize(activation)`:
+  - Returns `repr(dict)` strings for known activation types; `None` otherwise.
+  - Uses class-specific fields:
+    - `LeakyReLU`/`ELU`: `alpha`.
+    - `ReLU`: `max_value`, `negative_slope`, `threshold`.
+    - `PReLU`: `alpha_initializer`, `alpha_regularizer`, `alpha_constraint`, `shared_axes` (uses `initializers.serialize` for all three in Python).
+    - `Softmax`: `axis`.
+    - `ThresholdedReLU`: `theta`.
+- `deserialize(identifier)`:
+  - Accepts dict or string repr of dict (via `eval`).
+  - Requires `name` key; lowercases and looks up in `__all_activations`, pops `name`, and instantiates class with remaining kwargs.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/src/activation.rs` and `activation_layer.rs`.
+- Rust public API surface:
+  - Activation structs (ReLU, LeakyReLU, ELU, Softmax, ThresholdedReLU, PReLU, Tanh, Sigmoid, Sigmoid2, Linear, GELU, SELU, Softplus, Softsign, Swish, Exponential, HardSigmoid).
+  - `ActivationType` enum (in `mlp.rs`) and `ActivationLayer` wrapper for dynamic dispatch.
+  - Add `activation::get`, `activation::serialize`, `activation::deserialize` or a dedicated registry module to mirror Python behavior.
+- Data model mapping:
+  - Python string identifiers ↔ Rust `ActivationType` (case-insensitive, include synonyms).
+  - Python repr(dict) ↔ Rust serde JSON/YAML or explicit struct for config; if parity requires, accept Python-style dict strings.
+- Feature gating: None.
+- Integration points: `MLP` and any layer configs that accept activations.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add a Rust activation registry mapping lowercased names and synonyms to constructors.
+2. Implement `get(identifier)` variants:
+   - Accept `&str`, `ActivationType`, or config struct; return `ActivationLayer`.
+3. Implement `serialize` to return a Python-compatible dict representation (or document accepted Rust-native format and add translation).
+4. Implement `deserialize` that can accept Python-style `repr(dict)` if needed for cross-language parity.
+5. Ensure `params`-like metadata exists for activation classes (if using config builders).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/advanced_activations_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/advanced_activations_test.rs` (new).
+- Cross-language parity test:
+  - For each name in `ALL_ACTIVATION_NAMES`, call `get` and compare forward outputs on fixed input.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses `eval` on identifier strings for deserialize; Rust should avoid eval and instead accept a safe format, but parity requires handling Python-style repr strings.
+- Python uses `initializers.serialize` for `alpha_regularizer`/`alpha_constraint` in `PReLU` serialization; verify whether this is a bug and whether Rust should mirror it.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
