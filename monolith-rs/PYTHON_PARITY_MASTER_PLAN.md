@@ -588,7 +588,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/model_export/export_state_utils_test.py`](#monolith-native-training-model-export-export-state-utils-test-py) | 36 | IN PROGRESS | N/A (export state test) |  |
 | [`monolith/native_training/model_export/export_utils.py`](#monolith-native-training-model-export-export-utils-py) | 98 | IN PROGRESS | N/A (remote predict helper) |  |
 | [`monolith/native_training/model_export/export_utils_test.py`](#monolith-native-training-model-export-export-utils-test-py) | 43 | IN PROGRESS | N/A (remote predict test) |  |
-| [`monolith/native_training/model_export/saved_model_exporters.py`](#monolith-native-training-model-export-saved-model-exporters-py) | 739 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model_export/saved_model_exporters.py`](#monolith-native-training-model-export-saved-model-exporters-py) | 739 | IN PROGRESS | N/A (SavedModel exporters) |  |
 | [`monolith/native_training/model_export/saved_model_exporters_test.py`](#monolith-native-training-model-export-saved-model-exporters-test-py) | 153 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/saved_model_visulizer.py`](#monolith-native-training-model-export-saved-model-visulizer-py) | 89 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/warmup_data_decoder.py`](#monolith-native-training-model-export-warmup-data-decoder-py) | 55 | TODO | TODO (manual) |  |
@@ -17214,50 +17214,84 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_export/saved_model_exporters.py`
 <a id="monolith-native-training-model-export-saved-model-exporters-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 739
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Implements SavedModel exporters for standalone and distributed export, including hashtable restore/assign signatures and warmup assets.
+- Key symbols/classes/functions: `BaseExporter`, `StandaloneExporter`, `DistributedExporter`.
+- External dependencies: TensorFlow SavedModel internals, Monolith hash table ops, export_context, DumpUtils.
+- Side effects: Writes SavedModel directories, copies assets, modifies TF collections, restores variables/hashtables.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `BaseExporter`:
+  - Stores model_fn, model_dir, export_dir_base, shared_embedding, warmup_file, and optional export_context_list.
+  - `create_asset_base()`:
+    - Adds a `ASSET_BASE` tensor and AssetFileDef to assets collection if not already.
+    - Returns tensor with value `"./"`.
+  - `add_ckpt_to_assets(ckpt_to_export, pattern="*")`:
+    - Adds all matching ckpt asset files to `ASSET_FILEPATHS` collection.
+  - `build_signature(input_tensor_dict, output_tensor_dict)`:
+    - Wraps tensors or TensorInfo into `SignatureDef` for PREDICT.
+  - `_freeze_dense_graph(graph_def, signature_def_map, session)`:
+    - Collects all input/output nodes from signatures and uses `convert_variables_to_constants`.
+    - Restores device placement in frozen graph.
+  - `_export_saved_model_from_graph(...)`:
+    - Requires export_dir or export_dir_base.
+    - Builds signatures from export_ctx.
+    - Optionally adds hashtable assign signatures.
+    - Creates Session with soft placement + GPU updates.
+    - Restores variables and hashtables (restore ops and assign ops).
+    - Writes SavedModel via `Builder` to temp dir then renames.
+    - Copies `assets_extra` to `assets.extra` if provided.
+  - `_export_frozen_saved_model_from_graph(...)`:
+    - Similar but freezes graph and re-imports into a new graph before export.
+  - `create_hashtable_restore_ops` / `create_multi_hashtable_restore_ops`:
+    - For each (multi) hash table in graph collections, builds restore ops.
+    - If not shared_embedding, adds ckpt files to assets and uses asset base; else uses ckpt asset dir.
+  - `build_hashtable_assign_inputs_outputs`:
+    - Creates placeholder-based assign tensors for hashtable update signature.
+  - `add_multi_hashtable_assign_signatures`:
+    - Adds raw_assign signatures for multi-hash tables (ragged id + flat values).
+  - `_model_fn_with_input_reveiver`:
+    - Runs model_fn in PREDICT mode and registers signatures in export_context.
+  - `export_saved_model(...)`:
+    - Abstract.
+  - `gen_warmup_assets()`:
+    - Generates warmup TFRecord via `gen_warmup_file` if not present and returns assets dict.
+- `StandaloneExporter.export_saved_model(...)`:
+  - Enters export mode STANDALONE; clears `TF_CONFIG` temporarily.
+  - Builds graph, runs model_fn, exports SavedModel with warmup assets.
+  - Restores `TF_CONFIG` on exit.
+- `DistributedExporter.export_saved_model(...)`:
+  - Creates ExportContext with `with_remote_gpu` flag.
+  - Enters DISTRIBUTED export mode; clears `TF_CONFIG` temporarily.
+  - Exports entry graph (optionally with GPU device placement).
+  - Exports dense subgraphs and ps subgraphs stored in export_ctx.
+  - Supports `dense_only`, `include_graphs`, `global_step_as_timestamp`, `freeze_variable`.
+  - Skips exporting if target dir already exists.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A.
+- Rust public API surface: if implementing SavedModel export, mirror BaseExporter and specialized exporters.
+- Data model mapping: SavedModel signatures, assets, and hashtable metadata.
+- Feature gating: TF runtime + monolith hash table ops required.
+- Integration points: export pipeline, checkpoint loader, hash table restore.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement export context signature collection in Rust if needed.
+2. Add SavedModel builder wrappers and asset copying.
+3. Implement hash table restore/assign signatures in Rust or document lack.
+4. Mirror distributed export layout (entry + dense + ps submodels).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `saved_model_exporters_test.py`.
+- Rust tests: add export smoke tests if implemented.
+- Cross-language parity test: compare exported signature defs and asset layout.
 
 **Gaps / Notes**
-- TODO (manual)
+- `_model_fn_with_input_reveiver` typo in name (receiver misspelled) but used internally.
+- Uses TF internal APIs; may be brittle across TF versions.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
