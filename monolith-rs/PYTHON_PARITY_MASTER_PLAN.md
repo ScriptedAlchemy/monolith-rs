@@ -592,7 +592,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/model_export/saved_model_exporters_test.py`](#monolith-native-training-model-export-saved-model-exporters-test-py) | 153 | IN PROGRESS | N/A (exporter tests) |  |
 | [`monolith/native_training/model_export/saved_model_visulizer.py`](#monolith-native-training-model-export-saved-model-visulizer-py) | 89 | IN PROGRESS | N/A (tensorboard visualizer) |  |
 | [`monolith/native_training/model_export/warmup_data_decoder.py`](#monolith-native-training-model-export-warmup-data-decoder-py) | 55 | IN PROGRESS | N/A (warmup decoder) |  |
-| [`monolith/native_training/model_export/warmup_data_gen.py`](#monolith-native-training-model-export-warmup-data-gen-py) | 253 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model_export/warmup_data_gen.py`](#monolith-native-training-model-export-warmup-data-gen-py) | 253 | IN PROGRESS | N/A (warmup generator) |  |
 | [`monolith/native_training/model_export/warmup_example_batch.py`](#monolith-native-training-model-export-warmup-example-batch-py) | 57 | TODO | TODO (manual) |  |
 | [`monolith/native_training/monolith_export.py`](#monolith-native-training-monolith-export-py) | 18 | TODO | TODO (manual) |  |
 | [`monolith/native_training/multi_hash_table_ops.py`](#monolith-native-training-multi-hash-table-ops-py) | 695 | TODO | TODO (manual) |  |
@@ -17480,50 +17480,54 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_export/warmup_data_gen.py`
 <a id="monolith-native-training-model-export-warmup-data-gen-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 253
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: CLI tool to generate TF Serving warmup PredictionLog data from existing pb data or random generation.
+- Key symbols/classes/functions: `PBReader`, `gen_prediction_log_from_file`, `tf_dtype`, `main`.
+- External dependencies: TensorFlow, TF Serving protos, `data_gen_utils.gen_prediction_log`, `env_utils`.
+- Side effects: Reads input files, writes TFRecord warmup data to `output_path`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- CLI flags cover file input, batch sizes, feature lists/types, and generation mode (`gen_type` = file/random).
+- `PBReader`:
+  - Iterates over binary input stream (stdin or file), reading size-prefixed records.
+  - Supports lagrangex header, sort_id, kafka_dump_prefix/kafka_dump.
+  - For `example_batch`, reads one record per batch; otherwise reads `batch_size` records.
+  - `set_max_iter(max_records)` sets max iterations based on variant type.
+- `gen_prediction_log_from_file(...)`:
+  - Chooses input name based on variant_type (`instances`, `examples`, `example_batch`).
+  - Ensures `serving_default` signature included.
+  - Yields `PredictionLog` entries with `PredictRequest` containing the batch tensor.
+- `tf_dtype(dtype: str)`:
+  - Maps string/int aliases to TF dtypes; **bug**: returns `tf.int46` for int64 cases (invalid dtype).
+- `main`:
+  - Calls `env_utils.setup_hdfs_env()`.
+  - Writes PredictionLog records to `FLAGS.output_path` using TFRecordWriter.
+  - If `gen_type == 'file'`, uses `gen_prediction_log_from_file`.
+  - Else constructs feature specs from CLI flags and calls `data_gen_utils.gen_prediction_log(...)`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A.
+- Rust public API surface: none.
+- Data model mapping: TF Serving PredictionLog proto and tensor encoding.
+- Feature gating: TF Serving protos required.
+- Integration points: warmup data generation tooling.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Fix `tf_dtype` mapping if porting (use `tf.int64` for int64/long).
+2. Clarify `gen_prediction_log` API usage; current call signature appears outdated.
+3. If porting to Rust, implement size-prefixed reader and PredictionLog writer.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: add unit tests for PBReader and dtype mapping.
+- Cross-language parity test: compare generated TFRecord entries for fixed inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- `tf_dtype` uses `tf.int46` (typo).
+- `gen_prediction_log` call signature likely mismatched with current `data_gen_utils` (uses ParserArgs now).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
