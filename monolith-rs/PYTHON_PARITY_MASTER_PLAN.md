@@ -572,7 +572,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/model.py`](#monolith-native-training-model-py) | 182 | IN PROGRESS | N/A (test model) |  |
 | [`monolith/native_training/model_comp_test.py`](#monolith-native-training-model-comp-test-py) | 183 | IN PROGRESS | N/A (TF/Horovod test) |  |
 | [`monolith/native_training/model_dump/dump_utils.py`](#monolith-native-training-model-dump-dump-utils-py) | 757 | IN PROGRESS | N/A (TF model dump) |  |
-| [`monolith/native_training/model_dump/graph_utils.py`](#monolith-native-training-model-dump-graph-utils-py) | 845 | TODO | TODO (manual) |  |
+| [`monolith/native_training/model_dump/graph_utils.py`](#monolith-native-training-model-dump-graph-utils-py) | 845 | IN PROGRESS | N/A (TF graph utils) |  |
 | [`monolith/native_training/model_dump/graph_utils_test.py`](#monolith-native-training-model-dump-graph-utils-test-py) | 86 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/__init__.py`](#monolith-native-training-model-export-init-py) | 22 | TODO | TODO (manual) |  |
 | [`monolith/native_training/model_export/data_gen_utils.py`](#monolith-native-training-model-export-data-gen-utils-py) | 732 | TODO | TODO (manual) |  |
@@ -16210,50 +16210,91 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/model_dump/graph_utils.py`
 <a id="monolith-native-training-model-dump-graph-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 845
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: GraphDef utilities for reconstructing variables, importing subgraphs, and rebuilding input/model/receiver functions from dumped metadata.
+- Key symbols/classes/functions: `DatasetInitHook`, `_node_name`, `_colocated_node_name`, `EchoInitializer`, `VariableDef`, `PartitionVariableDef`, `GraphDefHelper`.
+- External dependencies: TensorFlow GraphDef/ops internals, protobufs (`LineId`, `FeatureConfigs`), `tf.keras`, `tf.io`, flags.
+- Side effects: Mutates graph node attrs (`_class`), clears devices, adds to TF collections, imports graph defs into default graph.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Globals:
+  - `DRY_RUN = 'dry_run'`, `FLAGS = flags.FLAGS`.
+- `DatasetInitHook`: session hook that runs initializer in `after_create_session`.
+- `_node_name(name)`:
+  - Strips leading `^` and output suffix `:0`; returns node base name.
+- `_colocated_node_name(name)`:
+  - Decodes bytes to string; strips `loc:@` prefix if present.
+- `EchoInitializer`:
+  - Accepts an init value; if list/tuple uses first element.
+  - Returns tensor directly if `tf.Tensor`, else returns op output (expects single output).
+- `VariableDef`:
+  - Wraps a `VarHandleOp` node and helper.
+  - `initializer`: finds `<var>/Assign` node, determines initializer input, builds subgraph, imports it, and returns `EchoInitializer`.
+  - `variable`: creates a `tf.get_variable` with dtype/shape/initializer on proper device, temporarily disabling partitioner; returns first partition if `PartitionedVariable`.
+  - Tracks associated `ReadVariableOp` nodes via `add_read`.
+- `PartitionVariableDef`:
+  - Handles partitioned variables (`/part_N`); tracks partitions and read ops.
+  - `get_base_name` extracts base variable name from VarHandleOp or ReadVariableOp inputs.
+  - `initializer`: finds PartitionedInitializer slice nodes or Assign initializer nodes, imports subgraph, returns list of `EchoInitializer`.
+  - `variable`: creates variables for each partition (uses first device as group_device), sets `save_slice_info`, and builds a `PartitionedVariable` for validation if multiple partitions.
+- `GraphDefHelper.__init__(graph_def, save_slice_info)`:
+  - Validates GraphDef type.
+  - Clears node device and `_class` colocation hints (adds colocated names to input set).
+  - Builds name-to-node, seq mapping, and tracks variables/readers into `VariableDef`/`PartitionVariableDef`.
+  - Records PBDataset file_name const node if present.
+- `_check_invalidate_node(graph_def, input_map)`:
+  - Removes input_map entries not referenced by graph inputs; logs warnings.
+- `_create_variables(variables)`:
+  - Recreates variable read tensors using `read_variable_op` for all variable defs in subgraph.
+  - Skips canonical `/Read/ReadVariableOp` nodes.
+- `sub_graph(dest_nodes, source_nodes=None, with_library=True)`:
+  - BFS from dest nodes through inputs; stops at source_nodes.
+  - Builds a GraphDef containing non-variable nodes and collects variable names separately.
+  - If `with_library`, copies required functions (including Dataset functions).
+- `import_input_fn(input_conf, file_name)`:
+  - Constructs dest_nodes from recorded output features and label; includes iterator ops unless DRY_RUN.
+  - Updates PBDataset/file_name Const value to `file_name`.
+  - Optionally updates PBDataset/input_pb_type based on `FLAGS.data_type`.
+  - Imports subgraph; adds iterator/mkiter to collections.
+  - Rebuilds features dict (ragged or dense) and adds label.
+- `import_model_fn(input_map, proto_model)`:
+  - Collects outputs from predict, extra outputs, loss, labels, extra_losses, signatures, summaries.
+  - Builds subgraph, prunes input_map, recreates variable reads, imports graph_def.
+  - Adds sparse feature names to collections by scanning ShardingSparseFids nodes.
+  - Restores summaries to GraphKeys.SUMMARIES.
+  - Validates signature inputs exist in graph.
+  - Returns `(label, loss, predict, head_name, extra_output_dict, is_classification)`.
+- `import_receiver_fn(receiver_conf)`:
+  - Builds dest_nodes for ragged values/row_splits and dense features.
+  - Populates collections: sparse_features, dense_features/types/shapes, extra_features/shapes, variant_type.
+  - Imports subgraph and reconstructs feature tensors + receiver_tensors.
+- `get_optimizer(proto_model)`:
+  - Unpickles optimizer from proto bytes or returns None.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (TF GraphDef import is Python-specific).
+- Rust public API surface: only relevant if a TF runtime backend is used for model import.
+- Data model mapping: GraphDef + metadata + tensor names.
+- Feature gating: TF runtime only.
+- Integration points: model loader, serving input reconstruction.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. If Rust needs TF graph import, wrap GraphDef parsing and node filtering.
+2. Implement variable recreation and read-op mapping analogous to `_create_variables`.
+3. Implement sub-graph extraction with function library filtering.
+4. Recreate input/model/receiver functions using stored metadata and collections.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none in repo.
+- Rust tests: N/A unless TF GraphDef import is added.
+- Cross-language parity test: verify imported outputs match original graph outputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses `eval` on serialized feature representations (security risk if untrusted).
+- Clears node device assignments; placement is not preserved.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
