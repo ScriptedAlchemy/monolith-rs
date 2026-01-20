@@ -2954,52 +2954,76 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/agent_service/tfs_wrapper.py`
 <a id="monolith-agent-service-tfs-wrapper-py"></a>
 
-**Status:** IN PROGRESS (manual)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 202
-- Purpose/role: Wraps TensorFlow Serving process launch, config file handling, and model status queries.
-- Key symbols/classes/functions: `TFSWrapper`, `FakeTFSWrapper`
-- External dependencies: `subprocess`, `grpc`, TF Serving protos.
-- Side effects: launches external process, writes logs, opens gRPC channel.
+- Purpose/role: Wraps TensorFlow Serving process launch, config file handling, and model status queries; provides a fake wrapper for tests.
+- Key symbols/classes/functions: `TFSWrapper`, `FakeTFSWrapper`.
+- External dependencies: `subprocess`, `grpc`, TF Serving protos, `monolith.utils.find_main`.
+- Side effects: launches external process, writes logs, opens gRPC channel, kills process.
 
 **Required Behavior (Detailed)**
+- Globals:
+  - `TFS_BINARY = os.environ.get("MONOLITH_TFS_BINARY", None)`.
+  - `State = ModelVersionStatus.State`.
 - `TFSWrapper.__init__`:
-  - Saves ports, config file, binary config, log path.
-  - Uses `strings $TFS_BINARY | grep PredictionServiceGrpc` to detect grpc remote op support.
+  - Stores ports, model config path, binary config, log file.
+  - Runs `strings $TFS_BINARY | grep PredictionServiceGrpc` (shell=True) to detect gRPC remote op support.
+  - Sets `_is_grpc_remote_op` based on `returncode == 0`.
 - `_prepare_cmd()`:
-  - Builds CLI flags: model_config_file, ports, poll interval, archon settings, metrics prefix.
-  - If grpc remote op absent, adds `archon_entry_to_ps_rpc_timeout`.
-  - Fills in defaults from `TfServingConfig` (incl. platform_config_file).
+  - Base flags:
+    - `--model_config_file=...`
+    - `--port=<grpc_port>`
+    - `--rest_api_port=<http_port>`
+    - `--model_config_file_poll_wait_seconds=60`
+    - Archon flags: `--archon_port`, `--archon_rpc_psm`, `--archon_rpc_cluster`
+    - `--metrics_namespace_prefix=<psm>`
+  - If not gRPC remote op: add `--archon_entry_to_ps_rpc_timeout=<fetch_ps_timeout_ms>`.
+  - Always adds `--conf_file=conf/service.conf` and `--log_conf=conf/log4j.properties`.
+  - For each field in `TfServingConfig` type hints:
+    - Uses default vs current; skips if equal.
+    - For `platform_config_file`: if None, set `--platform_config_file=conf/platform_config_file.cfg`.
+    - For bool: lower-case value.
 - `start()`:
-  - `os.chdir(find_main())` and `subprocess.Popen` with stdout to log file.
-  - Creates gRPC channel to `localhost:grpc_port` and ModelServiceStub.
+  - `os.chdir(find_main())`.
+  - Launches process via `subprocess.Popen(tfs_cmd.split(), shell=False, stderr=STDOUT, stdout=log_file, env=os.environ)`.
+  - Opens gRPC channel to `localhost:<grpc_port>` and `ModelServiceStub`.
 - `stop()`:
-  - Closes channel, closes log, kills process.
+  - Closes channel; closes stdout if exists; kills process.
+- `poll()`:
+  - Calls `proc.poll()` and returns `returncode`.
+- `model_config_text()`:
+  - Reads config file content.
 - `list_saved_models()`:
-  - Parses model config file text into `ModelServerConfig` and returns model names.
+  - Parses `ModelServerConfig` from text and returns `config.name` list.
 - `list_saved_models_status()`:
-  - For each saved model, calls `GetModelStatus`, selects available version or last, handles RPC errors.
+  - For each saved model:
+    - Calls `GetModelStatus`.
+    - If multiple versions: picks latest AVAILABLE else latest by version.
+    - On RPC error: returns `ModelVersionStatus(state=UNKNOWN, status=StatusProto(error_code=e.code().value[0], error_message=e.details()))`.
+  - Returns `{model_name: ModelVersionStatus}`.
 - `FakeTFSWrapper`:
-  - No process; reads model_config file and returns AVAILABLE for all models.
+  - No process; reads config file and returns AVAILABLE for all models.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/tfs_wrapper.rs`.
-- Rust public API surface: `TFSWrapper` + `FakeTFSWrapper` for tests.
-- Feature gating: `tf-runtime` and `grpc` features.
+- Rust public API surface: `TfsWrapper` + `FakeTfsWrapper`.
+- Feature gating: `grpc` for ModelService client; optional process spawning in non-test builds.
 
 **Implementation Steps (Detailed)**
-1. Port command building logic and TfServingConfig mapping.
-2. Implement process spawn + logging.
-3. Implement gRPC status queries and model_config parsing.
+1. Port command builder with exact flags and `TfServingConfig` mapping.
+2. Implement process spawn with log redirection and working dir `find_main()`.
+3. Implement gRPC GetModelStatus handling and version selection.
 4. Implement FakeTFSWrapper for tests.
 
 **Tests (Detailed)**
 - Python tests: used indirectly by `agent_v3_test`.
-- Rust tests: use FakeTFSWrapper to validate list_saved_models/STATUS.
+- Rust tests: `FakeTfsWrapper.list_saved_models` + `list_saved_models_status` correctness.
 
 **Gaps / Notes**
-- `TFS_BINARY` path and `find_main()` must map correctly in Rust.
+- `TFS_BINARY` must be set; Python will crash if missing.
+- Error_code mapping uses `e.code().value[0]` (non-obvious; must mirror).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
