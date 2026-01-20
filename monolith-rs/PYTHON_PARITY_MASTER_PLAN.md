@@ -611,13 +611,13 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/optimizers/rmsprop.py`](#monolith-native-training-optimizers-rmsprop-py) | 102 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
 | [`monolith/native_training/optimizers/rmsprop_test.py`](#monolith-native-training-optimizers-rmsprop-test-py) | 77 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
 | [`monolith/native_training/optimizers/rmspropv2_test.py`](#monolith-native-training-optimizers-rmspropv2-test-py) | 112 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
-| [`monolith/native_training/optimizers/shampoo.py`](#monolith-native-training-optimizers-shampoo-py) | 207 | TODO | TODO (manual) |  |
-| [`monolith/native_training/prefetch_queue.py`](#monolith-native-training-prefetch-queue-py) | 379 | TODO | TODO (manual) |  |
-| [`monolith/native_training/prefetch_queue_test.py`](#monolith-native-training-prefetch-queue-test-py) | 305 | TODO | TODO (manual) |  |
-| [`monolith/native_training/ps_benchmark.py`](#monolith-native-training-ps-benchmark-py) | 273 | TODO | TODO (manual) |  |
-| [`monolith/native_training/ps_benchmark_test.py`](#monolith-native-training-ps-benchmark-test-py) | 57 | TODO | TODO (manual) |  |
-| [`monolith/native_training/ragged_utils.py`](#monolith-native-training-ragged-utils-py) | 29 | TODO | TODO (manual) |  |
-| [`monolith/native_training/ragged_utils_test.py`](#monolith-native-training-ragged-utils-test-py) | 32 | TODO | TODO (manual) |  |
+| [`monolith/native_training/optimizers/shampoo.py`](#monolith-native-training-optimizers-shampoo-py) | 207 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
+| [`monolith/native_training/prefetch_queue.py`](#monolith-native-training-prefetch-queue-py) | 379 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
+| [`monolith/native_training/prefetch_queue_test.py`](#monolith-native-training-prefetch-queue-test-py) | 305 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
+| [`monolith/native_training/ps_benchmark.py`](#monolith-native-training-ps-benchmark-py) | 273 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
+| [`monolith/native_training/ps_benchmark_test.py`](#monolith-native-training-ps-benchmark-test-py) | 57 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
+| [`monolith/native_training/ragged_utils.py`](#monolith-native-training-ragged-utils-py) | 29 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
+| [`monolith/native_training/ragged_utils_test.py`](#monolith-native-training-ragged-utils-test-py) | 32 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
 | [`monolith/native_training/remote_predict_ops.py`](#monolith-native-training-remote-predict-ops-py) | 0 | TODO | TODO (manual) |  |
 | [`monolith/native_training/restore_test.py`](#monolith-native-training-restore-test-py) | 240 | TODO | TODO (manual) |  |
 | [`monolith/native_training/runner_utils.py`](#monolith-native-training-runner-utils-py) | 396 | TODO | TODO (manual) |  |
@@ -19045,50 +19045,106 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/optimizers/shampoo.py`
 <a id="monolith-native-training-optimizers-shampoo-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 207
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Implements a dense-only Shampoo optimizer variant with eigen-based preconditioning, warmup blending, and AdaGrad-style normalization.
+- Key symbols/classes/functions: `eigen_inverse_root`, `apply_sparse_precond`, `ShampooOptimizer`.
+- External dependencies: TensorFlow v1 optimizer APIs, `tf.linalg.eigh`, `tensorflow.python.ops.state_ops`, `io_ops`.
+- Side effects: Creates multiple slot variables per tensor dimension and updates them on each step.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`eigen_inverse_root(mat, p, head, tail, damping=1e-3)`** (`@tf.function`):
+  - Computes eigen-decomposition `eval, evec = tf.linalg.eigh(mat)`.
+  - `alpha = -1.0 / p`, `dim = mat.shape[0]`.
+  - `non_zero = tf.where(eval > damping)`.
+  - `zeros` is:
+    - `min(non_zero)` if non_zero not empty,
+    - else `0`.
+  - `eval_p = pow(max(eval, damping), alpha)`.
+  - Head/tail selection adjustments:
+    - If `head + tail > dim`: set `zeros = 0`, `head = dim`, `tail = 0`.
+    - Else if `zeros + head + tail > dim`: set `zeros = dim - head - tail`.
+  - Selects eigenvalues/vectors:
+    - `eval_ht = concat(eval_p[zeros:zeros+head], eval_p[dim-tail:])`
+    - `evec_ht = concat(evec[:, zeros:zeros+head], evec[:, dim-tail:], axis=1)`
+  - `offset`:
+    - `0.0` if `zeros + head + tail == dim`,
+    - else `mean(eval[zeros+head:dim-tail])`.
+  - Returns `(evec_ht, eval_ht - offset, offset)`.
+- **`apply_sparse_precond(tensor, pvec, pval, offset)`**
+  - Applies preconditioner using `tensordot`:
+    - `tensor_tmp_1 = tensordot(tensor, pvec, axes=[[0],[0]])`
+    - `tensor_tmp_2 = tensor_tmp_1 * pval`
+    - `tensor_tmp_3 = tensordot(tensor_tmp_2, pvec, axes=[[-1],[-1]])`
+  - Computes `tensor_transpose = transpose(tensor, perm=[1..rank-1,0])`.
+  - Returns `tensor_tmp_3 + tensor_transpose * offset`.
+- **`ShampooOptimizer(tf.compat.v1.train.Optimizer)`**
+  - `__init__(learning_rate=0.03, beta_1=0.9, beta_2=1.0, warmup=5000, tau_1=200, tau_2=20, eigen_head=100, eigen_tail=100, damping_epsilon=1e-3, use_locking=False, name="Shampoo", **kwargs)`:
+    - Stores parameters; passes `**kwargs` to base optimizer.
+  - `_create_slots(var_list)`:
+    - For each variable and each dimension `i`:
+      - Creates `s{i}` and `g{i}` slots of shape `[dim, dim]`.
+      - Computes `eigens = min(dim, eigen_head + eigen_tail)` and creates:
+        - `pvec{i}` `[dim, eigens]`
+        - `pval{i}` `[eigens]`
+        - `o{i}` scalar.
+    - Creates zero slots `d`, `m`, `pm` for each variable.
+  - `_resource_apply_dense(grad, var)`:
+    - Computes:
+      - `global_step = tf.cast(tf.train.get_global_step(), int32)`.
+      - `if_update_stat = (global_step % tau_2 == 0)`.
+      - `if_warmed_up = global_step > warmup`.
+      - `if_update_precond = if_warmed_up AND (global_step % tau_1 == 0)`.
+      - `warmup_rate = clamp(global_step / warmup - 1, 0, 1)`.
+      - `if_stat_momentum = beta_2 < 1.0 - 1e-10`.
+    - For each dimension `i`:
+      - `g_t`: if_update_stat → assign `tensordot(grad, grad, axes=[axes, axes])`, else identity.
+      - `s_t`: if_stat_momentum → `s = beta_2*s + (1-beta_2)*g_t`, else `s += g_t`.
+      - `pvec/pval/offset`: if_update_precond → compute from `eigen_inverse_root(s_t, 2*rank, ...)` and assign; else identity.
+      - Updates `grad_precond = apply_sparse_precond(grad_precond, pvec_t, pval_t, offset_t)`.
+    - Accumulates `d_t = d + grad*grad`.
+    - `m_t = beta_1*m + (1-beta_1)*grad*rsqrt(d_t + 1e-30)`.
+    - `pm_t = beta_1*pm + (1-beta_1)*grad_precond`.
+    - `update_diag = lr * m_t`.
+    - `update_second = lr * norm(m_t) / (norm(pm_t) + 1e-10) * pm_t`.
+    - `var_t`:
+      - If warmed up: `var -= (1-warmup_rate)*update_diag + warmup_rate*update_second`.
+      - Else: `var -= update_diag`.
+    - Returns `tf.group(*ops)` of all state updates.
+  - `_resource_apply_sparse(grad, var)`:
+    - `raise tf.no_op()` (note: this raises an op, likely unintended but must match).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-optimizer/src`.
+- Rust public API surface:
+  - `ShampooOptimizer` with identical hyperparameters.
+  - Helper functions for eigen inverse root and preconditioning.
+- Data model mapping:
+  - Slot tensors for each dimension (`s`, `g`, `pvec`, `pval`, `o`, `d`, `m`, `pm`).
+  - Requires eigen decomposition and matrix operations.
+- Feature gating:
+  - This optimizer is heavy; consider optional feature or backend requirement (eigen decomposition support).
+- Integration points:
+  - Training loop should only enable for dense tensors.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement `eigen_inverse_root` and `apply_sparse_precond` with identical axis semantics.
+2. Implement slot creation per dimension and scalar slots `d/m/pm`.
+3. Mirror update scheduling via `tau_1`, `tau_2`, `warmup`, and global step.
+4. Implement warmup blending and normalization exactly.
+5. Decide handling of sparse gradients (match Python error).
+6. Add tests that validate slot shapes and a small numeric step.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none in this repo for Shampoo.
+- Rust tests: add shape/slot tests and a small-step numeric sanity check.
+- Cross-language parity test: optional, requires TF reference run.
 
 **Gaps / Notes**
-- TODO (manual)
+- `_resource_apply_sparse` raises an op (`tf.no_op()`), which likely throws; Rust should match behavior or document deviation.
+- Eigen decomposition and slicing logic is subtle; deterministic ordering must be preserved.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -19105,50 +19161,103 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/prefetch_queue.py`
 <a id="monolith-native-training-prefetch-queue-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 379
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Implements queue-based prefetching and async execution helpers that support mixed CPU/GPU tensors and nested structures.
+- Key symbols/classes/functions: `_GPUCompatiblePaddingFIFOQueue`, `_FIFOQueue`, `_MultiFIFOQueue`, `MultiQueueRunner`, `EnqueueHook`, `enqueue_dicts_with_queue_return`, `AsyncPushHook`, `AsyncFunctionMgr`.
+- External dependencies: TensorFlow queue APIs (`data_flow_ops`, `gen_data_flow_ops`), `nested_tensors`, `utils.check_ops_dependence`, `absl.logging`.
+- Side effects:
+  - Creates TF queue resources (CPU and/or GPU).
+  - Starts QueueRunner threads via hooks.
+  - Adds control dependencies to enforce async op order.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`_GPUCompatiblePaddingFIFOQueue`** (QueueBase):
+  - Wraps `padding_fifo_queue_v2` but allows placement on CPU or GPU.
+  - Validates `dtypes`/`shapes` length; raises `ValueError` if mismatch.
+  - `enqueue_many` / `dequeue_many` are **not supported** and raise `NotImplementedError`.
+- **`_FIFOQueue(dense_list, capacity=2, queue_name="prefetch_queue")`**:
+  - `dense_list` must be a list; raises:
+    - `ValueError` if `dense_list` is `None`,
+    - `TypeError` if not a list.
+  - Creates `_GPUCompatiblePaddingFIFOQueue` inside `tf.init_scope()`.
+  - `enqueue_op = queue.enqueue(flatten_tensor_list)`.
+  - `dequeue()` returns list of tensors; if single element, returns `[tensor]`.
+- **`_MultiFIFOQueue(dense_list, capacity=2, queue_name="prefetch_queue")`**:
+  - Splits tensors by device (`"GPU"` substring in `tensor.device`).
+  - Always creates CPU queue; creates GPU queue only if GPU tensors exist.
+  - `enqueue_op` is `tf.group` of all queue `enqueue_op`s.
+  - `queue` property:
+    - If only one queue, returns it.
+    - If multiple queues, raises `NotImplementedError`.
+  - `dequeue()`:
+    - If one queue, returns its dequeue.
+    - Else dequeues all queues and merges tensors back to original order using saved indices.
+  - `size()`:
+    - If multiple queues, returns CPU queue size (assumes synchronized enqueue/dequeue).
+  - `queues` property returns list of queue resources.
+- **`MultiQueueRunner`**:
+  - `_init_from_args` accepts `queue` as list:
+    - Builds grouped `close_op` and `cancel_op`.
+  - `queue` property raises `NotImplementedError` when multi-queue.
+  - `name` property returns first queue name in multi-queue case.
+- **`EnqueueHook(q)`**:
+  - Wraps `MultiQueueRunner(q.queues, [q.enqueue_op])`.
+  - Starts threads in `after_create_session`.
+- **`enqueue_dicts_with_queue_return(tensors, capacity=1, queue_name="prefetch_queue")`**
+  - If `capacity == 0`, returns `(tensors, None)` with no queue.
+  - Flattens nested tensors via `NestedTensors`.
+  - Creates `_MultiFIFOQueue` with flattened tensors.
+  - Dequeues in `tf.init_scope()` and rebuilds original nested structure.
+  - Returns `(nested_result, queue)`.
+- **`AsyncPushHook(queue, ops)`**:
+  - `begin`: stores `queue.size()`.
+  - `before_run`: returns `SessionRunArgs(run_ops)` only after queue initialized.
+  - `after_run`: sets `_queue_init` once queue size > 0.
+  - `end`: drains queue by running `run_ops` while `queue_size > 0`.
+- **`AsyncFunctionMgr(is_async=True)`**:
+  - `add_async_function(target, args=None, kwargs=None, is_async=None, queue_name="async_queue")`:
+    - If `is_async` is False, runs `target(*args, **kwargs)` synchronously.
+    - If async:
+      - Appends dummy constant tensor to `args` to avoid empty input lists.
+      - Enqueues `(args, kwargs)` via `enqueue_dicts_with_queue_return`.
+      - Builds `run_ops = target(*args[:-1], **kwargs)` under control deps on dummy tensor and dummy op.
+      - Adds `AsyncPushHook(queue, run_ops)`.
+      - Calls `utils.check_ops_dependence(queue.enqueue_op.name, dummy_op.name)` to validate dependencies.
+      - Returns `queue.enqueue_op`.
+  - `hooks` property returns list of hooks.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (queue + async helpers).
+- Rust public API surface:
+  - Queue wrapper that supports nested tensors and optional CPU/GPU split.
+  - Async function manager that enqueues inputs and runs ops via hooks.
+- Data model mapping:
+  - Preserve nested tensor structure using Rust equivalent of `NestedTensors`.
+  - Separate queues per device; merge outputs in original order.
+- Feature gating:
+  - GPU queue support depends on backend; may be optional.
+- Integration points:
+  - Used by `NativeContext.add_async_function` and estimator hooks.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a queue abstraction with padding and fixed shapes.
+2. Implement split/merge logic for CPU/GPU tensors.
+3. Add EnqueueHook equivalents to manage background threads.
+4. Port `enqueue_dicts_with_queue_return` to flatten nested structures and rebuild.
+5. Implement AsyncFunctionMgr with dummy tensor injection and dependency checks.
+6. Add tests for nested structures, capacity 0, and async behavior.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/prefetch_queue_test.py`.
+- Rust tests: add unit tests for queue behavior, nesting, async manager, and control-dependency handling.
+- Cross-language parity test: compare nested structures and async side effects.
 
 **Gaps / Notes**
-- TODO (manual)
+- `_MultiFIFOQueue` assumes CPU/GPU queues are dequeued together; this is noted as a limitation in comments.
+- Device detection uses `"GPU" in tensor.device` string matching.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -19165,50 +19274,69 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/prefetch_queue_test.py`
 <a id="monolith-native-training-prefetch-queue-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 305
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests for queue helpers, nested tensor enqueue/dequeue, and async function manager.
+- Key symbols/classes/functions: `GPUCompatiblePaddingFIFOQueueTests`, `FIFOQueueTest`, `PrefetchTest`, `AsyncManagerTest`.
+- External dependencies: TensorFlow, `tensorflow.python.framework.test_util`, `nested_tensors`, `prefetch_queue`.
+- Side effects: Uses GPU if available; runs MonitoredSessions.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **GPUCompatiblePaddingFIFOQueueTests**
+  - `testEnqueueAndDequeue`:
+    - Enqueues three float scalars on GPU; dequeues and validates device placement and arithmetic results.
+  - `testGPUQueueCPUTensor`:
+    - Creates CPU tensors, enqueues to GPU queue, dequeues on CPU; validates results.
+  - `testMultiEnqueueAndDequeue`:
+    - Enqueues tuple `(int32, float32)` and checks values in order.
+  - `testIdentityHelper`:
+    - Ensures `tf.identity` on GPU and queue enqueue/dequeue work; checks value `2`.
+- **FIFOQueueTest**
+  - `test_fifo_queue_data`:
+    - Enqueues dense + ragged tensors; verifies round-trip values.
+  - `test_fifo_queue_capacity`:
+    - Enqueues/dequeues 4 items with capacity 4; validates values.
+- **PrefetchTest**
+  - **NOTE**: There are two methods named `test_enqueue_dicts_with_queue_return`; the second overrides the first, so only the second runs.
+  - First (shadowed) version:
+    - Enqueues dense/ragged dicts with capacity 3, validates output across multiple enqueue/dequeue cycles.
+  - Second (effective) version:
+    - Enqueues nested dicts containing tensors, strings, and `None`.
+    - Asserts string and None entries preserved before session run, then runs queue and validates tensor values.
+  - `test_enqueue_dicts_with_control_flow`:
+    - Uses control dependency (`v.assign_add(1)`) and ensures it executes when enqueuing.
+  - `test_enqueue_with_zero_capacity`:
+    - `capacity=0` returns original tensors; validates values.
+  - `test_estimator_prefetch`:
+    - Uses Estimator `predict` with enqueue hook; verifies predicted values 0..19.
+- **AsyncManagerTest**
+  - `testBasic`: async adds once even after two enqueue runs (value = 1).
+  - `testSync`: synchronous add yields value = 1 after one run.
+  - `testEmptyInput`: async function with no args still works (value = 1 after two runs).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (tests).
+- Rust public API surface: queue helpers, nested enqueue/dequeue, async manager hooks.
+- Data model mapping: ragged tensor support and CPU/GPU queueing if backend supports it.
+- Feature gating: GPU-specific tests conditional on backend support.
+- Integration points: estimator-style predict loops or equivalent.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port queue tests for enqueue/dequeue ordering and device placement.
+2. Add nested tensor round-trip tests (dense + ragged).
+3. Add tests for `capacity=0` passthrough.
+4. Add async function manager tests for async vs sync behavior.
+5. Document/handle duplicate test name if porting to Rust.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: mirror test classes where possible; use deterministic inputs.
+- Cross-language parity test: compare nested results and async side effects.
 
 **Gaps / Notes**
-- TODO (manual)
+- Duplicate method name in `PrefetchTest` hides the first test; only the second runs in Python.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -19225,50 +19353,90 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/ps_benchmark.py`
 <a id="monolith-native-training-ps-benchmark-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 273
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Implements a parameter-server throughput benchmark task that measures PS performance and selects top PS nodes.
+- Key symbols/classes/functions: `BenchmarkConfig`, `_BenchmarkWorkerHook`, `_DummyCheckpointSaverHook`, `PsBenchMarkTask`.
+- External dependencies: TensorFlow, `native_task.NativeTask`, `utils.ps_device`, `cpu_training` (tests), `logging_ops`, `service_discovery` (imported, unused).
+- Side effects:
+  - Mutates `BenchmarkConfig.ps_list` after benchmark completion.
+  - Writes TF variables and metrics; uses session hooks.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`BenchmarkConfig` dataclass**
+  - Fields:
+    - `ps_list: List`
+    - `num_ps_required: int`
+    - `num_workers: int`
+    - `index: int`
+    - `benchmark_secs: float = 60.0`
+    - `ps_str_overridden: str = ""` (comma-separated override list; skips benchmark).
+- **`_BenchmarkWorkerHook(SessionRunHook)`**
+  - Creates variables in scope `_SCOPE_NAME`:
+    - `_result` (string), `_ready` (bool list), `_done` (bool list),
+      `_make_ready`/`_make_done` assigns, `_result_placeholder` + `_result_assign`.
+  - `after_create_session`:
+    - Marks self ready; waits until `sum(ready) >= int(num_workers * 0.9)`.
+    - Sleeps 1 second, records `_start_time`.
+  - `before_run`:
+    - If `ps_str_overridden` set, assigns `_result` to override value.
+    - Reads `_result`; if non-empty, raises `tf.errors.OutOfRangeError` to stop.
+  - `after_run`:
+    - Logs duration and requests stop.
+  - `end`:
+    - Marks done; waits until all workers done (timeout 10s).
+    - If `index == 0` and no override:
+      - Reads `throughput_tensor` (mean tensor metric).
+      - Sorts PS nodes by throughput.
+      - Logs per-PS throughput and then adjusts throughput by IP (sums for same IP).
+      - Selects top `num_ps_required` PS entries and writes comma-separated string to `_result`.
+    - Waits until `_result` is non-empty, then replaces `bm_config.ps_list` with selected list.
+  - `_wait(cond, timeout=3600)` polls condition every 0.5s.
+- **`_DummyCheckpointSaverHook`**
+  - Extends `CheckpointSaverHook`, but overrides lifecycle methods to no-op.
+  - Default `checkpoint_dir` is `$HOME/tmp` if not provided.
+  - `_save` returns False (prevents saving).
+- **`PsBenchMarkTask(NativeTask)`**
+  - `params()` adds `bm_config`.
+  - `create_input_fn` returns dataset of constant vector `[0.12, 0.23, 0.34, 0.45]` repeating and prefetching.
+  - `create_model_fn`:
+    - For each PS in `bm_config.ps_list`, creates a 256×256 variable on that PS.
+    - Builds a while loop that performs heavy math (splits/concat/sqrt) until `benchmark_secs` elapsed.
+    - Computes throughput `j / (ts_now - ts_before)` per PS.
+    - Uses `tf.compat.v1.metrics.mean_tensor(tf.stack(throughputs))`.
+    - Adds `_BenchmarkWorkerHook` and `_DummyCheckpointSaverHook`.
+    - `PREDICT` returns predictions `0.0`.
+    - `TRAIN/EVAL` returns EstimatorSpec with loss 0 and train_op group of metric update + global step increment.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (benchmark task).
+- Rust public API surface:
+  - `BenchmarkConfig` struct.
+  - Benchmark task or command that measures PS throughput.
+- Data model mapping:
+  - Use equivalent session hooks / callbacks for multi-worker coordination.
+- Feature gating:
+  - PS benchmark likely only for TF runtime backend; may be optional.
+- Integration points:
+  - PS device placement logic (`ps_device`) and distributed training orchestration.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port `BenchmarkConfig` and its semantics (override skipping).
+2. Implement a benchmark task that measures throughput per PS (or stub with TF backend only).
+3. Implement worker coordination and result selection logic (including IP aggregation).
+4. Ensure `ps_list` is mutated to selected subset after completion.
+5. Add tests mirroring Python behavior for override and selection count.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/ps_benchmark_test.py`.
+- Rust tests: add tests for override behavior and list truncation.
+- Cross-language parity test: compare selected PS list with identical throughput inputs (if TF backend available).
 
 **Gaps / Notes**
-- TODO (manual)
+- Imports `logging_ops` and `service_discovery` but does not use them in this file.
+- Benchmark uses heavy TF ops; not suitable for pure Candle backend without substantial rework.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -19285,50 +19453,44 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/ps_benchmark_test.py`
 <a id="monolith-native-training-ps-benchmark-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 57
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests `PsBenchMarkTask` behavior in local CPU training.
+- Key symbols/classes/functions: `PsBenchmarkTest`.
+- External dependencies: TensorFlow, `cpu_training.local_train`, `utils.get_test_tmp_dir`.
+- Side effects: Runs local training which mutates `bm_config.ps_list`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `testBasic`:
+  - Creates `BenchmarkConfig` with `ps_list=["ps0","ps1"]`, `num_ps_required=1`, `num_workers=1`, `index=0`, `benchmark_secs=1.0`.
+  - Calls `cpu_training.local_train` with `num_ps=2`.
+  - Asserts `len(p.bm_config.ps_list) == 1` after run.
+- `testSkipBenchmark`:
+  - Same config but sets `ps_str_overridden="overridden"`.
+  - After training, expects `p.bm_config.ps_list[0] == "overridden"`.
+- `__main__`: disables eager execution and runs test via `absl.app`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (tests).
+- Rust public API surface: PS benchmark task and local training harness.
+- Data model mapping: `BenchmarkConfig` with override string.
+- Feature gating: likely TF runtime only.
+- Integration points: local training driver for PS benchmark.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Provide a local training harness for benchmark task (or mock).
+2. Ensure `ps_list` is reduced to `num_ps_required` entries.
+3. Ensure override string bypasses benchmark.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `PsBenchmarkTest` in this file.
+- Rust tests: add unit tests for selection and override behavior.
+- Cross-language parity test: compare resulting `ps_list` for identical config.
 
 **Gaps / Notes**
-- TODO (manual)
+- Test relies on `cpu_training.local_train` which is not yet mapped in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -19345,50 +19507,43 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/ragged_utils.py`
 <a id="monolith-native-training-ragged-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 29
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Provides a faster cached alternative to `RaggedTensor.value_rowids()` using a custom op.
+- Key symbols/classes/functions: `fused_value_rowids`.
+- External dependencies: TensorFlow, `gen_monolith_ops.monolith_fused_value_rowids`.
+- Side effects: Caches result on the `RaggedTensor` instance via `monolith_fused_value_rowids` attribute.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`fused_value_rowids(rt)`**
+  - Validates `rt` is a `tf.RaggedTensor`; otherwise raises `ValueError("rt must be RaggedTensor")`.
+  - If `rt` lacks attribute `monolith_fused_value_rowids`, computes it once via:
+    - `ops.monolith_fused_value_rowids(rt.row_splits)`.
+  - Returns the cached tensor (same object on subsequent calls).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tensor/src`.
+- Rust public API surface: `fused_value_rowids(ragged)` helper.
+- Data model mapping:
+  - Ragged tensor must expose `row_splits`.
+  - Cache results on ragged tensor wrapper if possible.
+- Feature gating: requires custom op or Rust implementation of row-id computation.
+- Integration points: used in ragged pipelines and feature preprocessing.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement row-id computation or bind to TF custom op when TF backend enabled.
+2. Add caching on ragged tensor wrapper to avoid recomputation.
+3. Preserve error message for non-ragged input.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/ragged_utils_test.py`.
+- Rust tests: add caching test and expected row-ids for a sample ragged tensor.
+- Cross-language parity test: compare value_rowids output and object identity if applicable.
 
 **Gaps / Notes**
-- TODO (manual)
+- Attribute-based caching mutates the ragged tensor object; Rust should use a wrapper or external cache.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -19405,50 +19560,40 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/ragged_utils_test.py`
 <a id="monolith-native-training-ragged-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 32
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests `fused_value_rowids` caching and output correctness.
+- Key symbols/classes/functions: `RaggedUtilsTestCase`.
+- External dependencies: TensorFlow, `ragged_utils`.
+- Side effects: Disables eager execution in `__main__`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_basic`:
+  - Creates `rt = tf.ragged.constant([[], [1], [2, 3]])`.
+  - Calls `fused_value_rowids` twice; asserts returned objects are identical (`is`).
+  - Asserts values equal `[1, 2, 2]`.
+- `__main__`: disables eager execution and runs `tf.test.main()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tensor/src` (tests).
+- Rust public API surface: `fused_value_rowids` and caching behavior.
+- Data model mapping: ragged tensor representation with `row_splits`.
+- Feature gating: custom op or Rust implementation required.
+- Integration points: ragged pipelines using row-id mapping.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add a test that calls `fused_value_rowids` twice and checks cache hit semantics (if applicable).
+2. Verify output row-ids for a sample ragged tensor.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `RaggedUtilsTestCase` in this file.
+- Rust tests: add `ragged_utils_basic` test.
+- Cross-language parity test: compare row-id outputs for identical ragged input.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python relies on object identity for caching; Rust may need explicit cache handles.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
