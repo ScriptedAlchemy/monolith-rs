@@ -536,7 +536,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/layer_ops.py`](#monolith-native-training-layers-layer-ops-py) | 131 | IN PROGRESS | monolith-rs/crates/monolith-layers/src |  |
 | [`monolith/native_training/layers/layer_ops_test.py`](#monolith-native-training-layers-layer-ops-test-py) | 232 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/layer_ops_test.rs |  |
 | [`monolith/native_training/layers/lhuc.py`](#monolith-native-training-layers-lhuc-py) | 296 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/lhuc.rs |  |
-| [`monolith/native_training/layers/lhuc_test.py`](#monolith-native-training-layers-lhuc-test-py) | 73 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/lhuc_test.py`](#monolith-native-training-layers-lhuc-test-py) | 73 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/lhuc_test.rs |  |
 | [`monolith/native_training/layers/logit_correction.py`](#monolith-native-training-layers-logit-correction-py) | 88 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/logit_correction_test.py`](#monolith-native-training-layers-logit-correction-test-py) | 65 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/mlp.py`](#monolith-native-training-layers-mlp-py) | 211 | TODO | TODO (manual) |  |
@@ -13665,50 +13665,51 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/lhuc_test.py`
 <a id="monolith-native-training-layers-lhuc-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 73
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke tests for LHUCTower instantiation, config serialization, and forward call with separate dense/LHUC inputs.
+- Key symbols/classes/functions: `LHUCTowerTest` methods `test_lhuc_instantiate`, `test_lhuc_serde`, `test_lhuc_call`.
+- External dependencies: TensorFlow v1 session mode, NumPy.
+- Side effects: Runs session after variable initialization.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_lhuc_instantiate`:
+  - Params-based instantiate with `output_dims=[1,3,4,5]`, `activations=None`, `initializers=GlorotNormal`.
+  - Direct constructor with same output dims and `initializers=HeUniform`.
+- `test_lhuc_serde`:
+  - Instantiates via params, `cfg = get_config()`, `LHUCTower.from_config(cfg)` should succeed.
+- `test_lhuc_call`:
+  - Builds LHUCTower with:
+    - `output_dims=[50,20,1]`,
+    - `lhuc_output_dims=[[50,50],[50,50,20],[100,1]]`,
+    - `lhuc_use_bias=False`, `use_bias=True`, `activations=None`.
+  - Inputs: `dense_data` `(100,100)` and `lhuc_data` `(100,50)`.
+  - Calls layer with `[dense_data, lhuc_data]`, sums output, runs session.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/lhuc_test.rs`.
+- Rust public API surface: `LHUCTower`, `LHUCConfig`, `LHUCOverrides`.
+- Data model mapping:
+  - `lhuc_*` kwargs ↔ `LHUCOverrides`.
+  - Params-based instantiation ↔ Rust config builder.
+- Feature gating: None.
+- Integration points: `monolith_layers::lhuc`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust tests for constructor/config round-trip.
+2. Add forward test with separate dense/LHUC inputs and per-layer LHUC output dims.
+3. Add assertions on output shape and deterministic sum.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/lhuc_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/lhuc_test.rs` (new).
+- Cross-language parity test:
+  - Fix weights and inputs; compare output sums.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses `lhuc_use_bias` override (via `lhuc_*` kwargs); ensure Rust override wiring matches.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
