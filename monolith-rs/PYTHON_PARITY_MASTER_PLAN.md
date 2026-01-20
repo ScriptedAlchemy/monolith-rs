@@ -486,11 +486,11 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/file_ops.py`](#monolith-native-training-file-ops-py) | 51 | TODO | TODO (manual) |  |
 | [`monolith/native_training/file_ops_test.py`](#monolith-native-training-file-ops-test-py) | 56 | TODO | TODO (manual) |  |
 | [`monolith/native_training/fused_embedding_to_layout_test.py`](#monolith-native-training-fused-embedding-to-layout-test-py) | 1333 | TODO | TODO (manual) |  |
-| [`monolith/native_training/gen_seq_mask.py`](#monolith-native-training-gen-seq-mask-py) | 26 | TODO | TODO (manual) |  |
-| [`monolith/native_training/gen_seq_mask_test.py`](#monolith-native-training-gen-seq-mask-test-py) | 42 | TODO | TODO (manual) |  |
-| [`monolith/native_training/gflags_utils.py`](#monolith-native-training-gflags-utils-py) | 282 | TODO | TODO (manual) |  |
-| [`monolith/native_training/gflags_utils_test.py`](#monolith-native-training-gflags-utils-test-py) | 217 | TODO | TODO (manual) |  |
-| [`monolith/native_training/graph_meta.py`](#monolith-native-training-graph-meta-py) | 30 | TODO | TODO (manual) |  |
+| [`monolith/native_training/gen_seq_mask.py`](#monolith-native-training-gen-seq-mask-py) | 26 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
+| [`monolith/native_training/gen_seq_mask_test.py`](#monolith-native-training-gen-seq-mask-test-py) | 42 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests |  |
+| [`monolith/native_training/gflags_utils.py`](#monolith-native-training-gflags-utils-py) | 282 | IN PROGRESS | monolith-rs/crates/monolith-cli/src |  |
+| [`monolith/native_training/gflags_utils_test.py`](#monolith-native-training-gflags-utils-test-py) | 217 | IN PROGRESS | monolith-rs/crates/monolith-cli/tests |  |
+| [`monolith/native_training/graph_meta.py`](#monolith-native-training-graph-meta-py) | 30 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/graph_utils.py`](#monolith-native-training-graph-utils-py) | 26 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/hash_filter_ops.py`](#monolith-native-training-hash-filter-ops-py) | 326 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/hash_filter_ops_test.py`](#monolith-native-training-hash-filter-ops-test-py) | 228 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests |  |
@@ -10565,6 +10565,237 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Gaps / Notes**
 - Tests assume deterministic gradients and initial values; Rust must mirror initialization and scaling exactly.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/gen_seq_mask.py`
+<a id="monolith-native-training-gen-seq-mask-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 26
+- Purpose/role: Wrapper around custom op to generate sequence masks from row splits.
+- Key symbols/classes/functions: `gen_seq_mask`.
+- External dependencies: TensorFlow, `gen_monolith_ops`.
+- Side effects: None.
+
+**Required Behavior (Detailed)**
+- Accepts `splits` as Tensor or RaggedTensor; uses `row_splits()` when ragged.
+- Calls `ops.gen_seq_mask(splits=..., max_seq_length=...)`.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-tf/src/gen_seq_mask.rs` (new).
+- Rust public API surface: `gen_seq_mask` wrapper.
+- Feature gating: TF runtime + custom ops.
+
+**Implementation Steps (Detailed)**
+1. Add binding for `gen_seq_mask` custom op.
+2. Accept either row_splits tensor or ragged wrapper.
+
+**Tests (Detailed)**
+- Python tests: `gen_seq_mask_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-tf/tests/gen_seq_mask_test.rs`.
+- Cross-language parity test: compare masks for fixed splits.
+
+**Gaps / Notes**
+- Requires custom ops library.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/gen_seq_mask_test.py`
+<a id="monolith-native-training-gen-seq-mask-test-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 42
+- Purpose/role: Tests gen_seq_mask for int32 and int64 splits.
+- Key symbols/classes/functions: `GenSeqMaskTest`.
+- External dependencies: TensorFlow, `gen_seq_mask`.
+- Side effects: None.
+
+**Required Behavior (Detailed)**
+- For splits `[0,5,7,9,13]` and `max_seq_length=6`, mask equals expected matrix for both int32 and int64.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-tf/tests/gen_seq_mask_test.rs`.
+- Rust public API surface: gen_seq_mask wrapper.
+- Feature gating: TF runtime + custom ops.
+
+**Implementation Steps (Detailed)**
+1. Add tests for int32 and int64 splits with expected outputs.
+
+**Tests (Detailed)**
+- Python tests: `gen_seq_mask_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-tf/tests/gen_seq_mask_test.rs`.
+- Cross-language parity test: compare masks.
+
+**Gaps / Notes**
+- None.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/gflags_utils.py`
+<a id="monolith-native-training-gflags-utils-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 282
+- Purpose/role: Utilities to extract flags from dataclass docstrings and link flags to dataclass defaults.
+- Key symbols/classes/functions: `extract_help_info`, `extract_flags`, `extract_flags_decorator`, `update`, `LinkDataclassToFlags`, `update_by_flags`.
+- External dependencies: `absl.flags`, `dataclasses`, `Enum`, `inspect`, `re`.
+- Side effects: Defines gflags and mutates dataclass instances based on flags.
+
+**Required Behavior (Detailed)**
+- `extract_help_info` parses `:param` lines and returns normalized help strings.
+- `extract_flags` defines flags for type-hinted fields (int/bool/str/float/enum) with defaults; skips missing help or skip list.
+- `extract_flags_decorator` returns decorator that calls `extract_flags`.
+- `get_flags_parser` returns parser that logs errors and exits on invalid flags.
+- `update` applies flags to config when config field is default and flag is non-default.
+- `LinkDataclassToFlags` validates fields/flags and records mappings.
+- `update_by_flags` patches `__init__` to apply linked flags when field is default.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-cli/src/gflags_utils.rs` (new) or `monolith-core` config utilities.
+- Rust public API surface: config flag extraction and update helpers.
+- Feature gating: CLI only.
+
+**Implementation Steps (Detailed)**
+1. Implement help metadata parsing (or explicit metadata in Rust).
+2. Provide flag registration for primitive and enum types.
+3. Implement update logic that respects defaults vs overrides.
+4. Provide helper to link flags to dataclass fields.
+
+**Tests (Detailed)**
+- Python tests: `gflags_utils_test.py`.
+- Rust tests: unit tests for help parsing and update/flag linking behavior.
+- Cross-language parity test: compare config updates for equivalent flags.
+
+**Gaps / Notes**
+- Python relies on docstring parsing; Rust likely needs explicit metadata.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/gflags_utils_test.py`
+<a id="monolith-native-training-gflags-utils-test-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 217
+- Purpose/role: Tests help parsing, flag extraction, config update, and flag linking.
+- Key symbols/classes/functions: `GflagUtilsTest`.
+- External dependencies: `absl.flags`, `absltest`, `gflags_utils`.
+- Side effects: Defines flags in test scope.
+
+**Required Behavior (Detailed)**
+- `test_extract_help_info`: parses `:param` lines and joins multi-line help.
+- `test_update`: updates config fields only when default and flag is non-default.
+- `test_extract_gflags_decorator`: ensures flags are defined for decorated dataclasses and skipped for removed/base fields.
+- `test_link_flag` / `test_link_flag_inheritance`: validates linked flags override defaults and inheritance behavior.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-cli/tests/gflags_utils_test.rs` (new).
+- Rust public API surface: flag extraction and linking utilities.
+- Feature gating: CLI only.
+
+**Implementation Steps (Detailed)**
+1. Add tests for help parsing and update logic.
+2. Add tests for linked flags and inheritance behavior.
+
+**Tests (Detailed)**
+- Python tests: `gflags_utils_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-cli/tests/gflags_utils_test.rs`.
+- Cross-language parity test: compare flag update outcomes.
+
+**Gaps / Notes**
+- Flag registration order in Rust may differ; ensure deterministic behavior.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/graph_meta.py`
+<a id="monolith-native-training-graph-meta-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 30
+- Purpose/role: Stores per-graph metadata in a TF collection.
+- Key symbols/classes/functions: `get_meta`.
+- External dependencies: TensorFlow.
+- Side effects: Mutates graph collections.
+
+**Required Behavior (Detailed)**
+- Uses graph collection `monolith_graph_meta` to store a single dict.
+- If key missing, calls `MetaFactory()` and stores result.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-tf/src/graph_meta.rs` (new).
+- Rust public API surface: graph metadata helper.
+- Feature gating: TF runtime only.
+
+**Implementation Steps (Detailed)**
+1. Implement get-or-create metadata storage keyed in graph collection.
+2. Mirror single-dict behavior.
+
+**Tests (Detailed)**
+- Python tests: none.
+- Rust tests: add unit test for get_meta caching.
+
+**Gaps / Notes**
+- None.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
