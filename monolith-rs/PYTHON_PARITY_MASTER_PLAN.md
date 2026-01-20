@@ -501,8 +501,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/hash_table_utils_test.py`](#monolith-native-training-hash-table-utils-test-py) | 45 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/tests |  |
 | [`monolith/native_training/hooks/ckpt_hooks.py`](#monolith-native-training-hooks-ckpt-hooks-py) | 193 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks |  |
 | [`monolith/native_training/hooks/ckpt_hooks_test.py`](#monolith-native-training-hooks-ckpt-hooks-test-py) | 181 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
-| [`monolith/native_training/hooks/ckpt_info.py`](#monolith-native-training-hooks-ckpt-info-py) | 98 | TODO | TODO (manual) |  |
-| [`monolith/native_training/hooks/ckpt_info_test.py`](#monolith-native-training-hooks-ckpt-info-test-py) | 45 | TODO | TODO (manual) |  |
+| [`monolith/native_training/hooks/ckpt_info.py`](#monolith-native-training-hooks-ckpt-info-py) | 98 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks |  |
+| [`monolith/native_training/hooks/ckpt_info_test.py`](#monolith-native-training-hooks-ckpt-info-test-py) | 45 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/hooks/controller_hooks.py`](#monolith-native-training-hooks-controller-hooks-py) | 170 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hooks/controller_hooks_test.py`](#monolith-native-training-hooks-controller-hooks-test-py) | 82 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hooks/feature_engineering_hooks.py`](#monolith-native-training-hooks-feature-engineering-hooks-py) | 99 | TODO | TODO (manual) |  |
@@ -11132,50 +11132,43 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hooks/ckpt_info.py`
 <a id="monolith-native-training-hooks-ckpt-info-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 98
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Saves per-slot feature-id counts from hash tables into a `ckpt.info-*` file at checkpoint time.
+- Key symbols/classes/functions: `FidSlotCountSaverListener`.
+- External dependencies: TensorFlow, `hash_table_ops`, `hash_table_utils`, `ckpt_info_pb2`.
+- Side effects: Writes `ckpt.info-<global_step>` to model_dir.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `FidSlotCountSaverListener.__init__(model_dir)`:
+  - Collects hash tables from graph collections; errors if none exist.
+  - Groups tables by device and allocates per-device count variables of size `_MAX_SLOT`.
+  - Builds `iterate_table_and_apply` ops to accumulate slot counts.
+- `before_save`:
+  - Skips if multi-hash tables exist.
+  - Initializes count vars, runs count op, sums counts across devices.
+  - Writes `ckpt_info_pb2.CkptInfo` text to `ckpt.info-<step>`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/hooks/ckpt_info.rs` (new).
+- Rust public API surface: saver listener that writes slot counts.
+- Feature gating: TF runtime required for table iteration.
+- Integration points: hash table iteration helper and checkpoint hooks.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement slot-count accumulation using table dump iteration.
+2. Serialize `CkptInfo` via protobuf text format.
+3. Write `ckpt.info-<step>` file during save.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `ckpt_info_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/ckpt_info_test.rs` (new).
+- Cross-language parity test: compare output file contents for the same table.
 
 **Gaps / Notes**
-- TODO (manual)
+- `_MAX_SLOT` constant must match; slot extraction uses `extract_slot_from_entry` custom op.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -11192,50 +11185,36 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hooks/ckpt_info_test.py`
 <a id="monolith-native-training-hooks-ckpt-info-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 45
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Verifies that `FidSlotCountSaverListener` writes correct slot counts.
+- Key symbols/classes/functions: `FidCountListener.test_basic`.
+- External dependencies: TensorFlow, `hash_table_ops`, `ckpt_info`, `ckpt_info_pb2`.
+- Side effects: Writes `ckpt.info-0` in temp dir.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Creates a hash table, assigns id 1, runs `before_save`.
+- Reads `ckpt.info-0` and parses `CkptInfo`; `slot_counts[0] == 1`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/ckpt_info_test.rs` (new).
+- Rust public API surface: slot count saver listener.
+- Feature gating: TF runtime required.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Build a small hash table and add one entry.
+2. Invoke the saver listener and read output file.
+3. Parse `CkptInfo` and assert slot_counts[0] == 1.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/hooks/ckpt_info_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/ckpt_info_test.rs`.
+- Cross-language parity test: compare text output files.
 
 **Gaps / Notes**
-- TODO (manual)
+- Slot extraction relies on `extract_slot_from_entry` custom op.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
