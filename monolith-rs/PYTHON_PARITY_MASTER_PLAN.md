@@ -541,7 +541,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/logit_correction_test.py`](#monolith-native-training-layers-logit-correction-test-py) | 65 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/logit_correction_test.rs |  |
 | [`monolith/native_training/layers/mlp.py`](#monolith-native-training-layers-mlp-py) | 211 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/mlp.rs |  |
 | [`monolith/native_training/layers/mlp_test.py`](#monolith-native-training-layers-mlp-test-py) | 78 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/mlp_test.rs |  |
-| [`monolith/native_training/layers/multi_task.py`](#monolith-native-training-layers-multi-task-py) | 448 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/multi_task.py`](#monolith-native-training-layers-multi-task-py) | 448 | IN PROGRESS | monolith-rs/crates/monolith-layers/src |  |
 | [`monolith/native_training/layers/multi_task_test.py`](#monolith-native-training-layers-multi-task-test-py) | 128 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/norms.py`](#monolith-native-training-layers-norms-py) | 343 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/norms_test.py`](#monolith-native-training-layers-norms-test-py) | 84 | TODO | TODO (manual) |  |
@@ -13981,50 +13981,74 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/multi_task.py`
 <a id="monolith-native-training-layers-multi-task-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 448
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Multi-task learning layers: MMoE (multi-gate mixture of experts) and SNR (sub-network routing with hard-concrete gates).
+- Key symbols/classes/functions: `MMoE`, `SNR`, `hard_concrete_ste`.
+- External dependencies: TensorFlow/Keras (Layer, activations/initializers/regularizers/constraints), Monolith (`MLP`, `Dense`, `add_layer_loss`, `with_params`).
+- Side effects: Adds loss terms for gate balancing (MMoE) and L0 penalty (SNR).
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `MMoE`:
+  - `gate_type` in `{softmax, topk, noise_topk}`; `top_k` default 1.
+  - `num_experts` inferred from `expert_output_dims` or activations/initializers if not provided.
+  - Experts are MLPs; all expert output dims must share same last dim.
+  - Gate input dim inferred from `input_shape` (supports TF shape objects).
+  - Gate weights shape `(gate_input_dim, num_experts * num_tasks)`; optional noise weights if `noise_topk`.
+  - `calc_gate`:
+    - Linear gate logits; optional noise.
+    - Softmax over experts; if topk modes, zero out non-topk and renormalize.
+    - Returns gates with shape `(batch, num_experts, num_tasks)`.
+  - `call`:
+    - If inputs is tuple, `(expert_input, gate_input)` else both are inputs.
+    - `expert_outputs = stack([expert(x)], axis=2)` -> `(batch, output_dim, num_experts)`.
+    - `mmoe_output = matmul(expert_outputs, gates)` -> `(batch, output_dim, num_tasks)`.
+    - If gate_type != softmax: adds CV-squared loss over gate importance.
+    - Returns list of per-task outputs via `unstack(axis=2)`.
+- `hard_concrete_ste`:
+  - Clamps to [0,1] in forward; gradient is identity (STE).
+- `SNR`:
+  - `snr_type` in `{trans, aver}`; `aver` requires `in_subnet_dim == out_subnet_dim`.
+  - `build` infers `num_in_subnet` and `in_subnet_dim` from input list shapes.
+  - `log_alpha` shape `(num_route, 1)` where `num_route = num_in_subnet * num_out_subnet`.
+  - Adds L0 loss: `sum(sigmoid(log_alpha - factor))` with `factor = beta * log(-gamma/zeta)`.
+  - If `snr_type=trans`: `weight` shape `(num_route, block_size)`; else identity tiled.
+  - `sample`:
+    - If training: sample `u`, `s = sigmoid((logit(u)+log_alpha)/beta)`.
+    - Else: `s = sigmoid(log_alpha)`.
+    - Stretch to `[gamma,zeta]`, then clamp to [0,1] (STE optional).
+  - `call`:
+    - Multiply `weight` by `z`, reshape to block matrix, matmul concat(inputs), split into outputs.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module:
+  - `monolith-rs/crates/monolith-layers/src/mmoe.rs` (MMoE).
+  - `monolith-rs/crates/monolith-layers/src/snr.rs` (SNR).
+- Rust public API surface:
+  - `MMoE`, `MMoEConfig`, `GateType`/`Gate`, `SNR`, `SNRConfig`, `SNRType`.
+- Data model mapping:
+  - Python `gate_type` → Rust enum.
+  - `top_k` and noise_topk behavior → Rust gating implementation.
+  - `use_bias`, batch norm flags, and initializers for experts.
+- Feature gating: None.
+- Integration points: MLP, Dense, activation registry.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Align expert construction and gate input dim inference with Python.
+2. Implement noise_topk gating and CV-squared loss term for topk modes.
+3. Ensure SNR sampling uses same hard-concrete bounds and STE behavior.
+4. Add config serialization for MMoE and SNR (activations, initializers, gate_type, etc.).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/multi_task_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/multi_task_test.rs` (new).
+- Cross-language parity test:
+  - Fix weights/inputs and compare outputs for MMoE (softmax/topk/noise_topk) and SNR (trans/aver).
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses `add_loss` for CV-squared and L0 penalty; Rust must decide how to expose these losses.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
