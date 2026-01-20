@@ -620,8 +620,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/ragged_utils_test.py`](#monolith-native-training-ragged-utils-test-py) | 32 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
 | [`monolith/native_training/remote_predict_ops.py`](#monolith-native-training-remote-predict-ops-py) | 0 | IN PROGRESS | N/A (empty stub) |  |
 | [`monolith/native_training/restore_test.py`](#monolith-native-training-restore-test-py) | 240 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
-| [`monolith/native_training/runner_utils.py`](#monolith-native-training-runner-utils-py) | 396 | TODO | TODO (manual) |  |
-| [`monolith/native_training/runner_utils_test.py`](#monolith-native-training-runner-utils-test-py) | 108 | TODO | TODO (manual) |  |
+| [`monolith/native_training/runner_utils.py`](#monolith-native-training-runner-utils-py) | 396 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
+| [`monolith/native_training/runner_utils_test.py`](#monolith-native-training-runner-utils-test-py) | 108 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/runtime/ops/gen_monolith_ops.py`](#monolith-native-training-runtime-ops-gen-monolith-ops-py) | 23 | TODO | TODO (manual) |  |
 | [`monolith/native_training/save_utils.py`](#monolith-native-training-save-utils-py) | 1309 | TODO | TODO (manual) |  |
 | [`monolith/native_training/save_utils_test.py`](#monolith-native-training-save-utils-test-py) | 1740 | TODO | TODO (manual) |  |
@@ -19726,50 +19726,93 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/runner_utils.py`
 <a id="monolith-native-training-runner-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 396
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Runner configuration, checkpoint override logic, and service discovery helpers for distributed training.
+- Key symbols/classes/functions: `isabs`, `gen_get_checkpoint_state`, `ContainerType`, `RunnerConfig`, `get_discovery`, `monolith_discovery`.
+- External dependencies: TensorFlow checkpoint APIs, `gflags_utils`, service discovery classes, `save_utils`, `mlp_utils`, protobuf `text_format`.
+- Side effects:
+  - Monkey-patches `os.path.isabs`, `checkpoint_management.get_checkpoint_state`, and `tf.train.get_checkpoint_state`.
+  - Writes checkpoint and monolith checkpoint metadata files to `model_dir`.
+  - Updates global `FLAGS` for kafka settings and restore checkpoints.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`isabs(path)`**:
+  - Returns True for `hdfs:/` prefix; otherwise uses original `os.path.isabs`.
+  - Assigned to `os.path.isabs` at import time.
+- **`gen_get_checkpoint_state()`**:
+  - Wraps original `checkpoint_management.get_checkpoint_state` with retry and restore override logic.
+  - Retries up to 5 times when checkpoint file exists but state is `None`; raises `Exception("read ckpt error!")` if exceeded.
+  - If `FLAGS.restore_ckpt` set and `latest_filename == "checkpoint"`:
+    - Builds `restore_ckpt` path using checkpoint state directory + basename of `FLAGS.restore_ckpt`.
+    - If `restore_ckpt` exists in `all_model_checkpoint_paths`:
+      - TRAIN: uses `restore_ckpt` only if `restore_ckpt` marker file does not exist.
+      - Non-TRAIN: always uses `restore_ckpt`.
+    - Writes `restore_ckpt` marker and updates checkpoint file when applying restore.
+  - Logs warnings for missing/identical restore checkpoints.
+  - Catches `UnparsedFlagAccessError` and logs other exceptions with traceback.
+  - Assigned to `checkpoint_management.get_checkpoint_state` and `tf.train.get_checkpoint_state`.
+- **`ContainerType`** enum: `DOCKER=1`, `NATIVE=2`.
+- **`RunnerConfig(DistributedCpuTrainingConfig)`**:
+  - Large dataclass with training/runtime flags (see source for full list).
+  - `__post_init__`:
+    - Calls `mlp_pass()` and `add_mpi_exception_hook()`.
+    - Updates via `gflags_utils.update(self)` (logs on failure).
+    - For GPU partial sync training: sets `index` from `OMPI_COMM_WORLD_RANK` when worker index unset.
+    - Propagates kafka settings into global `FLAGS`.
+    - Asserts `zk_watch_address_family` in {IPV4, IPV6}.
+    - Sets `FLAGS.restore_ckpt` if unset.
+    - If `restore_dir` set:
+      - Chief (local or worker 0) runs `_copy_ckpt_file`.
+      - Others wait for `monolith_checkpoint` file to appear (poll every 30s).
+  - **`_copy_ckpt_file()`**:
+    - Reads `checkpoint` from `restore_dir`.
+    - Writes `checkpoint` file into `model_dir` if not present.
+    - Writes `restore_ckpt` marker file.
+    - Updates/creates `monolith_checkpoint` with restore paths added to `exempt_model_checkpoint_paths`.
+    - Logs warnings when restore checkpoint missing or invalid.
+- **`get_discovery(runner_conf, psm=None)`**:
+  - Local → `None`.
+  - PRIMUS → `TfConfigServiceDiscovery` from `tf_config` JSON; sets `server_type` and `index`.
+  - CONSUL → `ConsulServiceDiscovery(psm)`.
+  - MLP → `MLPServiceDiscovery()`.
+  - Else → `ZKServiceDiscovery(deep_insight_name, zk_server)`.
+- **`monolith_discovery(runner_conf)`**:
+  - Context manager; for non-local creates `psm` via `env_utils.generate_psm_from_uuid(runner_conf.uuid)` and yields discovery.
+  - Ensures `discovery.close()` on exit; logs enter/exit.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src`.
+- Rust public API surface:
+  - `RunnerConfig` struct with post-init behavior.
+  - Checkpoint state wrapper for restore override logic.
+  - Service discovery factory and context guard.
+- Data model mapping:
+  - CheckpointState + MonolithCheckpointState handling.
+  - HDFS path handling in `isabs`.
+- Feature gating:
+  - TF checkpoint patching only under TF runtime backend.
+  - Service discovery requires Consul/ZK/MLP client support.
+- Integration points:
+  - Training entrypoints, service discovery, and checkpoint restore flows.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement path `isabs` override for `hdfs:/`.
+2. Implement checkpoint state override logic and restore marker handling.
+3. Port `RunnerConfig` fields and `__post_init__` behavior.
+4. Implement `_copy_ckpt_file` logic for checkpoint + monolith checkpoint.
+5. Add service discovery factory and context manager.
+6. Add unit tests for discovery selection and checkpoint copy behavior.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/runner_utils_test.py`.
+- Rust tests: add unit tests for `get_discovery` and `_copy_ckpt_file` logic.
+- Cross-language parity test: compare checkpoint files and discovery types.
 
 **Gaps / Notes**
-- TODO (manual)
+- Monkey-patching `tf.train.get_checkpoint_state` is process-global; Rust must replicate or document differences.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -19786,50 +19829,55 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/runner_utils_test.py`
 <a id="monolith-native-training-runner-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 108
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests service discovery selection and checkpoint copy logic in `RunnerConfig`.
+- Key symbols/classes/functions: `RunnerUtilsTest`.
+- External dependencies: TensorFlow, `CheckpointState`, `KazooTimeoutError`, `RunnerConfig`, `get_discovery`.
+- Side effects: Writes checkpoint files under `TEST_TMPDIR`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_get_discovery_local`:
+  - `RunnerConfig(is_local=True)` → `get_discovery` returns `None`.
+  - After toggling `is_local=False`, still uses previous return (no assertion change).
+- `test_get_discovery_primus`:
+  - Builds `tf_config` JSON with ps/worker/chief.
+  - Expects `get_discovery` returns `TfConfigServiceDiscovery`.
+- `test_get_discovery_consul`:
+  - Expects `ConsulServiceDiscovery` when `discovery_type=CONSUL` and `psm` provided.
+- `test_get_discovery_zk`:
+  - Attempts ZK discovery; catches `KazooTimeoutError`.
+- `test_copy_ckpt`:
+  - Creates `restore_dir` with a `checkpoint` file containing three checkpoints.
+  - Instantiates `RunnerConfig` with `restore_dir`, `model_dir`, `restore_ckpt='model.ckpt-30'`.
+  - Asserts:
+    - `monolith_checkpoint` file exists in `model_dir`.
+    - `restore_ckpt` marker file exists.
+    - `tf.train.get_checkpoint_state(model_dir)` returns `model.ckpt-30`.
+  - Instantiates a worker `RunnerConfig` (index=2) to verify non-chief path.
+- `__main__`: disables eager execution and runs tests.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (tests).
+- Rust public API surface: `RunnerConfig`, `get_discovery`.
+- Data model mapping: checkpoint file format and monolith checkpoint metadata.
+- Feature gating: ZK/Consul discovery tests conditional on clients.
+- Integration points: runner initialization and restore logic.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add tests for discovery selection by `discovery_type`.
+2. Add checkpoint copy test: ensure checkpoint and monolith_checkpoint files are written.
+3. Add test for override `restore_ckpt` selection.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `RunnerUtilsTest` in this file.
+- Rust tests: add discovery tests and checkpoint copy test.
+- Cross-language parity test: compare checkpoint file contents and selected discovery type.
 
 **Gaps / Notes**
-- TODO (manual)
+- `test_get_discovery_local` mutates `is_local` after calling `get_discovery` but does not re-run discovery.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
