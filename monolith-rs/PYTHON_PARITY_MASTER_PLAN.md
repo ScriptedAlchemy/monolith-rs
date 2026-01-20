@@ -534,7 +534,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/feature_trans.py`](#monolith-native-training-layers-feature-trans-py) | 340 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/feature_trans.rs |  |
 | [`monolith/native_training/layers/feature_trans_test.py`](#monolith-native-training-layers-feature-trans-test-py) | 140 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/feature_trans_test.rs |  |
 | [`monolith/native_training/layers/layer_ops.py`](#monolith-native-training-layers-layer-ops-py) | 131 | IN PROGRESS | monolith-rs/crates/monolith-layers/src |  |
-| [`monolith/native_training/layers/layer_ops_test.py`](#monolith-native-training-layers-layer-ops-test-py) | 232 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/layer_ops_test.py`](#monolith-native-training-layers-layer-ops-test-py) | 232 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/layer_ops_test.rs |  |
 | [`monolith/native_training/layers/lhuc.py`](#monolith-native-training-layers-lhuc-py) | 296 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/lhuc_test.py`](#monolith-native-training-layers-lhuc-test-py) | 73 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/logit_correction.py`](#monolith-native-training-layers-logit-correction-py) | 88 | TODO | TODO (manual) |  |
@@ -13509,50 +13509,61 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/layer_ops_test.py`
 <a id="monolith-native-training-layers-layer-ops-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 232
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Validates custom ops (FFM, FeatureInsight, MonolithFidCounter) across CPU/GPU and checks gradients.
+- Key symbols/classes/functions: `LayerOpsTest` methods `test_ffm_mul`, `test_ffm_mul_grad`, `test_ffm_dot`, `test_ffm_dot_grad`, `test_feature_insight`, `test_feature_insight_grad`, `test_fid_counter_grad`.
+- External dependencies: TensorFlow GPU test utilities, custom ops via `layer_ops`.
+- Side effects: Forces GPU contexts when available; uses global `tf.random.set_seed(0)`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_ffm_mul`:
+  - Uses `ffm(left, right, dim_size=4)` with `left` shape `(8,40)` and `right` `(8,48)` (10*4 and 12*4).
+  - Checks GPU device placement if GPU available; compares CPU and GPU outputs.
+  - Expects output shape `(8, 480)` for multiply mode.
+- `test_ffm_mul_grad`:
+  - Computes gradients of sum of FFM output wrt left/right.
+  - Expects left_grad shape `(8,40)` and right_grad `(8,48)`; CPU and GPU grads equal.
+- `test_ffm_dot`:
+  - Uses `int_type='dot'`.
+  - Expects output shape `(8,120)`; CPU and GPU outputs equal.
+- `test_ffm_dot_grad`:
+  - Same gradient checks as multiply, output dims unchanged.
+- `test_feature_insight`:
+  - Builds expected result by splitting input/weights per `segment_sizes=[3,2,4]`, matmul per segment, then optional aggregate using segment_sum of squared outputs.
+  - Calls `layer_ops.feature_insight(..., aggregate=True)` and asserts close to expected.
+- `test_feature_insight_grad`:
+  - Compares gradients of `feature_insight` output vs explicit matmul concatenation.
+  - Asserts outputs and gradients match.
+- `test_fid_counter_grad`:
+  - Verifies fid_counter increments and gradient = `-step` until threshold, then 0 at threshold.
+  - Checks counter values for step=1, step=0.01, and threshold case at 1000.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/layer_ops_test.rs` (if ops reimplemented) or `monolith-rs/crates/monolith-tf/tests` for TF-runtime bindings.
+- Rust public API surface: FFM op (multiply/dot), FeatureInsight, fid_counter equivalents.
+- Data model mapping:
+  - Output shapes match Python expectations (multiply: `B * (L*R*D)` flattened, dot: `B * (L*R)`).
+  - Gradients should match analytic gradients of FFM/FeatureInsight.
+- Feature gating: GPU tests optional; must be skipped if GPU backend unavailable.
+- Integration points: `feature_cross` uses FFM.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement Rust tests mirroring CPU/GPU parity (skip GPU when not supported).
+2. Add gradient checks for FFM and FeatureInsight if backward is implemented.
+3. Add fid_counter unit test that verifies saturation and gradient behavior.
+4. Ensure deterministic seeding for random tensors.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/layer_ops_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/layer_ops_test.rs` (new).
+- Cross-language parity test:
+  - Compare outputs and gradients for FFM multiply/dot and FeatureInsight aggregate mode.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python tests rely on custom TF ops and GPU placement; Rust needs an equivalent implementation or explicit skip/feature gate.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
