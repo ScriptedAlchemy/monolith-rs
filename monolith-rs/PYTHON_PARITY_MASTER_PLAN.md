@@ -601,7 +601,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/multi_type_hash_table_test.py`](#monolith-native-training-multi-type-hash-table-test-py) | 326 | IN PROGRESS | N/A (hash table tests) |  |
 | [`monolith/native_training/native_model.py`](#monolith-native-training-native-model-py) | 1109 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/native_task.py`](#monolith-native-training-native-task-py) | 213 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
-| [`monolith/native_training/native_task_context.py`](#monolith-native-training-native-task-context-py) | 58 | TODO | TODO (manual) |  |
+| [`monolith/native_training/native_task_context.py`](#monolith-native-training-native-task-context-py) | 58 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/nested_tensors.py`](#monolith-native-training-nested-tensors-py) | 110 | TODO | TODO (manual) |  |
 | [`monolith/native_training/nested_tensors_test.py`](#monolith-native-training-nested-tensors-test-py) | 57 | TODO | TODO (manual) |  |
 | [`monolith/native_training/net_utils.py`](#monolith-native-training-net-utils-py) | 133 | TODO | TODO (manual) |  |
@@ -18322,50 +18322,60 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/native_task_context.py`
 <a id="monolith-native-training-native-task-context-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 58
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Defines a global per-process task context (`NativeTaskContext`) and helper functions to set/get it.
+- Key symbols/classes/functions: `NativeTaskContext`, `with_ctx`, `get`.
+- External dependencies: `contextlib`, `typing.NamedTuple`, `monolith.agent_service.backends.SyncBackend`.
+- Side effects: Mutates module-level `_CTX` global.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`NativeTaskContext(NamedTuple)`** with fields:
+  - `num_ps: int`
+  - `ps_index: int`
+  - `num_workers: int`
+  - `worker_index: int`
+  - `model_name: str`
+  - `sync_backend: SyncBackend`
+  - `server_type: str`
+- **`with_ctx(ctx)`** (context manager):
+  - Stores previous `_CTX` as `old_ctx`, sets `_CTX = ctx`, yields.
+  - On exit:
+    - If `old_ctx` is not `None`, restores `_CTX = old_ctx`.
+    - If `old_ctx` is `None`, leaves `_CTX` set to `ctx` (no reset to `None`).
+- **`get()`**:
+  - If `_CTX is None`, returns a new `NativeTaskContext` with defaults:
+    - `num_ps=0`, `ps_index=0`, `num_workers=1`, `worker_index=0`,
+      `server_type=""`, `model_name=""`, `sync_backend=None`.
+  - Else returns `_CTX` object as-is (no copy).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (task context).
+- Rust public API surface:
+  - `struct NativeTaskContext { ... }`
+  - `with_ctx(ctx, |...| { ... })` or RAII guard to set/restore.
+  - `get_ctx()` returns current context or default.
+- Data model mapping:
+  - `sync_backend` should be an enum or trait object mirroring `SyncBackend`.
+- Feature gating: none.
+- Integration points:
+  - Training/serving flows should call `get_ctx()` for worker index and model name.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a thread-local or global context storage in Rust (match Python semantics).
+2. Implement context guard that **only** restores prior context if it existed.
+3. Provide `get_ctx()` returning default values when unset.
+4. Add unit tests for default context and nesting behavior.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none dedicated.
+- Rust tests: add unit tests for `with_ctx` nesting and default values.
+- Cross-language parity test: compare defaults and nesting semantics.
 
 **Gaps / Notes**
-- TODO (manual)
+- The context manager does **not** clear `_CTX` when exiting outermost scope; Rust should match this behavior exactly.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
