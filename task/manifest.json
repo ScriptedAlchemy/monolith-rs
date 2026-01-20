@@ -1,65 +1,60 @@
 {
   "schemaVersion": "1.0",
-  "name": "Monolith Python to Monolith-RS Parity Master Plan",
-  "description": "Runnable Unpack task graph to maintain an exhaustive Python->Rust parity plan for monolith/: validate inventory + checklists, generate and normalize a canonical mapping table, produce domain port plans (agent_service/core/native_training), define optional TF runtime integration constraints, and emit a parity dashboard report.",
+  "name": "monolith-python-to-rust-parity-orchestration",
+  "description": "Runnable Unpack task graph to drive exhaustive Python->Rust parity for monolith/: validate inventory+checklists, build/normalize a canonical mapping table, generate domain port plans (agent_service/core/native_training/TF runtime), and produce a parity dashboard for next actions.",
   "entry": "task/index.ai.tsx",
   "modules": [
     {
-      "id": "index",
-      "path": "task/index.ai.tsx",
-      "description": "Entrypoint orchestrator: enforces phase ordering by importing/depending on all modules and produces the final run summary/deliverable."
-    },
-    {
-      "id": "discover-artifacts",
+      "id": "discover",
       "path": "task/00-discover.ai.tsx",
-      "description": "Sanity-check repo layout and load existing parity artifacts (PYTHON_PARITY_INDEX.md and per-file checklists) as stable inputs for subsequent phases."
+      "description": "Sanity-check required repo roots (monolith/, monolith-rs/) and load existing parity artifacts (index + per-file checklist tree) into bounded summary outputs."
     },
     {
       "id": "validate-inventory",
       "path": "task/01-validate-inventory.ai.tsx",
-      "description": "Validate Python file inventory vs parity checklist coverage (missing/extra), and validate index row count matches checklist count; emit report + machine-readable JSON summary.",
-      "dependsOn": ["discover-artifacts"]
+      "description": "Validate that every monolith/**/*.py file is accounted for (expected 334): parity index row count matches checklist files; report missing/extra items and emit machine-readable counts/diffs.",
+      "dependsOn": ["discover"]
     },
     {
       "id": "generate-mapping-table",
       "path": "task/10-generate-mapping-table.ai.tsx",
-      "description": "Generate/refresh a canonical Python->Rust mapping table for all monolith/**/*.py (target crates/modules, status, notes), seeding from existing draft mappings and per-file checklists.",
+      "description": "Generate/refresh a canonical Python->Rust mapping table for every Python file (destination crate/module, status, notes, and explicit N/A justifications).",
       "dependsOn": ["validate-inventory"]
     },
     {
       "id": "normalize-mapping",
       "path": "task/11-normalize-mapping.ai.tsx",
-      "description": "Normalize mapping conventions (crate/module naming, test/fixture placement, N/A justification format) and emit a conventions doc + JSON for downstream planners.",
+      "description": "Normalize mapping conventions (crate/module naming, tests/fixtures layout, proto/op boundaries, and required N/A justification schema) and emit conventions doc+JSON.",
       "dependsOn": ["generate-mapping-table"]
     },
     {
       "id": "agent-service-plan",
       "path": "task/20-agent-service-plan.ai.tsx",
-      "description": "Produce a concrete, implementable sub-plan for monolith/agent_service/** parity (grouping, Rust module targets, fake ZK/TFServing test harness strategy, execution order).",
+      "description": "Create an implementation-ready plan for monolith/agent_service/** parity in monolith-rs (monolith-serving): file clustering, target modules, and test harness strategy (fake ZK + fake TFServing).",
       "dependsOn": ["normalize-mapping"]
     },
     {
       "id": "core-plan",
       "path": "task/30-core-plan.ai.tsx",
-      "description": "Produce a concrete sub-plan for monolith/core/** parity, prioritizing hyperparams, feature/env semantics, model_registry, and base_layer/task/model_params, including test parity requirements.",
+      "description": "Create a parity plan for monolith/core/** infra (hyperparams, base_layer/task, feature/model registry, hooks): identify high-risk semantics and required Rust test strategies.",
       "dependsOn": ["normalize-mapping"]
     },
     {
       "id": "native-training-plan",
       "path": "task/40-native-training-plan.ai.tsx",
-      "description": "Segment monolith/native_training/** into implementable domains (data pipeline, distribution/runtime, export/checkpoint, hooks/metrics) and map each to Rust crates with parity risks and dependency ordering.",
+      "description": "Segment monolith/native_training/** into subdomains, flag TF-dependent vs TF-optional paths, map to Rust crates/modules, and propose milestone ordering with parity checks.",
       "dependsOn": ["normalize-mapping"]
     },
     {
       "id": "tf-runtime-plan",
       "path": "task/50-tf-runtime-plan.ai.tsx",
-      "description": "Define optional TensorFlow runtime integration plan (dynamic libtensorflow loading, custom op loading, SavedModel parsing/signatures) and list which parity gaps require TF runtime vs Candle-only feasibility.",
+      "description": "Define optional TensorFlow runtime integration contract (dynamic libtensorflow loading, custom op loading, signatures, SavedModel IO), and enumerate parity gaps that require TF runtime.",
       "dependsOn": ["normalize-mapping"]
     },
     {
       "id": "parity-dashboard",
       "path": "task/90-parity-dashboard.ai.tsx",
-      "description": "Roll up validation + mapping + domain plans into an end-to-end parity dashboard (coverage by crate, open gaps, next prioritized work queue).",
+      "description": "Roll up inventory validation, mapping, conventions, and domain plans into a single parity dashboard: coverage status, open parity gaps, and prioritized next work queue.",
       "dependsOn": [
         "validate-inventory",
         "generate-mapping-table",
@@ -69,6 +64,12 @@
         "native-training-plan",
         "tf-runtime-plan"
       ]
+    },
+    {
+      "id": "index",
+      "path": "task/index.ai.tsx",
+      "description": "Entrypoint orchestrator: imports and sequences phases (discover/validate -> mapping -> domain plans -> dashboard) and emits final human-facing deliverable(s).",
+      "dependsOn": ["parity-dashboard"]
     }
   ]
 }

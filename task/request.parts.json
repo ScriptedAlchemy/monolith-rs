@@ -1,0 +1,54 @@
+{
+  "request": "task/request.md",
+  "totalLines": 23700,
+  "parts": [
+    {
+      "path": "task/request.part01.md",
+      "startLine": 1,
+      "endLine": 320,
+      "titleHint": "overview"
+    },
+    {
+      "path": "task/request.part02.md",
+      "startLine": 321,
+      "endLine": 661,
+      "titleHint": "line-level-inventory"
+    },
+    {
+      "path": "task/request.part03.md",
+      "startLine": 662,
+      "endLine": 4581,
+      "titleHint": "monolith/__init__.py"
+    },
+    {
+      "path": "task/request.part04.md",
+      "startLine": 4582,
+      "endLine": 8387,
+      "titleHint": "monolith/core/base_task.py"
+    },
+    {
+      "path": "task/request.part05.md",
+      "startLine": 8388,
+      "endLine": 11812,
+      "titleHint": "monolith/native_training/data/tf_example_to_example_test.py"
+    },
+    {
+      "path": "task/request.part06.md",
+      "startLine": 11813,
+      "endLine": 15822,
+      "titleHint": "monolith/native_training/feature_utils.py"
+    },
+    {
+      "path": "task/request.part07.md",
+      "startLine": 15823,
+      "endLine": 19762,
+      "titleHint": "monolith/native_training/layers/utils.py"
+    },
+    {
+      "path": "task/request.part08.md",
+      "startLine": 19763,
+      "endLine": 23700,
+      "titleHint": "monolith/native_training/nested_tensors.py"
+    }
+  ]
+}
