@@ -4177,9 +4177,16 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: none.
 
 **Required Behavior (Detailed)**
-- Constructs `BaseEmbeddingHostCall` with `enable_host_call=False` and `context=None`.
-- Verifies `_compute_new_value` behavior with different offsets.
-- Uses TF session to evaluate results and compares to expected tensors.
+- Disables eager execution (`tf.disable_eager_execution()`).
+- `test_compute_new_value`:
+  - Creates `global_step = tf.train.get_or_create_global_step()` (unused).
+  - Builds `params = {enable_host_call=False, context=None, cpu_test=False, host_call_every_n_steps=100}`.
+  - Instantiates `BaseEmbeddingHostCall("", False, False, False, False, 10, params)`.
+  - `base_value = zeros([10], int32)`, `delta_value = ones([2], int32)`.
+  - Offset=1: `_compute_new_value(base, delta, 1)` -> `[0,1,1,0,0,0,0,0,0,0]`.
+  - Offset=5: `_compute_new_value(prev, delta, 5)` -> `[0,1,1,0,0,1,1,0,0,0]`.
+  - Offset=6: `_compute_new_value(prev, delta, 6)` -> `[0,1,1,0,0,1,2,1,0,0]`.
+  - Each expected tensor verified via `tf.reduce_all(tf.math.equal(...))` inside new `tf.Session()`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/tests/base_embedding_host_call.rs`.
@@ -4220,28 +4227,114 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: reads vocab file (possibly from HDFS), constructs TF datasets and embedding configs.
 
 **Required Behavior (Detailed)**
-- `params()` defines many embedding-related flags, including vocab sizing, QR hashing, deepinsight, host call metrics, file input ranges, and stopping signals.
-- `__init__`:
-  - Sets flags, builds vocab dict (from file or downloaded from HDFS), constructs `Env`.
+- `params()`:
+  - Defines embedding params:
+    - `vocab_size_per_slot=None`, `custom_vocab_size_mapping=None`, `vocab_size_offset=None`.
+    - `qr_multi_hashing=False`, `qr_hashing_threshold=100000000`, `qr_collision_rate=4`.
+    - `vocab_file_path=None`, `enable_deepinsight=False`.
+    - `enable_host_call_scalar_metrics=False`, `enable_host_call_norm_metrics=False`.
+    - `files_interleave_cycle_length=4`, `deterministic=False`.
+    - `gradient_multiplier=1.0`, `enable_caching_with_tpu_var_mode=False`.
+    - `top_k_sampling_num_per_core=6`, `use_random_init_embedding_for_oov=False`.
+    - `merge_vector=False`.
+  - Defines training params:
+    - `train.file_folder=None`, `train.date_and_file_name_format="*/*/part*"`.
+    - `train.start_date=None`, `train.end_date=None`.
+    - `train.vocab_file_folder_prefix=None`.
+- `__init__(params)`:
+  - Calls `super().__init__`, stores `self.p`.
+  - Sets `_enable_deepinsight`, `_enable_host_call_scalar_metrics`, `_enable_caching_with_tpu_var_mode`, `_top_k_sampling_num_per_core`.
+  - Logs fixed vocab settings when `vocab_size_per_slot` or `custom_vocab_size_mapping` provided.
+  - Builds `vocab_size_dict = _create_vocab_dict()` and `Env(vocab_size_dict, params)`.
+  - Initializes `_feature_to_config_dict` and `_table_to_config_dict` as empty dicts.
 - `download_vocab_size_file_from_hdfs()`:
-  - Downloads a single `part*.csv` from HDFS into temp folder; updates `p.vocab_file_path` if successful.
+  - Deletes and recreates local `temp/` folder.
+  - Builds HDFS path: `"{vocab_file_folder_prefix}{end_date}/part*.csv"`.
+  - Runs `hadoop fs -copyToLocal` to temp folder.
+  - If returncode==0 and exactly one file downloaded:
+    - Sets `p.vocab_file_path` to that file path.
+  - Else logs downloaded files and keeps existing `p.vocab_file_path`.
 - `_create_vocab_dict()`:
-  - Reads vocab file (tsv slot_id -> count), applies overrides and offsets, returns dict.
-- `create_input_fn(mode)`:
-  - Only supports TRAIN.
-  - If `file_pattern` provided, uses `tf.data.Dataset.list_files` (no shuffle); else uses `file_folder` + `date_and_file_name_format` and `util.range_dateset` with `start_date/end_date`.
-  - Shards files per TPU host call index.
-  - Interleaves files with `cycle_length` and parses examples via `_get_feature_map` and `_post_process_example`.
-  - If `enable_stopping_signals`, appends a final batch with stop signal flag via `auto_checkpoint_feed_hook`.
-  - Prefetches with AUTOTUNE.
-- `_post_process_example`:
-  - Converts embedding tensors to SparseTensor; applies vocab size mods, QR hashing, and FeatureColumn3D row_lengths.
-  - Adds UID bucket for AUC sampling if `_UID` exists.
+  - If `train.end_date` and `train.vocab_file_folder_prefix` set, calls `download_vocab_size_file_from_hdfs()`.
+  - Asserts `p.vocab_file_path` exists.
+  - Reads TSV with 2 fields per line; ignores non-numeric slot IDs.
+  - For each slot:
+    - `distinct_count = vocab_size_per_slot` if set, else parsed count, overridden by `custom_vocab_size_mapping` when present.
+    - Applies `vocab_size_offset` if set.
+    - Stores `vocab_size_dict[slot_id] = distinct_count`.
+  - Logs dict; returns it.
+- `_parse_inputs(return_values)`:
+  - If tuple: returns `(features, labels)`; else `(return_values, None)`.
+- `create_input_fn(mode=TRAIN)`:
+  - Asserts TRAIN mode only.
+  - `file_pattern = p.train.file_pattern`.
+  - `tf_example_parser` builds feature_map via `_get_feature_map`, parses batch with `tf.io.parse_example`, then `_post_process_example`.
+  - `insert_stopping_signal(stop, batch_size, name)`:
+    - Adds `name` bool tensor: ones if `stop`, zeros otherwise.
+    - For sparse tensors, replaces with empty SparseTensor when `stop=True`.
+  - `input_fn(params)`:
+    - If `params["cpu_test"]` True:
+      - `TFRecordDataset(file_pattern)` -> batch(drop_remainder) -> map(tf_example_parser) -> repeat.
+    - Else:
+      - If `file_pattern` provided: `Dataset.list_files(file_pattern, shuffle=False)`.
+      - Else:
+        - Require `train.file_folder` + `train.date_and_file_name_format`.
+        - Build `file_pattern_` and list_files (shuffle=False).
+        - Require `train.end_date` and `params["enable_stopping_signals"]` not None.
+        - Apply `util.range_dateset(..., start_date, end_date)`.
+      - Shard files: `_, call_index, num_calls, _ = params["context"].current_input_fn_deployment()` then `files.shard(num_calls, call_index)`.
+      - `files.interleave(TFRecordDataset, cycle_length=files_interleave_cycle_length, num_parallel_calls=AUTOTUNE, deterministic=p.deterministic)`.
+      - Batch + map tf_example_parser (AUTOTUNE, deterministic=p.deterministic).
+      - If `p.train.repeat`: assert `enable_stopping_signals` is False, then `dataset.repeat()`.
+      - If `enable_stopping_signals`:
+        - `user_provided_dataset = dataset.map(insert_stopping_signal(stop=False), deterministic=False)`.
+        - `final_batch_dataset = dataset.repeat().map(insert_stopping_signal(stop=True), deterministic=False)`.
+        - `dataset = user_provided_dataset.concatenate(final_batch_dataset)`.
+      - `dataset.prefetch(AUTOTUNE)`.
+    - Returns dataset.
+- `logits_fn()`: abstract, raises `NotImplementedError`.
+- `init_slot_to_env()`:
+  - Logs, calls `self.logits_fn()` (to register slots), then `self._env.finalize()`.
+- `create_model_fn()`: abstract, raises `NotImplementedError('Abstract method.')`.
+- `_get_feature_map()`: abstract, raises `NotImplementedError`.
+- `_post_process_example(example)`:
+  - For each `(slot_id, feature_slot)` in `env.slot_id_to_feature_slot`:
+    - Skip if `feature_columns` empty.
+    - For each `feature_column`:
+      - `embedding_tensor = example[f"{fc_name}_0"]`.
+      - If `FeatureColumn3D`: `embedding_tensor.to_sparse()`, then clamp values >=0; else clamp values on SparseTensor.
+      - If `vocab_size_per_slot`: mod values; else set `vocab_size = env._vocab_size_dict.get(slot_id,10)` and apply `custom_vocab_size_mapping` if present.
+      - If `qr_multi_hashing` and `vocab_size > qr_hashing_threshold`:
+        - `R_vocab_size = vocab_size // qr_collision_rate + 1`, `Q_vocab_size = qr_collision_rate + 1`.
+        - Deletes original `example[f"{fc_name}_0"]`.
+        - For each feature_slice: add `fc_name_{slice}_0` (floormod by R) and `fc_name_{slice}_1` (floordiv by R).
+      - Else:
+        - If `FeatureColumn3D`: compute `row_lengths`, store `"{fc_name}_0_row_lengths"`, and slice sparse tensor to `max_seq_length`.
+        - Set `example[f"{fc_name}_0"] = tf.sparse.reorder(new_sparse)`.
+        - For each `feature_slice` where `slice_index != 0`, alias to the `_0` sparse tensor.
+  - If `_UID` in example: compute `uid_bucket = uid % _RATIO_N` and store as int32 under `_UID_BUCKET`.
+  - Returns example.
 - `create_feature_and_table_config_dict()`:
-  - Builds `tpu_embedding.TableConfig` and `FeatureConfig` per slot/feature slice, including QR hashing tables.
-- `process_features_for_cpu_test()`:
-  - Creates embedding variables with random init and uses `safe_embedding_lookup_sparse`.
-  - Clears internal feature/table config dicts after processing.
+  - Asserts env finalized.
+  - For each slot/feature_column/feature_slice:
+    - `vocab_size = env.vocab_size_dict.get(slot_id,1)`.
+    - If `qr_multi_hashing` and vocab_size > threshold:
+      - Create remainder and quotient `TableConfig`s and `FeatureConfig`s (`*_0`, `*_1`) if not already present.
+    - Always create base `table_{slot}_{slice}` if missing.
+    - Create `FeatureConfig` for `fc_name_{slice}`; for `FeatureColumn3D`, include `max_sequence_length`.
+  - Returns `(feature_to_config_dict, table_to_config_dict)`.
+- `cross_shard_optimizer(optimizer, params)`:
+  - If `params["cpu_test"]`: return optimizer; else wrap with `tf.tpu.CrossShardOptimizer`.
+- `process_features_for_cpu_test(features)`:
+  - For each SparseTensor feature:
+    - Look up `FeatureConfig`/`TableConfig` to get `dim`, `max_sequence_length`, `vocab_size`.
+    - Random init array shaped `[vocab_size, dim]` or `[vocab_size, max_seq_len*dim]`, cast to float32.
+    - Create `tf.get_variable(name=feature_name, initializer=initvalue)`.
+    - Mod feature ids by vocab_size; `safe_embedding_lookup_sparse(..., combiner="sum")`.
+    - If max_sequence_length != 0: reshape to `[-1, max_seq_len, dim]`.
+    - Store in `processed_features`.
+  - Non-sparse features passed through.
+  - Clears `_feature_to_config_dict` and `_table_to_config_dict` before return.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/src/base_embedding_task.rs`.
@@ -4415,6 +4508,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
   - Instantiates BaseLayer params, sets name, creates layer, calls `create_child`, and asserts child exists.
 - `test_create_children`:
   - Creates two child layers and asserts list length is 2.
+- Both tests set `layer._disable_create_child = False` (attribute not defined on BaseLayer but set anyway).
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/tests/base_layer.rs`.
@@ -4552,7 +4646,14 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
   - Retrieves task params, instantiates TPURunner, sets `_cpu_test=True` and `_host_call_every_n_steps=0`, runs.
 - `runMergeVectorTestOnCPU(task_name)`:
   - Enables `merge_vector` on task params; runs in CPU test mode.
-  - Validates merged slot dims and embedding dims in runner task env.
+  - Validates merged slot dims and embedding dims in runner task env:
+    - `env = runner._task._env`.
+    - Asserts number of slots equals number of merged slots.
+    - For each slot, checks merged dims:
+      - If original dims start with bias 1, bias retained and other dims summed.
+      - Else all dims summed into single entry.
+    - For each TPU feature named `slot_{slot_id}_{index}`:
+      - Asserts embedding dim equals original `env._slot_to_dims[slot_id][index]`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-training/tests/base_tpu.rs`.
@@ -4637,18 +4738,37 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: creates TF variables (kernel/bias/trainable norms).
 
 **Required Behavior (Detailed)**
-- `params()`:
-  - Defines units, activation, use_bias, kernel/bias initializers, kernel norm options, and partitioner.
-- `__init__`:
-  - Initializes BaseLayer and tf.keras.layers.Dense with given params.
-  - Sets attributes: `allow_kernel_norm`, `kernel_norm_trainable`, `var_name_prefix`, `partitioner`.
+- `params()` defaults:
+  - `units=512`, `activation=None`, `use_bias=True`.
+  - `kernel_initializer=VarianceScaling(mode='fan_avg', distribution='uniform')`.
+  - `bias_initializer='zeros'`.
+  - `allow_kernel_norm=True`, `kernel_norm_trainable=True`.
+  - `partitioner=None`.
+- `__init__(params, **kwargs)`:
+  - If `input_dim` provided and `input_shape` missing, sets `input_shape=(input_dim,)`.
+  - Calls `BaseLayer.__init__`, then `tf.keras.layers.Dense.__init__` with params (no regularizers/constraints).
+  - Sets `self.p=params`, `self.units=int(params.units)` (forces int), activation via `activations.get`.
+  - Resolves `bias_initializer` via `initializers.get`.
+  - Sets `supports_masking=True`, `input_spec=InputSpec(min_ndim=2)`.
+  - Sets `allow_kernel_norm`, `kernel_norm_trainable`, `var_name_prefix=params.name`, `partitioner`.
 - `build(input_shape)`:
-  - Validates dtype (float/complex).
-  - Uses `VarianceScaling` initializer to create kernel; uses `tf.compat.v1.get_variable` (partitioner optional).
-  - If `allow_kernel_norm`: L2-normalizes kernel and optionally multiplies by trainable norm variable.
-  - Creates bias if `use_bias`.
-- `get_config()` merges base config with custom fields.
-- `fprop(inputs)` calls `self.call(inputs)`.
+  - Ensures dtype is floating/complex, else `TypeError`.
+  - Requires last_dim defined; else `ValueError`.
+  - `kernel_shape=[last_dim, units]`; `init_kernel = kernel_initializer(shape, dtype)`.
+  - If `partitioner is None`: `kernel_initializer = lambda shape,dtype: init_kernel` (constant init); else use `init_kernel` directly.
+  - Creates `self.kernel` via `tf.compat.v1.get_variable` with name `{var_name_prefix}/kernel`, partitioner optional.
+  - If `allow_kernel_norm`:
+    - L2-normalize kernel along axis 0 with `epsilon=1e-6`.
+    - If `kernel_norm_trainable`:
+      - `init_trainable_kernel_norm = np.linalg.norm(init_kernel, axis=0)`.
+      - If no partitioner: `norm_initializer = lambda shape,dtype: init_trainable_kernel_norm`; else use array directly.
+      - Creates `trainable_kernel_norm` variable `{var_name_prefix}/trainable_kernel_norm`.
+      - `kernel = kernel * trainable_kernel_norm`.
+  - If `use_bias`: `self.bias = add_weight(name='{prefix}/bias', shape=[units], initializer=bias_initializer)`, else `None`.
+  - Sets `self.built = True`.
+- `get_config()`:
+  - Adds custom fields (`allow_kernel_norm`, `kernel_norm_trainable`, `partitioner`) and serialized initializers/activation.
+- `fprop(inputs)` simply calls `self.call(inputs)`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-layers/src/dense.rs`.
@@ -4691,10 +4811,19 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: creates TF variables and runs sessions.
 
 **Required Behavior (Detailed)**
-- `test_dense_instantiate`: runs `layer_test` for different input shapes.
-- `test_dense_dtype`: ensures output dtype is float32 when specified.
-- `test_dense`: checks output shape and runs session to initialize vars.
-- `test_dense_with_partitioner`: ensures Dense works with variable partitioner.
+- `test_dense_instantiate`:
+  - Uses `Dense.params()` template; creates four params with names `test_dense0..3`, `units=3`.
+  - `testing_utils.layer_test(Dense, kwargs={'params': p}, input_shape=...)` for shapes `(3,2)`, `(3,4,2)`, `(None,None,2)`, `(3,4,5,2)`.
+- `test_dense_dtype`:
+  - Builds Dense with `dtype='float32'`, input tensor from random ints.
+  - Asserts `outputs.dtype == 'float32'`.
+- `test_dense`:
+  - Creates Dense with `units=3`, feeds `(2,4)` ones.
+  - Asserts output shape `(2,3)`.
+  - Runs session with global variable init.
+- `test_dense_with_partitioner`:
+  - Sets `partitioner = tf.compat.v1.variable_axis_size_partitioner(1024)`, units=5.
+  - Input `(2,4096)` ones; output shape `(2,5)`; runs session init + output.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-layers/tests/dense.rs`.
@@ -4763,7 +4892,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
     - Returns merged or non-merged placeholder map based on `env._merge_vector`.
 - `FeatureColumn3D`:
   - Constructor sets `max_seq_length`, logs it, registers with slot.
-  - `embedding_lookup(...)` delegates to `Env._seq_embedding_lookup`.
+  - `embedding_lookup(...)` delegates to `Env._seq_embedding_lookup` using `self._max_seq_length` (ignores passed `max_seq_length` arg).
   - `size_tensor_lookup()` delegates to `Env._size_tensor_lookup`.
   - `feature_slice_to_tf_placeholder` returns 3D placeholder map.
 - `Env`:
@@ -4859,20 +4988,30 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Required Behavior (Detailed)**
 - `FeatureSlotTest.test_has_bias`:
-  - `FeatureSlot(has_bias=True)` creates one bias slice with `dim=1`, `slice_index=0`.
+  - Builds `_params.Params()` and defines required fields (`qr_multi_hashing`, `qr_hashing_threshold`, `qr_collision_rate`, `use_random_init_embedding_for_oov`, `merge_vector`).
+  - `env = Env({}, params)`, `FeatureSlot(env, slot_id=1, has_bias=True)`.
+  - Asserts `len(feature_slices)==1`, dim=1, slice_index=0.
 - `FeatureSlotTest.test_add_feature_slice`:
-  - Additional slices get incrementing `slice_index` and correct dims.
+  - Same params/env setup; `FeatureSlot(..., has_bias=True)`.
+  - `add_feature_slice(dim=10)` results in 2 slices: bias (dim 1, idx 0) and new slice (dim 10, idx 1).
 - `FeatureColumnV1Test.test_add_feature_column`:
-  - Creating a feature column appends to `FeatureSlot._feature_columns`.
+  - Same params/env setup; `FeatureSlot(has_bias=True)` then `add_feature_slice(dim=10)`.
+  - `FeatureColumnV1(fs_1, 'fc_name_1')` registers in `_feature_columns` (len==1).
 - `FeatureColumnV1Test.test_merge_split_vector_in_same_slot`:
   - With `merge_vector=True`:
-    - `_merge_vector_in_same_slot()` populates `_merged_feature_slices` and merged placeholder maps per slot and column.
-    - Expected merged dims:
-      - slot 1 (bias+2) -> merged dims `[1,2]`
-      - slot 2 (bias only) -> `[1]`
-      - slot 3 (no bias, 2+3) -> `[5]`
-      - slot 4 (bias+2+3+4) -> `[1,9]`
-    - `_split_merged_embedding()` splits merged embeddings into per-slice tensors with exact contents as asserted.
+    - Creates slots/slices:
+      - slot1 has_bias True + slice dim 2.
+      - slot2 has_bias True only.
+      - slot3 has_bias False + slices dim 2 and 3.
+      - slot4 has_bias True + slices dim 2,3,4.
+    - Creates FeatureColumnV1s for slots; calls `embedding_lookup` to populate placeholders.
+    - Calls `env._merge_vector_in_same_slot()` and asserts merged slice counts and dims:
+      - fs1 merged dims [1,2]; fs2 [1]; fs3 [5]; fs4 [1,9].
+      - Each FeatureColumn has merged placeholders for expected slices.
+    - Split test:
+      - Sets `env._tpu_features` with merged tensors: `fc_name_1_0`, `fc_name_1_1`, `fc_name_2_0`, `fc_name_3_0`, `fc_name_4_0`, `fc_name_4_1`, `fc_name_5_0`, `fc_name_5_1`.
+      - Runs `_split_merged_embedding` for fs1..fs4 inside session.
+      - Asserts split tensors match expected per-slice values for fc_name_3 (2+3 split), fc_name_4/5 (bias + 2 + 3 + 4 split).
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/src/feature.rs`.
@@ -4919,15 +5058,39 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: creates summary writers and writes scalar/text summaries.
 
 **Required Behavior (Detailed)**
-- Similar tensor collection/compression logic to `BaseHostCall`:
-  - Global step tensor is always first.
-  - Tensors grouped by dtype, concatenated, expanded to batch dimension.
+- Initialization mirrors `BaseHostCall`:
+  - `tensor_names=["global_step"]`, `tensors=[reshape(global_step, [-1])]`, `_lists_tensor_sizes=[]`.
+- `record_summary_tensor(name, tensor)`:
+  - Asserts name unique and tensor rank <=1.
+  - Reshapes to `[-1]` and appends (no enable_host_call guard here).
+- `compress_tensors()` / `decompress_tensors()`:
+  - Same dtype grouping and concat/expand logic as `BaseHostCall`.
+  - Uses `tensor.shape[0].value` for sizes and `tf.split(..., axis=1)` for decompression.
+  - Asserts first name is `"global_step"` (same message quirk with `[0][0]`).
+- `_verify_shape_and_dtype(tensor, shape_list, dtype)`:
+  - Asserts tensor is not None, shape matches, dtype matches.
+- `_serialize_messages(labels, y_preds, sample_rates, req_times, gs)`:
+  - Expects each tensor shape `[num_cores, batch]` (rank 2).
+  - Verifies y_preds/sample_rates float32 and req_times int64.
+  - Flattens each to 1D via `tf.reshape(..., [-1])`.
+  - Writes serialized tensors as text summaries with keys:
+    - `di_example_sample_rates`, `di_labels`, `di_preds`, `di_req_times`.
 - `generate_host_call_hook()`:
-  - If disabled, returns None.
-  - Otherwise returns `_host_call` and compressed tensors.
-  - `_host_call` decompresses tensors, writes scalar summaries and AUC; optional deepinsight text summaries via `_serialize_messages`.
-- `_serialize_messages`:
-  - Verifies shapes/dtypes, flattens tensors, writes serialized tensors as text summaries.
+  - If `_enable_host_call` True:
+    - Calls `compress_tensors()` then returns `(_host_call, self._tensors)`.
+  - Else logs "host_call has been disabled" and returns `None`.
+  - `_host_call(*args)`:
+    - `gs, tensors = decompress_tensors(args)`.
+    - Creates summary writer at `{output_dir}/host_call` with `flush_millis=10000`, `max_queue=5000`.
+    - Iterates over tensors (skips index 0):
+      - If name contains `_avg`: `reduce_mean`.
+      - If name contains `_max`: `reduce_max`.
+      - If name contains labels/preds/req_time/sample_rate keys: capture in local variables.
+      - Else uses `t[0]` as scalar.
+      - Writes scalar summary for any `data`.
+    - If labels and preds present: adds `tf.metrics.auc` and summary `auc`.
+    - If `enable_deepinsight` and labels present: calls `_serialize_messages(...)`.
+    - Returns `tf.group(all_v2_summary_ops, auc_op)` if auc_op exists, else `all_v2_summary_ops`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/src/host_call.rs`.
@@ -7023,7 +7186,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Cross-language parity test: not applicable.
 
 **Gaps / Notes**
-- None.
+- Bugs/quirks to preserve or fix explicitly:
+  - `Env.is_finalized()` returns `self.is_finalized` (recursive), and is referenced without call in some asserts, so the assert always passes.
+  - `_embedding_lookup` references `slot_id` without defining it (should be `feature_column.feature_slot.slot_id()`), may raise `NameError` if QR path is executed.
+  - `_seq_embedding_lookup` uses `feature_slice.init_minval_for_oov/init_maxval_for_oov` which are not defined on `FeatureSlice`.
+  - `collections.namedtuple` imported but unused.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
