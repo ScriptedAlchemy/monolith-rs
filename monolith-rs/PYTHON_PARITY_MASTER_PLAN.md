@@ -1944,7 +1944,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: none
 
 **Required Behavior (Detailed)**
-- Export string constant `MONOLITH_HOST_SHARD_N`.
+- Export `HOST_SHARD_ENV = "MONOLITH_HOST_SHARD_N"`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/constants.rs` (new) or existing config module.
