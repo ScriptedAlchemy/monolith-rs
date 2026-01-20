@@ -460,7 +460,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/distributed_ps_factory_test.py`](#monolith-native-training-distributed-ps-factory-test-py) | 87 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/distributed_ps_sync.py`](#monolith-native-training-distributed-ps-sync-py) | 531 | IN PROGRESS | monolith-rs/crates/monolith-training/src/ps |  |
 | [`monolith/native_training/distributed_ps_sync_test.py`](#monolith-native-training-distributed-ps-sync-test-py) | 109 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
-| [`monolith/native_training/distributed_ps_test.py`](#monolith-native-training-distributed-ps-test-py) | 979 | TODO | TODO (manual) |  |
+| [`monolith/native_training/distributed_ps_test.py`](#monolith-native-training-distributed-ps-test-py) | 979 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/distributed_serving_ops.py`](#monolith-native-training-distributed-serving-ops-py) | 160 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distributed_serving_ops_test.py`](#monolith-native-training-distributed-serving-ops-test-py) | 142 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distribution_ops.py`](#monolith-native-training-distribution-ops-py) | 889 | TODO | TODO (manual) |  |
@@ -8927,53 +8927,60 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distributed_ps_test.py`
-
 <a id="monolith-native-training-distributed-ps-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 979
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Comprehensive tests for distributed hash tables, multi-type hash tables, export behavior, and partitioned hash table lookup/apply gradients (CPU/GPU).
+- Key symbols/classes/functions: `DistributedHashTableTest`, `DistributedMultiTypeHashTableTest`, `DistributedMultiTypeHashTableServingTest`, `PartitionedHashTableTest`.
+- External dependencies: TF PS clusters, Horovod env, `distribution_ops`, `export_context`, `sharding_sparse_fids_with_context`.
+- Side effects: sets `MONOLITH_WITH_HOROVOD=1` and uses test clusters.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `DistributedHashTableTest`:
+  - `test_basic`: assign_add then lookup equals assigned values.
+  - `test_assign`: second assign overwrites ids; lookup after control dependency yields updated values.
+  - `test_lookup_dedup`: duplicate ids return repeated embeddings.
+  - `test_apply_gradients`: gradients with loss `2*values` updates to `-2` for dim=1.
+  - `test_apply_gradients_with_learning_rate_function`: polynomial decay learning rate affects updates; after global_step increment, values change to `-4.2`.
+  - `test_apply_gradients_with_duplicates`: duplicate ids produce accumulated gradient; expected `-4` for duplicate id.
+  - `test_apply_gradients_with_different_ids`: bp_ids differ from ids; updates only bp ids.
+- `DistributedMultiTypeHashTableTest` (param native vs non-native):
+  - `testBasic`: assign_add per slot, lookup values, apply_gradients halves values.
+  - `test_assign_and_reinitialize`: assign then assign with half values; native mode tests `reinitialize` status and zeros for slot.
+  - `test_apply_gradients_with_learning_rate_function`: similar to single-table with polynomial decay; values update with global_step.
+  - `test_apply_gradients_float16`: transfer_float16 path; verifies lookup output after apply gradients.
+- `DistributedMultiTypeHashTableServingTest`:
+  - `test_export_model`: export distributed/standalone/normal training and ensure lookup shapes; verifies `export_ctx.sub_graph_num`.
+- `PartitionedHashTableTest`:
+  - Helpers: `gen_table_config`, `gen_out_config`, `get_parser_ctx`, `gen_data`, `gen_variant_tensor`.
+  - `_test_basic`: assign + assign_add and `_lookup_raw` should return sum of embeddings; runs CPU and GPU variants.
+  - `_test_lookup`: assigns const embeddings, sharding sparse fids + lookup yields expected layout tensors (`bias`, `vec`, `deep`).
+  - `_test_apply_gradients`: assigns const values, lookup+apply_gradients; verifies updated embeddings against expected FTRL/AdaGrad formulas.
+  - `test_apply_gradients_for_gpu_emb`: compares GPU embedding path with CPU path using same gradients; outputs must match.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests`.
+- Rust public API surface: distributed hash tables, multi-type tables, partitioned hash table API.
+- Data model mapping: fids/embeddings, layout configs, and gradient updates.
+- Feature gating: PS clusters, Horovod, GPU embedding path.
+- Integration points: `distributed_ps`, `distributed_ps_sync`, `distribution_ops`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port test utilities to build PS clusters and configs in Rust (or provide Python-driven fixtures).
+2. Recreate expected numeric outputs for assign/lookup/apply_gradients.
+3. Implement layout config generation and sharding for partitioned hash table tests.
+4. Add GPU embedding parity tests comparing CPU and GPU paths.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: `distributed_ps_test.rs` covering key cases above.
+- Cross-language parity test: compare lookup/apply_gradients outputs for small fixed inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- File is extensive; ensure Rust tests focus on correctness for representative cases if full coverage is too costly.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8988,6 +8995,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distributed_serving_ops.py`
+
 <a id="monolith-native-training-distributed-serving-ops-py"></a>
 
 **Status:** TODO (manual review required)
