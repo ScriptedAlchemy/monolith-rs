@@ -34,9 +34,21 @@
       "dependsOn": ["normalize-mapping"]
     },
     {
+      "id": "agent-service-impl",
+      "path": "task/21-agent-service-impl.ai.tsx",
+      "description": "Optional execution placeholder for a first implementation slice of monolith/agent_service/** (e.g., data_def + mocked_zkclient + basic backends), or ticketization into implementation-ready work items.",
+      "dependsOn": ["agent-service-plan"]
+    },
+    {
       "id": "core-plan",
       "path": "task/30-core-plan.ai.tsx",
       "description": "Create a parity plan for monolith/core/** infra (hyperparams, base_layer/task, feature/model registry, hooks): identify high-risk semantics and required Rust test strategies.",
+      "dependsOn": ["normalize-mapping"]
+    },
+    {
+      "id": "utils-and-entrypoints-plan",
+      "path": "task/35-utils-and-entrypoints-plan.ai.tsx",
+      "description": "Plan parity for top-level monolith utilities and entrypoints (monolith/utils.py, path_utils.py, base_runner.py, gpu_runner.py, tpu_runner.py) plus workspace/config glue (monolith_workspace.bzl, tf_serving_workspace.bzl): map CLI/env/config semantics and Rust destinations.",
       "dependsOn": ["normalize-mapping"]
     },
     {
@@ -52,6 +64,18 @@
       "dependsOn": ["normalize-mapping"]
     },
     {
+      "id": "third-party-and-codegen-plan",
+      "path": "task/60-third-party-and-codegen-plan.ai.tsx",
+      "description": "Account for non-monolith Python-adjacent behavior dependencies: third_party/org_tensorflow/** patches, custom op build/load surfaces, protobuf/codegen steps, and any Python-dependent tooling that affects runtime semantics; map to Rust build/features and track explicit parity gaps.",
+      "dependsOn": ["normalize-mapping"]
+    },
+    {
+      "id": "parity-test-harness-plan",
+      "path": "task/80-parity-test-harness-plan.ai.tsx",
+      "description": "Define repeatable parity validation harnesses: golden fixtures, Python-vs-Rust differential tests, gRPC/proto compatibility tests, and TF-optional gating (Candle default, TF runtime best-effort).",
+      "dependsOn": ["normalize-mapping"]
+    },
+    {
       "id": "parity-dashboard",
       "path": "task/90-parity-dashboard.ai.tsx",
       "description": "Roll up inventory validation, mapping, conventions, and domain plans into a single parity dashboard: coverage status, open parity gaps, and prioritized next work queue.",
@@ -60,9 +84,13 @@
         "generate-mapping-table",
         "normalize-mapping",
         "agent-service-plan",
+        "agent-service-impl",
         "core-plan",
+        "utils-and-entrypoints-plan",
         "native-training-plan",
-        "tf-runtime-plan"
+        "tf-runtime-plan",
+        "third-party-and-codegen-plan",
+        "parity-test-harness-plan"
       ]
     },
     {
@@ -73,4 +101,3 @@
     }
   ]
 }
-

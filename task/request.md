@@ -164,7 +164,14 @@ These enable all module ports:
 - `model_export/**`
 - `distribution_ops.py`, `distributed_ps.py`
 
-**Status:** TODO (not started)
+**Status:** PLANNED (not started)
+
+**Plan (Detailed)**
+1. Enumerate native_training subpackages and group by runtime (data, runtime, model_export).
+2. For each subpackage, expand per-file parity checklists into this master doc with required behavior.
+3. Identify runtime dependencies (TF, Horovod, ZK/Consul, HDFS/GCS) and tag with feature gates.
+4. Define Rust crate ownership per subpackage (training/data/checkpoint/serving) and update mapping table.
+5. Add test parity plan per subpackage (unit tests + integration parity vectors).
 
 ### 5.4 `monolith/utils.py` + helpers
 - `path_utils.py`
@@ -184,7 +191,14 @@ These enable all module ports:
 - Signature-based tensor mapping
 - Output decoding consistent with Python
 
-**Status:** TODO (tracked separately with sub-plan embedded into this doc)
+**Status:** PLANNED (tracked separately with sub-plan embedded into this doc)
+
+**Plan (Detailed)**
+1. Define TF runtime feature flags (`tf-runtime`, `tf-custom-ops`) and dynamic loader API surface.
+2. Specify SavedModel loading contract (signature inputs/outputs, dtype mapping, batch handling).
+3. Document custom op discovery and load order (env var paths + explicit config).
+4. Add runtime health checks and capability detection (presence of `saved_model.pb`, libtensorflow).
+5. Create parity test harness that runs identical inputs through Python TF and Rust TF runtime.
 
 ---
 
@@ -286,15 +300,23 @@ This is the first incremental mapping pass. It will be expanded **file-by-file**
 
 ### 13.2 `monolith/core/**` → `monolith-rs/crates/monolith-core` + `monolith-rs/crates/monolith-layers`
 
-**Status:** TODO (mapping pending)
+**Status:** PLANNED (mapping pending)
 **Notes:** Use per-file checklists under `monolith-rs/parity/monolith/core/*.md` as the canonical mapping source until this table is populated.
+**Plan (Detailed)**
+1. Promote each core file from checklist to this table with final crate/module target.
+2. Record public API surface and ownership for each core module (core vs layers).
+3. Flag modules requiring TF runtime vs Candle-only behavior.
 
 ---
 
 ### 13.3 `monolith/native_training/**` → `monolith-rs/crates/monolith-training`, `monolith-rs/crates/monolith-data`, `monolith-rs/crates/monolith-checkpoint`, `monolith-rs/crates/monolith-serving`
 
-**Status:** TODO (mapping pending)
+**Status:** PLANNED (mapping pending)
 **Notes:** Use per-file checklists under `monolith-rs/parity/monolith/native_training/**/*.md` as the canonical mapping source until this table is populated.
+**Plan (Detailed)**
+1. Promote each native_training file from checklist to this table with final crate/module target.
+2. Split runtime vs data pipeline vs export ownership and note feature gates.
+3. Add cross-module dependencies (e.g., runtime ↔ serving) to the table notes.
 
 ---
 
@@ -1328,7 +1350,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Implementation Steps (Detailed)**
 1. Add AgentConfig wiring to Rust AgentService (support v1/v2/v3 equivalent selection).
-2. Port `ReplicaWatcher` + `ZKMirror` behaviors or stub with clear TODOs and guards.
+2. Port `ReplicaWatcher` + `ZKMirror` behaviors or stub with explicit guards and tracking notes.
 3. Implement `dc_aware` key rewriting in HeartBeat response.
 4. Implement `GetResource` response with local IP and memory (port parity).
 5. Add AgentDataProvider path for v3-style maps.
@@ -3517,7 +3539,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
   - `get_cmd` returns command only.
   - `get_server_schedule_iter(server_type)`:
     - Mixed/PS: for PS yields indices where `i % num_shard == shard_id`; else yields None.
-    - Dense: if server_type dense, yields `replica_id` (commented TODO about bug).
+    - Dense: if server_type dense, yields `replica_id` (commented NOTE about bug).
     - Else yields None.
 - Model config generation:
   - `_gen_model_server_config(server_type)`:
@@ -5307,12 +5329,12 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 5. Validate frozen behavior and nested mutability.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/core/hyperparams_test.py`.
+- Rust tests: add unit tests in `monolith-rs/crates/monolith-core/tests/hyperparams.rs` mirroring each Python test case and expected error strings.
+- Cross-language parity test: run Python tests to generate expected strings/structures, then compare Rust outputs to those fixtures.
 
 **Gaps / Notes**
-- TODO (manual)
+- String formatting parity is brittle; capture exact expected text from Python tests as golden fixtures.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -5675,11 +5697,80 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: enforces key validation on set.
 
 **Required Behavior (Detailed)**
-- Keys must be valid identifiers (regex `[A-Za-z_][A-Za-z0-9_]*`) and not reserved dict attributes.
-- Attribute access maps to items; missing keys raise AttributeError listing available attributes.
-- `GetItem` and `Get` support dotted key paths; no list indexing.
-- `Set` creates nested maps along dotted path; raises if intermediate is not map/dict.
-- `Flatten`, `FlattenItems`, `Pack`, `Transform`, `IsCompatible`, `Filter`, `FilterKeyVal`, `DebugString`, `VLog` mirror Lingvo-style NestedMap.
+- `_NAME_PATTERN` is compiled from `'[A-Za-z_][A-Za-z0-9_]*'`.
+- `NestedMap` is a `dict` subclass with:
+  - `_HAS_DYNAMIC_ATTRIBUTES = True`.
+  - `_RESERVED_KEYS = set(dir(dict))` (reserved attributes disallowed as keys).
+  - `_DELETE = object()` sentinel used for filter/delete in `_RecursiveMap`.
+- `__init__`:
+  - Calls `dict.__init__` then validates every existing key.
+  - Asserts keys are `six.string_types`, match `_NAME_PATTERN`, and are not reserved.
+- `__setitem__`:
+  - Same validation as `__init__`.
+  - Uses `super().__setitem__` after validation.
+- `__setattr__` delegates to `__setitem__` (attribute assignment adds/overwrites a key).
+- `__getattr__`:
+  - Returns `self[name]`.
+  - On `KeyError`, raises `AttributeError` with message that includes sorted available keys.
+- `__delattr__`:
+  - Deletes `self[name]`.
+  - On `KeyError`, raises `AttributeError` with sorted available keys.
+- `copy()` returns `NestedMap(self)` (not a raw dict copy).
+- `__deepcopy__` and `DeepCopy`:
+  - Deep-copy the structure but **not** leaf objects.
+  - Implemented as `self.Pack(self.Flatten())`.
+- `FromNestedDict(x)`:
+  - Recursively converts **dicts** into `NestedMap`.
+  - Recurses through **lists/tuples**, preserving container type.
+  - Leaves other values unchanged.
+- `CheckKey(key)`:
+  - Raises `ValueError("Invalid NestedMap key '...'" )` if not a string or regex mismatch.
+- `GetItem(key)`:
+  - Splits `key` on `.` and traverses nested maps.
+  - **No list indexing support** (explicitly documented).
+  - Raises `KeyError` if a key is missing.
+- `Get(key, default=None)`:
+  - Returns `GetItem(key)` or `default` on `KeyError` **or** `TypeError`
+    (TypeError occurs when an intermediate is a list and a string key is used).
+- `Set(key, value)`:
+  - Splits on `.` and validates each sub-key.
+  - Creates nested `NestedMap()` as needed.
+  - Raises `ValueError` if a sub-key exists but is **not** `dict` or `NestedMap`.
+  - Sets terminal value at the last sub-key.
+- `_RecursiveMap(fn, flatten=False)`:
+  - Recurses through **NestedMap** (sorted keys) and **list** (index order only).
+  - Builds key paths like `foo.bar[10].baz`.
+  - If `fn` returns `_DELETE`, that entry is dropped.
+  - If all children of a container are deleted, returns `_DELETE`.
+  - If root resolves to `_DELETE`, returns `[]` (flatten) or empty `NestedMap`.
+- `Flatten()`:
+  - Returns a flat list of leaf values.
+  - Descends only into `NestedMap` and `list` (NOT dicts/tuples/namedtuples).
+- `FlattenItems()`:
+  - Returns list of `(key_path, value)` tuples using dotted paths and `[i]`.
+- `Pack(lst)`:
+  - Asserts `len(self.FlattenItems()) == len(lst)`.
+  - Iterates through `lst` in order, replacing each leaf value.
+  - If `lst` is too short, `StopIteration` will propagate.
+- `Transform(fn)`:
+  - Applies `fn(value)` to each leaf; preserves structure.
+- `IsCompatible(other)`:
+  - Flattens **keys only** for self and other and compares for equality.
+- `Filter(fn)`:
+  - Keeps entries for which `fn(entry)` is True (delegates to `FilterKeyVal`).
+- `FilterKeyVal(fn)`:
+  - Applies `fn(key, value)`.
+  - Uses `_DELETE` to prune entries; can delete entire subtrees.
+- `_ToStrings()`:
+  - Builds a list of strings `"key<spaces>value"` with padding based on max key length.
+  - Uses 4 spaces of padding after the longest key.
+  - Returns lexicographically sorted list of strings.
+- `DebugString()` returns `'\n'.join(_ToStrings())`.
+- `VLog(level=None, prefix=None)`:
+  - Defaults `level=0`, `prefix='nmap: '`.
+  - Logs each `_ToStrings()` line via `tf.logging.vlog(level, '%s %s', prefix, l)`.
+  - Note: `tf` is **not imported** in this module; if `VLog` is called without
+    external injection of `tf`, it will raise `NameError`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/src/py_utils.rs`.
@@ -5696,6 +5787,8 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Gaps / Notes**
 - Python uses dynamic attributes; Rust should expose explicit methods.
+- `_RecursiveMap` only descends into `NestedMap` + `list`; any dict/tuple stored
+  as a value is treated as a leaf (parity requires that behavior).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -5722,14 +5815,54 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: builds models, runs predict, validates shapes/dtypes.
 
 **Required Behavior (Detailed)**
-- `layer_test`:
-  - Generates `input_data` if not provided; uses `input_shape` and `input_dtype` defaults.
-  - Instantiates layer with `kwargs`; optionally calls `adapt`.
-  - Tests `get_weights`/`set_weights` and re-instantiation with `weights` kwarg.
-  - Builds functional model `y = layer(x)` and checks output dtype.
-  - Checks expected output shape and computed output signature.
-  - Runs `model.predict` and compares output to expected if provided.
-  - Chooses assertion method based on dtype (string vs numeric).
+- Decorator: `@test_util.disable_cudnn_autotune` wraps `layer_test`.
+- `layer_test(...)`:
+  - If `input_data is None`:
+    - Requires `input_shape` or raises `ValueError('input_shape is None')`.
+    - Default `input_dtype = 'float32'`.
+    - Replaces `None` dimensions in `input_shape` with random ints in `[1, 3]`.
+    - Creates `input_data = 10 * np.random.random(input_data_shape)`.
+    - If dtype starts with `'float'`, subtracts `0.5`.
+    - Casts to `input_dtype`.
+  - If `input_data` provided and `input_shape is None`, sets `input_shape = input_data.shape`.
+  - If `input_dtype is None`, sets to `input_data.dtype`.
+  - If `expected_output_dtype is None`, sets to `input_dtype`.
+  - Selects assertion:
+    - If `expected_output_dtype` is `string` (`dtypes.as_dtype(...) == dtypes.string`):
+      - If `test_harness` provided: uses `test_harness.assertAllEqual`.
+      - Else: uses `string_test` (not defined in this file; assumed TF test util).
+    - Else (numeric):
+      - If `test_harness` provided: uses `test_harness.assertAllClose`.
+      - Else: uses `tensorflow.python.keras.testing_utils.numeric_test`.
+  - Instantiation: `kwargs = kwargs or {}` then `layer = layer_cls(**kwargs)`.
+  - If `adapt_data` provided: `layer.adapt(adapt_data)` is called.
+  - Weights round-trip:
+    - `weights = layer.get_weights()`, `layer.set_weights(weights)`.
+    - If `'weights'` is in `layer_cls.__init__` signature:
+      - Adds `weights` to `kwargs` and re-instantiates `layer = layer_cls(**kwargs)`.
+  - Functional API:
+    - `x = layers.Input(shape=input_shape[1:], dtype=input_dtype)` (drops batch dim).
+    - `y = layer(x)`.
+    - If `backend.dtype(y) != expected_output_dtype`, raises `AssertionError`
+      including layer name, input, actual dtype, expected dtype, kwargs.
+  - Output shape check (if `expected_output_shape` provided):
+    - Uses helper `assert_shapes_equal`:
+      - Checks rank equality.
+      - For each dim, if `tensor_shape.Dimension`, uses `.value`.
+      - If expected is not None and differs, raises `AssertionError`.
+    - Compares `tensor_shape.TensorShape(expected_output_shape)` vs `y.shape`.
+  - Shape inference checks:
+    - `model = models.Model(x, y)`.
+    - `computed_output_shape = tuple(layer.compute_output_shape(TensorShape(input_shape)).as_list())`.
+    - `computed_output_signature = layer.compute_output_signature(TensorSpec(shape=input_shape, dtype=input_dtype))`.
+    - `actual_output = model.predict(input_data)`.
+    - Asserts `computed_output_shape` == `actual_output.shape`.
+    - Asserts `computed_output_signature.shape` == `actual_output.shape`.
+    - If `computed_output_signature.dtype != actual_output.dtype`, raises `AssertionError`.
+  - If `expected_output` provided: `assert_equal(actual_output, expected_output)`.
+  - NOTE: `validate_training`, `custom_objects`, and `test_harness` params are mostly unused
+    (only `test_harness` affects assertions).
+  - NOTE: Despite docstring, the function **does not return** `actual_output`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/tests/testing_utils.rs`.
@@ -5745,6 +5878,8 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Gaps / Notes**
 - TF internal APIs used here are not available in Rust; might require simplified harness.
+- `string_test` is referenced but not defined in this file (relies on TF test utils).
+- `validate_training` is unused in this implementation.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -5771,13 +5906,54 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: registers tensor conversion function globally.
 
 **Required Behavior (Detailed)**
-- `_enclosing_tpu_context()` walks control flow contexts to find XLA TPU context.
-- `ReplicatedVariable`:
-  - Wraps list of per-replica variables; exposes `handle` that is replicated in TPU context.
-  - Implements `assign`, `assign_add`, `assign_sub`, `read_value` using resource ops.
-  - Provides `initializer`, `dtype`, `shape`, `get_shape`, `to_proto` by delegating to primary var.
-  - `_should_act_as_resource_variable` is a no-op placeholder.
-- Registers tensor conversion function and dense tensor like type (pre-TF2.3).
+- TF version detection:
+  - Tries `from tensorflow.python.types import core`; if import succeeds `TF_23=True`.
+  - If `TF_23`: `VariableBase = core.Tensor`, else `VariableBase = object`.
+- `_handle_graph(handle)` context manager:
+  - Enters `handle.graph.as_default()` to run assign ops in the handle’s graph.
+- `_enclosing_tpu_context()`:
+  - Starts at `ops.get_default_graph()._get_control_flow_context()`.
+  - Walks `outer_context` until `control_flow_ops.XLAControlFlowContext` or `None`.
+- `ReplicatedVariable(name, variables)`:
+  - Stores `_name`, `_vars`, `_primary_var = variables[0]`, `_cached_value = None`,
+    `_dtype = variables[0].dtype`.
+  - `handle` property:
+    - If no TPU context: returns `_primary_var.handle`.
+    - Else: `tpu_context.get_replicated_var_handle(self._name, self._vars)`.
+  - `_assign_dependencies()`:
+    - If `_cached_value` is not None, wraps ops in `control_dependencies([_cached_value])`.
+  - `initializer`: `control_flow_ops.group([v.initializer for v in self._vars])`.
+  - `graph`: `_primary_var.graph`.
+  - `_shared_name`: returns `_common_name` (attribute never defined here).
+  - `_unique_id`: delegates to `_primary_var._unique_id` (protected access).
+  - `name`, `dtype`, `shape`, `get_shape`, `to_proto` delegate to primary var.
+  - `constraint`: always `None`.
+  - `op`: `self.get().op`.
+  - `_read_variable_op()`:
+    - If no TPU context: `self._primary_var.read_value()`.
+    - Else: `gen_resource_variable_ops.read_variable_op(self.handle, self._dtype)`.
+  - `read_value()` returns `_read_variable_op()`.
+  - `assign(value, use_locking=None, name=None, read_value=False)`:
+    - Ignores `use_locking`.
+    - Converts value to tensor with `dtype=self.dtype`.
+    - Uses `assign_variable_op(self.handle, value_tensor)`.
+    - If `read_value` True returns `_read_variable_op()`, else returns assign op.
+  - `assign_add(delta, ..., read_value=True)` / `assign_sub(...)`:
+    - Same pattern using `assign_add_variable_op` / `assign_sub_variable_op`.
+    - Defaults `read_value=True`.
+  - `get()` returns `_primary_var`.
+  - `_in_graph_mode` delegates to `_primary_var._in_graph_mode`.
+  - `_should_act_as_resource_variable()` is a no-op `pass`.
+  - `_dense_var_to_tensor(dtype=None, name=None, as_ref=False)`:
+    - If no TPU context:
+      - If `_primary_var` has `_dense_var_to_tensor`, call it.
+      - Else `ops.convert_to_tensor(_primary_var)`.
+    - If dtype is not None and differs from `self.dtype`, returns `NotImplemented`.
+    - If `as_ref` True: return `self.handle`; else return `self.read_value()`.
+- Tensor conversion registration:
+  - `_tensor_conversion` calls `var._dense_var_to_tensor(...)`.
+  - `ops.register_tensor_conversion_function(ReplicatedVariable, _tensor_conversion)`.
+  - If `not TF_23`: `ops.register_dense_tensor_like_type(ReplicatedVariable)`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-tf/src/tpu_variable.rs`.
@@ -5794,6 +5970,8 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Gaps / Notes**
 - TF TPU context is highly specific; Rust likely needs a bridge or stubs.
+- `_shared_name` references `_common_name` which is never set in this class.
+- `_cached_value` is never assigned within this module; only affects ordering if set externally.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -5820,18 +5998,74 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: network calls to GCS, subprocess execution, logging.
 
 **Required Behavior (Detailed)**
-- `get_bucket_name_and_relavite_path(gs_file_path)` parses `gs://bucket/path` into bucket + relative path.
-- `download_gcs_file` and `download_gcs_file_with_relative_path` fetch blobs to local filename.
-- `list_gcs_files_with_prefix` returns bucket and blob iterator for prefix.
-- `parse_example_number_meta_file` reads `file,count` lines (comma separated) and ensures file names are ascending.
-- `calculate_shard_skip_file_number` computes per-shard skip counts based on completed steps and batch sizes.
-- `get_checkpoint_completed_step_number` scans GCS checkpoint `.meta` files to find max step.
-- `update_params`:
-  - Computes batch sizes based on shard count (TPU workers) and validates consistency.
-  - Uses checkpoint step to compute `shard_skip_file_number` based on meta file.
-- `get_per_file_example_numbers_for_checkpoint_reload`:
-  - Uses `gsutil ls` on dataset path, checks ordering, and matches against meta list.
-- `range_dateset` filters dataset elements by date substring between start/end dates.
+- Constants:
+  - `_GS_PREFIX = "gs://"`; `_CORE_NUMBER_PER_HOST = 8`.
+  - `_DATE_FORMAT_LEN = 8`, `_MIN_DATE = "00000000"`, `_MAX_DATE = "99999999"`.
+- `get_bucket_name_and_relavite_path(gs_file_path)`:
+  - Asserts input contains `_GS_PREFIX`.
+  - Parses bucket between `gs://` and first `/`.
+  - Returns `(bucket_name, relative_path_after_bucket)`.
+- `download_gcs_file(gs_file_path, local_file_name)`:
+  - Logs start; calls `get_bucket_name_and_relavite_path`.
+  - Delegates to `download_gcs_file_with_relative_path`.
+- `download_gcs_file_with_relative_path(bucket, relative_path, local_file_name)`:
+  - Uses `google.cloud.storage.Client()`.
+  - `bucket = storage_client.bucket(bucket_name)`.
+  - `blob = bucket.blob(relative_path)` then `blob.download_to_filename(local_file_name)`.
+- `list_gcs_files_with_prefix(gs_path_prefix)`:
+  - Uses storage client + `list_blobs(bucket_name, prefix=relative_path_prefix)`.
+  - Returns `(bucket_name, blob_iterator)`.
+- `parse_example_number_meta_file(meta_file, seperator)`:
+  - Reads all lines, ignores any line without a comma.
+  - Splits on **comma** (the `seperator` arg is unused).
+  - Enforces lexicographic ascending `file_name` via `assert previous_file_name < file_name`.
+  - Parses `count = int(split_str[1])` and appends `(file_name, count)` list.
+- `calculate_shard_skip_file_number(file_example_number, shard_num, completed_steps_number, batch_size_per_core)`:
+  - `processed_example_number_per_host = batch_size_per_core * completed_steps_number * _CORE_NUMBER_PER_HOST`.
+  - Iterates counts in round-robin shard order (`shard_index = (shard_index + 1) % shard_num`).
+  - If `example_number + shard_accumulated_example_count[shard_index] <= processed_example_number_per_host`:
+    - Accumulates count and increments `shard_skip_file_number` for that shard.
+  - Returns `shard_skip_file_number` list length `shard_num`.
+- `get_checkpoint_completed_step_number(checkpoint_path)`:
+  - Lists blobs with prefix `path.join(checkpoint_path, "model.ckpt")`.
+  - Considers only `*.meta` files.
+  - Extracts step from blob name between `"-"` and `".meta"`.
+  - Returns max step (0 if none).
+- `update_params(params, tpu_cluster_resolver)`:
+  - `shard_num = tpu_cluster_resolver.cluster_spec().num_tasks("worker")`.
+  - Requires either `batch_size_per_core` or `global_batch_size` not None.
+  - If only `global_batch_size`: sets `batch_size_per_core = global_batch_size / shard_num / _CORE_NUMBER_PER_HOST`.
+  - If only `batch_size_per_core`: sets `global_batch_size = batch_size_per_core * shard_num * _CORE_NUMBER_PER_HOST`.
+  - If both: asserts equality.
+  - Logs batch sizes.
+  - Calls `get_checkpoint_completed_step_number(params["model_dir"])`.
+  - If `completed_step_number > 0`:
+    - Calls `get_per_file_example_numbers_for_checkpoint_reload(...)`.
+    - Computes `shard_skip_file_number` and stores in `params["shard_skip_file_number"]`.
+    - Logs the computed list.
+  - NOTE: uses Python `/` for division, so `batch_size_per_core` may be float.
+- `get_per_file_example_numbers_for_checkpoint_reload(train_dataset_path, file_example_number_meta, seperator)`:
+  - Runs `gsutil ls train_dataset_path` via `subprocess.Popen`.
+  - Reads stdout lines; for each:
+    - Decodes UTF-8, strips newline.
+    - Uses `get_bucket_name_and_relavite_path` to get `relative_path`.
+    - Enforces lexicographic ascending relative path.
+  - Loads `file_example_number_list` via `parse_example_number_meta_file(...)`.
+  - Asserts `train_file_path_list` non-empty.
+  - Finds first index in meta list where `train_file_path_list[0] <= file_path` (lexicographic).
+  - Asserts remaining meta length can cover training list.
+  - Iterates training list:
+    - Asserts each train file matches meta file name at current index.
+    - Appends the corresponding count to `example_number_list`.
+  - Logs completion and returns `example_number_list` (list of counts).
+- `range_dateset(dataset, root_path, start_date=None, end_date=None)`:
+  - Defaults `start_date` to `_MIN_DATE`, `end_date` to `_MAX_DATE`.
+  - Logs start/end.
+  - `filter_fn(x)`:
+    - `path_prefix_len = len(root_path)`.
+    - Extracts `date_str = tf.strings.substr(x, path_prefix_len, _DATE_FORMAT_LEN)`.
+    - Converts to `int32` and compares with `start_date`/`end_date` (inclusive).
+  - Returns `dataset.filter(filter_fn)`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/src/util.rs`.
@@ -5874,8 +6108,31 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: none.
 
 **Required Behavior (Detailed)**
-- Tests that `range_dateset` filters dataset elements based on date substring in path.
-- Covers single date, multiple dates, out-of-bound ranges, missing start or end date.
+- Uses TF1 graph/session APIs (`tf.compat.v1`, `self.session()`).
+- `root_path = "gs://test_folder/unzipped_tf_records_corrected_repartitioned/"`.
+- `test_range_dataset_single`:
+  - Input dataset has dates 20200501, 20200502, 20200503 (single part each).
+  - Filters start/end = "20200502".
+  - Expects only the 20200502 item.
+- `test_range_dataset_multiple`:
+  - Input dataset includes 20200501, 20200502, 20200503 (two parts), 20200504.
+  - Filters start="20200502", end="20200503".
+  - Expects 20200502 and both 20200503 parts.
+- `test_range_dataset_out_of_boundary`:
+  - Input dataset contains 20200501, 20200502.
+  - Filters start="20200401", end="20200505".
+  - Expects both items (range fully covers).
+- `test_range_dataset_no_start_date`:
+  - Filters with `start_date=None`, `end_date="20200505"`.
+  - Expects all items (uses `_MIN_DATE`).
+- `test_range_dataset_no_end_date`:
+  - Filters with `start_date="20200502"`, `end_date=None`.
+  - Expects only 20200502 (uses `_MAX_DATE`).
+- Each test:
+  - Uses `tf.compat.v1.data.make_one_shot_iterator(dataset)`.
+  - Iterates `next_element` in a `try` loop; catches `tf.errors.OutOfRangeError`.
+  - Asserts each output equals expected list; verifies count matches.
+- `__main__` path disables eager execution then `tf.test.main()`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/tests/util.rs`.
@@ -5917,15 +6174,44 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: uses NumPy RNG (seeded per call).
 
 **Required Behavior (Detailed)**
-- `_compute_fans(shape, data_format)` computes fan_in/fan_out for dense or conv shapes; supports `channels_first/last`.
-- `VarianceScaling.__init__` validates `scale > 0`, `mode` in `fan_in/fan_out/fan_avg`, distribution in `truncated_normal/untruncated_normal/uniform`.
-- `__call__(shape, dtype)`:
-  - Computes scaled variance based on mode.
-  - Seeds NumPy RNG with `self.seed` each call.
-  - For `truncated_normal`: uses scipy truncnorm with cutoff ±2 stddev, stddev adjusted by constant 0.87962566103423978.
-  - For `untruncated_normal`: uses `np.random.normal`.
-  - For `uniform`: uses `np.random.uniform` with limit `sqrt(3*scale)`.
-- `get_config()` returns dict with scale/mode/distribution/seed.
+- `_compute_fans(shape, data_format='channels_last')`:
+  - `len(shape)==2`: `fan_in = shape[0]`, `fan_out = shape[1]`.
+  - `len(shape) in {3,4,5}` (conv kernels):
+    - If `channels_first`:
+      - `receptive_field_size = np.prod(shape[2:])`.
+      - `fan_in = shape[1] * receptive_field_size`.
+      - `fan_out = shape[0] * receptive_field_size`.
+    - If `channels_last`:
+      - `receptive_field_size = np.prod(shape[:-2])`.
+      - `fan_in = shape[-2] * receptive_field_size`.
+      - `fan_out = shape[-1] * receptive_field_size`.
+    - Else raises `ValueError('Invalid data_format: ' + data_format)`.
+  - Else: `fan_in = fan_out = np.sqrt(np.prod(shape))`.
+- `VarianceScaling.__init__(scale=1.0, mode='fan_in', distribution='truncated_normal', seed=None)`:
+  - Validates `scale > 0` else `ValueError`.
+  - `mode = mode.lower()` and must be in `{'fan_in','fan_out','fan_avg'}` else `ValueError`.
+  - `distribution = distribution.lower()` and must be in
+    `{'truncated_normal','untruncated_normal','uniform'}` else `ValueError`.
+  - Stores `scale/mode/distribution/seed`.
+- `__call__(shape, dtype=np.float32)`:
+  - Computes `fan_in, fan_out = _compute_fans(shape)`.
+  - Adjusts `scale`:
+    - `fan_in`: `scale /= max(1., fan_in)`.
+    - `fan_out`: `scale /= max(1., fan_out)`.
+    - `fan_avg`: `scale /= max(1., float(fan_in + fan_out) / 2)`.
+  - Seeds NumPy RNG with `np.random.seed(self.seed)` on every call.
+  - `distribution == 'truncated_normal'`:
+    - `mean = 0.0`.
+    - `stddev = sqrt(scale) / 0.87962566103423978` (constant from truncnorm std).
+    - Clips at ±2*stddev; computes `a`, `b` for `stats.truncnorm`.
+    - Returns `stats.truncnorm.rvs(..., size=shape).astype(dtype)`.
+  - `distribution == 'untruncated_normal'`:
+    - Uses `np.random.normal(loc=0, scale=sqrt(scale), size=shape)`.
+    - **Always** casts to `'float32'` (ignores `dtype` parameter).
+  - `distribution == 'uniform'`:
+    - `limit = sqrt(3. * scale)`.
+    - `np.random.uniform(low=-limit, high=limit, size=shape).astype(dtype)`.
+- `get_config()` returns dict with `scale`, `mode`, `distribution`, `seed`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-core/src/variance_scaling.rs`.
@@ -5942,6 +6228,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Gaps / Notes**
 - Matching SciPy truncnorm exactly may require careful implementation.
+- `untruncated_normal` ignores `dtype` and forces `'float32'`; parity should preserve.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -5968,31 +6255,77 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: initializes Horovod, configures GPU visibility, trains/evaluates model, writes summaries.
 
 **Required Behavior (Detailed)**
-- CLI flags: `task`, `model_dir`, `save_checkpoints_steps`, `mode` (`train|eval|train_and_eval`).
-- `GPURunner.__init__`:
-  - Reads flags and task_param; sets `_mode`.
+- CLI flags (absl):
+  - `task` (string, required by caller).
+  - `model_dir` (string, model + summaries).
+  - `save_checkpoints_steps` (int, None means no checkpoints).
+  - `mode` enum: `"train_and_eval" | "train" | "eval"` (default `"train"`).
+- `GPURunner.__init__(task_param, ...)`:
+  - Calls `BaseRunner.__init__`.
+  - Reads flags into `_model_dir`, `_save_checkpoints_steps`, `_mode`.
+  - Stores `_task_param`.
 - `create_estimator(model_fn)`:
-  - If `task_param.accelerator == 'horovod'`:
-    - `hvd.rank()` controls checkpoint saving (only rank 0).
-    - Configures `tf.compat.v1.ConfigProto` with XLA JIT ON and GPU memory growth.
-    - Sets `visible_device_list` to local rank.
-    - `num_gpus = hvd.size()`.
-  - Else: `num_gpus = 1` and uses `tf.compat.v1.estimator.RunConfig`.
-  - Returns `tf.compat.v1.estimator.Estimator` with params: train/eval batch sizes, accelerator, num_replicas, hvd_rank.
+  - If `self._task_param.accelerator == "horovod"`:
+    - `model_dir = self._model_dir` (comment notes same dir for all ranks).
+    - `save_checkpoints_steps = self._save_checkpoints_steps` **only if** `hvd.rank() == 0`, else `None`.
+    - Builds `tf.compat.v1.ConfigProto()`:
+      - `config.graph_options.optimizer_options.global_jit_level = tf.compat.v1.OptimizerOptions.ON_1`.
+      - `config.gpu_options.allow_growth = True`.
+      - `config.gpu_options.visible_device_list = str(hvd.local_rank())`.
+    - Wraps in `tf.estimator.RunConfig(model_dir=..., save_checkpoints_steps=..., session_config=config)`.
+    - Sets `num_gpus = hvd.size()`.
+  - Else:
+    - `num_gpus = 1`.
+    - Uses `tf.compat.v1.estimator.RunConfig(model_dir=..., save_checkpoints_steps=...)`.
+  - Returns `tf.compat.v1.estimator.Estimator` with `params`:
+    - `"train_batch_size"`: `task_param.train.per_replica_batch_size`.
+    - `"eval_batch_size"`: `task_param.eval.per_replica_batch_size`.
+    - `"accelerator"`: `task_param.accelerator`.
+    - `"num_replicas"`: `num_gpus`.
+    - `"hvd_rank"`: `hvd.rank()` if horovod else `0`.
 - `run()`:
-  - Loads global step (or 0).
-  - Instantiates task; builds input_fn_train/eval and model_fn.
-  - If horovod: `hvd.init()`, sets visible GPU.
-  - For `train`:
-    - Horovod: uses `BroadcastGlobalVariablesHook(0)`.
-    - Non-horovod: `est.train`.
-  - For `eval`:
-    - Computes `num_steps` from `eval_examples` and batch size.
-    - Runs `est.evaluate` and writes summary under `model_dir/eval`.
-  - For `train_and_eval`:
-    - Loop train for `steps_per_eval` up to max_steps, evaluate and write summary.
-    - Horovod uses MPI barrier after each eval cycle.
-- `main`: fetches task params from registry and runs `GPURunner`.
+  - Loads `current_step` via `tf.train.load_variable(model_dir, GLOBAL_STEP)`;
+    on `TypeError`, `ValueError`, or `tf.errors.NotFoundError`, uses `0`.
+  - Instantiates task: `task = task_param.instantiate()`.
+  - Creates `input_fn_train`, `input_fn_eval`, and `model_fn`.
+  - If horovod:
+    - `hvd.init()`.
+    - Lists GPUs via `tf.config.experimental.list_physical_devices('GPU')`.
+    - For each GPU:
+      - `set_memory_growth(gpu, True)`.
+      - `set_visible_devices(gpus[hvd.local_rank()], 'GPU')` (inside loop).
+  - Creates estimator and starts timer (`start_timestamp = time.time()`).
+  - `mode == 'train'`:
+    - If horovod: uses `hvd.BroadcastGlobalVariablesHook(0)` and passes to `est.train`.
+    - Else: `est.train(input_fn_train, max_steps=task_param.train.max_steps)`.
+  - `mode == 'eval'`:
+    - `eval_output_dir = os.path.join(model_dir, 'eval')`, `tf.io.gfile.makedirs`.
+    - `total_examples = task_param.input.eval_examples`.
+    - `eval_batch_size = task_param.eval.per_replica_batch_size`.
+    - `num_steps = total_examples // eval_batch_size` (floor).
+    - `eval_results = est.evaluate(input_fn_eval, steps=num_steps)`.
+    - Writes summaries via `tf.compat.v1.summary.FileWriter(eval_output_dir)` and
+      `self.write_summary(eval_results, summary_writer, current_step)`.
+  - `mode == 'train_and_eval'`:
+    - `steps_per_eval = task_param.eval.steps_per_eval`, `max_steps = task_param.train.max_steps`.
+    - Creates `eval_output_dir` and loops while `current_step < max_steps`:
+      - `next_checkpoint = min(current_step + steps_per_eval, max_steps)`.
+      - Trains to `next_checkpoint` (horovod uses broadcast hook).
+      - Sets `current_step = next_checkpoint`.
+      - Logs elapsed seconds since `start_timestamp`.
+      - Computes `num_steps = total_examples // eval_batch_size`.
+      - If not horovod **or** `hvd.rank() == 0`:
+        - Logs "Starting to evaluate.", sleeps 10 seconds, then `est.evaluate`.
+        - Writes eval summary with `current_step`.
+      - If horovod: `MPI.COMM_WORLD.barrier()` (sync all workers).
+    - After loop: logs total elapsed time as `int(time.time() - start_timestamp)`.
+- `main(unused_argv)`:
+  - Looks up task params via `model_registry.GetParams(FLAGS.task)`.
+  - Logs task params, creates `GPURunner`, and calls `run()`.
+- `__main__`:
+  - `logging.set_verbosity(logging.INFO)`.
+  - `tf.compat.v1.disable_v2_behavior()`.
+  - `app.run(main)`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-training/src/gpu_runner.rs` (or CLI bin).
@@ -6576,11 +6909,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: add `cluster_manager_test` in `monolith-rs/crates/monolith-training/tests` that writes/reads a temp PS cluster file and asserts exact content.
+- Cross-language parity test: run Python test to produce the file format and compare Rust read results against that output.
 
 **Gaps / Notes**
-- TODO (manual)
+- Ensure temp dir handling mirrors `TEST_TMPDIR` semantics used by TF tests.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -6699,11 +7032,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: add mocked HTTP client tests in `monolith-rs/crates/monolith-training/tests/consul.rs` to cover lookup/register/deregister success paths and error status handling.
+- Cross-language parity test: capture Python mocked payloads and compare Rust decoding output shapes and fields.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python test uses `six.moves.http_client.OK`; ensure Rust test uses numeric 200 status and equivalent JSON decoding.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7354,11 +7687,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: add integration test in `monolith-rs/crates/monolith-data/tests/data_service.rs` that spins a local dispatcher/worker (or mocked service) and verifies dual consumer exhaustion with total count 19.
+- Cross-language parity test: use the same file list and expected count in Python and Rust, compare emitted element sequence length.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires a Rust equivalent of TF data service; otherwise gate the test behind a feature and document as unsupported.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7486,11 +7819,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: create fixture-based parsing tests in `monolith-rs/crates/monolith-data/tests` that load the same serialized examples used by Python and assert parsed feature values/types.
+- Cross-language parity test: generate golden parsed outputs from Python, then compare Rust parsing outputs field-by-field.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires deterministic fixture generation for each PB type (Example/ExampleBatch/Instance).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7656,11 +7989,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: none.
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: N/A (no Rust surface; no behavior to test).
+- Cross-language parity test: N/A.
 
 **Gaps / Notes**
-- TODO (manual)
+- Keep this section in case future feature-list tests are added; no current parity work required.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8035,11 +8368,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: add save/restore test in `monolith-rs/crates/monolith-data/tests/item_pool.rs` that mirrors pool size, shard count, and deterministic content checks.
+- Cross-language parity test: generate a Python item-pool shard set and verify Rust restore yields identical items.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires a deterministic RNG seed to keep pool contents stable across languages.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8090,11 +8423,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file (integration).
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: add a mocked Kafka consumer test (no real broker) plus optional integration test gated by `KAFKA_BROKER` env.
+- Cross-language parity test: use a shared fixture topic payload and compare parsed feature batches between Python and Rust.
 
 **Gaps / Notes**
-- TODO (manual)
+- Integration tests require credentials/cluster; document env vars and mark optional.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8144,11 +8477,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: add split/merge tests in `monolith-rs/crates/monolith-data/tests/flow.rs` verifying batch counts, batch sizes, and header parsing.
+- Cross-language parity test: use the same synthetic input to compare split/merge output ordering and sizes across Python/Rust.
 
 **Gaps / Notes**
-- TODO (manual)
+- Need a Rust equivalent of lagrangex header parsing before parity tests can pass.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8197,11 +8530,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: add unit tests in `monolith-rs/crates/monolith-data/tests/negative_gen.rs` for channel-based and global sampling counts, verifying bounds and determinism.
+- Cross-language parity test: feed identical inputs and RNG seed to Python/Rust and compare sampled negatives.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires deterministic RNG behavior across languages to make parity meaningful.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8251,11 +8584,11 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Tests (Detailed)**
 - Python tests: this file (extensive).
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Rust tests: add `parse_sparse_feature` suite in `monolith-rs/crates/monolith-data/tests/parse_sparse_feature.rs` to mirror each sharding/scatter case and expected offsets.
+- Cross-language parity test: generate Python outputs for shard maps/offsets and compare Rust results for identical configs and inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires parity for `FeatureConfigs` parsing and consistent fid ordering rules.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust

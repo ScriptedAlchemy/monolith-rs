@@ -1,6 +1,6 @@
 <!--
 Source: task/request.md
-Lines: 321-661 (1-based, inclusive)
+Lines: 343-683 (1-based, inclusive)
 Note: This file is auto-generated to keep prompt context bounded.
 -->
 ## Line-Level Inventory (All Python Files)

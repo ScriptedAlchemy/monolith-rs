@@ -1,264 +1,467 @@
 <!--
 Source: task/request.md
-Lines: 2375-2643 (1-based, inclusive)
+Lines: 23562-24033 (1-based, inclusive)
 Note: This file is auto-generated to keep prompt context bounded.
 -->
-### `monolith/agent_service/tfs_client_test.py`
-<a id="monolith-agent-service-tfs-client-test-py"></a>
+### `monolith/native_training/yarn_runtime.py`
+<a id="monolith-native-training-yarn-runtime-py"></a>
+
+**Status:** IN PROGRESS (manual review complete)
+
+**Python Summary**
+- Lines: 127
+- Purpose/role: Yarn/Primus runtime helpers for local host resolution and AppMaster gRPC control (kill, finish, savepoint).
+- Key symbols/classes/functions: `get_local_host`, `_get_primus_am_host`, `_get_channel`, `maybe_kill_application`, `maybe_finish_application`, `create_primus_save_point`.
+- External dependencies: `grpc`, `primus_am_service_pb2(_grpc)`, `net_utils.get_local_ip`, env vars.
+- Side effects:
+  - Creates/caches gRPC channels.
+  - Sends kill/succeed/savepoint requests to AppMaster.
+  - Sleeps while waiting for savepoint completion.
+  - Logs info/error messages.
+
+**Required Behavior (Detailed)**
+- `get_local_host()`:
+  - If `CLOUDNATIVE_INET_ADDR` env var exists: use first entry before comma.
+  - Else if `YARN_INET_ADDR` exists: use that value.
+  - Else: `net_utils.get_local_ip()`.
+  - Asserts non-empty result and returns it.
+- `_get_primus_am_host()`:
+  - If both `PRIMUS_AM_RPC_HOST` and `PRIMUS_AM_RPC_PORT` are set, returns `"host:port"`.
+  - Else returns empty string.
+- `_get_channel(addr)`:
+  - Caches `grpc.insecure_channel(addr)` in `_CHANNEL_MAP`.
+  - Returns cached channel for the same addr.
+- `maybe_kill_application(reason) -> bool`:
+  - If Primus AM host is available:
+    - Builds `KillRequest` with `exit_code=1`, `diagnose=reason`, `graceful_shutdown_timeout_ms=20000`.
+    - Calls `stub.kill(req, timeout=10)`.
+    - Returns `True` on success; `False` on `grpc.RpcError`.
+  - If no host: logs “Current framework doesn't support kill. Ignore killing...” and returns `False`.
+- `maybe_finish_application()`:
+  - If Primus AM host is available:
+    - Builds `SucceedRequest` with `graceful_shutdown_timeout_ms=20000`.
+    - Calls `stub.succeed(req, timeout=10)`.
+    - Returns `True` on success; logs on `grpc.RpcError` (returns `None`).
+  - If no host: returns `None` (no log).
+- `create_primus_save_point(dst) -> bool`:
+  - If Primus AM host is available:
+    - Calls `createSavepoint` with `savepoint_dir=dst`.
+    - If response `code != 0`, logs error and returns `False`.
+    - Else polls `createSavepointStatus` every 5s:
+      - `PENDING`/`RUNNING`: sleep and continue.
+      - `SUCCEEDED`: log success and return `True`.
+      - Any other state: log error and return `False`.
+    - On `grpc.RpcError`: logs and returns `False`.
+  - If no host: returns `None`.
+- Threading/concurrency:
+  - `_CHANNEL_MAP` is a global dict without a lock; concurrent callers can race.
+- Performance:
+  - Savepoint polling is blocking with 5s sleep intervals.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-training/src/yarn_runtime.rs` (new).
+- Rust public API surface:
+  - `get_local_host() -> String`
+  - `maybe_kill_application(reason: &str) -> bool`
+  - `maybe_finish_application() -> Option<bool>`
+  - `create_primus_save_point(dst: &str) -> Option<bool>`
+- Data model mapping:
+  - gRPC service `primus_am_service.proto` already in `monolith-rs/proto`.
+  - Use tonic/grpc-generated client stubs for `AppMasterService`.
+- Feature gating:
+  - Requires gRPC + proto build; optional if runtime doesn't use Primus.
+- Integration points:
+  - Distributed training orchestration that needs to terminate or checkpoint jobs.
+
+**Implementation Steps (Detailed)**
+1. Generate Rust gRPC client from `primus_am_service.proto`.
+2. Implement env-var host resolution (`CLOUDNATIVE_INET_ADDR` > `YARN_INET_ADDR` > `net_utils` equivalent).
+3. Add a channel cache (e.g., `DashMap` or `Mutex<HashMap<...>>`) to mirror `_CHANNEL_MAP`.
+4. Implement `maybe_kill_application` and `maybe_finish_application` with the same timeout and fields.
+5. Implement `create_primus_save_point` with polling loop + 5s sleep.
+6. Mirror return semantics (False vs None) or document a deliberate normalization.
+
+**Tests (Detailed)**
+- Python tests: `monolith/native_training/yarn_runtime_test.py`.
+- Rust tests:
+  - `get_local_host_env_override` (CLOUDNATIVE_INET_ADDR + YARN_INET_ADDR cases).
+  - gRPC kill/finish/savepoint flow using an in-process gRPC server.
+- Cross-language parity test:
+  - Simulate the same gRPC server and verify request fields + timeouts.
+
+**Gaps / Notes**
+- `maybe_finish_application` does not return `False` on errors; it logs and returns `None`.
+- `create_primus_save_point` and `maybe_finish_application` return `None` when no Primus host is configured.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/yarn_runtime_test.py`
+<a id="monolith-native-training-yarn-runtime-test-py"></a>
+
+**Status:** IN PROGRESS (manual review complete)
+
+**Python Summary**
+- Lines: 133
+- Purpose/role: Exercises env-based host resolution and gRPC AppMaster controls (kill/finish/savepoint).
+- Key symbols/classes/functions: `YarnRuntimeTest`, `test_get_local_host_*`, `test_kill`, `test_finish`, `test_save_primus`.
+- External dependencies: gRPC, Primus AM proto stubs, `unittest.mock` for env vars.
+- Side effects: Starts in-process gRPC servers (unix: addresses).
+
+**Required Behavior (Detailed)**
+- `test_get_local_host_overwrite`:
+  - With `YARN_INET_ADDR=1.2.3.4`, `get_local_host()` returns `1.2.3.4`.
+- `test_get_local_host_overwrite_by_cloudnative`:
+  - With `CLOUDNATIVE_INET_ADDR=1.2.3.4,5.6.7.8`, returns `1.2.3.4`.
+- `test_get_local_host_basic`:
+  - Calls `get_local_host()` without explicit env overrides (no assertion).
+- `test_kill`:
+  - Sets `PRIMUS_AM_RPC_HOST=unix`, `PRIMUS_AM_RPC_PORT=test_kill`.
+  - Starts gRPC server with `kill` handler; validates `request.diagnose` equals reason.
+  - Calls `maybe_kill_application(reason)` and asserts handler invoked.
+- `test_finish`:
+  - Similar setup; installs `succeed` handler; asserts invoked after `maybe_finish_application()`.
+- `test_save_primus`:
+  - Sets Primus host/port; installs `createSavepoint` and `createSavepointStatus` handlers.
+  - Status handler returns `SUCCEEDED`; `create_primus_save_point(dst)` returns `True`.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/yarn_runtime.rs` (new).
+- Rust public API surface: `get_local_host`, `maybe_kill_application`, `maybe_finish_application`, `create_primus_save_point`.
+- Data model mapping: use Rust gRPC server/client for `AppMasterService`.
+- Feature gating: tests require gRPC + proto build; optional for non-Primus builds.
+- Integration points: gRPC server harness for tests (likely tokio + tonic).
+
+**Implementation Steps (Detailed)**
+1. Port env override tests for `get_local_host`.
+2. Implement a local gRPC server with unary handlers for `kill`, `succeed`, `createSavepoint`, `createSavepointStatus`.
+3. Validate request fields (e.g., `diagnose` for kill) and that calls occur.
+4. Ensure unix-domain or loopback TCP addressing works in Rust test harness.
+
+**Tests (Detailed)**
+- Python tests: `YarnRuntimeTest.test_get_local_host_*`, `.test_kill`, `.test_finish`, `.test_save_primus`.
+- Rust tests:
+  - `get_local_host_env_overrides`
+  - `maybe_kill_application_calls_stub`
+  - `maybe_finish_application_calls_stub`
+  - `create_primus_save_point_succeeds`
+- Cross-language parity test:
+  - Compare request fields and call ordering with a mock gRPC server.
+
+**Gaps / Notes**
+- Python tests use gRPC addresses like `unix:test_kill`; Rust must support unix-domain channels or adapt tests to TCP.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/zk_utils.py`
+<a id="monolith-native-training-zk-utils-py"></a>
+
+**Status:** IN PROGRESS (manual review complete)
+
+**Python Summary**
+- Lines: 96
+- Purpose/role: Zookeeper utilities for host selection (IPv4 vs IPv6), default server list, authenticated Kazoo client, and cleanup of stale ZK paths.
+- Key symbols/classes/functions: `_PORT`, `_HOSTS`, `_HOSTS_IPV6`, `is_ipv6_only`, `default_zk_servers`, `MonolithKazooClient`, `clear_zk_path`.
+- External dependencies: `kazoo.client.KazooClient`, `env_utils.get_zk_auth_data`, `socket`, `datetime`.
+- Side effects:
+  - Connects to ZK, mutates nodes (delete paths).
+  - Logs informational messages about IP resolution.
+
+**Required Behavior (Detailed)**
+- Globals:
+  - `_PORT = 2181`.
+  - `_HOSTS` and `_HOSTS_IPV6` are defined with IPs, then overwritten to empty lists later (current effective values are empty).
+- `is_ipv6_only()`:
+  - If any of `MY_HOST_IP`, `MY_POD_IP`, `MY_HOST_IPV6` env vars are set:
+    - Treat as “tce/byterec env”.
+    - `ipv4_addr` from `MY_HOST_IP` or `MY_POD_IP` (may be `None`).
+  - Else:
+    - `ipv4_addr = socket.gethostbyname(socket.gethostname())` (except → `None`).
+  - Logs `ipv4_addr`, then sets `ipv6_only = not ipv4_addr` and logs the result.
+  - Returns `ipv6_only`.
+- `default_zk_servers(use_ipv6: bool = False)`:
+  - If `use_ipv6` or `is_ipv6_only()`:
+    - Returns comma-joined `"[ip]:port"` entries from `_HOSTS_IPV6`.
+  - Else:
+    - Returns comma-joined `"ip:port"` entries from `_HOSTS`.
+  - With current `_HOSTS`/`_HOSTS_IPV6` emptied, returns empty string.
+- `MonolithKazooClient`:
+  - Subclasses `KazooClient`.
+  - If `auth_data` not provided, injects `get_zk_auth_data()` into kwargs.
+- `clear_zk_path(zk_server, job_name, force_clear_zk_path)`:
+  - Connects with `MonolithKazooClient(zk_server or default_zk_servers())`.
+  - `base_path = "/monolith"`, `delta = timedelta(weeks=9)`.
+  - `ensure_path(base_path)`.
+  - For each child under `/monolith`:
+    - `get_children(path, include_data=True)` → stat; if `stat.mtime // 1000 + delta < now`, delete recursively (ignore errors).
+  - For current `job_name`:
+    - If exists and `force_clear_zk_path`: delete recursively.
+    - Else: raise `ValueError("there are [<children>] in monolith zk path")` using current children list.
+  - Always stops client in `finally`.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-training/src/zk_utils.rs` (new).
+- Rust public API surface:
+  - `is_ipv6_only() -> bool`
+  - `default_zk_servers(use_ipv6: bool) -> String`
+  - `MonolithZkClient` wrapper (auth inject)
+  - `clear_zk_path(zk_server: Option<&str>, job_name: &str, force: bool) -> Result<(), Error>`
+- Data model mapping:
+  - Kazoo client ↔ Rust ZK client (e.g., `zookeeper` crate).
+  - `stat.mtime` (ms) ↔ Rust stat `mtime` (ms).
+- Feature gating:
+  - ZK client optional for environments without ZK.
+- Integration points:
+  - Any training components relying on ZK-based coordination or cleanup.
+
+**Implementation Steps (Detailed)**
+1. Decide Rust ZK client crate and auth mechanism matching `get_zk_auth_data()`.
+2. Implement `is_ipv6_only` using env vars and hostname resolution.
+3. Port `default_zk_servers` formatting (IPv6 `[ip]:port`).
+4. Implement `clear_zk_path` with the same TTL logic (9 weeks) and error message.
+5. Preserve the “ignore delete errors” behavior on stale node cleanup.
+
+**Tests (Detailed)**
+- Python tests: none in repo.
+- Rust tests:
+  - Unit tests for `default_zk_servers` formatting and env-driven `is_ipv6_only`.
+  - Integration tests for `clear_zk_path` if ZK test container is available.
+- Cross-language parity test:
+  - Compare TTL deletion behavior with a mocked ZK server.
+
+**Gaps / Notes**
+- `_HOSTS` and `_HOSTS_IPV6` are overwritten to empty lists, so `default_zk_servers` returns empty string by default (likely a sanitization artifact).
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/path_utils.py`
+<a id="monolith-path-utils-py"></a>
 
 **Status:** IN PROGRESS (manual)
 
 **Python Summary**
-- Lines: 50
-- Purpose/role: Tests tensor proto generation and ExampleBatch-to-Instance conversion.
-- Key symbols/classes/functions: `TFSClientTest.test_get_instance_proto`, `.test_get_example_batch_to_instance_*`
-- External dependencies: `tfs_client` helpers.
-- Side effects: reads test data files.
+- Lines: 47
+- Purpose/role: Locate monolith base directory and resolve paths to bundled libraries.
+- Key symbols/classes/functions: `find_main`, `get_libops_path`.
+- External dependencies: `os` only (explicitly avoids third-party imports).
+- Side effects: raises ValueError when base directory cannot be found.
 
 **Required Behavior (Detailed)**
-- `test_get_instance_proto`: asserts dtype and tensor shape for random instance batch.
-- `test_get_example_batch_to_instance_from_pb`: reads binary examplebatch file with header.
-- `test_get_example_batch_to_instance_from_pbtxt`: reads pbtxt example batch file.
+- `find_main()`:
+  - Uses `__file__` path; searches for split markers in order: `/__main__/`, `/site-packages/`, `/monolith/`.
+  - If marker found:
+    - For `/monolith/`: `main_dir` is path prefix before marker.
+    - Else: `main_dir` is prefix joined with the marker path component.
+  - Returns `main_dir` only if `main_dir/monolith` exists; else raises ValueError with full path in message.
+- `get_libops_path(lib_name)`:
+  - Returns `os.path.join(find_main(), lib_name)`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-cli/tests/tfs_client.rs`.
-- Rust public API surface: helper functions for instance/example batch parsing.
+- Target crate/module: `monolith-rs/crates/monolith-core/src/path_utils.rs`.
+- Rust public API surface: `find_main()` and `get_libops_path()`.
 
 **Implementation Steps (Detailed)**
-1. Port tests using fixture files (`examplebatch.data`, `example_batch.pbtxt`).
-2. Assert dtype and shapes match Python behavior.
+1. Implement path resolution with the same marker order and behavior.
+2. Preserve error message details for diagnostics.
+
+**Tests (Detailed)**
+- Python tests: `monolith/utils_test.py` (find_main / get_libops_path).
+- Rust tests: replicate `find_main` behavior under test harness.
+
+**Gaps / Notes**
+- Behavior depends on Bazel layout (`__main__`); Rust tests should simulate or adjust.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/tpu_runner.py`
+<a id="monolith-tpu-runner-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 429
+- Purpose/role: TPU training/eval runner using `tf.estimator.tpu.TPUEstimator` with embedding support and optional CPU test mode.
+- Key symbols/classes/functions: `TPURunner`, `create_tpu_estimator`, `create_tpu_estimator_on_cpu`, `run`, CLI `main`.
+- External dependencies: `tensorflow.compat.v1`, `cloud_tpu_client`, `BaseEmbeddingTask`, `model_registry`.
+- Side effects: configures TPU versions, launches training/eval, writes summaries.
+
+**Required Behavior (Detailed)**
+- CLI flags include TPU location (`tpu`, `gcp_project`, `tpu_zone`), mode, model_dir, checkpoint interval, iteration counts, embedding options, CPU test, partition strategy, overwrite_end_date.
+- `TPURunner.__init__`:
+  - Reads flags and task_param; sets accelerator to `tpu`.
+  - Allows task_param to override save_checkpoints_steps.
+  - Optionally overwrites `train.end_date` when flag provided.
+- `create_tpu_estimator`:
+  - Optionally configures TPU version and waits for healthy.
+  - Builds TPU cluster resolver, computes total replicas and global batch size.
+  - Sets TPUConfig with iterations_per_loop and host_call settings.
+  - Uses `TPUInfeedOutfeedSessionWithEndOfStreamHandlingHook` when stopping signals enabled.
+  - Builds embedding_config_spec if feature/table configs exist.
+  - Returns TPUEstimator and total_replicas.
+- `create_tpu_estimator_on_cpu`:
+  - Creates TPUEstimator with `use_tpu=False` and small batch size; used for CPU test.
+- `run()`:
+  - Loads global step (or 0).
+  - Instantiates task; if BaseEmbeddingTask, prepares feature/table configs.
+  - Uses CPU test wrapper if enabled.
+  - `train`: `est.train`.
+  - `eval`: iterates checkpoints and evaluates; writes summaries and stops at max_steps.
+  - `train_and_eval`: not supported (raises TypeError).
+- `main`: logs FLAGS and task_param, runs runner.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-training/src/tpu_runner.rs`.
+- Rust public API surface: runner struct + CLI entrypoint.
+- Data model mapping: TPU/embedding configs likely require TF runtime bindings.
+- Feature gating: `tf-runtime`, `tpu` features.
+
+**Implementation Steps (Detailed)**
+1. Port CLI flag set and task registry lookup.
+2. Decide runtime strategy (native Rust vs TF bridge).
+3. Preserve TPU version config and host_call/embedding config semantics if using TF.
+4. Mirror evaluation-by-checkpoint loop and summary writing.
+
+**Tests (Detailed)**
+- Python tests: none specific.
+- Rust tests: CLI parsing + control flow tests; TPU behavior likely gated/skipped in CI.
+
+**Gaps / Notes**
+- Full parity depends on TensorFlow TPU Estimator which is not available natively in Rust.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/utils.py`
+<a id="monolith-utils-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 81
+- Purpose/role: Small utility helpers for TF monkey patching and recursive file copy with tf.io.gfile.
+- Key symbols/classes/functions: `enable_monkey_patch`, `CopyFile`, `CopyRecursively`.
+- External dependencies: `tensorflow`, `ThreadPoolExecutor`.
+- Side effects: modifies `tensorflow.python.training.monitored_session` module attribute; copies files (possibly remote).
+
+**Required Behavior (Detailed)**
+- `enable_monkey_patch()`:
+  - Imports `tensorflow.python.training.monitored_session` and sets `_PREEMPTION_ERRORS` to `(tf.errors.AbortedError,)`.
+- `CopyFile(src, dst, overwrite=True, skip_nonexist=True, max_retries=5)`:
+  - Uses `tf.io.gfile.copy` and retries on NotFoundError (skip if `skip_nonexist`).
+- `CopyRecursively(src, dst, max_workers=1, skip_nonexist=True, max_retries=5)`:
+  - Recursively copies a directory tree via `tf.io.gfile`.
+  - If `src` missing and `skip_nonexist`, returns; else raises ValueError.
+  - If `dst` exists, removes it then recreates.
+  - If `max_workers > 1`, uses ThreadPoolExecutor to copy files in parallel.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-tf/src/utils.rs` (TF-dependent utilities) plus `monolith-core/src/path_utils.rs` for re-exports.
+- Rust public API surface: equivalents for monkey patch (if bridging TF) and recursive copy.
+
+**Implementation Steps (Detailed)**
+1. Provide TF monkey patch equivalent when using Python/TF runtime; otherwise document unsupported.
+2. Implement recursive copy with retries and optional parallelism.
+3. Ensure semantics match tf.io.gfile for remote paths (HDFS/GCS) where needed.
+
+**Tests (Detailed)**
+- Python tests: `monolith/utils_test.py`
+- Rust tests: port tests for `find_main`, `get_libops_path`, and CopyRecursively.
+
+**Gaps / Notes**
+- Full parity requires tf.io.gfile support; Rust may need a virtual filesystem abstraction.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/utils_test.py`
+<a id="monolith-utils-test-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 65
+- Purpose/role: Tests path utilities, monkey patch, and recursive copy.
+- Key symbols/classes/functions: `UtilsTest` test cases.
+- External dependencies: `tensorflow`, `monitored_session`.
+- Side effects: writes temp files in `/tmp`.
+
+**Required Behavior (Detailed)**
+- `testFindMain`: `utils.find_main()` base dir last path component is `__main__` (Bazel layout assumption).
+- `testGetLibopsPath`: `utils.get_libops_path("monolith/utils_test.py")` exists.
+- `testLoadMonitoredSession`: `_PREEMPTION_ERRORS` equals `(errors.AbortedError,)` after monkey patch.
+- `testMultiThreadedCopy`: creates nested dirs/files and verifies copied content with `CopyRecursively(max_workers=2)`.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-tf/tests/utils.rs`.
+- Rust public API surface: path utils + recursive copy.
+
+**Implementation Steps (Detailed)**
+1. Port tests with temp dirs and file content checks.
+2. If TF monkey patch is unsupported, document and adjust tests accordingly.
 
 **Tests (Detailed)**
 - Python tests: this file
-- Rust tests: parity tests for parsing and tensor construction.
+- Rust tests: parity tests for path and copy semantics.
 
 **Gaps / Notes**
-- Ensure Rust uses the same byte-order and header handling as Python.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/agent_service/tfs_monitor.py`
-<a id="monolith-agent-service-tfs-monitor-py"></a>
-
-**Status:** IN PROGRESS (manual)
-
-**Python Summary**
-- Lines: 303
-- Purpose/role: gRPC monitor for TensorFlow Serving model status and config reload.
-- Key symbols/classes/functions: `TFSMonitor`, `get_model_status` (singledispatch), `gen_model_config`, `handle_reload_config_request`.
-- External dependencies: TF Serving gRPC stubs, `ModelServerConfig`, `PublishMeta`.
-- Side effects: gRPC calls to TFS servers.
-
-**Required Behavior (Detailed)**
-- Maintains gRPC stubs for ENTRY/PS/DENSE based on deploy_type and ports.
-- `get_addr(sub_model_name)` chooses port based on deploy type and sub_model type.
-- `get_service_type(sub_model_name)` returns TFSServerType or None.
-- `get_model_status(PublishMeta)`:
-  - For each sub_model, builds `GetModelStatusRequest`.
-  - For dense nodes (entry when dense-along-entry), may omit version unless `fix_dense_version`.
-  - On RPC errors, returns UNKNOWN with StatusProto error code/details.
-  - Returns map `{tfs_model_name: (version_path, ModelVersionStatus)}`.
-- `get_model_status(name, version=None, signature_name=None)`:
-  - Returns list of ModelVersionStatus for a model via `GetModelStatus`.
-- `gen_model_config(pms)`:
-  - Builds ModelServerConfig per service type from PublishMeta list.
-  - For dense nodes: use `latest` policy unless `fix_dense_version`.
-  - For ps/entry: `specific` policy with version number.
-- `handle_reload_config_request(service_type, model_configs)`:
-  - Ensures default model config is present.
-  - Sends ReloadConfigRequest to appropriate service.
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-serving/src/tfs_monitor.rs`.
-- Rust public API surface: `TFSMonitor` struct with status and reload APIs.
-- Data model mapping: TF Serving protos and `PublishMeta` equivalents.
-
-**Implementation Steps (Detailed)**
-1. Port gRPC client setup for entry/ps/dense.
-2. Implement singledispatch-like overloads (Rust traits/enum arguments).
-3. Port model config generation logic and dense version policy.
-4. Add default model config injection.
-
-**Tests (Detailed)**
-- Python tests: `monolith/agent_service/tfs_monitor_test.py`
-- Rust tests: start fake TFS servers and verify reload/status.
-
-**Gaps / Notes**
-- Requires TF Serving protos + stubs in Rust.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/agent_service/tfs_monitor_test.py`
-<a id="monolith-agent-service-tfs-monitor-test-py"></a>
-
-**Status:** IN PROGRESS (manual)
-
-**Python Summary**
-- Lines: 182
-- Purpose/role: Tests TFSMonitor reload and remove config with FakeTFServing.
-- Key symbols/classes/functions: `TFSMonitorTest.test_reload_config`, `.test_remove_config`
-- External dependencies: FakeTFServing, ModelServerConfig, PublishMeta.
-- Side effects: starts fake TF serving servers.
-
-**Required Behavior (Detailed)**
-- Setup:
-  - Start FakeTFServing for entry and ps ports; wait for readiness.
-  - Create `TFSMonitor` and connect.
-- `test_reload_config`:
-  - Generate PublishMeta list with random ps counts and entry submodel.
-  - Call `gen_model_config` then `handle_reload_config_request` per service type.
-- `test_remove_config`:
-  - Similar to reload config but with different models; ensures reload path can remove models.
-- `tearDown`: compares before/after status; ensures NOT_FOUND responses for unloaded models.
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-serving/tests/tfs_monitor.rs`.
-- Rust public API surface: TFSMonitor + FakeTFServing.
-
-**Implementation Steps (Detailed)**
-1. Port fake TFS server setup.
-2. Port PublishMeta-based config generation and reload requests.
-3. Assert status responses match Python expectations (NOT_FOUND or version numbers).
-
-**Tests (Detailed)**
-- Python tests: this file
-- Rust tests: parity test for reload/remove behavior.
-
-**Gaps / Notes**
-- Requires deterministic fake TFS server behavior for version states.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/agent_service/tfs_wrapper.py`
-<a id="monolith-agent-service-tfs-wrapper-py"></a>
-
-**Status:** IN PROGRESS (manual)
-
-**Python Summary**
-- Lines: 202
-- Purpose/role: Wraps TensorFlow Serving process launch, config file handling, and model status queries.
-- Key symbols/classes/functions: `TFSWrapper`, `FakeTFSWrapper`
-- External dependencies: `subprocess`, `grpc`, TF Serving protos.
-- Side effects: launches external process, writes logs, opens gRPC channel.
-
-**Required Behavior (Detailed)**
-- `TFSWrapper.__init__`:
-  - Saves ports, config file, binary config, log path.
-  - Uses `strings $TFS_BINARY | grep PredictionServiceGrpc` to detect grpc remote op support.
-- `_prepare_cmd()`:
-  - Builds CLI flags: model_config_file, ports, poll interval, archon settings, metrics prefix.
-  - If grpc remote op absent, adds `archon_entry_to_ps_rpc_timeout`.
-  - Fills in defaults from `TfServingConfig` (incl. platform_config_file).
-- `start()`:
-  - `os.chdir(find_main())` and `subprocess.Popen` with stdout to log file.
-  - Creates gRPC channel to `localhost:grpc_port` and ModelServiceStub.
-- `stop()`:
-  - Closes channel, closes log, kills process.
-- `list_saved_models()`:
-  - Parses model config file text into `ModelServerConfig` and returns model names.
-- `list_saved_models_status()`:
-  - For each saved model, calls `GetModelStatus`, selects available version or last, handles RPC errors.
-- `FakeTFSWrapper`:
-  - No process; reads model_config file and returns AVAILABLE for all models.
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-serving/src/tfs_wrapper.rs`.
-- Rust public API surface: `TFSWrapper` + `FakeTFSWrapper` for tests.
-- Feature gating: `tf-runtime` and `grpc` features.
-
-**Implementation Steps (Detailed)**
-1. Port command building logic and TfServingConfig mapping.
-2. Implement process spawn + logging.
-3. Implement gRPC status queries and model_config parsing.
-4. Implement FakeTFSWrapper for tests.
-
-**Tests (Detailed)**
-- Python tests: used indirectly by `agent_v3_test`.
-- Rust tests: use FakeTFSWrapper to validate list_saved_models/STATUS.
-
-**Gaps / Notes**
-- `TFS_BINARY` path and `find_main()` must map correctly in Rust.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/agent_service/utils.py`
-<a id="monolith-agent-service-utils-py"></a>
-
-**Status:** IN PROGRESS (manual)
-
-**Python Summary**
-- Lines: ~1000+
-- Purpose/role: Core config + helper utilities for agent service, TF Serving configs, TensorProto creation, network utilities, and config file generation.
-- Key symbols/classes/functions: `AgentConfig`, `DeployType`, `TFSServerType`, `gen_model_spec`, `gen_model_config`, `make_tensor_proto`, `get_local_ip`, many helpers.
-- External dependencies: `tensorflow`, `tensorflow_serving` protos, `protobuf.text_format`, `json`, `socket`, `os`.
-- Side effects: overrides `os.path.isabs`; writes platform config files; reads/writes files; inspects env; opens sockets.
-
-**Required Behavior (Detailed)**
-- Must preserve ALL defaults in `AgentConfig` and flag parsing (`flags.DEFINE_string('conf', ...)`).
-- `AgentConfig.__post_init__` logic is critical for port allocation and layout config.
-- `gen_model_spec` and `gen_model_config` must match TF Serving proto semantics.
-- `make_tensor_proto` must mirror TF string tensor encoding for PredictRequest inputs.
-- `get_local_ip` and port helpers must match network selection logic (IPv4/IPv6).
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-serving/src/config.rs` + new `utils.rs`.
-- Rust public API surface: `AgentConfig` struct + helpers for model spec and TensorProto assembly.
-- Data model mapping: use `monolith_proto::tensorflow_serving::apis` for ModelSpec and `tensorflow_core::TensorProto`.
-
-**Implementation Steps (Detailed)**
-1. Port `AgentConfig` with all fields + defaults + env overrides.
-2. Recreate port allocation logic, deploy type handling, and platform config file generation.
-3. Port `gen_model_spec` and `gen_model_config` helpers with identical proto fields.
-4. Implement `make_tensor_proto` for DT_STRING using TF Serving proto types.
-5. Port network/IP helper methods (`get_local_ip`, `find_free_port`, etc.).
-6. Mirror all file I/O (platform config) and text_format behavior.
-
-**Tests (Detailed)**
-- Python tests: `monolith/agent_service/utils_test.py`
-- Rust tests: add unit tests for config defaults, model spec generation, and TensorProto creation.
-
-**Gaps / Notes**
-- This file is high-risk; many behaviors are implicit and must be traced manually.
+- `find_main` behavior is tied to Bazel execution layout; Rust tests may need harness adjustments.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust

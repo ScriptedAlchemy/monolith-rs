@@ -1,54 +1,60 @@
 {
   "request": "task/request.md",
-  "totalLines": 23700,
+  "totalLines": 24033,
   "parts": [
     {
       "path": "task/request.part01.md",
       "startLine": 1,
-      "endLine": 320,
+      "endLine": 342,
       "titleHint": "overview"
     },
     {
       "path": "task/request.part02.md",
-      "startLine": 321,
-      "endLine": 661,
+      "startLine": 343,
+      "endLine": 683,
       "titleHint": "line-level-inventory"
     },
     {
       "path": "task/request.part03.md",
-      "startLine": 662,
-      "endLine": 4581,
+      "startLine": 684,
+      "endLine": 4603,
       "titleHint": "monolith/__init__.py"
     },
     {
       "path": "task/request.part04.md",
-      "startLine": 4582,
-      "endLine": 8387,
+      "startLine": 4604,
+      "endLine": 8388,
       "titleHint": "monolith/core/base_task.py"
     },
     {
       "path": "task/request.part05.md",
-      "startLine": 8388,
-      "endLine": 11812,
-      "titleHint": "monolith/native_training/data/tf_example_to_example_test.py"
+      "startLine": 8389,
+      "endLine": 11758,
+      "titleHint": "monolith/native_training/data/kafka_dataset_test.py"
     },
     {
       "path": "task/request.part06.md",
-      "startLine": 11813,
-      "endLine": 15822,
-      "titleHint": "monolith/native_training/feature_utils.py"
+      "startLine": 11759,
+      "endLine": 15684,
+      "titleHint": "monolith/native_training/estimator_dist_test.py"
     },
     {
       "path": "task/request.part07.md",
-      "startLine": 15823,
-      "endLine": 19762,
-      "titleHint": "monolith/native_training/layers/utils.py"
+      "startLine": 15685,
+      "endLine": 19604,
+      "titleHint": "monolith/native_training/layers/multi_task.py"
     },
     {
       "path": "task/request.part08.md",
-      "startLine": 19763,
-      "endLine": 23700,
-      "titleHint": "monolith/native_training/nested_tensors.py"
+      "startLine": 19605,
+      "endLine": 23561,
+      "titleHint": "monolith/native_training/native_model.py"
+    },
+    {
+      "path": "task/request.part09.md",
+      "startLine": 23562,
+      "endLine": 24033,
+      "titleHint": "monolith/native_training/yarn_runtime.py"
     }
   ]
 }

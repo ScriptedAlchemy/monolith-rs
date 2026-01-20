@@ -1,8 +1,499 @@
 <!--
 Source: task/request.md
-Lines: 19763-23700 (1-based, inclusive)
+Lines: 19605-23561 (1-based, inclusive)
 Note: This file is auto-generated to keep prompt context bounded.
 -->
+### `monolith/native_training/native_model.py`
+<a id="monolith-native-training-native-model-py"></a>
+
+**Status:** IN PROGRESS (manual review complete)
+
+**Python Summary**
+- Lines: 1109
+- Purpose/role: Core TF-native model base classes and helpers for loss/prediction, embedding slice management, device placement, file output, metrics (AUC/MSE + deep insight), and export hooks.
+- Key symbols/classes/functions:
+  - `get_sigmoid_loss_and_pred`, `get_softmax_loss_and_pred`
+  - `DeviceCtxType`, `MonolithDeviceCtx`
+  - `MonolithBaseModel`, `MonolithModel`
+  - Key methods: `create_model_fn`, `create_input_fn`, `create_serving_input_receiver_fn`,
+    `create_embedding_feature_column`, `lookup_embedding_slice`, `share_slot`, `add_extra_output`, `add_training_hook`
+- External dependencies: TensorFlow (graph/Estimator APIs, metrics, summaries, SavedModel), `absl.flags/logging`,
+  monolith internal modules (`feature`, `feature_utils`, `file_ops`, `metric_utils`, `export_context`,
+  `layers.LogitCorrection`, `dump_utils`, `device_utils`, `distribution_utils`, `embedding_combiners`, etc.),
+  `OutConfig/OutType/TensorShape` proto from `idl.matrix.proto.example_pb2`.
+- Side effects:
+  - Writes prediction/eval outputs to per-worker files.
+  - Writes item embedding cache table files in resource-constrained roughsort predict mode.
+  - Mutates TF graph collections and graph-attached lists (`__losses`, `__training_hooks`, `__export_outputs`).
+  - Registers slots and switches feature slots (`register_slots`, `switch_slot`, `switch_slot_batch`).
+  - Adds TF summary scalars and `tf.print` ops for metrics.
+  - Adds custom hooks for Kafka/file metrics.
+  - Enables TOB env (`enable_tob_env`) on init.
+
+**Required Behavior (Detailed)**
+- **`get_sigmoid_loss_and_pred(name, logits, label, batch_size, sample_rate=1.0, sample_bias=False, mode=TRAIN, instance_weight=None, mask=None, logit_clip_threshold=None, predict_before_correction=True)`**
+  - Reshapes `logits` to `(-1,)` and **overrides** `batch_size` using `dim_size(logits, 0)` regardless of the caller-supplied `batch_size`.
+  - If `mode != PREDICT`:
+    - `sample_rate` handling:
+      - If `float`, fill tensor of shape `(batch_size,)`.
+      - If `None`, fill tensor with `1.0`.
+    - Instantiate `LogitCorrection(activation=None, sample_bias=sample_bias, name='sample_rate_correction')`.
+    - Compute `logits_biased = src((logits, sample_rate))`.
+    - `pred` is sigmoid of **raw** `logits` when `predict_before_correction=True`, else sigmoid of `logits_biased`.
+    - If `logit_clip_threshold` set:
+      - Assert `0 < logit_clip_threshold < 1`.
+      - Compute `threshold = log((1 - p) / p)` and clip `logits_biased` to `[-threshold, threshold]`.
+    - Compute `losses = sigmoid_cross_entropy_with_logits(labels=label.reshape(-1), logits=logits_biased)`.
+    - If `instance_weight` present, reshape to `(-1,)`.
+    - If `mask` present, reshape to `(-1,)` and `boolean_mask` both `losses` and `instance_weight` (if present).
+    - If `instance_weight` present, multiply `losses *= instance_weight`.
+    - Final `loss = reduce_sum(losses)`.
+  - If `mode == PREDICT`: `loss=None`, `pred = sigmoid(logits)` (no correction and no clipping).
+  - Returns `(loss, pred)` with op names using `{name}_sigmoid_*`.
+- **`get_softmax_loss_and_pred(name, logits, label, mode)`**
+  - `pred = argmax(softmax(logits, name='{name}_softmax_pred'), axis=1)`.
+  - If `mode != PREDICT`, `loss = softmax_cross_entropy_with_logits(labels=label, logits=logits, name='{name}_softmax_loss')`.
+  - Else `loss=None`. Returns `(loss, pred)`.
+- **`DeviceCtxType`**
+  - Constants: `INPUT_FN`, `MODEL_FN`, `INPUT_RECEIVER_FN`, `OTHERS`.
+  - `all_types()` returns set of all constants.
+- **`MonolithDeviceCtx(ctx_type)`**
+  - Context manager for device placement; asserts `ctx_type` in `DeviceCtxType.all_types()`.
+  - `__enter__`:
+    - No-op if `enable_sync_training()` is false or `export_context.is_exporting()` is true.
+    - Selects device function:
+      - `INPUT_FN` → `input_device_fn`
+      - `MODEL_FN` → `model_device_fn`
+      - `INPUT_RECEIVER_FN` → `serving_input_device_fn`
+      - Otherwise no-op.
+    - Calls `tf.compat.v1.device(self._device_fn)` and enters it.
+  - `__exit__`:
+    - If `ctx_type == MODEL_FN`, calls `ensure_variables_in_device()` before exiting device scope.
+    - Resets `_current` and `_device_fn`.
+  - `ensure_variables_in_device()`:
+    - Iterates `graph.get_operations()` and for ops whose name starts with `global_step`, calls `graph._apply_device_functions(op)` (private TF API).
+- **`MonolithBaseModel(NativeTask, ABC)`**
+  - `params()` defines:
+    - `output_path`, `output_fields`, `delimiter` (default `\t`), `file_name`,
+      `enable_grads_and_vars_summary`, `dense_weight_decay`, `clip_norm` (default `1000.0`),
+      `sparse_norm_warmup_steps`, `default_occurrence_threshold`.
+  - `__init__`:
+    - Calls `enable_tob_env()`.
+    - Initializes dicts: `fs_dict`, `fc_dict`, `slice_dict`, `_layout_dict`, `_occurrence_threshold`, `_share_slot_mapping`.
+    - `_use_dense_allreduce = FLAGS.enable_sync_training`.
+  - `__getattr__`:
+    - For attributes in `self.p`, returns param value.
+    - Special case `batch_size`: returns `eval.per_replica_batch_size` if `p.mode == EVAL`, else `train.per_replica_batch_size`.
+    - Falls back to property getters or base `__getattr__`.
+  - `__setattr__`:
+    - If `self.p` has attr, sets there.
+    - Special case `batch_size`: sets both `train.per_replica_batch_size` and `eval.per_replica_batch_size`.
+  - `__deepcopy__`:
+    - Deep-copies all attributes except `dump_utils` (shared reference).
+  - `_get_file_ops(features, pred)`:
+    - Requires `p.output_fields` set.
+    - Builds `output_path = p.output_path/part-{worker_index:05d}`; opens `file_ops.WritableFile`.
+    - `op_fields` is `features[field]` for each `output_fields` (comma-separated).
+    - Appends predictions:
+      - list/tuple → extend
+      - dict → sorted by key before extending
+      - scalar → append
+    - Attempts to `tf.squeeze` tensors where rank > 1 and last dim == 1.
+    - Formats each row using `tf.strings.format` with delimiter-joined `{}` and `summarize=-1`.
+    - Uses `tf.map_fn` with `fn_output_signature=tf.string` and `tf.stop_gradient`.
+    - Returns `(op_file, write_op)` where `write_op = op_file.append(tf.strings.reduce_join(result))`.
+  - `_dump_item_embedding_ops(features)`:
+    - Assumes instance is `DeepRoughSortBaseModel` and features contain `item_id`, `item_bias`, `item_vec`.
+    - Writes `MonolithHashTable_cached_item_embeddings-00000-of-00001` under `_cal_item_cache_table_path()`.
+    - Uses `WritableFile.append_entry_dump` to write.
+  - `_get_real_mode(mode)`:
+    - If `mode == PREDICT`, returns `PREDICT`.
+    - If `mode == TRAIN`, returns `self.mode` (not necessarily `TRAIN`).
+    - Otherwise raises `ValueError('model error!')`.
+  - `is_fused_layout()` returns `ctx.layout_factory is not None`.
+  - `instantiate()` returns `self` (no cloning).
+  - `add_loss(losses)` appends one or many losses to graph-level `__losses`.
+  - `losses` property:
+    - Stored on `tf.compat.v1.get_default_graph()` as `__losses` list.
+  - `_global_step` property:
+    - Inside `maybe_device_if_allowed('/device:GPU:0')`, returns `tf.compat.v1.train.get_or_create_global_step()`.
+  - `_training_hooks` property:
+    - Stored on graph as `__training_hooks` list.
+  - `clean()` clears feature-slot caches: `fs_dict`, `fc_dict`, `slice_dict`, `_occurrence_threshold`.
+  - `create_input_fn()`:
+    - Returns closure that wraps `self.input_fn(mode)` in `MonolithDeviceCtx(INPUT_FN)`.
+  - `create_model_fn()`:
+    - Resets caches via `clean()`.
+    - Defines `model_fn_internal(features, mode, config)`:
+      - `global_step = _global_step`, `real_mode = _get_real_mode(mode)`.
+      - Runs `self.model_fn(features, real_mode)` inside `MonolithDeviceCtx(MODEL_FN)`.
+      - Accepts either `EstimatorSpec` or `(label, loss, pred)` tuple/list:
+        - `EstimatorSpec`: extract `label`, `loss`, `pred`, optional `head_name`, `classification`.
+          If `pred` is dict, `head_name` becomes keys (in insertion order).
+        - Tuple/list: `label, loss, pred`; if `pred` dict, `head_name` from keys; else `head_name` from
+          `self.metrics.deep_insight_target`; sets `is_classification=True` and emits a warning.
+        - Otherwise raises `Exception("EstimatorSpec Error!")`.
+      - Validates `head_name`, `label`, `pred` shapes and alignment.
+      - Normalizes `label` to `tf.identity` (name `label_{_node_name(...)}` or dict keys).
+      - Calls `dump_utils.add_model_fn(self, mode, features, label, loss, pred, head_name, is_classification)`.
+      - Adds auxiliary losses: `loss += tf.add_n(self.losses)` when present.
+      - **Resource-constrained roughsort predict path**:
+        - When not exporting, `real_mode == PREDICT`, and `FLAGS.enable_resource_constrained_roughsort`,
+          and `self` is `DeepRoughSortBaseModel`, it writes item cache table and returns
+          `EstimatorSpec(PREDICT, loss=1, train_op=no_op, training_hooks=[FileCloseHook]+_training_hooks, predictions=identity(...))`.
+      - **Predict path**:
+        - `predictions = dict(zip(head_name, pred))` for list/tuple, else `pred`.
+        - If exporting or `p.output_path` is `None`: returns `EstimatorSpec(PREDICT, predictions=..., training_hooks=_training_hooks)`.
+        - Else writes per-worker file using `_get_file_ops` and wraps `predictions` with `tf.identity` under control deps.
+        - If exporting and `_export_outputs` populated, merges via `spec._replace(export_outputs=...)`.
+      - **Metrics accumulation for train/eval**:
+        - Builds `targets`, `labels_list`, `preds_list` aligned with heads.
+        - If `FLAGS.disable_native_metrics` is false:
+          - Classification → `tf.compat.v1.metrics.auc`; regression → `tf.compat.v1.metrics.mean_squared_error`.
+          - Adds `tf.print` of metric value to stderr and `tf.compat.v1.summary.scalar`.
+          - Adds update op to `train_ops`.
+      - **Deep insight metrics**:
+        - If any of `metrics.enable_kafka_metrics`, `enable_file_metrics`, `enable_deep_insight` and
+          `metrics.deep_insight_sample_ratio > 0`:
+          - Calls `metric_utils.write_deep_insight` with features, labels, preds, model_name, target, etc.
+          - Optionally uses `dump_filename = f\"{dump_filename}.part-{worker_index:05d}\"`.
+          - Adds op to collection `"deep_insight_op"`.
+          - Adds `KafkaMetricHook` or `FileMetricHook` (only one of each type allowed; see `add_training_hook`).
+      - **Eval path**:
+        - If exporting or no `output_path`: returns `EstimatorSpec(mode, loss=loss, train_op=tf.group(train_ops), training_hooks=_training_hooks)`,
+          with `pred`/`preds` added into `train_ops`.
+        - Else writes outputs to file (same as predict) and returns EstimatorSpec with close hook.
+      - **Train path**:
+        - Determines `dense_optimizer` from `local_spec.optimizer` or `self._default_dense_optimizer`, else raises `Exception("dense_optimizer not found!")`.
+        - Calls `dump_utils.add_optimizer(dense_optimizer)`.
+        - Adds `feature_utils.apply_gradients_with_var_optimizer` to `train_ops` with:
+          - `clip_type=ClipByGlobalNorm`, `clip_norm=self.clip_norm`, `dense_weight_decay=self.dense_weight_decay`,
+            `global_step=_global_step`, `grads_and_vars_summary`, `sparse_norm_warmup_steps`,
+            `is_fused_layout`, `use_allreduce=_use_dense_allreduce`.
+        - Calls `add_batch_norm_into_update_ops()` then groups `UPDATE_OPS` and returns EstimatorSpec with `train_op=tf.group(train_ops)`.
+  - `create_serving_input_receiver_fn()`:
+    - Wraps `self.serving_input_receiver_fn()` in `MonolithDeviceCtx(INPUT_RECEIVER_FN)` and
+      passes through `dump_utils.record_receiver`.
+  - Abstract methods:
+    - `input_fn(mode) -> DatasetV2`, `model_fn(features, mode)`, `serving_input_receiver_fn() -> ServingInputReceiver`.
+  - `_export_outputs` property:
+    - Graph-attached dict `__export_outputs` (created lazily).
+  - `add_extra_output(name, outputs, head_name=None, head_type=None)`:
+    - Adds `name` to collection `'signature_name'`.
+    - If exporting: inserts `PredictOutput(outputs)` into `_export_outputs`, else ignores.
+    - Raises `KeyError` if `name` already exists.
+  - `add_training_hook(hook)`:
+    - Prevents multiple `KafkaMetricHook` or `FileMetricHook`.
+  - `add_layout(name, slice_list, out_type, shape_list)`:
+    - Builds `OutConfig` with `OutType` mapping (`concat/stack/addn/none`).
+    - For each slice, adds `slice_configs` with `feature_name`, `start`, `end`.
+    - For each shape, writes dims; first dim forced to `-1`, subsequent dims from int or `.value`.
+    - Stores in `_layout_dict[name]`.
+  - `layout_dict` property getter/setter.
+- **`MonolithModel(MonolithBaseModel)`**
+  - `params()` adds `feature_list` string path.
+  - `__init__`:
+    - Uses provided params or class params.
+    - Sets `dump_utils.enable = FLAGS.enable_model_dump`.
+  - `_get_fs_conf(shared_name, slot, occurrence_threshold, expire_time)`:
+    - Returns `FeatureSlotConfig` with `has_bias=False`, `slot_id=slot`, `occurrence_threshold`, `expire_time`,
+      and hash table config using `GpucucoHashTableConfig` if `self.p.train.use_gpu_emb_table` else `CuckooHashTableConfig`.
+  - `_embedding_slice_lookup(fc, slice_name, slice_dim, initializer, optimizer, compressor, learning_rate_fn, slice_list)`:
+    - Asserts non-fused layout.
+    - Accepts `fc` as feature name or `FeatureColumn`.
+    - Applies `_share_slot_mapping` for shared embedding names.
+    - Creates or reuses `FeatureSlice` in `slice_dict[feature_name][slice_name]`.
+    - Appends `(fc.feature_name, fc_slice)` to `slice_list`.
+    - Returns `fc.embedding_lookup(fc_slice)`.
+  - `create_embedding_feature_column(feature_name, occurrence_threshold=None, expire_time=36500, max_seq_length=0, shared_name=None, combiner=None)`:
+    - Converts `combiner` string to `FeatureColumn.reduce_sum/reduce_mean/first_n`.
+    - Resolves `feature_name` and `slot` via `get_feature_name_and_slot`.
+    - If `feature_name` exists in `fc_dict`, returns it.
+    - If `shared_name` provided:
+      - Stores `_share_slot_mapping[feature_name] = shared_name`.
+      - Reuses existing `fs_dict` or `fc_dict` for shared slot if present.
+      - Else creates new `FeatureSlot` for `shared_name` and stores in `fs_dict`.
+      - If shared slot not created first and `get_feature_name_and_slot` fails, raises exception with explicit message.
+    - If not shared: creates new `FeatureSlot` via `ctx.create_feature_slot`.
+    - Default `combiner`: `first_n(max_seq_length)` for sequence features, else `reduce_sum`.
+    - Creates `FeatureColumn`, stores in `fc_dict`, returns it.
+  - `lookup_embedding_slice(features, slice_name, slice_dim=None, initializer=None, optimizer=None, compressor=None, learning_rate_fn=None, group_out_type='add_n', out_type=None)`:
+    - Computes `layout_name = f'{slice_name}_{md5(sorted(features)).hexdigest()}'`.
+    - If fused layout:
+      - If `features` is list/tuple and `slice_dim` int and contains group tuples/lists: raises `ValueError("group pool is not support when fused_layout")`.
+      - Returns `ctx.layout_factory.get_layout(layout_name)`.
+    - Otherwise builds `feature_embeddings` and `slice_list` from `features` in these cases:
+      - `dict`: feature name → slice dim.
+      - `list/tuple` + `slice_dim` int:
+        - if all elements are (str|int|FeatureColumn): fixed-dim list.
+        - if all elements are list/tuple groups: `group_out_type` must be `concat` or `add_n`;
+          each group is a list of feature names; group embeddings are summed or concatenated.
+        - else raises `ValueError("ValueError for features")`.
+      - `list/tuple` of `(feature, dim)` pairs: variable dims.
+      - Otherwise raises `ValueError("ValueError for features")`.
+    - If `out_type is None`: records layout with `shape_list` from embeddings and returns list of embeddings.
+    - Else `out_type` in `{concat, stack, add_n, addn}`:
+      - `concat`: `tf.concat(axis=1)`
+      - `stack`: `tf.stack(axis=1)`
+      - `add_n/addn`: `tf.add_n`
+      - Records layout and returns tensor.
+  - `share_slot(features=None, share_meta=None, variant_type='example', suffix='share')`:
+    - For each `name -> (inplace, slot)` in `share_meta`:
+      - Registers slot mapping via `register_slots`, using `shared_name = f'{name}_{suffix}'` when not inplace.
+    - If `features` is dict:
+      - `inplace=True`: `features[name] = switch_slot(features[name], slot)`
+      - Else: `features[shared_name] = switch_slot(features[name], slot)`
+      - Returns modified dict.
+    - Else returns `map_fn = lambda tensor: switch_slot_batch(tensor, share_meta, variant_type=variant_type, suffix=suffix)`.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-training/src` for model base + training loop glue; `monolith-rs/crates/monolith-layers` for logit correction; `monolith-rs/crates/monolith-data` for feature slots; `monolith-rs/crates/monolith-hash-table` for embedding tables; `monolith-rs/crates/monolith-serving` for export signatures.
+- Rust public API surface:
+  - `get_sigmoid_loss_and_pred` / `get_softmax_loss_and_pred` equivalents in a `losses` or `metrics` module.
+  - `DeviceCtxType` + `MonolithDeviceCtx` analog for device placement (no-op in pure Candle; required for TF runtime backend).
+  - `MonolithBaseModel` trait + `MonolithModel` struct that mirror param plumbing, embedding-slice helpers,
+    training/eval/predict flow, file output, and metrics hooks.
+  - Export signature registry mirroring `add_extra_output`.
+- Data model mapping:
+  - Feature slots/slices map to Rust `FeatureSlot`, `FeatureColumn`, `FeatureSlice` types.
+  - Layout dictionary maps to Rust `OutConfig` protobufs (via `monolith-proto`) with consistent shape semantics (`-1` batch dim).
+- Feature gating:
+  - **Default**: Candle-native backend; `MonolithDeviceCtx` becomes a no-op.
+  - **Optional**: TF runtime backend only when `saved_model.pb` + `libtensorflow` + custom ops present.
+  - Metrics hooks (Kafka/file/deep_insight) should be feature-gated with optional dependencies.
+- Integration points:
+  - Training entrypoints (Estimator analog) must call into `create_model_fn` flow equivalents.
+  - Export flow must honor `export_context`-like state to control output signatures and device placement.
+
+**Implementation Steps (Detailed)**
+1. Define Rust equivalents for loss helpers with identical shape handling, sample-rate correction, clipping, and mask/weight semantics.
+2. Implement `MonolithDeviceCtx` abstraction; in Candle, no-op; in TF runtime, map to device placement APIs.
+3. Build Rust `MonolithBaseModel` trait:
+   - Store per-graph/per-run `losses`, `training_hooks`, and `export_outputs`.
+   - Implement `create_input_fn`, `create_model_fn`, `create_serving_input_receiver_fn` analogs.
+4. Implement file output writer with exact formatting and ordering (output_fields order, dict pred sorted by key, delimiter handling).
+5. Port metrics collection:
+   - AUC/MSE metrics with logging + summary behavior (or compatible replacements).
+   - Deep insight pipeline with Kafka/file hooks and per-worker filename suffixing.
+6. Implement embedding feature slot + slice machinery with shared slots and layout tracking.
+7. Add export signature registry and merge semantics for extra outputs.
+8. Add feature flags and error handling parity for unsupported paths (e.g., fused layout group pooling).
+9. Add cross-language tests: compare output file contents, metric logging events, and embedding slice layouts.
+
+**Tests (Detailed)**
+- Python tests: `monolith/native_training/model_comp_test.py` (uses `MonolithModel`).
+- Rust tests: none yet (needs new parity tests for loss helpers, file output formatting, and embedding slice layouts).
+- Cross-language parity test:
+  - Golden test that runs a minimal TF model with two heads and compares loss/pred outputs + output file formatting.
+  - Embedding slice layout test comparing `OutConfig` shape/slice configs between Python and Rust.
+
+**Gaps / Notes**
+- `_get_real_mode` rejects `EVAL`; this is likely intentional in their training flow (only TRAIN/PREDICT). If Rust adds eval mode, define parity behavior explicitly.
+- Prediction file output uses **sorted dict keys** only when `pred` is dict; list/tuple order is preserved.
+- `create_model_fn` treats tuple/list return as classification and emits warning; exact warning text should be preserved if exposed.
+- Uses private TF API `graph._apply_device_functions` for `global_step` ops.
+- Metrics include `tf.print(..., output_stream=sys.stderr)` side effects.
+- Deep insight hooks only attach when sample ratio > 0.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/native_task.py`
+<a id="monolith-native-training-native-task-py"></a>
+
+**Status:** IN PROGRESS (manual review complete)
+
+**Python Summary**
+- Lines: 213
+- Purpose/role: Defines the `NativeTask` base class (TF-native training/eval/serving) and the `NativeContext` helper for feature slot creation, embedding gradient application, and async functions.
+- Key symbols/classes/functions: `NativeContext`, `NativeTask`.
+- External dependencies: TensorFlow, `monolith.core.base_task.BaseTask`, `monolith.core.hyperparams`,
+  `monolith.native_training.feature`, `monolith.native_training.prefetch_queue`,
+  `monolith.native_training.model_export.export_context.ExportMode`.
+- Side effects:
+  - Raises `ValueError` if both `feature_factory` and `layout_factory` are provided in `NativeContext`.
+  - Delegates to async function manager (may enqueue TF ops).
+
+**Required Behavior (Detailed)**
+- **`NativeContext(feature_factory=None, async_function_mgr=None, layout_factory=None)`**
+  - Stores `feature_factory`, `async_function_mgr`, `layout_factory`.
+  - If both `feature_factory` and `layout_factory` are set, raises:
+    - `ValueError("Cannot set feature_factory and layout_factory in the same time")`.
+- **`NativeContext.create_feature_slot(config)`**
+  - If `layout_factory` present, delegates to `layout_factory.create_feature_slot(config)`.
+  - Else uses `feature_factory.create_feature_slot(config)`.
+  - No TF ops are created by this call (per docstring).
+- **`NativeContext.apply_embedding_gradients(grads_and_vars, scale=1)`**
+  - If `layout_factory` present, delegates to `layout_factory.apply_gradients(grads_and_vars)`.
+  - Else delegates to `feature_factory.apply_gradients(grads_and_vars, scale=scale)`.
+  - Expects `grads_and_vars` from `FeatureColumn.get_all_embeddings_concatenated`.
+- **`NativeContext.add_async_function(target, args=None, kwargs=None, is_async=None, queue_name="async_queue")`**
+  - Delegates to `async_function_mgr.add_async_function(...)`.
+  - Returns enqueue op if async, else result of `target`.
+  - Semantic contract (documented): tensors used by async function should be passed via args/kwargs only.
+- **`NativeTask(BaseTask, abc.ABC)`**
+  - `params()` extends BaseTask params with:
+    - `metrics.*`:
+      - `enable_deep_insight` (default False), `deep_insight_target` ("ctr_head"),
+        `deep_insight_name` (None), `deep_insight_sample_ratio` (0.01),
+        `extra_fields_keys` (list),
+        `enable_throughput_hook` (True),
+        `enable_kafka_metrics` (False),
+        `enable_tf2_profiler_hook` (True),
+        `enable_file_metrics` (False),
+        `file_base_name` ("/vepfs/jaguar_deepinsight_results"),
+        `file_ext` ("txt"),
+        `parse_fn`/`key_fn`/`layout_fn` (None),
+        `dump_filename` (""),
+        `use_data_service` (False).
+    - `mode`: `tf.estimator.ModeKeys.TRAIN` (temporary; doc says will be removed).
+    - `train.*`:
+      - `max_pending_seconds_for_barrier` (30),
+      - `slow_start_steps` (0),
+      - `sample_bias` (0.0),
+      - `use_gpu_emb_table` (False),
+      - `use_fountain` (False),
+      - `fountain_zk_host` (""), `fountain_model_name` (""), `fountain_parse_on_server` (False),
+        `fountain_precompute_value_rowids` (False).
+    - `serving.*`:
+      - `export_with_gpu_allowed` (False),
+      - `export_with_cleared_entry_devices` (False),
+      - `export_when_saving` (False),
+      - `export_dir_base` ("exported_models"),
+      - `export_mode` (`ExportMode.DISTRIBUTED`),
+      - `shared_embedding` (True),
+      - `with_remote_gpu` (False).
+  - `__init__(params)`:
+    - Calls `BaseTask.__init__` and sets `self._ctx = NativeContext()` and `self.p = params`.
+  - `ctx` property returns `self._ctx`.
+  - Abstract methods:
+    - `create_input_fn(self, mode)`
+    - `create_model_fn(self)`
+  - `create_serving_input_receiver_fn()`:
+    - Returns `None` by default; callers must override when `serving.export_when_saving` is enabled.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (task base + context), `monolith-rs/crates/monolith-data` (feature factories/layouts).
+- Rust public API surface:
+  - `NativeContext` struct with `create_feature_slot`, `apply_embedding_gradients`, `add_async_function`.
+  - `NativeTask` trait with `params()`, `create_input_fn`, `create_model_fn`, `create_serving_input_receiver_fn`.
+- Data model mapping:
+  - `feature_factory` ↔ `FeatureFactory` trait.
+  - `layout_factory` ↔ `EmbeddingLayoutFactory` trait (optional, mutually exclusive).
+- Feature gating:
+  - Async function manager (prefetch queue) behind feature flag if not supported by backend.
+  - Export-related params gated by serving feature.
+- Integration points:
+  - `NativeTask` becomes base for `MonolithBaseModel` in Rust; param defaults must match Python.
+
+**Implementation Steps (Detailed)**
+1. Port `NativeContext` with mutual exclusion validation and delegation to feature/layout factories.
+2. Implement an async function manager interface in Rust (or stubs if backend lacks it).
+3. Port `NativeTask.params()` with identical defaults and nested param groups.
+4. Implement `NativeTask` base that stores `params` and `ctx`.
+5. Add validation hooks so `create_serving_input_receiver_fn` must be overridden when export is enabled.
+6. Add unit tests for parameter defaults and mutual exclusion errors.
+
+**Tests (Detailed)**
+- Python tests: none dedicated; covered indirectly by model/task usage.
+- Rust tests: add unit tests for `NativeContext` validation and param defaults.
+- Cross-language parity test: compare serialized defaults from Python vs Rust `params()` output.
+
+**Gaps / Notes**
+- `OutConfig`, `OutType`, `TensorShape` are imported but unused in this file (no runtime effect).
+- `create_serving_input_receiver_fn` returning `None` is explicitly invalid when export is enabled; Rust should enforce or document this.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/native_task_context.py`
+<a id="monolith-native-training-native-task-context-py"></a>
+
+**Status:** IN PROGRESS (manual review complete)
+
+**Python Summary**
+- Lines: 58
+- Purpose/role: Defines a global per-process task context (`NativeTaskContext`) and helper functions to set/get it.
+- Key symbols/classes/functions: `NativeTaskContext`, `with_ctx`, `get`.
+- External dependencies: `contextlib`, `typing.NamedTuple`, `monolith.agent_service.backends.SyncBackend`.
+- Side effects: Mutates module-level `_CTX` global.
+
+**Required Behavior (Detailed)**
+- **`NativeTaskContext(NamedTuple)`** with fields:
+  - `num_ps: int`
+  - `ps_index: int`
+  - `num_workers: int`
+  - `worker_index: int`
+  - `model_name: str`
+  - `sync_backend: SyncBackend`
+  - `server_type: str`
+- **`with_ctx(ctx)`** (context manager):
+  - Stores previous `_CTX` as `old_ctx`, sets `_CTX = ctx`, yields.
+  - On exit:
+    - If `old_ctx` is not `None`, restores `_CTX = old_ctx`.
+    - If `old_ctx` is `None`, leaves `_CTX` set to `ctx` (no reset to `None`).
+- **`get()`**:
+  - If `_CTX is None`, returns a new `NativeTaskContext` with defaults:
+    - `num_ps=0`, `ps_index=0`, `num_workers=1`, `worker_index=0`,
+      `server_type=""`, `model_name=""`, `sync_backend=None`.
+  - Else returns `_CTX` object as-is (no copy).
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (task context).
+- Rust public API surface:
+  - `struct NativeTaskContext { ... }`
+  - `with_ctx(ctx, |...| { ... })` or RAII guard to set/restore.
+  - `get_ctx()` returns current context or default.
+- Data model mapping:
+  - `sync_backend` should be an enum or trait object mirroring `SyncBackend`.
+- Feature gating: none.
+- Integration points:
+  - Training/serving flows should call `get_ctx()` for worker index and model name.
+
+**Implementation Steps (Detailed)**
+1. Implement a thread-local or global context storage in Rust (match Python semantics).
+2. Implement context guard that **only** restores prior context if it existed.
+3. Provide `get_ctx()` returning default values when unset.
+4. Add unit tests for default context and nesting behavior.
+
+**Tests (Detailed)**
+- Python tests: none dedicated.
+- Rust tests: add unit tests for `with_ctx` nesting and default values.
+- Cross-language parity test: compare defaults and nesting semantics.
+
+**Gaps / Notes**
+- The context manager does **not** clear `_CTX` when exiting outermost scope; Rust should match this behavior exactly.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
 ### `monolith/native_training/nested_tensors.py`
 <a id="monolith-native-training-nested-tensors-py"></a>
 
@@ -3456,478 +3947,6 @@ Note: This file is auto-generated to keep prompt context bounded.
 
 **Gaps / Notes**
 - Hook behavior is sensitive to session scheduling; Rust must preserve the “fetch before run, assign after run” pattern.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/native_training/yarn_runtime.py`
-<a id="monolith-native-training-yarn-runtime-py"></a>
-
-**Status:** IN PROGRESS (manual review complete)
-
-**Python Summary**
-- Lines: 127
-- Purpose/role: Yarn/Primus runtime helpers for local host resolution and AppMaster gRPC control (kill, finish, savepoint).
-- Key symbols/classes/functions: `get_local_host`, `_get_primus_am_host`, `_get_channel`, `maybe_kill_application`, `maybe_finish_application`, `create_primus_save_point`.
-- External dependencies: `grpc`, `primus_am_service_pb2(_grpc)`, `net_utils.get_local_ip`, env vars.
-- Side effects:
-  - Creates/caches gRPC channels.
-  - Sends kill/succeed/savepoint requests to AppMaster.
-  - Sleeps while waiting for savepoint completion.
-  - Logs info/error messages.
-
-**Required Behavior (Detailed)**
-- `get_local_host()`:
-  - If `CLOUDNATIVE_INET_ADDR` env var exists: use first entry before comma.
-  - Else if `YARN_INET_ADDR` exists: use that value.
-  - Else: `net_utils.get_local_ip()`.
-  - Asserts non-empty result and returns it.
-- `_get_primus_am_host()`:
-  - If both `PRIMUS_AM_RPC_HOST` and `PRIMUS_AM_RPC_PORT` are set, returns `"host:port"`.
-  - Else returns empty string.
-- `_get_channel(addr)`:
-  - Caches `grpc.insecure_channel(addr)` in `_CHANNEL_MAP`.
-  - Returns cached channel for the same addr.
-- `maybe_kill_application(reason) -> bool`:
-  - If Primus AM host is available:
-    - Builds `KillRequest` with `exit_code=1`, `diagnose=reason`, `graceful_shutdown_timeout_ms=20000`.
-    - Calls `stub.kill(req, timeout=10)`.
-    - Returns `True` on success; `False` on `grpc.RpcError`.
-  - If no host: logs “Current framework doesn't support kill. Ignore killing...” and returns `False`.
-- `maybe_finish_application()`:
-  - If Primus AM host is available:
-    - Builds `SucceedRequest` with `graceful_shutdown_timeout_ms=20000`.
-    - Calls `stub.succeed(req, timeout=10)`.
-    - Returns `True` on success; logs on `grpc.RpcError` (returns `None`).
-  - If no host: returns `None` (no log).
-- `create_primus_save_point(dst) -> bool`:
-  - If Primus AM host is available:
-    - Calls `createSavepoint` with `savepoint_dir=dst`.
-    - If response `code != 0`, logs error and returns `False`.
-    - Else polls `createSavepointStatus` every 5s:
-      - `PENDING`/`RUNNING`: sleep and continue.
-      - `SUCCEEDED`: log success and return `True`.
-      - Any other state: log error and return `False`.
-    - On `grpc.RpcError`: logs and returns `False`.
-  - If no host: returns `None`.
-- Threading/concurrency:
-  - `_CHANNEL_MAP` is a global dict without a lock; concurrent callers can race.
-- Performance:
-  - Savepoint polling is blocking with 5s sleep intervals.
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-training/src/yarn_runtime.rs` (new).
-- Rust public API surface:
-  - `get_local_host() -> String`
-  - `maybe_kill_application(reason: &str) -> bool`
-  - `maybe_finish_application() -> Option<bool>`
-  - `create_primus_save_point(dst: &str) -> Option<bool>`
-- Data model mapping:
-  - gRPC service `primus_am_service.proto` already in `monolith-rs/proto`.
-  - Use tonic/grpc-generated client stubs for `AppMasterService`.
-- Feature gating:
-  - Requires gRPC + proto build; optional if runtime doesn't use Primus.
-- Integration points:
-  - Distributed training orchestration that needs to terminate or checkpoint jobs.
-
-**Implementation Steps (Detailed)**
-1. Generate Rust gRPC client from `primus_am_service.proto`.
-2. Implement env-var host resolution (`CLOUDNATIVE_INET_ADDR` > `YARN_INET_ADDR` > `net_utils` equivalent).
-3. Add a channel cache (e.g., `DashMap` or `Mutex<HashMap<...>>`) to mirror `_CHANNEL_MAP`.
-4. Implement `maybe_kill_application` and `maybe_finish_application` with the same timeout and fields.
-5. Implement `create_primus_save_point` with polling loop + 5s sleep.
-6. Mirror return semantics (False vs None) or document a deliberate normalization.
-
-**Tests (Detailed)**
-- Python tests: `monolith/native_training/yarn_runtime_test.py`.
-- Rust tests:
-  - `get_local_host_env_override` (CLOUDNATIVE_INET_ADDR + YARN_INET_ADDR cases).
-  - gRPC kill/finish/savepoint flow using an in-process gRPC server.
-- Cross-language parity test:
-  - Simulate the same gRPC server and verify request fields + timeouts.
-
-**Gaps / Notes**
-- `maybe_finish_application` does not return `False` on errors; it logs and returns `None`.
-- `create_primus_save_point` and `maybe_finish_application` return `None` when no Primus host is configured.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/native_training/yarn_runtime_test.py`
-<a id="monolith-native-training-yarn-runtime-test-py"></a>
-
-**Status:** IN PROGRESS (manual review complete)
-
-**Python Summary**
-- Lines: 133
-- Purpose/role: Exercises env-based host resolution and gRPC AppMaster controls (kill/finish/savepoint).
-- Key symbols/classes/functions: `YarnRuntimeTest`, `test_get_local_host_*`, `test_kill`, `test_finish`, `test_save_primus`.
-- External dependencies: gRPC, Primus AM proto stubs, `unittest.mock` for env vars.
-- Side effects: Starts in-process gRPC servers (unix: addresses).
-
-**Required Behavior (Detailed)**
-- `test_get_local_host_overwrite`:
-  - With `YARN_INET_ADDR=1.2.3.4`, `get_local_host()` returns `1.2.3.4`.
-- `test_get_local_host_overwrite_by_cloudnative`:
-  - With `CLOUDNATIVE_INET_ADDR=1.2.3.4,5.6.7.8`, returns `1.2.3.4`.
-- `test_get_local_host_basic`:
-  - Calls `get_local_host()` without explicit env overrides (no assertion).
-- `test_kill`:
-  - Sets `PRIMUS_AM_RPC_HOST=unix`, `PRIMUS_AM_RPC_PORT=test_kill`.
-  - Starts gRPC server with `kill` handler; validates `request.diagnose` equals reason.
-  - Calls `maybe_kill_application(reason)` and asserts handler invoked.
-- `test_finish`:
-  - Similar setup; installs `succeed` handler; asserts invoked after `maybe_finish_application()`.
-- `test_save_primus`:
-  - Sets Primus host/port; installs `createSavepoint` and `createSavepointStatus` handlers.
-  - Status handler returns `SUCCEEDED`; `create_primus_save_point(dst)` returns `True`.
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-training/tests/yarn_runtime.rs` (new).
-- Rust public API surface: `get_local_host`, `maybe_kill_application`, `maybe_finish_application`, `create_primus_save_point`.
-- Data model mapping: use Rust gRPC server/client for `AppMasterService`.
-- Feature gating: tests require gRPC + proto build; optional for non-Primus builds.
-- Integration points: gRPC server harness for tests (likely tokio + tonic).
-
-**Implementation Steps (Detailed)**
-1. Port env override tests for `get_local_host`.
-2. Implement a local gRPC server with unary handlers for `kill`, `succeed`, `createSavepoint`, `createSavepointStatus`.
-3. Validate request fields (e.g., `diagnose` for kill) and that calls occur.
-4. Ensure unix-domain or loopback TCP addressing works in Rust test harness.
-
-**Tests (Detailed)**
-- Python tests: `YarnRuntimeTest.test_get_local_host_*`, `.test_kill`, `.test_finish`, `.test_save_primus`.
-- Rust tests:
-  - `get_local_host_env_overrides`
-  - `maybe_kill_application_calls_stub`
-  - `maybe_finish_application_calls_stub`
-  - `create_primus_save_point_succeeds`
-- Cross-language parity test:
-  - Compare request fields and call ordering with a mock gRPC server.
-
-**Gaps / Notes**
-- Python tests use gRPC addresses like `unix:test_kill`; Rust must support unix-domain channels or adapt tests to TCP.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/native_training/zk_utils.py`
-<a id="monolith-native-training-zk-utils-py"></a>
-
-**Status:** IN PROGRESS (manual review complete)
-
-**Python Summary**
-- Lines: 96
-- Purpose/role: Zookeeper utilities for host selection (IPv4 vs IPv6), default server list, authenticated Kazoo client, and cleanup of stale ZK paths.
-- Key symbols/classes/functions: `_PORT`, `_HOSTS`, `_HOSTS_IPV6`, `is_ipv6_only`, `default_zk_servers`, `MonolithKazooClient`, `clear_zk_path`.
-- External dependencies: `kazoo.client.KazooClient`, `env_utils.get_zk_auth_data`, `socket`, `datetime`.
-- Side effects:
-  - Connects to ZK, mutates nodes (delete paths).
-  - Logs informational messages about IP resolution.
-
-**Required Behavior (Detailed)**
-- Globals:
-  - `_PORT = 2181`.
-  - `_HOSTS` and `_HOSTS_IPV6` are defined with IPs, then overwritten to empty lists later (current effective values are empty).
-- `is_ipv6_only()`:
-  - If any of `MY_HOST_IP`, `MY_POD_IP`, `MY_HOST_IPV6` env vars are set:
-    - Treat as “tce/byterec env”.
-    - `ipv4_addr` from `MY_HOST_IP` or `MY_POD_IP` (may be `None`).
-  - Else:
-    - `ipv4_addr = socket.gethostbyname(socket.gethostname())` (except → `None`).
-  - Logs `ipv4_addr`, then sets `ipv6_only = not ipv4_addr` and logs the result.
-  - Returns `ipv6_only`.
-- `default_zk_servers(use_ipv6: bool = False)`:
-  - If `use_ipv6` or `is_ipv6_only()`:
-    - Returns comma-joined `"[ip]:port"` entries from `_HOSTS_IPV6`.
-  - Else:
-    - Returns comma-joined `"ip:port"` entries from `_HOSTS`.
-  - With current `_HOSTS`/`_HOSTS_IPV6` emptied, returns empty string.
-- `MonolithKazooClient`:
-  - Subclasses `KazooClient`.
-  - If `auth_data` not provided, injects `get_zk_auth_data()` into kwargs.
-- `clear_zk_path(zk_server, job_name, force_clear_zk_path)`:
-  - Connects with `MonolithKazooClient(zk_server or default_zk_servers())`.
-  - `base_path = "/monolith"`, `delta = timedelta(weeks=9)`.
-  - `ensure_path(base_path)`.
-  - For each child under `/monolith`:
-    - `get_children(path, include_data=True)` → stat; if `stat.mtime // 1000 + delta < now`, delete recursively (ignore errors).
-  - For current `job_name`:
-    - If exists and `force_clear_zk_path`: delete recursively.
-    - Else: raise `ValueError("there are [<children>] in monolith zk path")` using current children list.
-  - Always stops client in `finally`.
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-training/src/zk_utils.rs` (new).
-- Rust public API surface:
-  - `is_ipv6_only() -> bool`
-  - `default_zk_servers(use_ipv6: bool) -> String`
-  - `MonolithZkClient` wrapper (auth inject)
-  - `clear_zk_path(zk_server: Option<&str>, job_name: &str, force: bool) -> Result<(), Error>`
-- Data model mapping:
-  - Kazoo client ↔ Rust ZK client (e.g., `zookeeper` crate).
-  - `stat.mtime` (ms) ↔ Rust stat `mtime` (ms).
-- Feature gating:
-  - ZK client optional for environments without ZK.
-- Integration points:
-  - Any training components relying on ZK-based coordination or cleanup.
-
-**Implementation Steps (Detailed)**
-1. Decide Rust ZK client crate and auth mechanism matching `get_zk_auth_data()`.
-2. Implement `is_ipv6_only` using env vars and hostname resolution.
-3. Port `default_zk_servers` formatting (IPv6 `[ip]:port`).
-4. Implement `clear_zk_path` with the same TTL logic (9 weeks) and error message.
-5. Preserve the “ignore delete errors” behavior on stale node cleanup.
-
-**Tests (Detailed)**
-- Python tests: none in repo.
-- Rust tests:
-  - Unit tests for `default_zk_servers` formatting and env-driven `is_ipv6_only`.
-  - Integration tests for `clear_zk_path` if ZK test container is available.
-- Cross-language parity test:
-  - Compare TTL deletion behavior with a mocked ZK server.
-
-**Gaps / Notes**
-- `_HOSTS` and `_HOSTS_IPV6` are overwritten to empty lists, so `default_zk_servers` returns empty string by default (likely a sanitization artifact).
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/path_utils.py`
-<a id="monolith-path-utils-py"></a>
-
-**Status:** IN PROGRESS (manual)
-
-**Python Summary**
-- Lines: 47
-- Purpose/role: Locate monolith base directory and resolve paths to bundled libraries.
-- Key symbols/classes/functions: `find_main`, `get_libops_path`.
-- External dependencies: `os` only (explicitly avoids third-party imports).
-- Side effects: raises ValueError when base directory cannot be found.
-
-**Required Behavior (Detailed)**
-- `find_main()`:
-  - Uses `__file__` path; searches for split markers in order: `/__main__/`, `/site-packages/`, `/monolith/`.
-  - If marker found:
-    - For `/monolith/`: `main_dir` is path prefix before marker.
-    - Else: `main_dir` is prefix joined with the marker path component.
-  - Returns `main_dir` only if `main_dir/monolith` exists; else raises ValueError with full path in message.
-- `get_libops_path(lib_name)`:
-  - Returns `os.path.join(find_main(), lib_name)`.
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-core/src/path_utils.rs`.
-- Rust public API surface: `find_main()` and `get_libops_path()`.
-
-**Implementation Steps (Detailed)**
-1. Implement path resolution with the same marker order and behavior.
-2. Preserve error message details for diagnostics.
-
-**Tests (Detailed)**
-- Python tests: `monolith/utils_test.py` (find_main / get_libops_path).
-- Rust tests: replicate `find_main` behavior under test harness.
-
-**Gaps / Notes**
-- Behavior depends on Bazel layout (`__main__`); Rust tests should simulate or adjust.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/tpu_runner.py`
-<a id="monolith-tpu-runner-py"></a>
-
-**Status:** IN PROGRESS (manual)
-
-**Python Summary**
-- Lines: 429
-- Purpose/role: TPU training/eval runner using `tf.estimator.tpu.TPUEstimator` with embedding support and optional CPU test mode.
-- Key symbols/classes/functions: `TPURunner`, `create_tpu_estimator`, `create_tpu_estimator_on_cpu`, `run`, CLI `main`.
-- External dependencies: `tensorflow.compat.v1`, `cloud_tpu_client`, `BaseEmbeddingTask`, `model_registry`.
-- Side effects: configures TPU versions, launches training/eval, writes summaries.
-
-**Required Behavior (Detailed)**
-- CLI flags include TPU location (`tpu`, `gcp_project`, `tpu_zone`), mode, model_dir, checkpoint interval, iteration counts, embedding options, CPU test, partition strategy, overwrite_end_date.
-- `TPURunner.__init__`:
-  - Reads flags and task_param; sets accelerator to `tpu`.
-  - Allows task_param to override save_checkpoints_steps.
-  - Optionally overwrites `train.end_date` when flag provided.
-- `create_tpu_estimator`:
-  - Optionally configures TPU version and waits for healthy.
-  - Builds TPU cluster resolver, computes total replicas and global batch size.
-  - Sets TPUConfig with iterations_per_loop and host_call settings.
-  - Uses `TPUInfeedOutfeedSessionWithEndOfStreamHandlingHook` when stopping signals enabled.
-  - Builds embedding_config_spec if feature/table configs exist.
-  - Returns TPUEstimator and total_replicas.
-- `create_tpu_estimator_on_cpu`:
-  - Creates TPUEstimator with `use_tpu=False` and small batch size; used for CPU test.
-- `run()`:
-  - Loads global step (or 0).
-  - Instantiates task; if BaseEmbeddingTask, prepares feature/table configs.
-  - Uses CPU test wrapper if enabled.
-  - `train`: `est.train`.
-  - `eval`: iterates checkpoints and evaluates; writes summaries and stops at max_steps.
-  - `train_and_eval`: not supported (raises TypeError).
-- `main`: logs FLAGS and task_param, runs runner.
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-training/src/tpu_runner.rs`.
-- Rust public API surface: runner struct + CLI entrypoint.
-- Data model mapping: TPU/embedding configs likely require TF runtime bindings.
-- Feature gating: `tf-runtime`, `tpu` features.
-
-**Implementation Steps (Detailed)**
-1. Port CLI flag set and task registry lookup.
-2. Decide runtime strategy (native Rust vs TF bridge).
-3. Preserve TPU version config and host_call/embedding config semantics if using TF.
-4. Mirror evaluation-by-checkpoint loop and summary writing.
-
-**Tests (Detailed)**
-- Python tests: none specific.
-- Rust tests: CLI parsing + control flow tests; TPU behavior likely gated/skipped in CI.
-
-**Gaps / Notes**
-- Full parity depends on TensorFlow TPU Estimator which is not available natively in Rust.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/utils.py`
-<a id="monolith-utils-py"></a>
-
-**Status:** IN PROGRESS (manual)
-
-**Python Summary**
-- Lines: 81
-- Purpose/role: Small utility helpers for TF monkey patching and recursive file copy with tf.io.gfile.
-- Key symbols/classes/functions: `enable_monkey_patch`, `CopyFile`, `CopyRecursively`.
-- External dependencies: `tensorflow`, `ThreadPoolExecutor`.
-- Side effects: modifies `tensorflow.python.training.monitored_session` module attribute; copies files (possibly remote).
-
-**Required Behavior (Detailed)**
-- `enable_monkey_patch()`:
-  - Imports `tensorflow.python.training.monitored_session` and sets `_PREEMPTION_ERRORS` to `(tf.errors.AbortedError,)`.
-- `CopyFile(src, dst, overwrite=True, skip_nonexist=True, max_retries=5)`:
-  - Uses `tf.io.gfile.copy` and retries on NotFoundError (skip if `skip_nonexist`).
-- `CopyRecursively(src, dst, max_workers=1, skip_nonexist=True, max_retries=5)`:
-  - Recursively copies a directory tree via `tf.io.gfile`.
-  - If `src` missing and `skip_nonexist`, returns; else raises ValueError.
-  - If `dst` exists, removes it then recreates.
-  - If `max_workers > 1`, uses ThreadPoolExecutor to copy files in parallel.
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-tf/src/utils.rs` (TF-dependent utilities) plus `monolith-core/src/path_utils.rs` for re-exports.
-- Rust public API surface: equivalents for monkey patch (if bridging TF) and recursive copy.
-
-**Implementation Steps (Detailed)**
-1. Provide TF monkey patch equivalent when using Python/TF runtime; otherwise document unsupported.
-2. Implement recursive copy with retries and optional parallelism.
-3. Ensure semantics match tf.io.gfile for remote paths (HDFS/GCS) where needed.
-
-**Tests (Detailed)**
-- Python tests: `monolith/utils_test.py`
-- Rust tests: port tests for `find_main`, `get_libops_path`, and CopyRecursively.
-
-**Gaps / Notes**
-- Full parity requires tf.io.gfile support; Rust may need a virtual filesystem abstraction.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/utils_test.py`
-<a id="monolith-utils-test-py"></a>
-
-**Status:** IN PROGRESS (manual)
-
-**Python Summary**
-- Lines: 65
-- Purpose/role: Tests path utilities, monkey patch, and recursive copy.
-- Key symbols/classes/functions: `UtilsTest` test cases.
-- External dependencies: `tensorflow`, `monitored_session`.
-- Side effects: writes temp files in `/tmp`.
-
-**Required Behavior (Detailed)**
-- `testFindMain`: `utils.find_main()` base dir last path component is `__main__` (Bazel layout assumption).
-- `testGetLibopsPath`: `utils.get_libops_path("monolith/utils_test.py")` exists.
-- `testLoadMonitoredSession`: `_PREEMPTION_ERRORS` equals `(errors.AbortedError,)` after monkey patch.
-- `testMultiThreadedCopy`: creates nested dirs/files and verifies copied content with `CopyRecursively(max_workers=2)`.
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-tf/tests/utils.rs`.
-- Rust public API surface: path utils + recursive copy.
-
-**Implementation Steps (Detailed)**
-1. Port tests with temp dirs and file content checks.
-2. If TF monkey patch is unsupported, document and adjust tests accordingly.
-
-**Tests (Detailed)**
-- Python tests: this file
-- Rust tests: parity tests for path and copy semantics.
-
-**Gaps / Notes**
-- `find_main` behavior is tied to Bazel execution layout; Rust tests may need harness adjustments.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust

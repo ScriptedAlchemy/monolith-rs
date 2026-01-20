@@ -14,7 +14,10 @@ import {
   ctx,
 } from "@unpack/ai";
 
-import { mappingConventionsDoc, normalizedMappingJson } from "./11-normalize-mapping.ai.tsx";
+import {
+  mappingConventionsDoc,
+  normalizedMappingJson,
+} from "./11-normalize-mapping.ai.tsx";
 
 export const corePlanDoc = assetRef("core_plan_doc");
 export const corePlanJson = assetRef("core_plan_json");
@@ -75,93 +78,222 @@ function countLines(text: string): number {
   return text.split(/\r?\n/).length;
 }
 
-export const computeCorePlanInputs = action(async (actx): Promise<CorePlanInputs> => {
-  const pythonFilesGlob = "monolith/core/**/*.py";
-  const otherFilesGlob = "monolith/core/**";
-  const normalizedMappingPath =
-    "generated/parity/11-normalize-mapping/normalized_mapping.json";
+export const computeCorePlanInputs = action(
+  async (actx): Promise<CorePlanInputs> => {
+    const pythonFilesGlob = "monolith/core/**/*.py";
+    const otherFilesGlob = "monolith/core/**";
+    const normalizedMappingPath =
+      "generated/parity/11-normalize-mapping/normalized_mapping.json";
 
-  const warnings: string[] = [];
+    const warnings: string[] = [];
 
-  const pythonPaths = ((await actx.fs.glob(pythonFilesGlob)) as string[])
-    .filter((p) => !p.endsWith("/"))
-    .slice()
-    .sort();
+    const pythonPaths = ((await actx.fs.glob(pythonFilesGlob)) as string[])
+      .filter((p) => !p.endsWith("/"))
+      .slice()
+      .sort();
 
-  const otherFiles = ((await actx.fs.glob(otherFilesGlob)) as string[])
-    .filter((p) => !p.endsWith("/") && !p.endsWith(".py"))
-    .slice()
-    .sort();
+    const otherFiles = ((await actx.fs.glob(otherFilesGlob)) as string[])
+      .filter((p) => !p.endsWith("/") && !p.endsWith(".py"))
+      .slice()
+      .sort();
 
-  const pythonFiles: CoreFile[] = [];
-  for (const p of pythonPaths) {
-    try {
-      const content = await actx.fs.readFile(p, "utf8");
-      pythonFiles.push({ path: p, lines: countLines(content) });
-    } catch {
-      pythonFiles.push({ path: p, lines: 0 });
-      warnings.push(`Failed to read ${p} for line counting.`);
+    const pythonFiles: CoreFile[] = [];
+    for (const p of pythonPaths) {
+      try {
+        const content = await actx.fs.readFile(p, "utf8");
+        pythonFiles.push({ path: p, lines: countLines(content) });
+      } catch {
+        pythonFiles.push({ path: p, lines: 0 });
+        warnings.push(`Failed to read ${p} for line counting.`);
+      }
     }
-  }
 
-  let normalizedRaw: string | undefined;
-  try {
-    normalizedRaw = await actx.fs.readFile(normalizedMappingPath, "utf8");
-  } catch {
-    warnings.push(
-      `Missing ${normalizedMappingPath}; core plan will be generated without normalized mapping context.`,
-    );
-  }
-
-  let normalized: NormalizedMapping | undefined;
-  if (normalizedRaw != null) {
+    let normalizedRaw: string | undefined;
     try {
-      normalized = JSON.parse(normalizedRaw) as NormalizedMapping;
+      normalizedRaw = await actx.fs.readFile(normalizedMappingPath, "utf8");
     } catch {
       warnings.push(
-        `Failed to parse ${normalizedMappingPath} as JSON; core plan will ignore it.`,
+        `Missing ${normalizedMappingPath}; core plan will be generated without normalized mapping context.`,
       );
     }
-  }
 
-  const normalizedRecords = (normalized?.records ?? []).filter((r) =>
-    r.pythonPath.startsWith("monolith/core/"),
-  );
-  normalizedRecords.sort((a, b) => a.pythonPath.localeCompare(b.pythonPath));
+    let normalized: NormalizedMapping | undefined;
+    if (normalizedRaw != null) {
+      try {
+        normalized = JSON.parse(normalizedRaw) as NormalizedMapping;
+      } catch {
+        warnings.push(
+          `Failed to parse ${normalizedMappingPath} as JSON; core plan will ignore it.`,
+        );
+      }
+    }
 
-  const normalizedSet = new Set(normalizedRecords.map((r) => r.pythonPath));
-  const unmappedPythonFiles = pythonPaths.filter((p) => !normalizedSet.has(p));
+    const normalizedRecords = (normalized?.records ?? []).filter((r) =>
+      r.pythonPath.startsWith("monolith/core/"),
+    );
+    normalizedRecords.sort((a, b) => a.pythonPath.localeCompare(b.pythonPath));
 
-  const recordsWithIssues = normalizedRecords
-    .filter((r) => (r.issues ?? []).length > 0)
-    .map((r) => ({
-      pythonPath: r.pythonPath,
-      issues: (r.issues ?? []).slice().sort(),
-    }))
-    .sort((a, b) => a.pythonPath.localeCompare(b.pythonPath));
+    const normalizedSet = new Set(normalizedRecords.map((r) => r.pythonPath));
+    const unmappedPythonFiles = pythonPaths.filter(
+      (p) => !normalizedSet.has(p),
+    );
 
-  return {
-    inputs: {
-      pythonFilesGlob,
-      otherFilesGlob,
-      normalizedMappingPath,
-    },
-    warnings,
-    pythonFiles,
-    otherFiles,
-    normalized: {
-      available: normalized != null,
-      records: normalizedRecords,
-      unmappedPythonFiles,
-      recordsWithIssues,
-    },
-  };
-});
+    const recordsWithIssues = normalizedRecords
+      .filter((r) => (r.issues ?? []).length > 0)
+      .map((r) => ({
+        pythonPath: r.pythonPath,
+        issues: (r.issues ?? []).slice().sort(),
+      }))
+      .sort((a, b) => a.pythonPath.localeCompare(b.pythonPath));
+
+    return {
+      inputs: {
+        pythonFilesGlob,
+        otherFilesGlob,
+        normalizedMappingPath,
+      },
+      warnings,
+      pythonFiles,
+      otherFiles,
+      normalized: {
+        available: normalized != null,
+        records: normalizedRecords,
+        unmappedPythonFiles,
+        recordsWithIssues,
+      },
+    };
+  },
+);
 
 export default (
-  <Program id="core-plan" target={{ language: "md" }} description="Produce a concrete sub-plan for monolith/core/** parity, prioritizing hyperparams, feature/env semantics, model_registry, and base_layer/task/model_params, including test parity requirements."><Asset id="core_plan_doc" kind="doc" path="../generated/parity/30-core-plan/core_plan.md" /><Asset id="core_plan_json" kind="json" path="../generated/parity/30-core-plan/core_plan.json" /><Action id="compute-core-plan-inputs" export="computeCorePlanInputs" cache /><Agent id="write-core-plan-json" produces={["core_plan_json"]} external_needs={[{ alias: "normalizedMappingJson", agent: "write-normalized-mapping-json" }, { alias: "mappingConventionsDoc", agent: "write-mapping-conventions-doc" }]}><Prompt><System>
+  <Program
+    id="core-plan"
+    target={{ language: "md" }}
+    description="Produce a concrete sub-plan for monolith/core/** parity (hyperparams, feature/env semantics, registries, base_{layer,task,model_params}, host_call), including test parity requirements."
+  >
+    <Asset
+      id="core_plan_doc"
+      kind="doc"
+      path="../generated/parity/30-core-plan/core_plan.md"
+    />
+    <Asset
+      id="core_plan_json"
+      kind="json"
+      path="../generated/parity/30-core-plan/core_plan.json"
+    />
+    <Action id="compute-core-plan-inputs" export="computeCorePlanInputs" cache />
+    <Agent
+      id="write-core-plan-json"
+      produces={["core_plan_json"]}
+      external_needs={[
+        {
+          alias: "normalizedMappingJson",
+          agent: "write-normalized-mapping-json",
+        },
+        {
+          alias: "mappingConventionsDoc",
+          agent: "write-mapping-conventions-doc",
+        },
+      ]}
+    >
+      <Prompt>
+        <System>
           You are generating an implementable, file-by-file parity sub-plan for porting monolith/core to Rust. You produce deterministic output, prefer stable ordering, and write files using apply_patch.
-        </System><Context>{ctx.dependency(normalizedMappingJson, { as: "Normalized mapping JSON (canonical)", mode: "code" })}{ctx.dependency(mappingConventionsDoc, { as: "Mapping conventions (canonical)", mode: "quote" })}{ctx.actionResult("compute-core-plan-inputs", { as: "Core inventory + normalized records" })}{ctx.file("monolith/core/hyperparams.py", { as: "hyperparams.py", mode: "code" })}{ctx.file("monolith/core/hyperparams_test.py", { as: "hyperparams_test.py", mode: "code" })}{ctx.file("monolith/core/feature.py", { as: "feature.py", mode: "code" })}{ctx.file("monolith/core/feature_test.py", { as: "feature_test.py", mode: "code" })}{ctx.file("monolith/core/model_registry.py", { as: "model_registry.py", mode: "code" })}{ctx.file("monolith/core/base_layer.py", { as: "base_layer.py", mode: "code" })}{ctx.file("monolith/core/base_layer_test.py", { as: "base_layer_test.py", mode: "code" })}{ctx.file("monolith/core/base_task.py", { as: "base_task.py", mode: "code" })}{ctx.file("monolith/core/base_model_params.py", { as: "base_model_params.py", mode: "code" })}{ctx.file("monolith/core/model.py", { as: "model.py", mode: "code" })}{ctx.file("monolith/core/dense.py", { as: "dense.py", mode: "code" })}{ctx.file("monolith/core/dense_test.py", { as: "dense_test.py", mode: "code" })}{ctx.file("monolith/core/util.py", { as: "util.py", mode: "code" })}{ctx.file("monolith/core/util_test.py", { as: "util_test.py", mode: "code" })}{ctx.file("monolith/core/py_utils.py", { as: "py_utils.py", mode: "code" })}{ctx.file("monolith/core/testing_utils.py", { as: "testing_utils.py", mode: "code" })}</Context><Instructions>{`Write a single JSON object to \`{{assets.core_plan_json.path}}\` using apply_patch.
+        </System>
+        <Context>
+          {ctx.dependency(normalizedMappingJson, {
+            as: "Normalized mapping JSON (canonical)",
+            mode: "code",
+          })}
+          {ctx.dependency(mappingConventionsDoc, {
+            as: "Mapping conventions (canonical)",
+            mode: "quote",
+          })}
+          {ctx.actionResult("compute-core-plan-inputs", {
+            as: "Core inventory + normalized records",
+          })}
+          {ctx.file("monolith/core/hyperparams.py", {
+            as: "hyperparams.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/hyperparams_test.py", {
+            as: "hyperparams_test.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/feature.py", { as: "feature.py", mode: "code" })}
+          {ctx.file("monolith/core/feature_test.py", {
+            as: "feature_test.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/model_registry.py", {
+            as: "model_registry.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/base_layer.py", {
+            as: "base_layer.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/base_layer_test.py", {
+            as: "base_layer_test.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/base_task.py", {
+            as: "base_task.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/base_model_params.py", {
+            as: "base_model_params.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/model.py", { as: "model.py", mode: "code" })}
+          {ctx.file("monolith/core/dense.py", { as: "dense.py", mode: "code" })}
+          {ctx.file("monolith/core/dense_test.py", {
+            as: "dense_test.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/optimizers.py", {
+            as: "optimizers.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/variance_scaling.py", {
+            as: "variance_scaling.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/host_call.py", {
+            as: "host_call.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/base_host_call.py", {
+            as: "base_host_call.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/base_embedding_task.py", {
+            as: "base_embedding_task.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/base_embedding_host_call.py", {
+            as: "base_embedding_host_call.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/tpu_variable.py", {
+            as: "tpu_variable.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/util.py", { as: "util.py", mode: "code" })}
+          {ctx.file("monolith/core/util_test.py", {
+            as: "util_test.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/py_utils.py", {
+            as: "py_utils.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/core/testing_utils.py", {
+            as: "testing_utils.py",
+            mode: "code",
+          })}
+        </Context>
+        <Instructions>{`Write a single JSON object to \`{{assets.core_plan_json.path}}\` using apply_patch.
 
 Hard requirements:
 1) Deterministic and planner-friendly: stable ordering; no timestamps; no prose outside JSON.
@@ -228,9 +360,41 @@ Schema (must match exactly; fill all fields):
     { "gap": "...", "severity": "high|medium|low", "files": [ "monolith/core/..." ], "mitigation": "..." }
   ]
 }`}</Instructions>
-        </Prompt></Agent><Agent id="write-core-plan-doc" needs={["write-core-plan-json"]} produces={["core_plan_doc"]} external_needs={[{ alias: "normalizedMappingJson", agent: "write-normalized-mapping-json" }, { alias: "mappingConventionsDoc", agent: "write-mapping-conventions-doc" }]}><Prompt><System>
+      </Prompt>
+    </Agent>
+    <Agent
+      id="write-core-plan-doc"
+      needs={["write-core-plan-json"]}
+      produces={["core_plan_doc"]}
+      external_needs={[
+        {
+          alias: "normalizedMappingJson",
+          agent: "write-normalized-mapping-json",
+        },
+        {
+          alias: "mappingConventionsDoc",
+          agent: "write-mapping-conventions-doc",
+        },
+      ]}
+    >
+      <Prompt>
+        <System>
           You write deterministic engineering plans. You must reference output paths via assets bindings and write files using apply_patch.
-        </System><Context>{ctx.file("generated/parity/30-core-plan/core_plan.json", { as: "Core plan JSON (generated by this module)", mode: "code" })}{ctx.actionResult("compute-core-plan-inputs", { as: "Core inventory + normalized records" })}{ctx.dependency(mappingConventionsDoc, { as: "Mapping conventions (canonical)", mode: "quote" })}</Context><Instructions>{`Write a concrete plan document to \`{{assets.core_plan_doc.path}}\` using apply_patch.
+        </System>
+        <Context>
+          {ctx.file("generated/parity/30-core-plan/core_plan.json", {
+            as: "Core plan JSON (generated by this module)",
+            mode: "code",
+          })}
+          {ctx.actionResult("compute-core-plan-inputs", {
+            as: "Core inventory + normalized records",
+          })}
+          {ctx.dependency(mappingConventionsDoc, {
+            as: "Mapping conventions (canonical)",
+            mode: "quote",
+          })}
+        </Context>
+        <Instructions>{`Write a concrete plan document to \`{{assets.core_plan_doc.path}}\` using apply_patch.
 
 Requirements:
 1) Deterministic: stable ordering; no timestamps.
@@ -245,5 +409,7 @@ Requirements:
    - Top risks + mitigations.
 4) The "File accountability table" must align with the JSON plan's inventory.pythonFiles list.
 5) Do not paste the entire JSON; summarize it and link to it by path via \`{{assets.core_plan_json.path}}\`.`}</Instructions>
-        </Prompt></Agent></Program>
+      </Prompt>
+    </Agent>
+  </Program>
 );

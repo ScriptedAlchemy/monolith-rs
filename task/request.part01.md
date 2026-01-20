@@ -1,6 +1,6 @@
 <!--
 Source: task/request.md
-Lines: 1-320 (1-based, inclusive)
+Lines: 1-342 (1-based, inclusive)
 Note: This file is auto-generated to keep prompt context bounded.
 -->
 # Monolith Python → Monolith-RS Parity Master Plan
@@ -169,7 +169,14 @@ These enable all module ports:
 - `model_export/**`
 - `distribution_ops.py`, `distributed_ps.py`
 
-**Status:** TODO (not started)
+**Status:** PLANNED (not started)
+
+**Plan (Detailed)**
+1. Enumerate native_training subpackages and group by runtime (data, runtime, model_export).
+2. For each subpackage, expand per-file parity checklists into this master doc with required behavior.
+3. Identify runtime dependencies (TF, Horovod, ZK/Consul, HDFS/GCS) and tag with feature gates.
+4. Define Rust crate ownership per subpackage (training/data/checkpoint/serving) and update mapping table.
+5. Add test parity plan per subpackage (unit tests + integration parity vectors).
 
 ### 5.4 `monolith/utils.py` + helpers
 - `path_utils.py`
@@ -189,7 +196,14 @@ These enable all module ports:
 - Signature-based tensor mapping
 - Output decoding consistent with Python
 
-**Status:** TODO (tracked separately with sub-plan embedded into this doc)
+**Status:** PLANNED (tracked separately with sub-plan embedded into this doc)
+
+**Plan (Detailed)**
+1. Define TF runtime feature flags (`tf-runtime`, `tf-custom-ops`) and dynamic loader API surface.
+2. Specify SavedModel loading contract (signature inputs/outputs, dtype mapping, batch handling).
+3. Document custom op discovery and load order (env var paths + explicit config).
+4. Add runtime health checks and capability detection (presence of `saved_model.pb`, libtensorflow).
+5. Create parity test harness that runs identical inputs through Python TF and Rust TF runtime.
 
 ---
 
@@ -291,15 +305,23 @@ This is the first incremental mapping pass. It will be expanded **file-by-file**
 
 ### 13.2 `monolith/core/**` → `monolith-rs/crates/monolith-core` + `monolith-rs/crates/monolith-layers`
 
-**Status:** TODO (mapping pending)
+**Status:** PLANNED (mapping pending)
 **Notes:** Use per-file checklists under `monolith-rs/parity/monolith/core/*.md` as the canonical mapping source until this table is populated.
+**Plan (Detailed)**
+1. Promote each core file from checklist to this table with final crate/module target.
+2. Record public API surface and ownership for each core module (core vs layers).
+3. Flag modules requiring TF runtime vs Candle-only behavior.
 
 ---
 
 ### 13.3 `monolith/native_training/**` → `monolith-rs/crates/monolith-training`, `monolith-rs/crates/monolith-data`, `monolith-rs/crates/monolith-checkpoint`, `monolith-rs/crates/monolith-serving`
 
-**Status:** TODO (mapping pending)
+**Status:** PLANNED (mapping pending)
 **Notes:** Use per-file checklists under `monolith-rs/parity/monolith/native_training/**/*.md` as the canonical mapping source until this table is populated.
+**Plan (Detailed)**
+1. Promote each native_training file from checklist to this table with final crate/module target.
+2. Split runtime vs data pipeline vs export ownership and note feature gates.
+3. Add cross-module dependencies (e.g., runtime ↔ serving) to the table notes.
 
 ---
 

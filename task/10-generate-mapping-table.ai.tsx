@@ -38,17 +38,21 @@ type MappingRecord = {
 };
 
 type MappingSummary = {
+  version: "1";
   inputs: {
     pythonFilesGlob: string;
     masterPlanPath: string;
     parityChecklistGlob: string;
     rustCratesGlob: string;
   };
+  crates: string[];
   counts: {
     pythonFiles: number;
     rustTargetsSeeded: number;
+    rustTargetsSeededFromChecklists: number;
     rustTargetsHeuristic: number;
     unknownMappings: number;
+    naFiles: number;
   };
   warnings: string[];
   records: MappingRecord[];
@@ -76,12 +80,13 @@ function parseRustTargetsFromCell(cell: string): RustTarget[] {
   const targets: RustTarget[] = [];
   for (const part of parts) {
     const cleaned = part.replace(/`/g, "").trim();
-    const m = cleaned.match(/monolith-rs\/crates\/([^/]+)\/(.*)$/);
+    const pathLike = cleaned.replace(/\s+\([^)]*\)\s*$/, "").trim();
+    const m = pathLike.match(/monolith-rs\/crates\/([^/]+)\/(.*)$/);
     if (m) {
       targets.push({ crate: m[1], path: m[2].trim(), raw: cleaned });
       continue;
     }
-    const m2 = cleaned.match(/monolith-rs\/crates\/([^/]+)\b/);
+    const m2 = pathLike.match(/monolith-rs\/crates\/([^/]+)\b/);
     if (m2) {
       targets.push({ crate: m2[1], raw: cleaned });
       continue;
@@ -91,8 +96,8 @@ function parseRustTargetsFromCell(cell: string): RustTarget[] {
   return targets;
 }
 
-function parseMasterPlanLineInventory(contents: string): Map<string, { status: string; rustCell: string }> {
-  const map = new Map<string, { status: string; rustCell: string }>();
+function parseMasterPlanLineInventory(contents: string): Map<string, { status: string; rustCell: string; notes: string }> {
+  const map = new Map<string, { status: string; rustCell: string; notes: string }>();
   const lines = contents.split(/\r?\n/);
 
   let inTable = false;
@@ -122,15 +127,71 @@ function parseMasterPlanLineInventory(contents: string): Map<string, { status: s
     const pythonCol = cols[0];
     const statusCol = cols[2];
     const rustCol = cols[3];
+    const notesCol = cols.length >= 5 ? cols[4] : "";
 
     const m = pythonCol.match(/`?(monolith\/[^`]+?\.py)`?/);
     if (!m) continue;
 
     const pythonPath = m[1];
-    map.set(pythonPath, { status: normalizeStatus(statusCol), rustCell: rustCol });
+    map.set(pythonPath, { status: normalizeStatus(statusCol), rustCell: rustCol, notes: notesCol });
   }
 
   return map;
+}
+
+function tryParseChecklistStatus(contents: string): string | undefined {
+  const m = contents.match(/^\*\*Status:\*\*\s*([^\n]+)\s*$/m);
+  if (!m) return undefined;
+  return normalizeStatus(m[1].trim());
+}
+
+function tryParseChecklistRustMapping(contents: string): { rustCell?: string; notes?: string } {
+  const m = contents.match(/Target crate\/module:\s*([^\n]+)\s*$/m);
+  if (m) return { rustCell: m[1].trim() };
+
+  const m2 = contents.match(/^\*\*Rust Mapping \(Detailed\)\*\*[\s\S]*?Target crate\/module:\s*([^\n]+)\s*$/m);
+  if (m2) return { rustCell: m2[1].trim() };
+
+  const mNa = contents.match(/^\s*N\/A:\s*([^\n]+)\s*$/mi);
+  if (mNa) return { rustCell: "N/A", notes: `N/A: ${mNa[1].trim()}` };
+
+  return {};
+}
+
+function checklistToPythonPath(params: { checklistPath: string; parityChecklistRoot: string; pythonSet: Set<string> }): string | undefined {
+  const { checklistPath, parityChecklistRoot, pythonSet } = params;
+  const rootPrefix = `${parityChecklistRoot}/`;
+  if (!checklistPath.startsWith(rootPrefix)) return undefined;
+  const rel = checklistPath.slice(rootPrefix.length);
+
+  if (rel.endsWith(".py.md")) {
+    const py = rel.slice(0, -3);
+    return pythonSet.has(py) ? py : undefined;
+  }
+
+  if (!rel.endsWith(".md")) return undefined;
+  const base = rel.slice(0, -3);
+  if (pythonSet.has(base)) return base;
+  if (pythonSet.has(`${base}.py`)) return `${base}.py`;
+  return undefined;
+}
+
+function normalizeNaFromCell(params: { status: string; rustCell: string; notes: string }): { status: string; rustTargets: RustTarget[]; notes: string; isNa: boolean } {
+  const status = normalizeStatus(params.status);
+  const rustCell = (params.rustCell ?? "").trim();
+  const notes = (params.notes ?? "").trim();
+
+  const naLike =
+    /^N\/A\b/i.test(rustCell) ||
+    /^NA\b/i.test(rustCell) ||
+    /^none\b/i.test(rustCell) ||
+    /^not\s*applicable\b/i.test(rustCell);
+  if (!naLike) return { status, rustTargets: parseRustTargetsFromCell(rustCell), notes, isNa: false };
+
+  const paren = rustCell.match(/\(([^)]+)\)\s*$/);
+  const justification = (notes.length > 0 ? notes : paren?.[1]?.trim() ?? "Unspecified justification.").trim();
+  const naNotes = /^N\/A:/i.test(justification) ? justification : `N/A: ${justification}`;
+  return { status: "N/A", rustTargets: [], notes: naNotes, isNa: true };
 }
 
 function chooseHeuristicTargets(params: {
@@ -230,9 +291,20 @@ export const computeMappingTable = action(async (actx): Promise<MappingSummary> 
   const masterPlanPath = "monolith-rs/PYTHON_PARITY_MASTER_PLAN.md";
   const parityChecklistGlob = "monolith-rs/parity/**/*.md";
   const rustCratesGlob = "monolith-rs/crates/*/src/**/*.rs";
+  const cratesTomlGlob = "monolith-rs/crates/*/Cargo.toml";
 
   const pythonFiles = (await actx.fs.glob(pythonFilesGlob)).slice().sort();
   const rustFiles = (await actx.fs.glob(rustCratesGlob)).slice().sort();
+  const crateTomls = (await actx.fs.glob(cratesTomlGlob)).slice().sort();
+  const crates = Array.from(
+    new Set(
+      crateTomls
+        .map((p) => p.split("/"))
+        .filter((parts) => parts.length >= 3)
+        .map((parts) => parts[2])
+        .filter((c) => c.length > 0)
+    )
+  ).sort();
 
   const rustCoreModules = new Set(
     rustFiles
@@ -254,15 +326,35 @@ export const computeMappingTable = action(async (actx): Promise<MappingSummary> 
   }
 
   const masterPlanSeed =
-    masterPlanContents != null ? parseMasterPlanLineInventory(masterPlanContents) : new Map<string, { status: string; rustCell: string }>();
+    masterPlanContents != null
+      ? parseMasterPlanLineInventory(masterPlanContents)
+      : new Map<string, { status: string; rustCell: string; notes: string }>();
 
   const checklistFiles = (await actx.fs.glob(parityChecklistGlob)).slice().sort();
   if (checklistFiles.length === 0) warnings.push(`No parity checklists found under ${parityChecklistGlob}.`);
 
+  const pythonSet = new Set(pythonFiles);
+  const checklistSeed = new Map<string, { status?: string; rustCell?: string; notes?: string }>();
+  for (const cf of checklistFiles) {
+    const py = checklistToPythonPath({ checklistPath: cf, parityChecklistRoot: "monolith-rs/parity", pythonSet });
+    if (!py) continue;
+    try {
+      const content = await actx.fs.readFile(cf, "utf8");
+      const status = tryParseChecklistStatus(content);
+      const parsed = tryParseChecklistRustMapping(content);
+      const existing = checklistSeed.get(py) ?? {};
+      checklistSeed.set(py, { status: status ?? existing.status, rustCell: parsed.rustCell ?? existing.rustCell, notes: parsed.notes ?? existing.notes });
+    } catch {
+      warnings.push(`Failed to read checklist ${cf}.`);
+    }
+  }
+
   const records: MappingRecord[] = [];
   let rustTargetsSeeded = 0;
+  let rustTargetsSeededFromChecklists = 0;
   let rustTargetsHeuristic = 0;
   let unknownMappings = 0;
+  let naFiles = 0;
 
   for (const py of pythonFiles) {
     let pythonLines = 0;
@@ -275,16 +367,34 @@ export const computeMappingTable = action(async (actx): Promise<MappingSummary> 
 
     const seed = masterPlanSeed.get(py);
     if (seed) {
-      const rustTargets = parseRustTargetsFromCell(seed.rustCell);
-      if (rustTargets.length > 0) rustTargetsSeeded += 1;
-      else unknownMappings += 1;
+      const normalized = normalizeNaFromCell({ status: seed.status, rustCell: seed.rustCell, notes: seed.notes });
+      if (normalized.isNa) naFiles += 1;
+      if (normalized.rustTargets.length > 0) rustTargetsSeeded += 1;
+      else if (!normalized.isNa) unknownMappings += 1;
       records.push({
         pythonPath: py,
         pythonLines,
-        status: normalizeStatus(seed.status),
-        rustTargets,
-        notes: "",
+        status: normalized.status,
+        rustTargets: normalized.rustTargets,
+        notes: normalized.notes,
         source: "seed_master_plan",
+      });
+      continue;
+    }
+
+    const cseed = checklistSeed.get(py);
+    if (cseed && (cseed.rustCell != null || cseed.notes != null || cseed.status != null)) {
+      const normalized = normalizeNaFromCell({ status: cseed.status ?? "TODO", rustCell: cseed.rustCell ?? "", notes: cseed.notes ?? "" });
+      if (normalized.isNa) naFiles += 1;
+      if (normalized.rustTargets.length > 0) rustTargetsSeededFromChecklists += 1;
+      else if (!normalized.isNa) unknownMappings += 1;
+      records.push({
+        pythonPath: py,
+        pythonLines,
+        status: normalized.status,
+        rustTargets: normalized.rustTargets,
+        notes: normalized.notes,
+        source: "seed_checklist",
       });
       continue;
     }
@@ -305,12 +415,16 @@ export const computeMappingTable = action(async (actx): Promise<MappingSummary> 
   records.sort((a, b) => a.pythonPath.localeCompare(b.pythonPath));
 
   return {
+    version: "1",
     inputs: { pythonFilesGlob, masterPlanPath, parityChecklistGlob, rustCratesGlob },
+    crates,
     counts: {
       pythonFiles: pythonFiles.length,
       rustTargetsSeeded,
+      rustTargetsSeededFromChecklists,
       rustTargetsHeuristic,
       unknownMappings,
+      naFiles,
     },
     warnings,
     records,
@@ -321,7 +435,7 @@ export default (
   <Program
     id="generate-mapping-table"
     target={{ language: "md" }}
-    description="Generate/refresh a canonical Python->Rust mapping table for all monolith/**/*.py (target crates/modules, status, notes), seeding from existing draft mappings and per-file checklists."
+    description="Generate/refresh a canonical Python->Rust mapping table for every monolith/**/*.py (target crates/modules, status, notes, and explicit N/A notes), seeded from the master plan and (when present) per-file parity checklists."
   ><Asset id="python_rust_mapping_table" kind="doc" path="../generated/parity/10-generate-mapping-table/python_rust_mapping_table.md" /><Asset id="python_rust_mapping_json" kind="json" path="../generated/parity/10-generate-mapping-table/python_rust_mapping_table.json" /><Asset id="python_rust_mapping_gaps" kind="doc" path="../generated/parity/10-generate-mapping-table/python_rust_mapping_gaps.md" /><Action id="compute-mapping-table" export="computeMappingTable" cache /><Agent id="write-mapping-json" produces={["python_rust_mapping_json"]} external_needs={[{ alias: "inventoryValidationSummary", agent: "write-inventory-validation-summary" }]}><Prompt><System>
           You maintain a parity planning pipeline. You produce strictly valid JSON and write files using apply_patch.
         </System><Context>{ctx.dependency(inventoryValidationSummary, { as: "Inventory validation summary", mode: "code" })}{ctx.actionResult("compute-mapping-table", { as: "Computed mapping table (canonical JSON)" })}</Context><Instructions>{`Write JSON to \`{{assets.python_rust_mapping_json.path}}\` using apply_patch.
@@ -332,7 +446,7 @@ The JSON must be a single object and must exactly match the computed mapping tab
 Requirements:
 1) Deterministic: no timestamps and stable ordering.
 2) Cover every python file in the computed mapping table.
-3) Include a top summary section with: python file count, seeded vs heuristic counts, unknown mapping count, and any warnings.
+3) Include a top summary section with: python file count, crate count, seeded vs heuristic counts, N/A count, unknown mapping count, and any warnings.
 4) Include a markdown table with columns:
    - Python File
    - Lines
@@ -353,4 +467,3 @@ Include:
 
 Keep it stable and deterministic (no timestamps).`}</Instructions></Prompt></Agent></Program>
 );
-

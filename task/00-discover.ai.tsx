@@ -18,11 +18,17 @@ export const discoverSummary = assetRef("discover_summary");
 type DiscoverySummary = {
   repo: {
     workingDir: string;
+    expectedRoots: {
+      monolith: boolean;
+      monolithRs: boolean;
+    };
   };
   inputs: {
     pythonFilesGlob: string;
     parityChecklistGlob: string;
     parityIndexPath: string;
+    monolithInitPath: string;
+    monolithRsCargoTomlPath: string;
   };
   counts: {
     pythonFiles: number;
@@ -44,12 +50,17 @@ type DiscoverySummary = {
 };
 
 export const discoverRepo = action(async (actx): Promise<DiscoverySummary> => {
+  const monolithInitPath = "monolith/__init__.py";
+  const monolithRsCargoTomlPath = "monolith-rs/Cargo.toml";
   const parityIndexPath = "monolith-rs/PYTHON_PARITY_INDEX.md";
   const pythonFilesGlob = "monolith/**/*.py";
   const parityChecklistGlob = "monolith-rs/parity/**/*.md";
 
   const pythonFiles = (await actx.fs.glob(pythonFilesGlob)).slice().sort();
   const parityChecklistFiles = (await actx.fs.glob(parityChecklistGlob)).slice().sort();
+
+  const monolith = (await actx.fs.glob(monolithInitPath)).length > 0;
+  const monolithRs = (await actx.fs.glob(monolithRsCargoTomlPath)).length > 0;
 
   let parityIndex = true;
   let parityIndexHead: string | undefined;
@@ -66,6 +77,8 @@ export const discoverRepo = action(async (actx): Promise<DiscoverySummary> => {
   const parityChecklistDir = parityChecklistFiles.length > 0;
 
   const notes: string[] = [];
+  if (!monolith) notes.push(`Missing expected root/sentinel: ${monolithInitPath}.`);
+  if (!monolithRs) notes.push(`Missing expected root/sentinel: ${monolithRsCargoTomlPath}.`);
   if (!parityIndex) notes.push(`Missing ${parityIndexPath}.`);
   if (!parityChecklistDir) notes.push("No parity checklist files found under monolith-rs/parity/.");
 
@@ -74,8 +87,14 @@ export const discoverRepo = action(async (actx): Promise<DiscoverySummary> => {
   }
 
   return {
-    repo: { workingDir: actx.program.workingDir },
-    inputs: { pythonFilesGlob, parityChecklistGlob, parityIndexPath },
+    repo: { workingDir: actx.program.workingDir, expectedRoots: { monolith, monolithRs } },
+    inputs: {
+      pythonFilesGlob,
+      parityChecklistGlob,
+      parityIndexPath,
+      monolithInitPath,
+      monolithRsCargoTomlPath,
+    },
     counts: { pythonFiles: pythonFiles.length, parityChecklistFiles: parityChecklistFiles.length },
     existence: { parityIndex, parityChecklistDir },
     parityIndex: { head: parityIndexHead, lineCount: parityIndexLineCount },
@@ -89,18 +108,20 @@ export const discoverRepo = action(async (actx): Promise<DiscoverySummary> => {
 
 export default (
   <Program
-    id="discover-artifacts"
+    id="discover"
     target={{ language: "md" }}
-    description="Sanity-check repo layout and load existing parity artifacts (PYTHON_PARITY_INDEX.md and monolith-rs/parity/**) as stable inputs for downstream phases."
+    description="Sanity-check required repo roots (monolith/, monolith-rs/) and load existing parity artifacts (index + per-file checklist tree) into bounded summary outputs."
   ><Asset id="discover_summary" kind="json" path="../generated/parity/00-discover/discovery.summary.json" /><Asset id="discover_report" kind="doc" path="../generated/parity/00-discover/discovery.report.md" /><Action id="discover-repo" export="discoverRepo" cache /><Agent id="write-discover-summary" produces={["discover_summary"]}><Prompt><System>
-          You are maintaining a parity planning pipeline. You produce strictly valid JSON and write files using apply_patch.
-        </System><Context>{ctx.actionResult("discover-repo", { as: "Discovery summary (computed)" })}</Context><Instructions>{`Write JSON to \`{{assets.discover_summary.path}}\` using apply_patch.
-	The JSON must be a single object and must exactly match the provided discovery summary.`}
+          You maintain a parity planning pipeline. You produce strictly valid JSON and write files using apply_patch.
+        </System><Context>{ctx.actionResult("discover-repo", { as: "Discovery summary (computed)" })}</Context><Instructions>
+          {`Write JSON to \`{{assets.discover_summary.path}}\` using apply_patch.
+The JSON must be a single object and must exactly match the provided discovery summary.`}
         </Instructions></Prompt></Agent><Agent id="write-discover-report" needs={["write-discover-summary"]} produces={["discover_report"]}><Prompt><System>
-          You are maintaining a parity planning pipeline. You write concise, operational markdown and write files using apply_patch.
-        </System><Context>{ctx.actionResult("discover-repo", { as: "Discovery summary (computed)" })}</Context><Instructions>{`Write a brief report to \`{{assets.discover_report.path}}\` using apply_patch.
+          You maintain a parity planning pipeline. You write concise, operational markdown and write files using apply_patch.
+        </System><Context>{ctx.actionResult("discover-repo", { as: "Discovery summary (computed)" })}</Context><Instructions>
+          {`Write a brief report to \`{{assets.discover_report.path}}\` using apply_patch.
 Include:
-1) Whether the expected artifacts exist.
+1) Whether the expected roots and artifacts exist.
 2) Python file count vs parity checklist file count.
 3) Any notes/warnings from the discovery summary.
 Keep it stable and deterministic (do not include timestamps).`}

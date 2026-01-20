@@ -1,6 +1,6 @@
 <!--
 Source: task/request.md
-Lines: 662-4581 (1-based, inclusive)
+Lines: 684-4603 (1-based, inclusive)
 Note: This file is auto-generated to keep prompt context bounded.
 -->
 ## Per-File Parity Checklists (All Python Files)
@@ -672,7 +672,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Implementation Steps (Detailed)**
 1. Add AgentConfig wiring to Rust AgentService (support v1/v2/v3 equivalent selection).
-2. Port `ReplicaWatcher` + `ZKMirror` behaviors or stub with clear TODOs and guards.
+2. Port `ReplicaWatcher` + `ZKMirror` behaviors or stub with explicit guards and tracking notes.
 3. Implement `dc_aware` key rewriting in HeartBeat response.
 4. Implement `GetResource` response with local IP and memory (port parity).
 5. Add AgentDataProvider path for v3-style maps.
@@ -2861,7 +2861,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
   - `get_cmd` returns command only.
   - `get_server_schedule_iter(server_type)`:
     - Mixed/PS: for PS yields indices where `i % num_shard == shard_id`; else yields None.
-    - Dense: if server_type dense, yields `replica_id` (commented TODO about bug).
+    - Dense: if server_type dense, yields `replica_id` (commented NOTE about bug).
     - Else yields None.
 - Model config generation:
   - `_gen_model_server_config(server_type)`:

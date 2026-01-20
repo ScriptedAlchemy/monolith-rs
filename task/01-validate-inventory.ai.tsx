@@ -22,6 +22,9 @@ export const inventoryValidationReport = assetRef("inventory_validation_report")
 type ChecklistConvention = "replace_py_with_md" | "append_md_to_py" | "unknown";
 
 type InventoryValidationSummary = {
+  expected: {
+    pythonFiles: number;
+  };
   inputs: {
     pythonFilesGlob: string;
     parityIndexPath: string;
@@ -31,6 +34,7 @@ type InventoryValidationSummary = {
   counts: {
     pythonFiles: number;
     parityChecklistFiles: number;
+    mappedChecklistFiles: number;
     parityIndexRows: number;
     parityIndexPythonRows: number;
   };
@@ -50,9 +54,13 @@ type InventoryValidationSummary = {
     extraInIndex: string[];
   };
   invariants: {
+    pythonFileCountMatchesExpected: boolean;
     checklistCoversAllPythonFiles: boolean;
     parityIndexCoversAllPythonFiles: boolean;
     indexRowCountMatchesChecklistCount: boolean;
+    indexRowCountMatchesPythonFileCount: boolean;
+    checklistFileCountMatchesPythonFileCount: boolean;
+    noUnmatchedChecklistFiles: boolean;
   };
   warnings: string[];
 };
@@ -129,27 +137,38 @@ function parseParityIndexPythonRows(contents: string): {
   const notes: string[] = [];
 
   let rowCount = 0;
-  let pythonRowCount = 0;
+  const isMarkdownTableSeparator = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("|")) return false;
+    return /^\|(\s*:?-{3,}:?\s*\|)+\s*$/.test(trimmed);
+  };
 
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed.startsWith("|")) continue;
-    if (trimmed.includes("---")) continue;
+    if (isMarkdownTableSeparator(trimmed)) continue;
     rowCount += 1;
 
-    const cols = trimmed.split("|").map((c) => c.trim());
-    const py = cols.find((c) => c.startsWith("monolith/") && c.endsWith(".py"));
-    if (py) {
-      pythonRowCount += 1;
-      pythonPaths.push(py);
-    }
+    const matches = Array.from(
+      trimmed.matchAll(/monolith\/[A-Za-z0-9._/-]+\.py/g),
+      (m) => m[0]
+    );
+    for (const m of matches) pythonPaths.push(m);
+  }
+
+  const uniquePythonPaths = Array.from(new Set(pythonPaths)).sort();
+  const pythonRowCount = uniquePythonPaths.length;
+  if (uniquePythonPaths.length !== pythonPaths.length) {
+    notes.push(
+      `Detected ${pythonPaths.length - uniquePythonPaths.length} duplicate python path occurrences in the parity index table rows.`
+    );
   }
 
   if (rowCount === 0) notes.push("No markdown table rows detected (lines starting with '|').");
   if (pythonRowCount === 0) notes.push("No python paths detected in table rows (monolith/*.py).");
 
   return {
-    pythonPaths: pythonPaths.slice().sort(),
+    pythonPaths: uniquePythonPaths,
     notes,
     rowCount,
     pythonRowCount,
@@ -157,6 +176,7 @@ function parseParityIndexPythonRows(contents: string): {
 }
 
 export const validateInventory = action(async (actx): Promise<InventoryValidationSummary> => {
+  const expectedPythonFiles = 334;
   const pythonFilesGlob = "monolith/**/*.py";
   const parityChecklistRoot = "monolith-rs/parity";
   const parityChecklistGlob = `${parityChecklistRoot}/**/*.md`;
@@ -220,6 +240,10 @@ export const validateInventory = action(async (actx): Promise<InventoryValidatio
 
   const warnings: string[] = [];
   if (pythonFiles.length === 0) warnings.push("No python files matched monolith/**/*.py.");
+  if (pythonFiles.length > 0 && pythonFiles.length !== expectedPythonFiles)
+    warnings.push(
+      `Python file count mismatch: expected ${expectedPythonFiles}, found ${pythonFiles.length} (monolith/**/*.py).`
+    );
   if (!parityIndexExists) warnings.push(`Missing ${parityIndexPath}.`);
   if (checklistFiles.length === 0) warnings.push(`No parity checklists matched ${parityChecklistGlob}.`);
   if (convention === "unknown")
@@ -242,9 +266,23 @@ export const validateInventory = action(async (actx): Promise<InventoryValidatio
   const parityIndexCoversAllPythonFiles =
     parityIndexExists && pythonFiles.length > 0 ? missingInIndex.length === 0 : false;
 
+  const pythonFileCountMatchesExpected =
+    pythonFiles.length > 0 ? pythonFiles.length === expectedPythonFiles : false;
+
+  const indexRowCountMatchesPythonFileCount =
+    parityIndexExists && pythonFiles.length > 0 ? parityIndexPythonRows === pythonFiles.length : false;
+
+  const checklistFileCountMatchesPythonFileCount =
+    pythonFiles.length > 0 ? checklistFiles.length === pythonFiles.length : false;
+
+  const noUnmatchedChecklistFiles = unmatchedChecklists.length === 0 && checklistFiles.length > 0;
+
   const expectedExample = pythonFiles.length > 0 ? expectedForPython(pythonFiles[0]) : undefined;
 
   return {
+    expected: {
+      pythonFiles: expectedPythonFiles,
+    },
     inputs: {
       pythonFilesGlob,
       parityIndexPath,
@@ -254,6 +292,7 @@ export const validateInventory = action(async (actx): Promise<InventoryValidatio
     counts: {
       pythonFiles: pythonFiles.length,
       parityChecklistFiles: checklistFiles.length,
+      mappedChecklistFiles: checklistPythonPaths.size,
       parityIndexRows,
       parityIndexPythonRows,
     },
@@ -273,9 +312,13 @@ export const validateInventory = action(async (actx): Promise<InventoryValidatio
       extraInIndex,
     },
     invariants: {
+      pythonFileCountMatchesExpected,
       checklistCoversAllPythonFiles,
       parityIndexCoversAllPythonFiles,
       indexRowCountMatchesChecklistCount,
+      indexRowCountMatchesPythonFileCount,
+      checklistFileCountMatchesPythonFileCount,
+      noUnmatchedChecklistFiles,
     },
     warnings,
   };

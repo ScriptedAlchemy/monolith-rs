@@ -1,8 +1,340 @@
 <!--
 Source: task/request.md
-Lines: 8388-11812 (1-based, inclusive)
+Lines: 8389-11758 (1-based, inclusive)
 Note: This file is auto-generated to keep prompt context bounded.
 -->
+### `monolith/native_training/data/kafka_dataset_test.py`
+<a id="monolith-native-training-data-kafka-dataset-test-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 239
+- Purpose/role: Integration test for KafkaDataset ingestion and label parsing.
+- Key symbols/classes/functions: `start_producer`, `KafkaDatasetTest.test_kafka_dataset`.
+- External dependencies: `kafka.KafkaProducer`, `tensorflow`, `KafkaDataset`, `parse_instances/parse_examples`, `add_label`.
+- Side effects: produces Kafka messages to a real cluster; sleeps and joins producer thread.
+
+**Required Behavior (Detailed)**
+- Flags control Kafka connection, topic, and data generation.
+- `start_producer(input_type)`:
+  - Generates Example/Instance/ExampleBatch protos and writes to Kafka with length-prefixed encoding.
+  - Uses hard-coded SASL credentials and sleeps 10s before production.
+- `test_kafka_dataset(input_type, output_type)`:
+  - Starts producer thread.
+  - Creates `KafkaDataset` with given variant/output types.
+  - Applies `add_label` with config string (click head optional).
+  - Batches, parses into features, splits label vector into task labels.
+  - Iterates for `num_batch` and prints results.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-data/tests`.
+- Rust public API surface: Kafka dataset ingestion tests.
+- Data model mapping: Kafka stream → dataset parser.
+- Feature gating: Kafka support.
+- Integration points: data pipeline.
+
+**Implementation Steps (Detailed)**
+1. Provide integration tests only in environments with Kafka.
+2. Mock Kafka for unit tests to avoid hard-coded credentials.
+
+**Tests (Detailed)**
+- Python tests: this file (integration).
+- Rust tests: add a mocked Kafka consumer test (no real broker) plus optional integration test gated by `KAFKA_BROKER` env.
+- Cross-language parity test: use a shared fixture topic payload and compare parsed feature batches between Python and Rust.
+
+**Gaps / Notes**
+- Integration tests require credentials/cluster; document env vars and mark optional.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/data/multi_flow_test.py`
+<a id="monolith-native-training-data-multi-flow-test-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 125
+- Purpose/role: Tests split/merge flow on instance dataset using lagrangex headers.
+- Key symbols/classes/functions: `MultiFlowTest.test_data_flow`.
+- External dependencies: `tensorflow`, `PBDataset`, `parse_instances`, `Instance` proto.
+- Side effects: writes/reads `data.pb` under `TEST_TMPDIR`.
+
+**Required Behavior (Detailed)**
+- `setUpClass`:
+  - Generates `NUM_INSTANCE` Instance protos with random fids, line_id fields.
+  - Writes lagrangex header and length-prefixed data to `data.pb`.
+- `mk_kgx_header(dataflow)`:
+  - Computes Java hash code for `dataflow`, writes 4-byte header.
+- `test_data_flow`:
+  - Reads dataset with `lagrangex_header=True`.
+  - Splits into flows by device_types and merges back.
+  - Parses instances and batches; expects 8 batches of size 512.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-data/tests`.
+- Rust public API surface: split_flow / merge_flow dataset operations.
+- Data model mapping: lagrangex header parsing.
+- Feature gating: none.
+- Integration points: data pipeline.
+
+**Implementation Steps (Detailed)**
+1. Add lagrangex header parsing and flow split/merge in Rust datasets.
+2. Add test for split/merge on synthetic instance data.
+
+**Tests (Detailed)**
+- Python tests: this file.
+- Rust tests: add split/merge tests in `monolith-rs/crates/monolith-data/tests/flow.rs` verifying batch counts, batch sizes, and header parsing.
+- Cross-language parity test: use the same synthetic input to compare split/merge output ordering and sizes across Python/Rust.
+
+**Gaps / Notes**
+- Need a Rust equivalent of lagrangex header parsing before parity tests can pass.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/data/negative_gen_test.py`
+<a id="monolith-native-training-data-negative-gen-test-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 253
+- Purpose/role: Tests negative sampling generation for Instance/Example datasets.
+- Key symbols/classes/functions: `NegativeGenTest.test_dataset_target`.
+- External dependencies: `tensorflow`, `PBDataset`, `negative_gen`, `parse_instances/parse_examples`.
+- Side effects: writes a temporary `{variant_type}.pb` file.
+
+**Required Behavior (Detailed)**
+- `setUpClass`:
+  - Generates sample data with random FIDs and labels; writes length-prefixed protos.
+  - Tracks per-channel pos/neg counts and per-gid counts.
+- `test_dataset_target`:
+  - Reads PBDataset and applies `negative_gen` with configured params:
+    - `neg_num`, `start_num`, `max_item_num`, `cache_only_pos`, `per_channel`, `throw_origin`, `throw_origin_neg`.
+  - Parses dataset and counts pos/neg labels; verifies counts and expected ranges.
+  - Ensures total count equals pos+neg.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-data/tests`.
+- Rust public API surface: negative sampling dataset transform.
+- Data model mapping: `negative_gen` functionality in Rust.
+- Feature gating: none.
+- Integration points: dataset pipeline.
+
+**Implementation Steps (Detailed)**
+1. Implement negative sampling logic in Rust datasets.
+2. Add tests for per-channel and non-channel sampling boundaries.
+
+**Tests (Detailed)**
+- Python tests: this file.
+- Rust tests: add unit tests in `monolith-rs/crates/monolith-data/tests/negative_gen.rs` for channel-based and global sampling counts, verifying bounds and determinism.
+- Cross-language parity test: feed identical inputs and RNG seed to Python/Rust and compare sampled negatives.
+
+**Gaps / Notes**
+- Requires deterministic RNG behavior across languages to make parity meaningful.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/data/parse_sparse_feature_test.py`
+<a id="monolith-native-training-data-parse-sparse-feature-test-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 1833
+- Purpose/role: Validates sparse feature sharding logic and fused layout parsing across ExampleBatch/Example/Instance.
+- Key symbols/classes/functions: `DataOpsV2Test`, `DataOpsV2TestFitPreV2`, `DataOpsV2Testv4`, `DataOpsV2TestFitPre`.
+- External dependencies: `tensorflow`, `parse_instances/parse_examples/parse_example_batch`, `sharding_sparse_fids`, proto `FeatureConfigs`.
+- Side effects: reads training_instance fixtures; prints debug output.
+
+**Required Behavior (Detailed)**
+- Implements reference sharding calculations for multiple versions (v2/v3/v4).
+- Validates that `sharding_sparse_fids` outputs (`fid_map`, offsets, row splits) match manually computed results.
+- Tests for:
+  - ExampleBatch sharding with shared features.
+  - Example sharding with generated v2 features.
+  - Instance sharding with v1+v2 features.
+  - Pre-v2 compatibility path (`DataOpsV2TestFitPre`).
+- Uses `ParserCtx.enable_fused_layout` toggle to compare base vs fused outputs.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-data/tests`.
+- Rust public API surface: sparse sharding utilities and fused layout parser.
+- Data model mapping: feature configs → shard maps and offsets.
+- Feature gating: none.
+- Integration points: parsing pipeline for distributed embedding.
+
+**Implementation Steps (Detailed)**
+1. Implement sharding_sparse_fids equivalent in Rust.
+2. Port the reference sharding calculations to Rust tests.
+3. Compare fused vs non-fused parsing outputs.
+
+**Tests (Detailed)**
+- Python tests: this file (extensive).
+- Rust tests: add `parse_sparse_feature` suite in `monolith-rs/crates/monolith-data/tests/parse_sparse_feature.rs` to mirror each sharding/scatter case and expected offsets.
+- Cross-language parity test: generate Python outputs for shard maps/offsets and compare Rust results for identical configs and inputs.
+
+**Gaps / Notes**
+- Requires parity for `FeatureConfigs` parsing and consistent fid ordering rules.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/data/parsers.py`
+<a id="monolith-native-training-data-parsers-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 782
+- Purpose/role: Parsing utilities that turn Monolith Instance/Example/ExampleBatch variant tensors into feature dicts, plus sharding sparse fid helpers and parser context management.
+- Key symbols/classes/functions: `ParserCtx`, `ShardingSparseFidsOpParams`, `ProtoType`, `parse_instances`, `parse_examples`, `parse_example_batch`, `parse_example_batch_list`, `sharding_sparse_fids`, `sharding_sparse_fids_with_context`, `_add_dense_features`, `_add_extra_features`, `_assemble`.
+- External dependencies: TensorFlow, `LineId` proto, `FeatureConfigs` proto, `LabelConf` proto, `FeatureList`, `gen_monolith_ops` custom kernels, `logging_ops`, `native_task_context`, `FLAGS.dataset_use_dataservice`.
+- Side effects: populates TF collections via `add_to_collections`; writes to global parser context; logs timing metrics (`logging_ops.emit_timer`); registers required feature names via `add_feature` when example-batch parsing.
+
+**Required Behavior (Detailed)**
+- `ParserCtx` (context manager):
+  - Global `_default_parser_ctx` is used if none exists; `get_default_parser_ctx()` creates `ParserCtx(False)` once.
+  - `enable_resource_constrained_roughsort` (class-level flag) injects `item_id` into `extra_features` when parsing instances.
+  - `enable_fused_layout` toggles v2 parsing ops and sharded sparse fid handling.
+  - `parser_type` is set to `'instance'`, `'example'`, or `'examplebatch'` by parse functions.
+  - `sharding_sparse_fids_op_params` holds op configuration (see below) and drives `sharding_sparse_fids_with_context` behavior.
+  - `set/get` store arbitrary per-parse context values (e.g., `batch_size`).
+  - `sharding_sparse_fids_features_insert_to_features` injects nested dict values into `features` with `__sharding_sparse_fids__` prefix; supports two-level dicts only.
+  - `sharding_sparse_fids_features_parse_from_features` reverses the prefixing and removes those keys from `features`.
+- `ShardingSparseFidsOpParams` dataclass:
+  - Fields: `num_ps`, `use_native_multi_hash_table`, `unique` (callable), `transfer_float16`, `sub_table_name_to_config`, `feature_configs`, `enable_gpu_emb`, `use_gpu`.
+- `ProtoType.get_tf_type(proto_type)`:
+  - Maps proto field types to tf dtypes: INT → `tf.int64`, FLOAT → `tf.float32`, STRING → `tf.string`.
+  - Raises `Exception('proto_type {} is not support'.format(proto_type))` for unknown types.
+- `_add_dense_features(names, shapes, types, dense_features, dense_feature_shapes, dense_feature_types)`:
+  - Requires `dense_features` and `dense_feature_shapes` non-null, same length, shapes > 0.
+  - Defaults `dense_feature_types` to `[tf.float32] * len(dense_features)` if None; otherwise lengths must match.
+  - Appends to `names`, `shapes`, `types`.
+- `_add_extra_features(names, shapes, types, extra_features, extra_feature_shapes)`:
+  - Requires `extra_features` and shapes non-null, same length, shapes > 0.
+  - Resolves dtype from `LineId` descriptor per field; raises `Exception(f"{name} is not in line id, pls check!")` if missing.
+- `_assemble(sparse_features, names, shapes, types, out_list, batch_size)`:
+  - For sparse features: takes `split = out_list[i]` (reshaped to `(batch_size+1,)` if batch_size provided) and `value = out_list[i + len(names)]`; returns `tf.RaggedTensor.from_row_splits`.
+  - For dense features: uses `out_list[i]` directly.
+  - Returns dict of feature name → tensor/ragged tensor.
+- `parse_instances(tensor, fidv1_features, fidv2_features, dense_features, dense_feature_shapes, dense_feature_types, extra_features, extra_feature_shapes)`:
+  - If `ParserCtx.enable_resource_constrained_roughsort` is True, ensures `item_id` is in `extra_features` with shape 1.
+  - Validates dense feature inputs and defaults types to `tf.float32`.
+  - Sets parser context type `'instance'` and writes multiple lists to TF collections + context (fidv1/fidv2/dense/extra, shapes/types).
+  - Non-fused layout:
+    - For `fidv1_features`: adds feature names from slots via `get_feature_name_and_slot`; if all entries are strings, resolves slots via `FeatureList.parse()` and raises `RuntimeError("fidv1_features error")` on failure.
+    - Adds `fidv2_features` names; sets shapes to `-1` and types to `tf.int64`.
+    - Asserts no duplicate names.
+    - Calls `parse_instance_ops.parse_instances(...)` and `_assemble` with sparse features.
+  - Fused layout:
+    - If no names, injects `__FAKE_FEATURE__` with shape 1/float32.
+    - Calls `parse_instances_v2` and `_assemble` (no sparse features list).
+    - If `sharding_sparse_fids_op_params` present and (`use_gpu` or `FLAGS.dataset_use_dataservice`), calls `sharding_sparse_fids_with_context(instances, features, ctx)`.
+    - Else stores `instances` under `__sharding_sparse_fids__sparse_features` key.
+    - Removes `__FAKE_FEATURE__` before returning.
+- `parse_examples(...)` and `parse_example_batch(...)`:
+  - Same dense/extra validation pattern as `parse_instances`.
+  - Sets parser context type `'example'` or `'examplebatch'` and stores config in TF collections.
+  - If `is_example_batch()` is True, registers required features via `add_feature`: sparse features, dense features (adds `__LABEL__` for label), and `__LINE_ID__` for extra features.
+  - Non-fused: names from sparse features, shapes `-1`, types `tf.int64`, then calls `parse_examples`/`parse_example_batch` and `_assemble` (batch_size from context for example_batch).
+  - Fused: same `__FAKE_FEATURE__` fallback, uses `parse_examples_v2`/`parse_example_batch_v2`, then `sharding_sparse_fids_with_context` or stores under `__sharding_sparse_fids__sparse_features`.
+- `sharding_sparse_fids(tensor, ps_num, feature_cfgs, unique, input_type, parallel_flag, fid_list_ret_list, version)`:
+  - Normalizes `input_type` (`example_batch` → `examplebatch`).
+  - Builds sorted `table_name_list` from `feature_cfgs.feature_configs[*].table`; `ps_num=1` if 0; `table_count = len(table_name_list) * ps_num`.
+  - Uses `logging_ops.tensors_timestamp` around op call and emits timer `sharding_sparse_fids` with tag `model_name` from `native_task_context`.
+  - Calls versioned custom op (`sharding_sparse_fids_v5/v4/v3/v2` or legacy) returning fid lists, row splits, offsets, and sizes.
+  - Asserts list lengths for versions 5/4; returns either raw lists (if `fid_list_ret_list` or `version==4`) or dicts keyed by `table:ps_index` with row splits and row_split_size.
+- `sharding_sparse_fids_with_context(sparse_features, features, parser_ctx)`:
+  - Calls `sharding_sparse_fids` with params from `parser_ctx.sharding_sparse_fids_op_params`.
+  - If `enable_gpu_emb`: inserts `shards_value`, `shards_row_lengths`, `shards_table_row_lengths`, offsets, `batch_size`, `fid_list_emb_row_lenth` into `features` using prefixed keys.
+  - Else inserts `shards`, offsets, `batch_size`, size stats; if `use_native_multi_hash_table`, also inserts `shards_row_split` and `shards_row_split_size`.
+- `parse_example_batch_list(tensor_list, label_config, positive_label, negative_label, names, shapes, dtypes, extra_features)`:
+  - Optionally parses `label_config` (semicolon-separated tasks, each `pos_actions:neg_actions`) into `LabelConf`, and adds `label` feature with shape `len(tasks)`.
+  - Marks `shapes[i] == -1` as sparse, appends `tf.int64` to `dtypes` for sparse values (to match op output list shape).
+  - Calls `parse_example_batch_list` op with serialized label conf, then `_assemble`.
+- Error semantics:
+  - Extensive `assert` checks for list lengths/shape values, duplicates, and supported types; specific exceptions for invalid LineId fields and fidv1_features name mapping.
+- Metrics/logging:
+  - `sharding_sparse_fids` emits a timer metric named `sharding_sparse_fids` with model_name tag.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-data/src` (parsing), `monolith-rs/crates/monolith-proto` (LineId/FeatureConfigs), optional TF backend for custom ops.
+- Rust public API surface: `parsers` module with `parse_instances`, `parse_examples`, `parse_example_batch`, and sharding helpers; `ParserCtx` analog for context state.
+- Data model mapping: TF Variant/RaggedTensor → Rust datasets/feature maps; need ragged representation and feature registry.
+- Feature gating: fused layout parsing, sharding_sparse_fids, and GPU embedding paths behind feature flags.
+- Integration points: datasets (`datasets.py`), feature registry (`feature_list.py`), training pipelines expecting collections metadata.
+
+**Implementation Steps (Detailed)**
+1. Implement a Rust `ParserCtx` with context manager semantics (scoped override) and a global default.
+2. Port `_add_dense_features`, `_add_extra_features`, and `_assemble` with equivalent validation and ragged construction.
+3. Implement `parse_instances`/`parse_examples`/`parse_example_batch` in Rust, honoring `enable_fused_layout` and `enable_resource_constrained_roughsort` behavior.
+4. Provide `FeatureList` lookups for fidv1 slot-name mapping and raise equivalent errors on failure.
+5. Persist metadata to a Rust collection registry mirroring `add_to_collections` semantics.
+6. Implement sharding_sparse_fids and sharding_sparse_fids_with_context around native kernels or TF runtime bindings; preserve timing metric emission.
+7. Implement parse_example_batch_list with label_config parsing and label feature insertion.
+8. Add tests for parsing shape/type inference, ragged assembly, and sharding outputs using small fixture tensors.
+
+**Tests (Detailed)**
+- Python tests: `data_ops_test.py`, `parse_sparse_feature_test.py`, `feature_utils_test.py`, `tf_example_to_example_test.py` (parsing paths).
+- Rust tests: parser unit tests for each parse_* function; sharding_sparse_fids smoke tests (if backend available).
+- Cross-language parity test: parse the same fixture files and compare feature dict keys, shapes, and ragged values.
+
+**Gaps / Notes**
+- Fused layout paths depend on custom ops (`parse_*_v2` and `sharding_sparse_fids_*`); must be backed by TF runtime or re-implemented.
+- `parse_example_batch_list` mutates dtypes length to match op outputs; replicate this behavior exactly.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
 ### `monolith/native_training/data/tf_example_to_example_test.py`
 <a id="monolith-native-training-data-tf-example-to-example-test-py"></a>
 
@@ -3028,393 +3360,6 @@ Note: This file is auto-generated to keep prompt context bounded.
 **Gaps / Notes**
 - Python relies on TF Estimator and distributed training stack; Rust currently has only stubs for distributed execution.
 - SavedModel import/export likely requires TF runtime and custom ops.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/native_training/estimator_dist_test.py`
-<a id="monolith-native-training-estimator-dist-test-py"></a>
-
-**Status:** IN PROGRESS (manual)
-
-**Python Summary**
-- Lines: 166
-- Purpose/role: Integration test for distributed training/eval using TF_CONFIG-style discovery and multi-process PS/worker setup.
-- Key symbols/classes/functions: `EstimatorTrainTest`, `get_cluster`, `get_free_port`.
-- External dependencies: `tensorflow`, `RunnerConfig`, `TestFFMModel`, `TfConfigServiceDiscovery`, `Estimator`.
-- Side effects: Spawns multiple processes, binds local ports, writes checkpoints under tmp.
-
-**Required Behavior (Detailed)**
-- `get_free_port()`:
-  - Binds a local socket on port 0 to find an available port; closes socket and returns port.
-- `get_cluster(ps_num, worker_num)`:
-  - Returns dict with `ps`, `worker`, and `chief` addresses on free ports (workers exclude chief).
-- `EstimatorTrainTest.setUpClass`:
-  - Removes existing `model_dir` if present.
-  - Creates `TestFFMModel` params with deep insight disabled and batch size 64.
-- `EstimatorTrainTest.train()`:
-  - Spawns `ps_num` PS processes and `worker_num` worker/chief processes.
-  - Each process builds `TF_CONFIG`-like dict, uses `TfConfigServiceDiscovery`, constructs `RunnerConfig`, and calls `Estimator.train(steps=10)`.
-  - Waits for all processes; asserts exitcode 0 for each.
-- `EstimatorTrainTest.eval()`:
-  - Same as train but calls `Estimator.evaluate(steps=10)`.
-- `test_dist`:
-  - Runs `train()` then `eval()`.
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-training/tests/estimator_dist_test.rs` (new).
-- Rust public API surface: distributed training harness and config discovery equivalent.
-- Data model mapping: distributed cluster config (ps/worker/chief), runner config, model params.
-- Feature gating: likely `tf-runtime` or `distributed` feature; skip if distributed stack not available.
-- Integration points: service discovery and process orchestration.
-
-**Implementation Steps (Detailed)**
-1. Implement a Rust integration test that spawns multiple processes (or threads) for PS/worker roles.
-2. Provide a discovery config equivalent to `TfConfigServiceDiscovery` and ensure `Estimator` can use it.
-3. Run short train/eval steps and assert clean exit.
-4. Add timeouts and cleanup for spawned processes and temp directories.
-
-**Tests (Detailed)**
-- Python tests: `monolith/native_training/estimator_dist_test.py`.
-- Rust tests: `monolith-rs/crates/monolith-training/tests/estimator_dist_test.rs` (integration).
-- Cross-language parity test: verify training/eval complete under equivalent cluster topology.
-
-**Gaps / Notes**
-- Uses real multi-process TF; Rust currently lacks distributed PS/worker runtime.
-- Port binding is fragile; consider deterministic port assignment for CI.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/native_training/estimator_mode_test.py`
-<a id="monolith-native-training-estimator-mode-test-py"></a>
-
-**Status:** IN PROGRESS (manual)
-
-**Python Summary**
-- Lines: 417
-- Purpose/role: End-to-end integration tests for multiple distributed modes (CPU, sparse+ dense GPU, full GPU) by launching the training binary with various env/config permutations.
-- Key symbols/classes/functions: `DistributedTrainTest`, `_run_test`, `run_cpu`, `sparse_dense_run`, `full_gpu_run`.
-- External dependencies: TensorFlow, `RunnerConfig`, training binary `monolith/native_training/tasks/sparse_dense_gpu/model`, `gen_input_file`, `MultiHeadModel`, `test_util`.
-- Side effects: Creates temp dataset files, spawns multiple processes (including mpirun), sets many env vars, writes logs, deletes temp dirs.
-
-**Required Behavior (Detailed)**
-- `setUpClass`:
-  - Generates dataset file via `gen_input_file` and creates symlinks for suffixes 0..9.
-  - Updates `FLAGS.dataset_input_patterns` to include `{INT(0,99)}`.
-- `find_free_port(count)`:
-  - Finds `count` available local ports (no reuse).
-- `_run_test(...)`:
-  - Creates `cur_modir` under test tmp dir; removes existing.
-  - Builds `args_tmpl` list for the training binary with flags:
-    - mode=train, model_dir, num_ps/workers, uuid, dataset flags, discovery settings, timeouts, metrics disable, dataservice toggle, cluster type.
-  - Populates MLP_* env vars per role via `fill_host_env`.
-  - Allocates ports for PS/worker/dsworker/dispatcher and sets env accordingly.
-  - `start_process`:
-    - For `use_mpi_run=True`, writes a hostfile and uses `mpirun` with Horovod-related env exports.
-    - Else, spawns subprocess per role with `MLP_ROLE`, `MLP_ROLE_INDEX`, `MLP_PORT`, and `MLP_SSH_PORT` envs, writing logs to files.
-  - Starts dispatcher, dsworker, ps, worker processes.
-  - `wait_for_process` enforces timeouts; may terminate on timeout when `ignore_timeout=True`.
-  - Cleans up log files and removes `cur_modir`.
-- `run_cpu(...)`:
-  - Skips if GPU is available; runs CPU cases with `enable_gpu_training=False`, `enable_sync_training=False` and embedding prefetch/postpush flags.
-- `sparse_dense_run(...)`:
-  - Requires GPU; uses MPI run and sets sync training flags, partial sync, params_override, and dataset service.
-- `full_gpu_run(...)`:
-  - Requires GPU; uses MPI run with `enable_sync_training`, `reorder_fids_in_data_pipeline`, `filter_type=probabilistic_filter`, `enable_async_optimize=False`.
-- Test variants:
-  - CPU tests `test_cpu0..3` vary `enable_fused_layout` and `use_native_multi_hash_table`.
-  - Sparse+Dense GPU tests `test_sparse_dense0..3` vary layout and native hash table.
-  - Full GPU tests `test_full_gpu_0..3` vary layout and native hash table.
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-training/tests/estimator_mode_test.rs` (new) or CI scripts.
-- Rust public API surface: distributed training CLI entrypoint and env-based cluster discovery.
-- Feature gating: GPU and MPI required; tests should be behind `gpu`/`mpi` feature flags and skipped in CI by default.
-- Integration points: training binary CLI, dataset service, Horovod/BytePS integration.
-
-**Implementation Steps (Detailed)**
-1. Implement or stub the Rust training binary to accept similar CLI flags.
-2. Add integration tests that spawn subprocesses with env roles for PS/worker/dsworker/dispatcher.
-3. Add MPI-based test harness if Horovod/BytePS parity is required.
-4. Ensure temp dirs and logs are cleaned up even on failure.
-
-**Tests (Detailed)**
-- Python tests: `monolith/native_training/estimator_mode_test.py`.
-- Rust tests: integration tests in `monolith-rs/crates/monolith-training/tests/` or CI scripts.
-- Cross-language parity test: compare training completion and exit codes across CPU/GPU modes.
-
-**Gaps / Notes**
-- Heavy integration tests require external binaries and GPU; likely to be skipped in Rust CI.
-- Port allocation is fragile; may need reserved port ranges.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/native_training/estimator_test.py`
-<a id="monolith-native-training-estimator-test-py"></a>
-
-**Status:** IN PROGRESS (manual)
-
-**Python Summary**
-- Lines: 112
-- Purpose/role: Local-mode Estimator smoke tests for train/eval/predict/export/import flow.
-- Key symbols/classes/functions: `EstimatorTrainTest`, `get_saved_model_path`.
-- External dependencies: TensorFlow, `RunnerConfig`, `TestFFMModel`, `generate_ffm_example`, `import_saved_model`.
-- Side effects: Writes checkpoints and exported models under temp dirs; performs inference loops.
-
-**Required Behavior (Detailed)**
-- `setUpClass`:
-  - Removes existing model_dir if present.
-  - Sets model params: deep insight disabled, batch size 64, export dir base, `shared_embedding=True`.
-  - Creates `RunnerConfig(is_local=True, num_ps=0, model_dir=..., use_native_multi_hash_table=False)`.
-- `train/eval/predict`:
-  - Instantiate `Estimator` and call the respective method (steps=10 for train/eval).
-- `export_saved_model`:
-  - Calls `Estimator.export_saved_model()` with defaults.
-- `import_saved_model`:
-  - Uses latest saved model dir from `export_base`.
-  - Runs inference through `import_saved_model` context for 10 iterations, with generated FFM examples.
-- `test_local`:
-  - Runs train, eval, predict, export, and import in sequence.
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-training/tests/estimator_test.rs` (new).
-- Rust public API surface: local Estimator train/eval/predict/export/import.
-- Feature gating: SavedModel export/import requires `tf-runtime`; otherwise stub or skip.
-- Integration points: training data generation, model definition, export path handling.
-
-**Implementation Steps (Detailed)**
-1. Implement a local-only Estimator test in Rust that runs train/eval/predict with a simple model.
-2. Add SavedModel export/import tests behind `tf-runtime` feature.
-3. Ensure temp dirs are cleaned up after tests.
-
-**Tests (Detailed)**
-- Python tests: `monolith/native_training/estimator_test.py`.
-- Rust tests: `monolith-rs/crates/monolith-training/tests/estimator_test.rs`.
-- Cross-language parity test: compare export/import outputs on fixed inputs.
-
-**Gaps / Notes**
-- Python import_saved_model uses TF sessions and custom ops; Rust parity likely requires TF runtime.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/native_training/feature.py`
-<a id="monolith-native-training-feature-py"></a>
-
-**Status:** IN PROGRESS (manual)
-
-**Python Summary**
-- Lines: 663
-- Purpose/role: Defines feature slots/columns, embedding table interfaces, and embedding slice fusion logic for Monolith feature pipelines.
-- Key symbols/classes/functions: `FeatureEmbTable`, `FeatureSlotConfig`, `FeatureSlot`, `FeatureColumn`, `FeatureFactory`, `DummyFeatureEmbTable`, `DummyFeatureFactory`, `_FeatureFactoryFusionHelper`, `create_embedding_slices`, `EmbeddingFeatureEmbTable`, `FeatureFactoryFromEmbeddings`, `EmbeddingLayoutFactory`.
-- External dependencies: TensorFlow, `entry`, `embedding_combiners`, `distribution_ops`, `device_utils`, `ragged_utils`, `embedding_hash_table_pb2`, `prefetch_queue`, `is_exporting`.
-- Side effects: Uses env var `MONOLITH_GPU_FEATURE_FACTORY_FUSION_LEVEL`; adds tensors to TF collection `monolith_reduced_embs`.
-
-**Required Behavior (Detailed)**
-- Constants:
-  - `_FEATURE_STRAT_END_KEY = "{}:{}_{}"` used to key embedding slices by feature name and slice bounds.
-  - `DEFAULT_EXPIRE_TIME = 36500` (days).
-- `FeatureEmbTable` (abstract):
-  - `add_feature_slice(segment, learning_rate_fn)` and `set_feature_metadata(feature_name, combiner)` are no-ops in base.
-  - `embedding_lookup(feature_name, start, end)` is abstract.
-- `FeatureSlice`: NamedTuple with `feature_slot`, `start`, `end`.
-- `FeatureSlotConfig`:
-  - Defaults for bias/default vector configs using `entry` builders; default expire time and occurrence threshold.
-  - `__post_init__` sets `name` to `slot_id` string if not provided.
-- `FeatureSlot`:
-  - Holds table/config, current dim size, and registered feature columns.
-  - If `has_bias` true, creates a bias slice of dim 1 using bias configs.
-  - `add_feature_slice`:
-    - Applies defaults for initializer/optimizer/compressor/learning_rate_fn.
-    - Creates `EntryConfig.Segment` via `entry.CombineAsSegment` and registers with table.
-    - Returns `FeatureSlice(start, end)` and updates `_current_dim_size`.
-  - Registers feature columns via `_add_feature_column`, and updates table metadata.
-  - `get_feature_columns`, `get_bias_slice`, `slot` (int of name), `name`.
-- `FeatureColumn`:
-  - Factory helpers: `reduce_sum`, `reduce_mean`, `first_n(seq_length)`.
-  - `embedding_lookup(s)` asserts slice belongs to slot and delegates to table.
-  - `get_all_embeddings_concat()` returns full embedding tensor for gradients (start/end None).
-  - `get_all_embedding_slices()` returns per-slice tensors for this feature name.
-  - `get_bias()` returns bias slice embeddings.
-  - `set_size_tensor(row_lengths)`:
-    - Only for `FirstN` combiner; builds boolean mask `[B, max_seq_length]` from row_lengths and stores as int32 `size_tensor`.
-- `FeatureFactory` (abstract):
-  - Manages `slot_to_occurrence_threshold` and `slot_to_expire_time`.
-  - `apply_gradients` default raises `NotImplementedError`.
-- `DummyFeatureEmbTable` (config collection):
-  - `add_feature_slice` auto-infers `learning_rate_fn` from optimizer config:
-    - If optimizer has `warmup_steps > 0`, uses `PolynomialDecay` from 0.0 to `learning_rate` over warmup_steps.
-    - Else uses `opt_config.learning_rate` value directly.
-  - `embedding_lookup` builds placeholders and combines via combiner; respects fixed batch size.
-  - `get_table_config` merges slices via `_merge_slices` and returns `TableConfig` with:
-    - `slice_configs` merged
-    - `feature_names`
-    - `unmerged_slice_dims` (original slice sizes)
-    - `hashtable_config`
-    - `feature_to_combiners`.
-  - `_merge_slices` merges adjacent slices when proto config (excluding dim_size) and `learning_rate_fn` string match; sums dim_size.
-- `DummyFeatureFactory`:
-  - Ensures unique table name; registers slot thresholds/expire times by slot_id.
-  - `apply_gradients` returns `tf.no_op()`.
-  - `get_table_name_to_table_config` errors if a table has no slices.
-- `EmbeddingFeatureEmbTable`:
-  - Wraps actual embeddings and embedding_slices; returns full embedding when start/end None; otherwise uses `_FEATURE_STRAT_END_KEY`.
-- `_FeatureFactoryFusionHelper`:
-  - Collects ragged rows, value_rowids, embeddings, batch_size, and slice_dims.
-  - `reduce_and_split`: CPU scatter_nd reduce and split; adds reduced tensor to collection.
-  - `fused_reduce_and_split`: uses `distribution_ops.fused_reduce_sum_and_split` on CPU.
-  - `fused_reduce_then_split`: GPU `distribution_ops.fused_reduce_and_split_gpu` and then manual split mapping.
-- `create_embedding_slices(...)`:
-  - For each feature:
-    - If combiner is `ReduceSum`, uses helper for fused reduce+split.
-    - Else uses combiner + `tf.split` on combined embeddings.
-  - Chooses fusion path:
-    - If not exporting and within GPU placement and `MONOLITH_GPU_FEATURE_FACTORY_FUSION_LEVEL==1` -> `fused_reduce_then_split`.
-    - Else if not exporting -> `reduce_and_split` (CPU) or `fused_reduce_and_split` (CPU fused) depending on placement.
-    - If exporting -> `reduce_and_split`.
-  - Constructs `embedding_slices` dict keyed by name/start/end.
-- `FeatureFactoryFromEmbeddings`: builds `EmbeddingFeatureEmbTable` from `name_to_embeddings` and `name_to_embedding_slices`.
-- `EmbeddingLayoutFactory`:
-  - Uses `PartitionedHashTable` to apply gradients with layout embeddings and optional async push.
-  - `get_layout` and `flattened_layout` expose layout tensors.
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-core/src/feature.rs` plus embedding combiner logic in `monolith-rs/crates/monolith-layers` and hash table config in `monolith-rs/crates/monolith-hash-table`.
-- Rust public API surface:
-  - `FeatureSlot`, `FeatureSlice`, `FeatureColumn` equivalents in `monolith-core`.
-  - Combiner types (`ReduceSum`, `ReduceMean`, `FirstN`) in `monolith-layers`.
-  - `create_embedding_slices` and fusion helpers in a new `monolith-training` or `monolith-layers` module.
-- Data model mapping: represent ragged inputs as `(values, row_splits)` and carry slice dimensions explicitly.
-- Feature gating: GPU fused ops require TF runtime or custom kernels; Candle backend should use CPU reduce+split.
-- Integration points: `feature_utils`, embedding lookup, and hash table update paths.
-
-**Implementation Steps (Detailed)**
-1. Implement FeatureSlot/FeatureColumn config layering in Rust, mapping to existing `monolith-core` feature structs.
-2. Implement `DummyFeatureEmbTable` and `DummyFeatureFactory` for config collection and tests.
-3. Implement `create_embedding_slices` with reduce/split logic; add optional fused path when TF runtime is available.
-4. Preserve learning rate warmup logic in `DummyFeatureEmbTable.add_feature_slice`.
-5. Add `EmbeddingLayoutFactory` wrapper around Rust hash table gradient application (or stub if hash table not available).
-6. Add tests matching Python expectations for slice merging, bias, combiner selection, and fused behavior.
-
-**Tests (Detailed)**
-- Python tests: `monolith/native_training/feature_test.py`.
-- Rust tests: add `monolith-rs/crates/monolith-core/tests/feature_test.rs` and/or `monolith-rs/crates/monolith-layers/tests/feature_factory_test.rs`.
-- Cross-language parity test: compare slice configs (serialized proto), embedding slice outputs, and combiners.
-
-**Gaps / Notes**
-- Many operations rely on TF ragged tensors and custom fused ops; Rust backend must choose between TF runtime or native reductions.
-- The `_FEATURE_STRAT_END_KEY` key format must match exactly to ensure lookup parity.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/native_training/feature_test.py`
-<a id="monolith-native-training-feature-test-py"></a>
-
-**Status:** IN PROGRESS (manual)
-
-**Python Summary**
-- Lines: 266
-- Purpose/role: Tests for feature slot/column config collection, slice merging, and embedding slice creation (including fused paths and FirstN behavior).
-- Key symbols/classes/functions: `CollectingConfigTest`, `EmbeddingTest`.
-- External dependencies: TensorFlow, `entry`, `embedding_combiners`, `feature`, `learning_rate_functions`, `embedding_hash_table_pb2`, protobuf `text_format`.
-- Side effects: None beyond TensorFlow graph execution.
-
-**Required Behavior (Detailed)**
-- `CollectingConfigTest.test_basic`:
-  - Dummy table + segment dim_size=5 with sgd; reduce_sum combiner; embedding_lookup produces placeholder shape `[4, 5]`.
-- `test_basic_with_seq_features`:
-  - FirstN(10) combiner -> embedding_lookup placeholder shape `[4, 10, 5]`.
-- `test_info`:
-  - Adds segments with adagrad warmup and sgd; two adjacent sgd slices with same learning_rate_fn should merge to dim_size=4.
-  - Ensures learning_rate_fn for warmup slice is a `LearningRateFunction`.
-  - `feature_names` list contains `feature1`.
-- `test_factory`:
-  - DummyFeatureFactory creates slot and feature columns; table config includes feature names and slice dim_size=5.
-- `test_factory_with_seq_features`:
-  - FirstN combiners stored in `feature_to_combiners` map; verifies mapping.
-- `test_factory_with_slot_occurrence_threshold`:
-  - Factory stores occurrence thresholds keyed by slot_id.
-- `test_factory_with_applying_gradients`:
-  - Dummy factory apply_gradients accepts grads and returns no-op.
-- `test_bias`:
-  - Slot with `has_bias=True` exposes bias lookup without errors.
-- `EmbeddingTest.test_factory`:
-  - Uses `create_embedding_slices` with ReduceSum; lookup returns `[[1],[2]]` for ragged ids.
-- `test_factory_with_seq_features`:
-  - FirstN(2) returns sequence embeddings `[[[1],[3]], [[5],[7]]]`.
-- `test_fused_factory`:
-  - ReduceSum with ragged splits producing zeros in empty rows; verifies slice outputs for each slice.
-- `test_fused_factory_with_seq_features_larger_than_max_seq_length`:
-  - FirstN(2) truncates rows longer than max_seq_length; verifies outputs.
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-core/tests/feature_test.rs` and/or `monolith-rs/crates/monolith-layers/tests/feature_factory_test.rs` (new).
-- Rust public API surface: `FeatureSlot`, `FeatureColumn`, `DummyFeatureFactory`, `create_embedding_slices`, combiners.
-- Data model mapping: ragged inputs as values + row_splits; test outputs should match Python arrays.
-- Feature gating: fused GPU paths behind TF runtime or CUDA feature; CPU paths always available.
-- Integration points: `entry` config builder and learning rate functions.
-
-**Implementation Steps (Detailed)**
-1. Port each test case with deterministic tensors.
-2. Validate slice merging behavior using serialized proto bytes for segments.
-3. Add tests for FirstN shape and truncation behavior.
-4. Ensure `DummyFeatureFactory` tracks occurrence thresholds and bias slice creation.
-
-**Tests (Detailed)**
-- Python tests: `monolith/native_training/feature_test.py`.
-- Rust tests: add parity tests under `monolith-rs/crates/monolith-core/tests`.
-- Cross-language parity test: compare outputs and merged slice configs with Python reference.
-
-**Gaps / Notes**
-- Fused GPU behavior depends on custom ops; Rust tests should skip if TF runtime is unavailable.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust

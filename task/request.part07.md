@@ -1,8 +1,479 @@
 <!--
 Source: task/request.md
-Lines: 15823-19762 (1-based, inclusive)
+Lines: 15685-19604 (1-based, inclusive)
 Note: This file is auto-generated to keep prompt context bounded.
 -->
+### `monolith/native_training/layers/multi_task.py`
+<a id="monolith-native-training-layers-multi-task-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 448
+- Purpose/role: Multi-task learning layers: MMoE (multi-gate mixture of experts) and SNR (sub-network routing with hard-concrete gates).
+- Key symbols/classes/functions: `MMoE`, `SNR`, `hard_concrete_ste`.
+- External dependencies: TensorFlow/Keras (Layer, activations/initializers/regularizers/constraints), Monolith (`MLP`, `Dense`, `add_layer_loss`, `with_params`).
+- Side effects: Adds loss terms for gate balancing (MMoE) and L0 penalty (SNR).
+
+**Required Behavior (Detailed)**
+- `MMoE`:
+  - `gate_type` in `{softmax, topk, noise_topk}`; `top_k` default 1.
+  - `num_experts` inferred from `expert_output_dims` or activations/initializers if not provided.
+  - Experts are MLPs; all expert output dims must share same last dim.
+  - Gate input dim inferred from `input_shape` (supports TF shape objects).
+  - Gate weights shape `(gate_input_dim, num_experts * num_tasks)`; optional noise weights if `noise_topk`.
+  - `calc_gate`:
+    - Linear gate logits; optional noise.
+    - Softmax over experts; if topk modes, zero out non-topk and renormalize.
+    - Returns gates with shape `(batch, num_experts, num_tasks)`.
+  - `call`:
+    - If inputs is tuple, `(expert_input, gate_input)` else both are inputs.
+    - `expert_outputs = stack([expert(x)], axis=2)` -> `(batch, output_dim, num_experts)`.
+    - `mmoe_output = matmul(expert_outputs, gates)` -> `(batch, output_dim, num_tasks)`.
+    - If gate_type != softmax: adds CV-squared loss over gate importance.
+    - Returns list of per-task outputs via `unstack(axis=2)`.
+- `hard_concrete_ste`:
+  - Clamps to [0,1] in forward; gradient is identity (STE).
+- `SNR`:
+  - `snr_type` in `{trans, aver}`; `aver` requires `in_subnet_dim == out_subnet_dim`.
+  - `build` infers `num_in_subnet` and `in_subnet_dim` from input list shapes.
+  - `log_alpha` shape `(num_route, 1)` where `num_route = num_in_subnet * num_out_subnet`.
+  - Adds L0 loss: `sum(sigmoid(log_alpha - factor))` with `factor = beta * log(-gamma/zeta)`.
+  - If `snr_type=trans`: `weight` shape `(num_route, block_size)`; else identity tiled.
+  - `sample`:
+    - If training: sample `u`, `s = sigmoid((logit(u)+log_alpha)/beta)`.
+    - Else: `s = sigmoid(log_alpha)`.
+    - Stretch to `[gamma,zeta]`, then clamp to [0,1] (STE optional).
+  - `call`:
+    - Multiply `weight` by `z`, reshape to block matrix, matmul concat(inputs), split into outputs.
+
+**Rust Mapping (Detailed)**
+- Target crate/module:
+  - `monolith-rs/crates/monolith-layers/src/mmoe.rs` (MMoE).
+  - `monolith-rs/crates/monolith-layers/src/snr.rs` (SNR).
+- Rust public API surface:
+  - `MMoE`, `MMoEConfig`, `GateType`/`Gate`, `SNR`, `SNRConfig`, `SNRType`.
+- Data model mapping:
+  - Python `gate_type` → Rust enum.
+  - `top_k` and noise_topk behavior → Rust gating implementation.
+  - `use_bias`, batch norm flags, and initializers for experts.
+- Feature gating: None.
+- Integration points: MLP, Dense, activation registry.
+
+**Implementation Steps (Detailed)**
+1. Align expert construction and gate input dim inference with Python.
+2. Implement noise_topk gating and CV-squared loss term for topk modes.
+3. Ensure SNR sampling uses same hard-concrete bounds and STE behavior.
+4. Add config serialization for MMoE and SNR (activations, initializers, gate_type, etc.).
+
+**Tests (Detailed)**
+- Python tests: `monolith/native_training/layers/multi_task_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/multi_task_test.rs` (new).
+- Cross-language parity test:
+  - Fix weights/inputs and compare outputs for MMoE (softmax/topk/noise_topk) and SNR (trans/aver).
+
+**Gaps / Notes**
+- Python uses `add_loss` for CV-squared and L0 penalty; Rust must decide how to expose these losses.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/layers/multi_task_test.py`
+<a id="monolith-native-training-layers-multi-task-test-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 128
+- Purpose/role: Smoke tests for MMoE and SNR layers (instantiation, serde, forward).
+- Key symbols/classes/functions: `MultiTaskTest` methods `test_mmoe_instantiate`, `test_mmoe_serde`, `test_mmoe_call`, `test_snr_instantiate`, `test_snr_serde`, `test_snr_call`.
+- External dependencies: TensorFlow v1 session mode, NumPy.
+- Side effects: Runs TF sessions for forward calls.
+
+**Required Behavior (Detailed)**
+- MMoE:
+  - Instantiate via params with `num_tasks=2`, `num_experts=3`, `expert_output_dims=[128,64,64]`, `expert_activations='relu'`, `expert_initializers=GlorotNormal`.
+  - Direct constructor with same settings.
+  - `test_mmoe_call`: uses `gate_type='topk'`, `top_k=2`, expert dims list-of-lists, input `(100,128)`, sums output list.
+- SNR:
+  - Instantiate via params with `num_out_subnet=3`, `out_subnet_dim=128`, `use_ste=False`.
+  - Direct constructor with same values.
+  - `test_snr_call`: `snr_type='aver'`, `mode=PREDICT`, four inputs `(100,128)` each; sums outputs.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/multi_task_test.rs`.
+- Rust public API surface: `MMoE`, `MMoEConfig`, `SNR`, `SNRConfig`.
+- Data model mapping:
+  - `gate_type` and `top_k` → Rust gate config.
+  - `snr_type='aver'` → `SNRType::Aver`.
+- Feature gating: None.
+- Integration points: `monolith_layers::mmoe`, `monolith_layers::snr`.
+
+**Implementation Steps (Detailed)**
+1. Add Rust tests for config round-trip for MMoE and SNR.
+2. Add forward tests with matching input shapes and configurations.
+3. Add deterministic assertions on output shapes/sums.
+
+**Tests (Detailed)**
+- Python tests: `monolith/native_training/layers/multi_task_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/multi_task_test.rs` (new).
+- Cross-language parity test:
+  - Fix weights and inputs; compare outputs for MMoE (topk) and SNR (aver).
+
+**Gaps / Notes**
+- Python uses list-of-lists expert dims for MMoE; ensure Rust supports heterogeneous expert configs.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/layers/norms.py`
+<a id="monolith-native-training-layers-norms-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 343
+- Purpose/role: Normalization and multi-task gradient balancing utilities: custom BatchNorm, LayerNorm, and GradNorm.
+- Key symbols/classes/functions: `BatchNorm`, `LayerNorm`, `GradNorm`.
+- External dependencies: TensorFlow/Keras (`Layer`, `InputSpec`, initializers/regularizers), Monolith `add_layer_loss`.
+- Side effects: Emits TF summary scalars/histograms; adds losses for moving mean/variance and GradNorm.
+
+**Required Behavior (Detailed)**
+- `BatchNorm`:
+  - Tracks moving_mean and moving_variance; optional center/scale with beta/gamma weights.
+  - In TRAIN mode:
+    - Computes batch mean/variance (optionally stop-grad).
+    - Replaces gradient for moving stats with current batch values.
+    - Adds losses for moving mean/variance and logs summaries.
+    - If `training_use_global_dist`: blends moving stats with current stats using `global_dist_momentum`.
+  - In EVAL mode:
+    - Uses stopped moving stats; logs summaries.
+  - Returns `tf.nn.batch_normalization` with epsilon.
+- `LayerNorm`:
+  - Normalizes across last dimension per sample; applies beta/gamma with epsilon 1e-6.
+  - Same logic for train/eval.
+- `GradNorm`:
+  - Given `losses` and `shared_inputs`, computes gradients wrt shared inputs, concatenates, and computes norms.
+  - Softmax weights over tasks; computes `gnorm_loss` using absolute or relative difference vs average.
+  - Returns `(gnorm_loss, weighted_loss)`; logs weights and gnorms.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-layers/src/normalization.rs`.
+- Rust public API surface: `BatchNorm`, `LayerNorm`, `GradNorm`.
+- Data model mapping:
+  - Momentum/epsilon/renorm settings map to Rust BatchNorm fields.
+  - GradNorm computes losses from provided grads (Rust currently expects grads, not tensors).
+- Feature gating: None.
+- Integration points: MLP/MMoE/LHUC use BatchNorm; GradNorm used in multi-task setups.
+
+**Implementation Steps (Detailed)**
+1. Align BatchNorm behavior with Python: moving stats, training/eval paths, optional stop-grad, and global-dist blending.
+2. Ensure LayerNorm uses epsilon=1e-6 and per-sample normalization.
+3. Adjust GradNorm API to accept losses and grads consistent with Python (or document differences).
+4. Add config serialization for BatchNorm/LayerNorm/GradNorm.
+
+**Tests (Detailed)**
+- Python tests: `monolith/native_training/layers/norms_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/norms_test.rs` (new).
+- Cross-language parity test:
+  - Compare BatchNorm/LayerNorm outputs and GradNorm loss for fixed inputs.
+
+**Gaps / Notes**
+- Python uses TF summaries and add_layer_loss for moving stats; Rust lacks equivalent side effects.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/layers/norms_test.py`
+<a id="monolith-native-training-layers-norms-test-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 84
+- Purpose/role: Smoke tests for LayerNorm and GradNorm instantiation and serialization; simple forward for LayerNorm.
+- Key symbols/classes/functions: `NormTest` methods `test_ln_instantiate`, `test_ln_serde`, `test_ln_call`, `test_gn_instantiate`, `test_gn_serde`.
+- External dependencies: TensorFlow v1 session mode, NumPy.
+- Side effects: Runs session for LayerNorm forward.
+
+**Required Behavior (Detailed)**
+- LayerNorm:
+  - Instantiate via params with `initializer=GlorotNormal`.
+  - Direct constructor with `initializer=HeUniform`.
+  - `test_ln_call`: input `(100,100)`, sum outputs, run session.
+- GradNorm:
+  - Instantiate via params with `loss_names=["abc","defg"]`.
+  - Direct constructor with `relative_diff=True`.
+  - `get_config`/`from_config` round-trip.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/norms_test.rs`.
+- Rust public API surface: `LayerNorm`, `GradNorm`.
+- Data model mapping:
+  - Params-based instantiation ↔ Rust config/builder.
+  - `get_config`/`from_config` ↔ serde round-trip.
+- Feature gating: None.
+- Integration points: `monolith_layers::normalization`.
+
+**Implementation Steps (Detailed)**
+1. Add Rust tests for LayerNorm config round-trip and forward output shape.
+2. Add Rust tests for GradNorm config round-trip.
+3. Add deterministic assertions where possible.
+
+**Tests (Detailed)**
+- Python tests: `monolith/native_training/layers/norms_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/norms_test.rs` (new).
+- Cross-language parity test:
+  - Fix inputs and compare LayerNorm output sums.
+
+**Gaps / Notes**
+- Python tests do not cover BatchNorm; ensure BatchNorm tests are added elsewhere in Rust.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/layers/pooling.py`
+<a id="monolith-native-training-layers-pooling-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 101
+- Purpose/role: Defines list-based pooling layers: base `Pooling`, `SumPooling`, `AvgPooling`, `MaxPooling`.
+- Key symbols/classes/functions: `Pooling.call`, `SumPooling.pool`, `AvgPooling.pool`, `MaxPooling.pool`.
+- External dependencies: TensorFlow ops (`math_ops`, `array_ops`), Monolith `check_list`.
+- Side effects: None.
+
+**Required Behavior (Detailed)**
+- `Pooling.call(vec_list)`:
+  - Validates list with `check_list(vec_list, lambda x: x > 0)` (ensures non-empty).
+  - If list length is 1, returns first tensor.
+  - Otherwise calls `self.pool`.
+- `SumPooling.pool`: `math_ops.add_n(vec_list)`.
+- `AvgPooling.pool`: `math_ops.add_n(vec_list) / len(vec_list)`.
+- `MaxPooling.pool`: `reduce_max(stack(vec_list), axis=0)`.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-layers/src/pooling.rs`.
+- Rust public API surface: `SumPooling`, `AvgPooling`, `MaxPooling` implementing `Pooling` trait.
+- Data model mapping: list of tensors → slice `&[Tensor]`.
+- Feature gating: None.
+- Integration points: `monolith_layers::pooling`.
+
+**Implementation Steps (Detailed)**
+1. Ensure Rust pooling checks non-empty list and returns first tensor when length is 1 (Python behavior).
+2. Confirm max pooling uses elementwise max (not stacking + reduce if already implemented).
+3. Add config/params metadata if needed for with_params parity.
+
+**Tests (Detailed)**
+- Python tests: none specific.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/pooling_test.rs` (new) or unit tests in module.
+- Cross-language parity test:
+  - Compare sums/means/maxes on fixed tensors with list length 1 and >1.
+
+**Gaps / Notes**
+- Python `check_list` enforces non-empty; Rust returns error on empty list, but must also return input directly when len=1.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/layers/pooling_test.py`
+<a id="monolith-native-training-layers-pooling-test-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 141
+- Purpose/role: Smoke tests for Sum/Max/Avg pooling instantiation, serialization, and forward call.
+- Key symbols/classes/functions: `PoolingTest` methods `test_sp_*`, `test_mp_*`, `test_ap_*`.
+- External dependencies: TensorFlow v1 session mode, NumPy.
+- Side effects: Runs session after variable init.
+
+**Required Behavior (Detailed)**
+- SumPooling:
+  - Params-based instantiate and direct constructor.
+  - `test_sp_call`: list of 5 tensors `(100,10)`, sum output.
+- MaxPooling:
+  - Params-based instantiate and direct constructor.
+  - `test_mp_call`: list of 5 tensors `(100,10)`, sum output.
+- AvgPooling:
+  - Params-based instantiate and direct constructor.
+  - `test_ap_call`: list of 5 tensors `(100,10)`, sum output.
+- Serialization:
+  - `get_config` and `from_config` for each pooling type.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/pooling_test.rs`.
+- Rust public API surface: `SumPooling`, `MaxPooling`, `AvgPooling`.
+- Data model mapping:
+  - Params-based instantiation ↔ Rust config/builder (if needed).
+  - No parameters beyond defaults.
+- Feature gating: None.
+- Integration points: `monolith_layers::pooling`.
+
+**Implementation Steps (Detailed)**
+1. Add Rust tests for pooling ops on list of tensors (len=5).
+2. Add tests for len=1 list to match Python `Pooling.call`.
+3. Add serialization tests if config metadata is implemented.
+
+**Tests (Detailed)**
+- Python tests: `monolith/native_training/layers/pooling_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/pooling_test.rs` (new).
+- Cross-language parity test:
+  - Fix input tensors; compare sums for each pooling type.
+
+**Gaps / Notes**
+- Python pooling layers rely on Keras `Layer` base; Rust pooling is a trait. Map serialization accordingly.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/layers/sparse_nas.py`
+<a id="monolith-native-training-layers-sparse-nas-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 31
+- Purpose/role: Placeholder module containing only imports; no classes or functions defined.
+- Key symbols/classes/functions: None.
+- External dependencies: TF/Keras, FeatureList, SummaryType, logging/flags; all imported but unused.
+- Side effects: None.
+
+**Required Behavior (Detailed)**
+- No runtime behavior; module only defines imports.
+- If later extended, define behavior for sparse NAS utilities.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: N/A (no behavior to port).
+- Rust public API surface: None.
+- Data model mapping: None.
+- Feature gating: None.
+- Integration points: None.
+
+**Implementation Steps (Detailed)**
+1. Confirm this file is a stub; if not, locate missing code or history.
+2. If future Python changes add functionality, update parity mapping accordingly.
+
+**Tests (Detailed)**
+- Python tests: `monolith/native_training/layers/sparse_nas_test.py`.
+- Rust tests: N/A unless functionality is added.
+- Cross-language parity test: N/A until implemented.
+
+**Gaps / Notes**
+- This file appears to be an empty scaffold; confirm if code was removed or moved.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/layers/sparse_nas_test.py`
+<a id="monolith-native-training-layers-sparse-nas-test-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 23
+- Purpose/role: Empty test scaffold; no test cases defined.
+- Key symbols/classes/functions: None.
+- External dependencies: TensorFlow (imported), NumPy (imported), unused.
+- Side effects: Runs `tf.test.main()` when executed directly.
+
+**Required Behavior (Detailed)**
+- No assertions or tests; file does not exercise any functionality.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: N/A.
+- Rust public API surface: None.
+- Data model mapping: None.
+- Feature gating: None.
+- Integration points: None.
+
+**Implementation Steps (Detailed)**
+1. Confirm no test coverage required unless sparse_nas gains functionality.
+
+**Tests (Detailed)**
+- Python tests: `monolith/native_training/layers/sparse_nas_test.py` (empty).
+- Rust tests: N/A.
+- Cross-language parity test: N/A.
+
+**Gaps / Notes**
+- If sparse_nas gains code, add corresponding tests and parity section updates.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
 ### `monolith/native_training/layers/utils.py`
 <a id="monolith-native-training-layers-utils-py"></a>
 
@@ -3439,497 +3910,6 @@ Note: This file is auto-generated to keep prompt context bounded.
 
 **Gaps / Notes**
 - Tests rely on custom ops and fixed learning rate semantics.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/native_training/native_model.py`
-<a id="monolith-native-training-native-model-py"></a>
-
-**Status:** IN PROGRESS (manual review complete)
-
-**Python Summary**
-- Lines: 1109
-- Purpose/role: Core TF-native model base classes and helpers for loss/prediction, embedding slice management, device placement, file output, metrics (AUC/MSE + deep insight), and export hooks.
-- Key symbols/classes/functions:
-  - `get_sigmoid_loss_and_pred`, `get_softmax_loss_and_pred`
-  - `DeviceCtxType`, `MonolithDeviceCtx`
-  - `MonolithBaseModel`, `MonolithModel`
-  - Key methods: `create_model_fn`, `create_input_fn`, `create_serving_input_receiver_fn`,
-    `create_embedding_feature_column`, `lookup_embedding_slice`, `share_slot`, `add_extra_output`, `add_training_hook`
-- External dependencies: TensorFlow (graph/Estimator APIs, metrics, summaries, SavedModel), `absl.flags/logging`,
-  monolith internal modules (`feature`, `feature_utils`, `file_ops`, `metric_utils`, `export_context`,
-  `layers.LogitCorrection`, `dump_utils`, `device_utils`, `distribution_utils`, `embedding_combiners`, etc.),
-  `OutConfig/OutType/TensorShape` proto from `idl.matrix.proto.example_pb2`.
-- Side effects:
-  - Writes prediction/eval outputs to per-worker files.
-  - Writes item embedding cache table files in resource-constrained roughsort predict mode.
-  - Mutates TF graph collections and graph-attached lists (`__losses`, `__training_hooks`, `__export_outputs`).
-  - Registers slots and switches feature slots (`register_slots`, `switch_slot`, `switch_slot_batch`).
-  - Adds TF summary scalars and `tf.print` ops for metrics.
-  - Adds custom hooks for Kafka/file metrics.
-  - Enables TOB env (`enable_tob_env`) on init.
-
-**Required Behavior (Detailed)**
-- **`get_sigmoid_loss_and_pred(name, logits, label, batch_size, sample_rate=1.0, sample_bias=False, mode=TRAIN, instance_weight=None, mask=None, logit_clip_threshold=None, predict_before_correction=True)`**
-  - Reshapes `logits` to `(-1,)` and **overrides** `batch_size` using `dim_size(logits, 0)` regardless of the caller-supplied `batch_size`.
-  - If `mode != PREDICT`:
-    - `sample_rate` handling:
-      - If `float`, fill tensor of shape `(batch_size,)`.
-      - If `None`, fill tensor with `1.0`.
-    - Instantiate `LogitCorrection(activation=None, sample_bias=sample_bias, name='sample_rate_correction')`.
-    - Compute `logits_biased = src((logits, sample_rate))`.
-    - `pred` is sigmoid of **raw** `logits` when `predict_before_correction=True`, else sigmoid of `logits_biased`.
-    - If `logit_clip_threshold` set:
-      - Assert `0 < logit_clip_threshold < 1`.
-      - Compute `threshold = log((1 - p) / p)` and clip `logits_biased` to `[-threshold, threshold]`.
-    - Compute `losses = sigmoid_cross_entropy_with_logits(labels=label.reshape(-1), logits=logits_biased)`.
-    - If `instance_weight` present, reshape to `(-1,)`.
-    - If `mask` present, reshape to `(-1,)` and `boolean_mask` both `losses` and `instance_weight` (if present).
-    - If `instance_weight` present, multiply `losses *= instance_weight`.
-    - Final `loss = reduce_sum(losses)`.
-  - If `mode == PREDICT`: `loss=None`, `pred = sigmoid(logits)` (no correction and no clipping).
-  - Returns `(loss, pred)` with op names using `{name}_sigmoid_*`.
-- **`get_softmax_loss_and_pred(name, logits, label, mode)`**
-  - `pred = argmax(softmax(logits, name='{name}_softmax_pred'), axis=1)`.
-  - If `mode != PREDICT`, `loss = softmax_cross_entropy_with_logits(labels=label, logits=logits, name='{name}_softmax_loss')`.
-  - Else `loss=None`. Returns `(loss, pred)`.
-- **`DeviceCtxType`**
-  - Constants: `INPUT_FN`, `MODEL_FN`, `INPUT_RECEIVER_FN`, `OTHERS`.
-  - `all_types()` returns set of all constants.
-- **`MonolithDeviceCtx(ctx_type)`**
-  - Context manager for device placement; asserts `ctx_type` in `DeviceCtxType.all_types()`.
-  - `__enter__`:
-    - No-op if `enable_sync_training()` is false or `export_context.is_exporting()` is true.
-    - Selects device function:
-      - `INPUT_FN` → `input_device_fn`
-      - `MODEL_FN` → `model_device_fn`
-      - `INPUT_RECEIVER_FN` → `serving_input_device_fn`
-      - Otherwise no-op.
-    - Calls `tf.compat.v1.device(self._device_fn)` and enters it.
-  - `__exit__`:
-    - If `ctx_type == MODEL_FN`, calls `ensure_variables_in_device()` before exiting device scope.
-    - Resets `_current` and `_device_fn`.
-  - `ensure_variables_in_device()`:
-    - Iterates `graph.get_operations()` and for ops whose name starts with `global_step`, calls `graph._apply_device_functions(op)` (private TF API).
-- **`MonolithBaseModel(NativeTask, ABC)`**
-  - `params()` defines:
-    - `output_path`, `output_fields`, `delimiter` (default `\t`), `file_name`,
-      `enable_grads_and_vars_summary`, `dense_weight_decay`, `clip_norm` (default `1000.0`),
-      `sparse_norm_warmup_steps`, `default_occurrence_threshold`.
-  - `__init__`:
-    - Calls `enable_tob_env()`.
-    - Initializes dicts: `fs_dict`, `fc_dict`, `slice_dict`, `_layout_dict`, `_occurrence_threshold`, `_share_slot_mapping`.
-    - `_use_dense_allreduce = FLAGS.enable_sync_training`.
-  - `__getattr__`:
-    - For attributes in `self.p`, returns param value.
-    - Special case `batch_size`: returns `eval.per_replica_batch_size` if `p.mode == EVAL`, else `train.per_replica_batch_size`.
-    - Falls back to property getters or base `__getattr__`.
-  - `__setattr__`:
-    - If `self.p` has attr, sets there.
-    - Special case `batch_size`: sets both `train.per_replica_batch_size` and `eval.per_replica_batch_size`.
-  - `__deepcopy__`:
-    - Deep-copies all attributes except `dump_utils` (shared reference).
-  - `_get_file_ops(features, pred)`:
-    - Requires `p.output_fields` set.
-    - Builds `output_path = p.output_path/part-{worker_index:05d}`; opens `file_ops.WritableFile`.
-    - `op_fields` is `features[field]` for each `output_fields` (comma-separated).
-    - Appends predictions:
-      - list/tuple → extend
-      - dict → sorted by key before extending
-      - scalar → append
-    - Attempts to `tf.squeeze` tensors where rank > 1 and last dim == 1.
-    - Formats each row using `tf.strings.format` with delimiter-joined `{}` and `summarize=-1`.
-    - Uses `tf.map_fn` with `fn_output_signature=tf.string` and `tf.stop_gradient`.
-    - Returns `(op_file, write_op)` where `write_op = op_file.append(tf.strings.reduce_join(result))`.
-  - `_dump_item_embedding_ops(features)`:
-    - Assumes instance is `DeepRoughSortBaseModel` and features contain `item_id`, `item_bias`, `item_vec`.
-    - Writes `MonolithHashTable_cached_item_embeddings-00000-of-00001` under `_cal_item_cache_table_path()`.
-    - Uses `WritableFile.append_entry_dump` to write.
-  - `_get_real_mode(mode)`:
-    - If `mode == PREDICT`, returns `PREDICT`.
-    - If `mode == TRAIN`, returns `self.mode` (not necessarily `TRAIN`).
-    - Otherwise raises `ValueError('model error!')`.
-  - `is_fused_layout()` returns `ctx.layout_factory is not None`.
-  - `instantiate()` returns `self` (no cloning).
-  - `add_loss(losses)` appends one or many losses to graph-level `__losses`.
-  - `losses` property:
-    - Stored on `tf.compat.v1.get_default_graph()` as `__losses` list.
-  - `_global_step` property:
-    - Inside `maybe_device_if_allowed('/device:GPU:0')`, returns `tf.compat.v1.train.get_or_create_global_step()`.
-  - `_training_hooks` property:
-    - Stored on graph as `__training_hooks` list.
-  - `clean()` clears feature-slot caches: `fs_dict`, `fc_dict`, `slice_dict`, `_occurrence_threshold`.
-  - `create_input_fn()`:
-    - Returns closure that wraps `self.input_fn(mode)` in `MonolithDeviceCtx(INPUT_FN)`.
-  - `create_model_fn()`:
-    - Resets caches via `clean()`.
-    - Defines `model_fn_internal(features, mode, config)`:
-      - `global_step = _global_step`, `real_mode = _get_real_mode(mode)`.
-      - Runs `self.model_fn(features, real_mode)` inside `MonolithDeviceCtx(MODEL_FN)`.
-      - Accepts either `EstimatorSpec` or `(label, loss, pred)` tuple/list:
-        - `EstimatorSpec`: extract `label`, `loss`, `pred`, optional `head_name`, `classification`.
-          If `pred` is dict, `head_name` becomes keys (in insertion order).
-        - Tuple/list: `label, loss, pred`; if `pred` dict, `head_name` from keys; else `head_name` from
-          `self.metrics.deep_insight_target`; sets `is_classification=True` and emits a warning.
-        - Otherwise raises `Exception("EstimatorSpec Error!")`.
-      - Validates `head_name`, `label`, `pred` shapes and alignment.
-      - Normalizes `label` to `tf.identity` (name `label_{_node_name(...)}` or dict keys).
-      - Calls `dump_utils.add_model_fn(self, mode, features, label, loss, pred, head_name, is_classification)`.
-      - Adds auxiliary losses: `loss += tf.add_n(self.losses)` when present.
-      - **Resource-constrained roughsort predict path**:
-        - When not exporting, `real_mode == PREDICT`, and `FLAGS.enable_resource_constrained_roughsort`,
-          and `self` is `DeepRoughSortBaseModel`, it writes item cache table and returns
-          `EstimatorSpec(PREDICT, loss=1, train_op=no_op, training_hooks=[FileCloseHook]+_training_hooks, predictions=identity(...))`.
-      - **Predict path**:
-        - `predictions = dict(zip(head_name, pred))` for list/tuple, else `pred`.
-        - If exporting or `p.output_path` is `None`: returns `EstimatorSpec(PREDICT, predictions=..., training_hooks=_training_hooks)`.
-        - Else writes per-worker file using `_get_file_ops` and wraps `predictions` with `tf.identity` under control deps.
-        - If exporting and `_export_outputs` populated, merges via `spec._replace(export_outputs=...)`.
-      - **Metrics accumulation for train/eval**:
-        - Builds `targets`, `labels_list`, `preds_list` aligned with heads.
-        - If `FLAGS.disable_native_metrics` is false:
-          - Classification → `tf.compat.v1.metrics.auc`; regression → `tf.compat.v1.metrics.mean_squared_error`.
-          - Adds `tf.print` of metric value to stderr and `tf.compat.v1.summary.scalar`.
-          - Adds update op to `train_ops`.
-      - **Deep insight metrics**:
-        - If any of `metrics.enable_kafka_metrics`, `enable_file_metrics`, `enable_deep_insight` and
-          `metrics.deep_insight_sample_ratio > 0`:
-          - Calls `metric_utils.write_deep_insight` with features, labels, preds, model_name, target, etc.
-          - Optionally uses `dump_filename = f\"{dump_filename}.part-{worker_index:05d}\"`.
-          - Adds op to collection `"deep_insight_op"`.
-          - Adds `KafkaMetricHook` or `FileMetricHook` (only one of each type allowed; see `add_training_hook`).
-      - **Eval path**:
-        - If exporting or no `output_path`: returns `EstimatorSpec(mode, loss=loss, train_op=tf.group(train_ops), training_hooks=_training_hooks)`,
-          with `pred`/`preds` added into `train_ops`.
-        - Else writes outputs to file (same as predict) and returns EstimatorSpec with close hook.
-      - **Train path**:
-        - Determines `dense_optimizer` from `local_spec.optimizer` or `self._default_dense_optimizer`, else raises `Exception("dense_optimizer not found!")`.
-        - Calls `dump_utils.add_optimizer(dense_optimizer)`.
-        - Adds `feature_utils.apply_gradients_with_var_optimizer` to `train_ops` with:
-          - `clip_type=ClipByGlobalNorm`, `clip_norm=self.clip_norm`, `dense_weight_decay=self.dense_weight_decay`,
-            `global_step=_global_step`, `grads_and_vars_summary`, `sparse_norm_warmup_steps`,
-            `is_fused_layout`, `use_allreduce=_use_dense_allreduce`.
-        - Calls `add_batch_norm_into_update_ops()` then groups `UPDATE_OPS` and returns EstimatorSpec with `train_op=tf.group(train_ops)`.
-  - `create_serving_input_receiver_fn()`:
-    - Wraps `self.serving_input_receiver_fn()` in `MonolithDeviceCtx(INPUT_RECEIVER_FN)` and
-      passes through `dump_utils.record_receiver`.
-  - Abstract methods:
-    - `input_fn(mode) -> DatasetV2`, `model_fn(features, mode)`, `serving_input_receiver_fn() -> ServingInputReceiver`.
-  - `_export_outputs` property:
-    - Graph-attached dict `__export_outputs` (created lazily).
-  - `add_extra_output(name, outputs, head_name=None, head_type=None)`:
-    - Adds `name` to collection `'signature_name'`.
-    - If exporting: inserts `PredictOutput(outputs)` into `_export_outputs`, else ignores.
-    - Raises `KeyError` if `name` already exists.
-  - `add_training_hook(hook)`:
-    - Prevents multiple `KafkaMetricHook` or `FileMetricHook`.
-  - `add_layout(name, slice_list, out_type, shape_list)`:
-    - Builds `OutConfig` with `OutType` mapping (`concat/stack/addn/none`).
-    - For each slice, adds `slice_configs` with `feature_name`, `start`, `end`.
-    - For each shape, writes dims; first dim forced to `-1`, subsequent dims from int or `.value`.
-    - Stores in `_layout_dict[name]`.
-  - `layout_dict` property getter/setter.
-- **`MonolithModel(MonolithBaseModel)`**
-  - `params()` adds `feature_list` string path.
-  - `__init__`:
-    - Uses provided params or class params.
-    - Sets `dump_utils.enable = FLAGS.enable_model_dump`.
-  - `_get_fs_conf(shared_name, slot, occurrence_threshold, expire_time)`:
-    - Returns `FeatureSlotConfig` with `has_bias=False`, `slot_id=slot`, `occurrence_threshold`, `expire_time`,
-      and hash table config using `GpucucoHashTableConfig` if `self.p.train.use_gpu_emb_table` else `CuckooHashTableConfig`.
-  - `_embedding_slice_lookup(fc, slice_name, slice_dim, initializer, optimizer, compressor, learning_rate_fn, slice_list)`:
-    - Asserts non-fused layout.
-    - Accepts `fc` as feature name or `FeatureColumn`.
-    - Applies `_share_slot_mapping` for shared embedding names.
-    - Creates or reuses `FeatureSlice` in `slice_dict[feature_name][slice_name]`.
-    - Appends `(fc.feature_name, fc_slice)` to `slice_list`.
-    - Returns `fc.embedding_lookup(fc_slice)`.
-  - `create_embedding_feature_column(feature_name, occurrence_threshold=None, expire_time=36500, max_seq_length=0, shared_name=None, combiner=None)`:
-    - Converts `combiner` string to `FeatureColumn.reduce_sum/reduce_mean/first_n`.
-    - Resolves `feature_name` and `slot` via `get_feature_name_and_slot`.
-    - If `feature_name` exists in `fc_dict`, returns it.
-    - If `shared_name` provided:
-      - Stores `_share_slot_mapping[feature_name] = shared_name`.
-      - Reuses existing `fs_dict` or `fc_dict` for shared slot if present.
-      - Else creates new `FeatureSlot` for `shared_name` and stores in `fs_dict`.
-      - If shared slot not created first and `get_feature_name_and_slot` fails, raises exception with explicit message.
-    - If not shared: creates new `FeatureSlot` via `ctx.create_feature_slot`.
-    - Default `combiner`: `first_n(max_seq_length)` for sequence features, else `reduce_sum`.
-    - Creates `FeatureColumn`, stores in `fc_dict`, returns it.
-  - `lookup_embedding_slice(features, slice_name, slice_dim=None, initializer=None, optimizer=None, compressor=None, learning_rate_fn=None, group_out_type='add_n', out_type=None)`:
-    - Computes `layout_name = f'{slice_name}_{md5(sorted(features)).hexdigest()}'`.
-    - If fused layout:
-      - If `features` is list/tuple and `slice_dim` int and contains group tuples/lists: raises `ValueError("group pool is not support when fused_layout")`.
-      - Returns `ctx.layout_factory.get_layout(layout_name)`.
-    - Otherwise builds `feature_embeddings` and `slice_list` from `features` in these cases:
-      - `dict`: feature name → slice dim.
-      - `list/tuple` + `slice_dim` int:
-        - if all elements are (str|int|FeatureColumn): fixed-dim list.
-        - if all elements are list/tuple groups: `group_out_type` must be `concat` or `add_n`;
-          each group is a list of feature names; group embeddings are summed or concatenated.
-        - else raises `ValueError("ValueError for features")`.
-      - `list/tuple` of `(feature, dim)` pairs: variable dims.
-      - Otherwise raises `ValueError("ValueError for features")`.
-    - If `out_type is None`: records layout with `shape_list` from embeddings and returns list of embeddings.
-    - Else `out_type` in `{concat, stack, add_n, addn}`:
-      - `concat`: `tf.concat(axis=1)`
-      - `stack`: `tf.stack(axis=1)`
-      - `add_n/addn`: `tf.add_n`
-      - Records layout and returns tensor.
-  - `share_slot(features=None, share_meta=None, variant_type='example', suffix='share')`:
-    - For each `name -> (inplace, slot)` in `share_meta`:
-      - Registers slot mapping via `register_slots`, using `shared_name = f'{name}_{suffix}'` when not inplace.
-    - If `features` is dict:
-      - `inplace=True`: `features[name] = switch_slot(features[name], slot)`
-      - Else: `features[shared_name] = switch_slot(features[name], slot)`
-      - Returns modified dict.
-    - Else returns `map_fn = lambda tensor: switch_slot_batch(tensor, share_meta, variant_type=variant_type, suffix=suffix)`.
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-training/src` for model base + training loop glue; `monolith-rs/crates/monolith-layers` for logit correction; `monolith-rs/crates/monolith-data` for feature slots; `monolith-rs/crates/monolith-hash-table` for embedding tables; `monolith-rs/crates/monolith-serving` for export signatures.
-- Rust public API surface:
-  - `get_sigmoid_loss_and_pred` / `get_softmax_loss_and_pred` equivalents in a `losses` or `metrics` module.
-  - `DeviceCtxType` + `MonolithDeviceCtx` analog for device placement (no-op in pure Candle; required for TF runtime backend).
-  - `MonolithBaseModel` trait + `MonolithModel` struct that mirror param plumbing, embedding-slice helpers,
-    training/eval/predict flow, file output, and metrics hooks.
-  - Export signature registry mirroring `add_extra_output`.
-- Data model mapping:
-  - Feature slots/slices map to Rust `FeatureSlot`, `FeatureColumn`, `FeatureSlice` types.
-  - Layout dictionary maps to Rust `OutConfig` protobufs (via `monolith-proto`) with consistent shape semantics (`-1` batch dim).
-- Feature gating:
-  - **Default**: Candle-native backend; `MonolithDeviceCtx` becomes a no-op.
-  - **Optional**: TF runtime backend only when `saved_model.pb` + `libtensorflow` + custom ops present.
-  - Metrics hooks (Kafka/file/deep_insight) should be feature-gated with optional dependencies.
-- Integration points:
-  - Training entrypoints (Estimator analog) must call into `create_model_fn` flow equivalents.
-  - Export flow must honor `export_context`-like state to control output signatures and device placement.
-
-**Implementation Steps (Detailed)**
-1. Define Rust equivalents for loss helpers with identical shape handling, sample-rate correction, clipping, and mask/weight semantics.
-2. Implement `MonolithDeviceCtx` abstraction; in Candle, no-op; in TF runtime, map to device placement APIs.
-3. Build Rust `MonolithBaseModel` trait:
-   - Store per-graph/per-run `losses`, `training_hooks`, and `export_outputs`.
-   - Implement `create_input_fn`, `create_model_fn`, `create_serving_input_receiver_fn` analogs.
-4. Implement file output writer with exact formatting and ordering (output_fields order, dict pred sorted by key, delimiter handling).
-5. Port metrics collection:
-   - AUC/MSE metrics with logging + summary behavior (or compatible replacements).
-   - Deep insight pipeline with Kafka/file hooks and per-worker filename suffixing.
-6. Implement embedding feature slot + slice machinery with shared slots and layout tracking.
-7. Add export signature registry and merge semantics for extra outputs.
-8. Add feature flags and error handling parity for unsupported paths (e.g., fused layout group pooling).
-9. Add cross-language tests: compare output file contents, metric logging events, and embedding slice layouts.
-
-**Tests (Detailed)**
-- Python tests: `monolith/native_training/model_comp_test.py` (uses `MonolithModel`).
-- Rust tests: none yet (needs new parity tests for loss helpers, file output formatting, and embedding slice layouts).
-- Cross-language parity test:
-  - Golden test that runs a minimal TF model with two heads and compares loss/pred outputs + output file formatting.
-  - Embedding slice layout test comparing `OutConfig` shape/slice configs between Python and Rust.
-
-**Gaps / Notes**
-- `_get_real_mode` rejects `EVAL`; this is likely intentional in their training flow (only TRAIN/PREDICT). If Rust adds eval mode, define parity behavior explicitly.
-- Prediction file output uses **sorted dict keys** only when `pred` is dict; list/tuple order is preserved.
-- `create_model_fn` treats tuple/list return as classification and emits warning; exact warning text should be preserved if exposed.
-- Uses private TF API `graph._apply_device_functions` for `global_step` ops.
-- Metrics include `tf.print(..., output_stream=sys.stderr)` side effects.
-- Deep insight hooks only attach when sample ratio > 0.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/native_training/native_task.py`
-<a id="monolith-native-training-native-task-py"></a>
-
-**Status:** IN PROGRESS (manual review complete)
-
-**Python Summary**
-- Lines: 213
-- Purpose/role: Defines the `NativeTask` base class (TF-native training/eval/serving) and the `NativeContext` helper for feature slot creation, embedding gradient application, and async functions.
-- Key symbols/classes/functions: `NativeContext`, `NativeTask`.
-- External dependencies: TensorFlow, `monolith.core.base_task.BaseTask`, `monolith.core.hyperparams`,
-  `monolith.native_training.feature`, `monolith.native_training.prefetch_queue`,
-  `monolith.native_training.model_export.export_context.ExportMode`.
-- Side effects:
-  - Raises `ValueError` if both `feature_factory` and `layout_factory` are provided in `NativeContext`.
-  - Delegates to async function manager (may enqueue TF ops).
-
-**Required Behavior (Detailed)**
-- **`NativeContext(feature_factory=None, async_function_mgr=None, layout_factory=None)`**
-  - Stores `feature_factory`, `async_function_mgr`, `layout_factory`.
-  - If both `feature_factory` and `layout_factory` are set, raises:
-    - `ValueError("Cannot set feature_factory and layout_factory in the same time")`.
-- **`NativeContext.create_feature_slot(config)`**
-  - If `layout_factory` present, delegates to `layout_factory.create_feature_slot(config)`.
-  - Else uses `feature_factory.create_feature_slot(config)`.
-  - No TF ops are created by this call (per docstring).
-- **`NativeContext.apply_embedding_gradients(grads_and_vars, scale=1)`**
-  - If `layout_factory` present, delegates to `layout_factory.apply_gradients(grads_and_vars)`.
-  - Else delegates to `feature_factory.apply_gradients(grads_and_vars, scale=scale)`.
-  - Expects `grads_and_vars` from `FeatureColumn.get_all_embeddings_concatenated`.
-- **`NativeContext.add_async_function(target, args=None, kwargs=None, is_async=None, queue_name="async_queue")`**
-  - Delegates to `async_function_mgr.add_async_function(...)`.
-  - Returns enqueue op if async, else result of `target`.
-  - Semantic contract (documented): tensors used by async function should be passed via args/kwargs only.
-- **`NativeTask(BaseTask, abc.ABC)`**
-  - `params()` extends BaseTask params with:
-    - `metrics.*`:
-      - `enable_deep_insight` (default False), `deep_insight_target` ("ctr_head"),
-        `deep_insight_name` (None), `deep_insight_sample_ratio` (0.01),
-        `extra_fields_keys` (list),
-        `enable_throughput_hook` (True),
-        `enable_kafka_metrics` (False),
-        `enable_tf2_profiler_hook` (True),
-        `enable_file_metrics` (False),
-        `file_base_name` ("/vepfs/jaguar_deepinsight_results"),
-        `file_ext` ("txt"),
-        `parse_fn`/`key_fn`/`layout_fn` (None),
-        `dump_filename` (""),
-        `use_data_service` (False).
-    - `mode`: `tf.estimator.ModeKeys.TRAIN` (temporary; doc says will be removed).
-    - `train.*`:
-      - `max_pending_seconds_for_barrier` (30),
-      - `slow_start_steps` (0),
-      - `sample_bias` (0.0),
-      - `use_gpu_emb_table` (False),
-      - `use_fountain` (False),
-      - `fountain_zk_host` (""), `fountain_model_name` (""), `fountain_parse_on_server` (False),
-        `fountain_precompute_value_rowids` (False).
-    - `serving.*`:
-      - `export_with_gpu_allowed` (False),
-      - `export_with_cleared_entry_devices` (False),
-      - `export_when_saving` (False),
-      - `export_dir_base` ("exported_models"),
-      - `export_mode` (`ExportMode.DISTRIBUTED`),
-      - `shared_embedding` (True),
-      - `with_remote_gpu` (False).
-  - `__init__(params)`:
-    - Calls `BaseTask.__init__` and sets `self._ctx = NativeContext()` and `self.p = params`.
-  - `ctx` property returns `self._ctx`.
-  - Abstract methods:
-    - `create_input_fn(self, mode)`
-    - `create_model_fn(self)`
-  - `create_serving_input_receiver_fn()`:
-    - Returns `None` by default; callers must override when `serving.export_when_saving` is enabled.
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-training/src` (task base + context), `monolith-rs/crates/monolith-data` (feature factories/layouts).
-- Rust public API surface:
-  - `NativeContext` struct with `create_feature_slot`, `apply_embedding_gradients`, `add_async_function`.
-  - `NativeTask` trait with `params()`, `create_input_fn`, `create_model_fn`, `create_serving_input_receiver_fn`.
-- Data model mapping:
-  - `feature_factory` ↔ `FeatureFactory` trait.
-  - `layout_factory` ↔ `EmbeddingLayoutFactory` trait (optional, mutually exclusive).
-- Feature gating:
-  - Async function manager (prefetch queue) behind feature flag if not supported by backend.
-  - Export-related params gated by serving feature.
-- Integration points:
-  - `NativeTask` becomes base for `MonolithBaseModel` in Rust; param defaults must match Python.
-
-**Implementation Steps (Detailed)**
-1. Port `NativeContext` with mutual exclusion validation and delegation to feature/layout factories.
-2. Implement an async function manager interface in Rust (or stubs if backend lacks it).
-3. Port `NativeTask.params()` with identical defaults and nested param groups.
-4. Implement `NativeTask` base that stores `params` and `ctx`.
-5. Add validation hooks so `create_serving_input_receiver_fn` must be overridden when export is enabled.
-6. Add unit tests for parameter defaults and mutual exclusion errors.
-
-**Tests (Detailed)**
-- Python tests: none dedicated; covered indirectly by model/task usage.
-- Rust tests: add unit tests for `NativeContext` validation and param defaults.
-- Cross-language parity test: compare serialized defaults from Python vs Rust `params()` output.
-
-**Gaps / Notes**
-- `OutConfig`, `OutType`, `TensorShape` are imported but unused in this file (no runtime effect).
-- `create_serving_input_receiver_fn` returning `None` is explicitly invalid when export is enabled; Rust should enforce or document this.
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/native_training/native_task_context.py`
-<a id="monolith-native-training-native-task-context-py"></a>
-
-**Status:** IN PROGRESS (manual review complete)
-
-**Python Summary**
-- Lines: 58
-- Purpose/role: Defines a global per-process task context (`NativeTaskContext`) and helper functions to set/get it.
-- Key symbols/classes/functions: `NativeTaskContext`, `with_ctx`, `get`.
-- External dependencies: `contextlib`, `typing.NamedTuple`, `monolith.agent_service.backends.SyncBackend`.
-- Side effects: Mutates module-level `_CTX` global.
-
-**Required Behavior (Detailed)**
-- **`NativeTaskContext(NamedTuple)`** with fields:
-  - `num_ps: int`
-  - `ps_index: int`
-  - `num_workers: int`
-  - `worker_index: int`
-  - `model_name: str`
-  - `sync_backend: SyncBackend`
-  - `server_type: str`
-- **`with_ctx(ctx)`** (context manager):
-  - Stores previous `_CTX` as `old_ctx`, sets `_CTX = ctx`, yields.
-  - On exit:
-    - If `old_ctx` is not `None`, restores `_CTX = old_ctx`.
-    - If `old_ctx` is `None`, leaves `_CTX` set to `ctx` (no reset to `None`).
-- **`get()`**:
-  - If `_CTX is None`, returns a new `NativeTaskContext` with defaults:
-    - `num_ps=0`, `ps_index=0`, `num_workers=1`, `worker_index=0`,
-      `server_type=""`, `model_name=""`, `sync_backend=None`.
-  - Else returns `_CTX` object as-is (no copy).
-
-**Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-training/src` (task context).
-- Rust public API surface:
-  - `struct NativeTaskContext { ... }`
-  - `with_ctx(ctx, |...| { ... })` or RAII guard to set/restore.
-  - `get_ctx()` returns current context or default.
-- Data model mapping:
-  - `sync_backend` should be an enum or trait object mirroring `SyncBackend`.
-- Feature gating: none.
-- Integration points:
-  - Training/serving flows should call `get_ctx()` for worker index and model name.
-
-**Implementation Steps (Detailed)**
-1. Implement a thread-local or global context storage in Rust (match Python semantics).
-2. Implement context guard that **only** restores prior context if it existed.
-3. Provide `get_ctx()` returning default values when unset.
-4. Add unit tests for default context and nesting behavior.
-
-**Tests (Detailed)**
-- Python tests: none dedicated.
-- Rust tests: add unit tests for `with_ctx` nesting and default values.
-- Cross-language parity test: compare defaults and nesting semantics.
-
-**Gaps / Notes**
-- The context manager does **not** clear `_CTX` when exiting outermost scope; Rust should match this behavior exactly.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
