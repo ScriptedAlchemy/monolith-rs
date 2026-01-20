@@ -436,7 +436,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/data/training_instance/python/instance_negative_gen_dataset_op_test.py`](#monolith-native-training-data-training-instance-python-instance-negative-gen-dataset-op-test-py) | 283 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/data/training_instance/python/parse_instance_ops.py`](#monolith-native-training-data-training-instance-python-parse-instance-ops-py) | 245 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/data/training_instance/python/parse_instance_ops_test.py`](#monolith-native-training-data-training-instance-python-parse-instance-ops-test-py) | 185 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
-| [`monolith/native_training/data/training_instance/python/parser_utils.py`](#monolith-native-training-data-training-instance-python-parser-utils-py) | 85 | TODO | TODO (manual) |  |
+| [`monolith/native_training/data/training_instance/python/parser_utils.py`](#monolith-native-training-data-training-instance-python-parser-utils-py) | 85 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/data/training_instance/python/pb_datasource_ops.py`](#monolith-native-training-data-training-instance-python-pb-datasource-ops-py) | 48 | TODO | TODO (manual) |  |
 | [`monolith/native_training/data/training_instance/python/test_data_utils.py`](#monolith-native-training-data-training-instance-python-test-data-utils-py) | 15 | TODO | TODO (manual) |  |
 | [`monolith/native_training/data/transform/transforms.py`](#monolith-native-training-data-transform-transforms-py) | 250 | TODO | TODO (manual) |  |
@@ -7430,53 +7430,54 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/data/training_instance/python/parser_utils.py`
-
 <a id="monolith-native-training-data-training-instance-python-parser-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 85
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Utilities for parser pipelines, including queued extra-parse steps and ragged encoding expansion/contract helpers.
+- Key symbols/classes/functions: `_extra_parse_steps`, `add_extra_parse_step`, `RaggedEncodingHelper.expand`, `RaggedEncodingHelper.contract`, `advanced_parse`.
+- External dependencies: TensorFlow, `ragged_utils.fused_value_rowids`.
+- Side effects: mutates global deque of extra parse steps; mutates RaggedTensor internal row partition caches during `contract`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_extra_parse_steps`:
+  - Global `deque` used to store parse step callables.
+- `add_extra_parse_step(parse_fn)`:
+  - Appends parse_fn to `_extra_parse_steps`.
+- `RaggedEncodingHelper.expand(name_to_ragged_ids, with_precomputed_nrows=True, with_precomputed_value_rowids=False)`:
+  - For each RaggedTensor value, returns a dict with:
+    - `values`, `row_splits`, optional `nrows` (if flag), optional `value_rowids` computed via `ragged_utils.fused_value_rowids` (if flag).
+  - Non-ragged entries pass through unchanged.
+- `RaggedEncodingHelper.contract(name_to_ragged_ids)`:
+  - For dict entries with `values` and `row_splits`, rebuilds `tf.RaggedTensor.from_row_splits(..., validate=False)`.
+  - If `nrows` present, asserts `_row_partition._nrows` is None before assigning.
+  - If `value_rowids` present, asserts `_row_partition._value_rowids` is None before assigning.
+  - Non-dict entries pass through unchanged.
+- `advanced_parse(features)`:
+  - Pops parse steps from `_extra_parse_steps` in FIFO order and applies each to `features`.
+  - Returns final features dict.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/src` (parser utilities) + `monolith-tensor` for ragged.
+- Rust public API surface: `add_extra_parse_step` and `advanced_parse` equivalents; ragged expand/contract helpers.
+- Data model mapping: RaggedTensor internal encodings → Rust ragged structure with cached rowids/nrows.
+- Feature gating: none.
+- Integration points: `parse_instance_ops_test.py` uses `RaggedEncodingHelper`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a global queue of parse steps (with proper synchronization if used across threads).
+2. Implement ragged expand/contract; ensure cached rowids/nrows are set only once.
+3. Mirror `fused_value_rowids` behavior using Rust ragged utilities.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `parse_instance_ops_test.py` (`RaggedEncodingHelperTest`).
+- Rust tests: add unit tests that expand, contract, and verify rowids/nrows caching.
+- Cross-language parity test: compare ragged values and cached rowids against Python output.
 
 **Gaps / Notes**
-- TODO (manual)
+- Directly mutates internal ragged partition caches; Rust must provide an equivalent escape hatch.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7491,6 +7492,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/data/training_instance/python/pb_datasource_ops.py`
+
 <a id="monolith-native-training-data-training-instance-python-pb-datasource-ops-py"></a>
 
 **Status:** TODO (manual review required)
