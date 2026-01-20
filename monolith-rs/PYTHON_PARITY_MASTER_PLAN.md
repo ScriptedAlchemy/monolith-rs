@@ -644,7 +644,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/sync_training_hooks_test.py`](#monolith-native-training-sync-training-hooks-test-py) | 92 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/tensor_utils.py`](#monolith-native-training-tensor-utils-py) | 162 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
 | [`monolith/native_training/tensor_utils_test.py`](#monolith-native-training-tensor-utils-test-py) | 175 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
-| [`monolith/native_training/test_utils.py`](#monolith-native-training-test-utils-py) | 65 | TODO | TODO (manual) |  |
+| [`monolith/native_training/test_utils.py`](#monolith-native-training-test-utils-py) | 65 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/touched_key_set_ops.py`](#monolith-native-training-touched-key-set-ops-py) | 61 | TODO | TODO (manual) |  |
 | [`monolith/native_training/touched_key_set_ops_test.py`](#monolith-native-training-touched-key-set-ops-test-py) | 51 | TODO | TODO (manual) |  |
 | [`monolith/native_training/utils.py`](#monolith-native-training-utils-py) | 320 | TODO | TODO (manual) |  |
@@ -21247,50 +21247,45 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/test_utils.py`
 <a id="monolith-native-training-test-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 65
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Test helpers for hash table config and PS cluster setup.
+- Key symbols/classes/functions: `generate_test_hash_table_config`, `create_test_ps_cluster`, `profile_it`.
+- External dependencies: TensorFlow, `entry`, `utils`, `embedding_hash_table_pb2`.
+- Side effects: Starts local TF servers; profiler writes to `/tmp/tests_profile`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `generate_test_hash_table_config(dim=2, use_float16=False, learning_rate=1.0)`:
+  - Builds `EmbeddingHashTableConfig` with cuckoo, one segment, SGD, zero init, fp32 compression.
+  - Returns `entry.HashTableConfigInstance(config, [learning_rate])`.
+- `create_test_ps_cluster(num_ps)`:
+  - Creates `num_ps` local servers.
+  - Builds `ClusterDef` with PS job and returns `(servers, ConfigProto)`.
+- `profile_it(fn)` decorator:
+  - Starts TensorFlow profiler with fixed options.
+  - Stops profiler and sleeps 1s after run (note: `time` is not imported in file).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src`.
+- Rust public API surface: test helpers for hash table config and local cluster setup.
+- Data model mapping: hash table config proto.
+- Feature gating: TF runtime required for local server creation.
+- Integration points: test infrastructure.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port hash table config helper.
+2. Implement local PS cluster helper if TF backend available.
+3. Add profiling helper or stub.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none dedicated.
+- Rust tests: use helpers in other test modules.
+- Cross-language parity test: not applicable.
 
 **Gaps / Notes**
-- TODO (manual)
+- `profile_it` uses `time.sleep` but `time` is not imported; Python would error if called.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
