@@ -638,8 +638,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/summary/summary_ops_test.py`](#monolith-native-training-summary-summary-ops-test-py) | 122 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/summary/utils.py`](#monolith-native-training-summary-utils-py) | 114 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/summary/utils_test.py`](#monolith-native-training-summary-utils-test-py) | 43 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
-| [`monolith/native_training/sync_hooks.py`](#monolith-native-training-sync-hooks-py) | 176 | TODO | TODO (manual) |  |
-| [`monolith/native_training/sync_hooks_test.py`](#monolith-native-training-sync-hooks-test-py) | 119 | TODO | TODO (manual) |  |
+| [`monolith/native_training/sync_hooks.py`](#monolith-native-training-sync-hooks-py) | 176 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
+| [`monolith/native_training/sync_hooks_test.py`](#monolith-native-training-sync-hooks-test-py) | 119 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/sync_training_hooks.py`](#monolith-native-training-sync-training-hooks-py) | 355 | TODO | TODO (manual) |  |
 | [`monolith/native_training/sync_training_hooks_test.py`](#monolith-native-training-sync-training-hooks-test-py) | 92 | TODO | TODO (manual) |  |
 | [`monolith/native_training/tensor_utils.py`](#monolith-native-training-tensor-utils-py) | 162 | TODO | TODO (manual) |  |
@@ -20903,50 +20903,53 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/sync_hooks.py`
 <a id="monolith-native-training-sync-hooks-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 176
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Implements synchronization hooks between chief and workers.
+- Key symbols/classes/functions: `SyncHelper`, `ChiefSyncHook`, `WorkerSyncHook`, `TrainingHooksHelper`.
+- External dependencies: TensorFlow, `absl.logging`.
+- Side effects: Uses TF variables to track worker status.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`SyncHelper(num_workers, is_chief, var_device="/job:chief/task:0")`**
+  - Creates `control_var` boolean vector length `num_workers`.
+  - Index 0 = restore status; indices >0 = worker alive flags.
+  - `mark_restore_done` sets index 0 True.
+  - `start_worker`/`finish_worker` toggles worker index.
+  - `get_alive_workers` returns indices with True.
+  - `get_num_alive_workers` returns count of alive workers.
+- **`ChiefSyncHook(sync_helper, timeout_seconds=1800)`**
+  - `after_create_session`: marks restore done.
+  - `end`: waits until no alive workers or timeout; logs remaining workers.
+- **`WorkerSyncHook(worker_index, sync_helper)`**
+  - `after_create_session`: marks worker alive and waits for restore status.
+  - `end`: marks worker finished.
+- **`TrainingHooksHelper(enable_sync, num_workers, worker_idx, chief_timeout_seconds)`**
+  - If enabled, creates SyncHelper and attaches Chief/Worker hooks.
+  - `training_hooks` and `training_chief_hooks` return tuples.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src`.
+- Rust public API surface: sync helper and hooks.
+- Data model mapping: shared status vector (e.g., in a distributed store).
+- Feature gating: distributed training only.
+- Integration points: training runner hooks.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement SyncHelper state tracking.
+2. Implement Chief and Worker hooks with timeout.
+3. Add helper to assemble hooks.
+4. Add tests for synchronization flow.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/sync_hooks_test.py`.
+- Rust tests: add multi-threaded hook tests.
+- Cross-language parity test: compare wait/finish behavior.
 
 **Gaps / Notes**
-- TODO (manual)
+- `var_device` defaults to chief device; may differ in Rust backends.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -20963,50 +20966,42 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/sync_hooks_test.py`
 <a id="monolith-native-training-sync-hooks-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 119
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests sync helper and hook coordination.
+- Key symbols/classes/functions: `SyncHooksTest`, `CountHook`.
+- External dependencies: TensorFlow, threading.
+- Side effects: Spawns threads.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_sync_process`:
+  - Creates `SyncHelper`, Chief/Worker hooks, and count hooks.
+  - Worker waits at after_create_session until chief marks restore done.
+  - Chief waits at end until worker finishes; verifies counts.
+- `test_hook_helper`:
+  - Ensures TrainingHooksHelper returns empty tuples when disabled.
+  - Creates enabled helper for grammar check.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (tests).
+- Rust public API surface: sync helper and hooks.
+- Data model mapping: thread synchronization.
+- Feature gating: distributed training.
+- Integration points: training runner.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add multithreaded test for sync flow.
+2. Add test for TrainingHooksHelper output.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `SyncHooksTest` in this file.
+- Rust tests: mirror with threads.
+- Cross-language parity test: compare hook sequencing.
 
 **Gaps / Notes**
-- TODO (manual)
+- Relies on timing; Rust tests should avoid flakiness.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
