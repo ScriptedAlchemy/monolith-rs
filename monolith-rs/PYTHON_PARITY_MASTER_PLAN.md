@@ -2198,58 +2198,80 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/agent_service/model_manager.py`
 <a id="monolith-agent-service-model-manager-py"></a>
 
-**Status:** IN PROGRESS (manual)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 371
-- Purpose/role: Copies latest model versions from a source path to a local receive path with lock/marker semantics.
-- Key symbols/classes/functions: `ModelManager` and methods.
+- Purpose/role: Copies latest model versions from a source (p2p) path to a receive path with lock/marker semantics and periodic refresh.
+- Key symbols/classes/functions: `ModelManager` and its helpers (`start`, `loop_once`, `copy_model`, `get_source_data`, `remove_read_lock`).
 - External dependencies: `os`, `shutil`, `threading`, `monolith.native_training.metric.cli`.
-- Side effects: filesystem reads/writes, directory copies, lock files, metrics emission.
+- Side effects: filesystem reads/writes, directory copies, lock files, optional metrics emission.
 
 **Required Behavior (Detailed)**
-- Constants:
-  - `WRITE_DONE = '.write.done'`, `READ_LOCK = '.read.lock'`.
-- `start()`:
-  - If `model_name` is None, return True.
-  - Delete receive path.
-  - Wait for source path to exist and for `*.write.done` marker matching model.
-  - Run `loop_once()` until a model copy succeeds; then remove read locks and start background thread.
-- `loop_once()`:
-  - Reads `source_data` via `get_source_data` (latest version per model).
-  - For each model, if new version > last, copy model data via `copy_model`.
-  - Updates `_models` and `_latest_models` (version + update time).
-- `copy_model()`:
-  - Copies each sub_model to a `-temp` dir, then atomically renames.
-  - If any copy fails, cleans temp dirs and returns failure.
+- Constants: `WRITE_DONE=".write.done"`, `READ_LOCK=".read.lock"`.
+- Defaults:
+  - `_wait_timeout=1200s`, `_loop_interval=30s`, `_remain_version_num=5`.
+- `start()` / `_start()`:
+  - If `model_name` is None: log and return True.
+  - Deletes receive path (`delete(receive_path)`).
+  - `wait_for_download()` waits for `source_path` existence and a matching `model_name*.write.done` marker.
+  - Runs `loop_once()` until a model copy succeeds; then `remove_read_lock()` and starts background thread.
+- `run()`:
+  - While not `_exist`:
+    - `loop_once()` then `remove_read_lock()`.
+    - Optionally `check_model_update_time()`; sleeps `loop_interval`.
+    - `remove_old_file()` to trim versions.
+- Lock files:
+  - `create_read_lock(path)` creates `<path>.read.lock` by touching; adds to `_lock_files`.
+  - `remove_read_lock()` deletes all `_lock_files` and any `*.read.lock` in source root.
+- `wait_for_download()`:
+  - Polls every 10s up to `wait_timeout`.
+  - Requires a `.write.done` file with prefix `model_name`.
 - `get_source_data()`:
-  - Walks source dir; detects model dirs named `model@version` and `.write.done` files.
-  - Creates read locks under each `model@version` dir.
-  - For each model, selects latest version and builds list of `(sub_model/version, path)` entries.
-- `remove_read_lock()`:
-  - Deletes local lock files and any stray `*.read.lock` in source path.
-- Metrics:
-  - `check_model_update_time()` emits `version.delay` and `update.delay` for latest model.
-  - `_check_version` not present here; only per-loop metrics.
-- `remove_old_file()` keeps last `remain_version_num` versions.
+  - Walks `source_path` root; collects `.write.done` files and model dirs `model@version`.
+  - For each model dir: creates read lock, checks done file exists, parses `model@version`.
+  - `real_path = root/model@version/model_name`.
+  - `get_version_data(real_path, version)` returns list of `(sub_model/version, full_path)` for each subgraph.
+  - Selects latest version by **string comparison** (`old_data[0] < version`).
+  - Returns `{model_name: (version, version_data, real_path)}`.
+- `copy_model(model_name, version, model_data)`:
+  - For each `(sub_model/version, src_path)`:
+    - `dst_file = receive_path/model_name/sub_model/version`.
+    - Copy to `dst_file-temp` via `shutil.copytree`, then rename to `dst_file`.
+    - If `dst_file` exists, counts as ready; if `dst_file-temp` exists, rename later.
+  - If any copy fails or `ready_num != sub_model_num`, cleans temp dirs and returns False.
+  - Returns `(True, [dst_file...])` on success.
+- `loop_once()`:
+  - If new version > old, calls `copy_model`; on success updates `_models` and `_latest_models[model]= (version, update_time)`.
+- Metrics (`use_metrics=True`):
+  - Prefix `data.monolith_serving.online`.
+  - `check_model_update_time()` emits:
+    - `version.delay = now - int(version)`.
+    - `update.delay = now - update_time`.
+  - If model missing in `_latest_models`, emits counter `loop_once_failed`.
+- `remove_old_file()`:
+  - Keeps newest `_remain_version_num` per model; deletes older file paths via `delete()`.
+- `delete(path)`:
+  - Removes file or directory; logs error on failure.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/model_manager.rs`.
-- Rust public API surface: `ModelManager` struct with `start/stop` and loop logic.
-- Data model mapping: filesystem semantics only.
+- Rust public API surface: `ModelManager` with `start/stop` and loop helpers.
+- Data model mapping: filesystem-only (no TF dependencies).
 
 **Implementation Steps (Detailed)**
-1. Port lock/marker file semantics (`.write.done`, `.read.lock`).
-2. Port `copy_model` to use temp dirs + atomic rename.
-3. Implement background loop with configurable intervals/timeouts.
-4. Port metrics emission (optional feature flag).
+1. Port lock/marker semantics and path layout.
+2. Implement `copy_model` with temp dirs + atomic rename.
+3. Preserve polling intervals/timeouts and string-based version comparison.
+4. Port metrics emission (feature-gated) with matching names.
 
 **Tests (Detailed)**
 - Python tests: `monolith/agent_service/model_manager_test.py`
-- Rust tests: replicate file layout and verify copy + ignore old versions.
+- Rust tests: build temp tree; verify latest version selection and ignore-old behavior.
 
 **Gaps / Notes**
-- Ensure delete semantics are safe and match Python (file vs dir removal).
+- `remove_read_lock` uses `os.join` (likely typo) when deleting stray locks.
+- Version comparison is string-based, not numeric.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -2266,37 +2288,43 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/agent_service/model_manager_test.py`
 <a id="monolith-agent-service-model-manager-test-py"></a>
 
-**Status:** IN PROGRESS (manual)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 113
-- Purpose/role: Tests ModelManager copying behavior and ignoring older versions.
-- Key symbols/classes/functions: `ModelManagerTest.test_start`, `.test_ignore_old`
+- Purpose/role: Tests ModelManager copy behavior and ignores older versions.
+- Key symbols/classes/functions: `ModelManagerTest.create_file`, `test_start`, `test_ignore_old`.
 - External dependencies: filesystem, `ModelManager`.
-- Side effects: creates temp directories and files.
+- Side effects: creates/deletes temp directories under `TEST_TMPDIR`.
 
 **Required Behavior (Detailed)**
 - `create_file(model_name, timestamp, p2p_data_path)`:
-  - Creates `model@timestamp/model/ps_item_embedding_*/timestamp` directories.
-  - Writes `model@timestamp.write.done` marker.
+  - Creates directories:
+    - `p2p/<model>@<ts>/<model>/ps_item_embedding_0/<ts>`
+    - `p2p/<model>@<ts>/<model>/ps_item_embedding_1/<ts>`
+  - Writes marker `<model>@<ts>.write.done` in `p2p`.
 - `test_start`:
-  - Creates p2p data with one version.
-  - Starts ModelManager and asserts model copies exist under receive path.
+  - Creates one version (`1234567`), starts ModelManager.
+  - Sets `_wait_timeout=5`, `_loop_interval=5`.
+  - Asserts copied directories exist under `model_data/<model>/ps_item_embedding_*`.
+  - Stops manager and removes paths.
 - `test_ignore_old`:
-  - Creates new version, starts manager, then creates older version.
-  - Verifies older version is not copied.
+  - Creates newer version (`1234567`) and starts manager.
+  - Adds an older version (`1234566`) afterward; sleeps 11s.
+  - Asserts older version dirs do **not** exist under receive path.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/model_manager.rs`.
-- Rust public API surface: `ModelManager` with configurable timeouts/intervals.
+- Rust public API surface: `ModelManager` with configurable wait/intervals.
 
 **Implementation Steps (Detailed)**
-1. Port test directory setup helpers.
-2. Validate copy results and ignore-old behavior.
+1. Port `create_file` helper to build p2p layout + .write.done.
+2. Validate successful copy of newest version.
+3. Ensure older version is ignored after manager is running.
 
 **Tests (Detailed)**
-- Python tests: this file
-- Rust tests: parity tests with temp dirs.
+- Python tests: `ModelManagerTest.test_start`, `.test_ignore_old`.
+- Rust tests: parity tests with temp dirs and shortened intervals.
 
 **Gaps / Notes**
 - Ensure Rust tests use temp directories and cleanup to avoid flakiness.
@@ -2926,52 +2954,76 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/agent_service/tfs_wrapper.py`
 <a id="monolith-agent-service-tfs-wrapper-py"></a>
 
-**Status:** IN PROGRESS (manual)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 202
-- Purpose/role: Wraps TensorFlow Serving process launch, config file handling, and model status queries.
-- Key symbols/classes/functions: `TFSWrapper`, `FakeTFSWrapper`
-- External dependencies: `subprocess`, `grpc`, TF Serving protos.
-- Side effects: launches external process, writes logs, opens gRPC channel.
+- Purpose/role: Wraps TensorFlow Serving process launch, config file handling, and model status queries; provides a fake wrapper for tests.
+- Key symbols/classes/functions: `TFSWrapper`, `FakeTFSWrapper`.
+- External dependencies: `subprocess`, `grpc`, TF Serving protos, `monolith.utils.find_main`.
+- Side effects: launches external process, writes logs, opens gRPC channel, kills process.
 
 **Required Behavior (Detailed)**
+- Globals:
+  - `TFS_BINARY = os.environ.get("MONOLITH_TFS_BINARY", None)`.
+  - `State = ModelVersionStatus.State`.
 - `TFSWrapper.__init__`:
-  - Saves ports, config file, binary config, log path.
-  - Uses `strings $TFS_BINARY | grep PredictionServiceGrpc` to detect grpc remote op support.
+  - Stores ports, model config path, binary config, log file.
+  - Runs `strings $TFS_BINARY | grep PredictionServiceGrpc` (shell=True) to detect gRPC remote op support.
+  - Sets `_is_grpc_remote_op` based on `returncode == 0`.
 - `_prepare_cmd()`:
-  - Builds CLI flags: model_config_file, ports, poll interval, archon settings, metrics prefix.
-  - If grpc remote op absent, adds `archon_entry_to_ps_rpc_timeout`.
-  - Fills in defaults from `TfServingConfig` (incl. platform_config_file).
+  - Base flags:
+    - `--model_config_file=...`
+    - `--port=<grpc_port>`
+    - `--rest_api_port=<http_port>`
+    - `--model_config_file_poll_wait_seconds=60`
+    - Archon flags: `--archon_port`, `--archon_rpc_psm`, `--archon_rpc_cluster`
+    - `--metrics_namespace_prefix=<psm>`
+  - If not gRPC remote op: add `--archon_entry_to_ps_rpc_timeout=<fetch_ps_timeout_ms>`.
+  - Always adds `--conf_file=conf/service.conf` and `--log_conf=conf/log4j.properties`.
+  - For each field in `TfServingConfig` type hints:
+    - Uses default vs current; skips if equal.
+    - For `platform_config_file`: if None, set `--platform_config_file=conf/platform_config_file.cfg`.
+    - For bool: lower-case value.
 - `start()`:
-  - `os.chdir(find_main())` and `subprocess.Popen` with stdout to log file.
-  - Creates gRPC channel to `localhost:grpc_port` and ModelServiceStub.
+  - `os.chdir(find_main())`.
+  - Launches process via `subprocess.Popen(tfs_cmd.split(), shell=False, stderr=STDOUT, stdout=log_file, env=os.environ)`.
+  - Opens gRPC channel to `localhost:<grpc_port>` and `ModelServiceStub`.
 - `stop()`:
-  - Closes channel, closes log, kills process.
+  - Closes channel; closes stdout if exists; kills process.
+- `poll()`:
+  - Calls `proc.poll()` and returns `returncode`.
+- `model_config_text()`:
+  - Reads config file content.
 - `list_saved_models()`:
-  - Parses model config file text into `ModelServerConfig` and returns model names.
+  - Parses `ModelServerConfig` from text and returns `config.name` list.
 - `list_saved_models_status()`:
-  - For each saved model, calls `GetModelStatus`, selects available version or last, handles RPC errors.
+  - For each saved model:
+    - Calls `GetModelStatus`.
+    - If multiple versions: picks latest AVAILABLE else latest by version.
+    - On RPC error: returns `ModelVersionStatus(state=UNKNOWN, status=StatusProto(error_code=e.code().value[0], error_message=e.details()))`.
+  - Returns `{model_name: ModelVersionStatus}`.
 - `FakeTFSWrapper`:
-  - No process; reads model_config file and returns AVAILABLE for all models.
+  - No process; reads config file and returns AVAILABLE for all models.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/tfs_wrapper.rs`.
-- Rust public API surface: `TFSWrapper` + `FakeTFSWrapper` for tests.
-- Feature gating: `tf-runtime` and `grpc` features.
+- Rust public API surface: `TfsWrapper` + `FakeTfsWrapper`.
+- Feature gating: `grpc` for ModelService client; optional process spawning in non-test builds.
 
 **Implementation Steps (Detailed)**
-1. Port command building logic and TfServingConfig mapping.
-2. Implement process spawn + logging.
-3. Implement gRPC status queries and model_config parsing.
+1. Port command builder with exact flags and `TfServingConfig` mapping.
+2. Implement process spawn with log redirection and working dir `find_main()`.
+3. Implement gRPC GetModelStatus handling and version selection.
 4. Implement FakeTFSWrapper for tests.
 
 **Tests (Detailed)**
 - Python tests: used indirectly by `agent_v3_test`.
-- Rust tests: use FakeTFSWrapper to validate list_saved_models/STATUS.
+- Rust tests: `FakeTfsWrapper.list_saved_models` + `list_saved_models_status` correctness.
 
 **Gaps / Notes**
-- `TFS_BINARY` path and `find_main()` must map correctly in Rust.
+- `TFS_BINARY` must be set; Python will crash if missing.
+- Error_code mapping uses `e.code().value[0]` (non-obvious; must mirror).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
