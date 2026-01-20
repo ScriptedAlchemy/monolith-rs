@@ -440,7 +440,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/data/training_instance/python/pb_datasource_ops.py`](#monolith-native-training-data-training-instance-python-pb-datasource-ops-py) | 48 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/data/training_instance/python/test_data_utils.py`](#monolith-native-training-data-training-instance-python-test-data-utils-py) | 15 | IN PROGRESS | none |  |
 | [`monolith/native_training/data/transform/transforms.py`](#monolith-native-training-data-transform-transforms-py) | 250 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
-| [`monolith/native_training/data/transform/transforms_test.py`](#monolith-native-training-data-transform-transforms-test-py) | 70 | TODO | TODO (manual) |  |
+| [`monolith/native_training/data/transform/transforms_test.py`](#monolith-native-training-data-transform-transforms-test-py) | 70 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/data/transform_dataset_test.py`](#monolith-native-training-data-transform-dataset-test-py) | 168 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/data/utils.py`](#monolith-native-training-data-utils-py) | 55 | TODO | TODO (manual) |  |
 | [`monolith/native_training/debugging/debugging_client.py`](#monolith-native-training-debugging-debugging-client-py) | 98 | TODO | TODO (manual) |  |
@@ -7673,104 +7673,43 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/data/transform/transforms_test.py`
-
 <a id="monolith-native-training-data-transform-transforms-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 70
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke tests that build transform configs and log the resulting protobufs; no assertions beyond successful construction.
+- Key symbols/classes/functions: `TransformsTest`, test methods for each transform type.
+- External dependencies: `transforms` module, `absl.logging`, `unittest`.
+- Side effects: logs serialized proto configs.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
-
-**Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
-
-**Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
-
-**Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
-
-**Gaps / Notes**
-- TODO (manual)
-
-**Verification Checklist (Must be Checked Off)**
-- [ ] All public functions/classes mapped to Rust
-- [ ] Behavior matches Python on normal inputs
-- [ ] Error handling parity confirmed
-- [ ] Config/env precedence parity confirmed
-- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
-- [ ] Threading/concurrency semantics preserved
-- [ ] Logging/metrics parity confirmed
-- [ ] Performance risks documented
-- [ ] Rust tests added and passing
-- [ ] Cross-language parity test completed
-
-### `monolith/native_training/data/transform_dataset_test.py`
-<a id="monolith-native-training-data-transform-dataset-test-py"></a>
-
-**Status:** TODO (manual review required)
-
-**Python Summary**
-- Lines: 168
-- Purpose/role: Tests dataset transform pipeline with filters and logical ops.
-- Key symbols/classes/functions: `DataOpsTest.instance_or_example_test`, `transforms.Compose`, `FilterByFid`, `FilterByValue`, `FilterByAction`, `LogicalOr`.
-- External dependencies: `tensorflow`, `PBDataset`, `parse_instances/parse_examples`, `transforms`.
-- Side effects: writes temp files.
-
-**Required Behavior (Detailed)**
-- Generates instance/example records with labels/actions and writes to temp file.
-- Applies transform chain:
-  - Filter by fid (selects a specific fid),
-  - Filter by read_count in {0},
-  - Logical OR of (video_play_time == 0.0) or action includes 2.
-- Parses dataset and counts elements; expects `total_count == 15`.
+- `test_filter_by_fid`: builds `FilterByFid(has_fids=[1], filter_fids=[2,3], select_fids=None)` and logs proto.
+- `test_filter_by_action`: builds `FilterByAction(has_actions=[4])` and logs proto.
+- `test_filter_by_label`: builds `FilterByLabel(thresholds=[-100, -100])` and logs proto.
+- `test_add_label`: builds `AddLabel(config='1,2:3:1.0;4::0.5', negative_value=0.0, new_sample_rate=0.3)` and logs proto.
+- `test_logical_or`: builds `LogicalOr(FilterByAction([1,2]), FilterByFid([10000000]))` and logs proto.
+- `test_compose`: builds `Compose([...])` with multiple transforms including `LogicalOr`, logs proto.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-data/tests`.
-- Rust public API surface: dataset transform operators.
-- Data model mapping: transforms → filter/combinator pipeline.
+- Rust public API surface: transform builders and `as_proto` serialization.
+- Data model mapping: Rust transforms → TransformConfig protobufs.
 - Feature gating: none.
-- Integration points: data pipeline.
+- Integration points: verifies transform config serialization used by `TransformDataset`.
 
 **Implementation Steps (Detailed)**
-1. Implement filter and logical transform composition in Rust datasets.
-2. Add test for counts after transform chain.
+1. Add Rust tests that construct equivalent transforms and ensure `as_proto` succeeds.
+2. Optionally compare serialized proto bytes to Python output for deterministic configs.
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: transform pipeline tests.
-- Cross-language parity test: compare retained counts.
+- Rust tests: `transforms_test.rs` with equivalent constructions.
+- Cross-language parity test: serialize each config in both languages and compare bytes.
 
 **Gaps / Notes**
-- None.
+- Tests are smoke-only; Rust should at least mirror construction and serialization.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7785,6 +7724,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/data/utils.py`
+
 <a id="monolith-native-training-data-utils-py"></a>
 
 **Status:** TODO (manual review required)
