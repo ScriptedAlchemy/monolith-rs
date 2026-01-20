@@ -1531,16 +1531,30 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: starts AgentV3 (with fake components), writes model_config file.
 
 **Required Behavior (Detailed)**
-- Setup:
-  - Create `AgentV3` with `deploy_type=unified`, `agent_version=3`.
-  - Replace `_tfs_wrapper` with `FakeTFSWrapper` and `_backend._zk` with `FakeKazooClient`.
-  - Start agent; populate `/gip/saved_models/test_ffm_model/*` nodes with deploy configs.
+- Class setup:
+  - `bzid='gip'`, set `MY_HOST_IP=127.0.0.1`.
+  - Build `AgentConfig(bzid='gip', deploy_type='unified', agent_version=3, layout_pattern='/gip/layout', zk_servers='127.0.0.1:8888')`.
+  - `base_path = os.environ['TEST_TMPDIR']`.
+  - Construct `AgentV3` with:
+    - `conf_path = os.path.join(base_path, '/monolith_serving/conf')` (note: absolute suffix).
+    - `tfs_log = os.path.join('monolith_serving/logs/log.log')` (relative path).
+  - Replace `_tfs_wrapper` with `FakeTFSWrapper(agent._model_config_path)`.
+  - Replace `_backend._zk` with `FakeKazooClient`.
+  - Call `agent.start()`.
+  - For sub_graph in `['entry','ps_0','ps_1','ps_2']`:
+    - `config={'model_base_path': TEST_TMPDIR/test_ffm_model/exported_models/{sub_graph}, 'version_policy': 'latest'}`.
+    - Write JSON bytes to ZK path `/gip/saved_models/test_ffm_model/{sub_graph}` with `makepath=True`.
 - `test_service_info`: backend `get_service_info(container)` equals agent's `_service_info`.
 - `test_publish_models`:
-  - Add layout nodes (`/gip/layout/test_ffm_model:entry`, `/ps_0`).
-  - Verify FakeTFSWrapper sees both models.
-  - Call `sync_available_saved_models()` and verify service_map binding.
-  - Delete one layout node, verify updated list and service_map.
+  - Assert `tfs_wrapper.list_saved_models()` initially empty.
+  - `zk.ensure_path('/gip/layout/test_ffm_model:entry')` and `...:ps_0`.
+  - Expect `list_saved_models()` == `['test_ffm_model:entry','test_ffm_model:ps_0']` (order matters).
+  - Call `agent.sync_available_saved_models()`.
+  - Expect `backend.get_service_map()` equals:
+    - `{'test_ffm_model': {'entry': [agent._service_info], 'ps_0': [agent._service_info]}}`.
+  - Delete `/gip/layout/test_ffm_model:ps_0`.
+  - Expect `list_saved_models()` == `['test_ffm_model:entry']`.
+  - Call `sync_available_saved_models()` and expect service_map only has `entry`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/agent_v3.rs`.
