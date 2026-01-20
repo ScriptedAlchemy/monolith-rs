@@ -1908,9 +1908,35 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: none; pure data serialization + address selection logic.
 
 **Required Behavior (Detailed)**
-- JSON serialization/deserialization exactly matches dataclasses_json output.
-- `ReplicaMeta.get_address` resolves IPv4/IPv6 with archon preference and filters `0.0.0.0` / `[::]`.
-- `get_path` methods build correct ZK paths.
+- Type aliases:
+  - `ModelState = ModelVersionStatus.State`.
+  - `ModelName`, `SubModelName`, `SubModelSize`, `TFSModelName`, `VersionPath` are `NewType` wrappers.
+  - `EmptyStatus = StatusProto()` (defined but unused).
+- `ModelMeta`:
+  - Fields: `model_name`, `model_dir`, `ckpt`, `num_shard=-1`, `action='NONE'`, `spec_replicas=[]`.
+  - `get_path(base_path)` -> `os.path.join(base_path, model_name)`.
+  - `serialize()` -> UTF-8 JSON bytes via `dataclasses_json`.
+  - `deserialize(bytes)` -> `from_json` on UTF-8 string.
+- `ResourceSpec`:
+  - Fields: `address`, `shard_id`, `replica_id`, `memory`, `cpu=-1.0`, `network=-1.0`, `work_load=-1.0`.
+  - `get_path(base_path)` -> `base_path/{shard_id}:{replica_id}`.
+  - `serialize`/`deserialize` mirror `ModelMeta`.
+- `PublishType` enum: `LOAD=1`, `UNLOAD=2`.
+- `PublishMeta`:
+  - Fields: `shard_id`, `replica_id=-1`, `model_name`, `num_ps`, `total_publish_num=1`, `sub_models`, `ptype=PublishType.LOAD`, `is_spec=False`.
+  - `get_path(base_path)` -> `base_path/{shard_id}:{replica_id}:{model_name}`.
+  - `serialize`/`deserialize` mirror `ModelMeta`.
+- `ReplicaMeta`:
+  - Fields: `address`, `address_ipv6`, `stat=ModelState.UNKNOWN`, `model_name`, `server_type`, `task=-1`, `replica=-1`, `archon_address`, `archon_address_ipv6`.
+  - `get_path(bzid, sep='/')` -> `['', bzid, 'service', model_name, f'{server_type}:{task}', str(replica)]` joined by `sep`.
+  - `get_address(use_archon=False, address_family=AddressFamily.IPV4)`:
+    - Chooses `archon_address`/`archon_address_ipv6` when `use_archon`.
+    - Treats `0.0.0.0*` and `[::]*` as invalid (set to None).
+    - If `address_family == IPV4`: prefer ipv4, fall back to ipv6; else prefer ipv6 then ipv4.
+- `EventType` enum: `PORTAL=1`, `SERVICE=2`, `PUBLISH=3`, `RESOURCE=4`, `UNKNOWN=1` (alias of PORTAL).
+- `Event`:
+  - Fields: `path=None`, `data=b''`, `etype=EventType.UNKNOWN`.
+  - `serialize`/`deserialize` via `dataclasses_json` UTF-8 JSON bytes.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/data_def.rs` (new) or `monolith-rs/crates/monolith-core/src`.
@@ -1955,13 +1981,17 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 
 **Required Behavior (Detailed)**
 - `serde(item)`:
-  - `serialized = item.serialize()`
-  - `recom = cls.deserialize(serialized)`
-  - Asserts equality.
-- Tests:
-  - `ModelMeta` with `model_name`, `num_shard`, `model_dir`, `ckpt`.
-  - `ResourceSpec` with `address`, `shard_id`, `replica_id`, `memory`, `cpu`.
-  - `ReplicaMeta` with `address`, `model_name`, `server_type`, `task`, `replica`.
+  - `cls = item.__class__`.
+  - `serialized = item.serialize()`.
+  - `recom = cls.deserialize(serialized)`.
+  - Asserts `item == recom`.
+- `test_model_info`:
+  - `ModelMeta(model_name='monolith', num_shard=3, model_dir='/tmp/opt', ckpt='model.ckpt-1234')`.
+  - Roundtrip equality via `serde`.
+- `test_resource`:
+  - `ResourceSpec(address='localhost:123', shard_id=10, replica_id=2, memory=12345, cpu=3.5)` roundtrip.
+- `test_replica_meta`:
+  - `ReplicaMeta(address='localhost:123', model_name='monolith', server_type='ps', task=0, replica=0)` roundtrip.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/data_def.rs`.
