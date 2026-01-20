@@ -153,7 +153,7 @@ These enable all module ports:
 - `model.py`
 - `model_registry.py`
 
-**Status:** TODO (not started)
+**Status:** IN PROGRESS (manual)
 
 ### 5.3 `monolith/native_training/**`
 **Goal:** Full parity with estimator, data pipeline, distributed runtime, export.
@@ -170,7 +170,7 @@ These enable all module ports:
 - `path_utils.py`
 - `base_runner.py`, `gpu_runner.py`, `tpu_runner.py`
 
-**Status:** TODO (not started)
+**Status:** IN PROGRESS (manual)
 
 ---
 
@@ -324,7 +324,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 
 | Python File | Lines | Status | Rust Mapping | Notes |
 |---|---:|---|---|---|
-| [`monolith/__init__.py`](#monolith-init-py) | 55 | TODO | TODO (manual) |  |
+| [`monolith/__init__.py`](#monolith-init-py) | 55 | IN PROGRESS | monolith-rs/crates/monolith-core | |
 | [`monolith/agent_service/__init__.py`](#monolith-agent-service-init-py) | 0 | IN PROGRESS | monolith-rs/crates/monolith-serving/src | |
 | [`monolith/agent_service/agent.py`](#monolith-agent-service-agent-py) | 100 | IN PROGRESS | monolith-rs/crates/monolith-cli, monolith-rs/crates/monolith-serving/src | |
 | [`monolith/agent_service/agent_base.py`](#monolith-agent-service-agent-base-py) | 88 | IN PROGRESS | monolith-rs/crates/monolith-serving/src | |
@@ -363,49 +363,49 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/agent_service/utils_test.py`](#monolith-agent-service-utils-test-py) | 170 | IN PROGRESS | monolith-rs/crates/monolith-serving/tests | |
 | [`monolith/agent_service/zk_mirror.py`](#monolith-agent-service-zk-mirror-py) | 672 | IN PROGRESS | monolith-rs/crates/monolith-serving/src | |
 | [`monolith/agent_service/zk_mirror_test.py`](#monolith-agent-service-zk-mirror-test-py) | 229 | IN PROGRESS | monolith-rs/crates/monolith-serving/tests | |
-| [`monolith/base_runner.py`](#monolith-base-runner-py) | 46 | TODO | TODO (manual) |  |
-| [`monolith/common/python/mem_profiling.py`](#monolith-common-python-mem-profiling-py) | 51 | TODO | TODO (manual) |  |
-| [`monolith/core/__init__.py`](#monolith-core-init-py) | 0 | TODO | TODO (manual) |  |
-| [`monolith/core/auto_checkpoint_feed_hook.py`](#monolith-core-auto-checkpoint-feed-hook-py) | 376 | TODO | TODO (manual) |  |
-| [`monolith/core/base_embedding_host_call.py`](#monolith-core-base-embedding-host-call-py) | 643 | TODO | TODO (manual) |  |
-| [`monolith/core/base_embedding_host_call_test.py`](#monolith-core-base-embedding-host-call-test-py) | 77 | TODO | TODO (manual) |  |
-| [`monolith/core/base_embedding_task.py`](#monolith-core-base-embedding-task-py) | 611 | TODO | TODO (manual) |  |
-| [`monolith/core/base_host_call.py`](#monolith-core-base-host-call-py) | 145 | TODO | TODO (manual) |  |
-| [`monolith/core/base_layer.py`](#monolith-core-base-layer-py) | 161 | TODO | TODO (manual) |  |
-| [`monolith/core/base_layer_test.py`](#monolith-core-base-layer-test-py) | 41 | TODO | TODO (manual) |  |
-| [`monolith/core/base_model_params.py`](#monolith-core-base-model-params-py) | 25 | TODO | TODO (manual) |  |
-| [`monolith/core/base_task.py`](#monolith-core-base-task-py) | 95 | TODO | TODO (manual) |  |
-| [`monolith/core/base_tpu_test.py`](#monolith-core-base-tpu-test-py) | 73 | TODO | TODO (manual) |  |
-| [`monolith/core/core_test_suite.py`](#monolith-core-core-test-suite-py) | 35 | TODO | TODO (manual) |  |
-| [`monolith/core/dense.py`](#monolith-core-dense-py) | 179 | TODO | TODO (manual) |  |
-| [`monolith/core/dense_test.py`](#monolith-core-dense-test-py) | 108 | TODO | TODO (manual) |  |
-| [`monolith/core/feature.py`](#monolith-core-feature-py) | 611 | TODO | TODO (manual) |  |
-| [`monolith/core/feature_test.py`](#monolith-core-feature-test-py) | 178 | TODO | TODO (manual) |  |
-| [`monolith/core/host_call.py`](#monolith-core-host-call-py) | 248 | TODO | TODO (manual) |  |
-| [`monolith/core/hyperparams.py`](#monolith-core-hyperparams-py) | 439 | TODO | TODO (manual) |  |
-| [`monolith/core/hyperparams_test.py`](#monolith-core-hyperparams-test-py) | 277 | TODO | TODO (manual) |  |
-| [`monolith/core/mixed_emb_op_comb_nws.py`](#monolith-core-mixed-emb-op-comb-nws-py) | 421 | TODO | TODO (manual) |  |
-| [`monolith/core/model.py`](#monolith-core-model-py) | 320 | TODO | TODO (manual) |  |
-| [`monolith/core/model_imports.py`](#monolith-core-model-imports-py) | 104 | TODO | TODO (manual) |  |
-| [`monolith/core/model_registry.py`](#monolith-core-model-registry-py) | 174 | TODO | TODO (manual) |  |
-| [`monolith/core/optimizers.py`](#monolith-core-optimizers-py) | 25 | TODO | TODO (manual) |  |
-| [`monolith/core/py_utils.py`](#monolith-core-py-utils-py) | 313 | TODO | TODO (manual) |  |
-| [`monolith/core/testing_utils.py`](#monolith-core-testing-utils-py) | 203 | TODO | TODO (manual) |  |
-| [`monolith/core/tpu_variable.py`](#monolith-core-tpu-variable-py) | 214 | TODO | TODO (manual) |  |
-| [`monolith/core/util.py`](#monolith-core-util-py) | 269 | TODO | TODO (manual) |  |
-| [`monolith/core/util_test.py`](#monolith-core-util-test-py) | 150 | TODO | TODO (manual) |  |
-| [`monolith/core/variance_scaling.py`](#monolith-core-variance-scaling-py) | 188 | TODO | TODO (manual) |  |
-| [`monolith/gpu_runner.py`](#monolith-gpu-runner-py) | 226 | TODO | TODO (manual) |  |
-| [`monolith/native_training/alert/alert_manager.py`](#monolith-native-training-alert-alert-manager-py) | 31 | TODO | TODO (manual) |  |
-| [`monolith/native_training/alert/alert_manager_test.py`](#monolith-native-training-alert-alert-manager-test-py) | 32 | TODO | TODO (manual) |  |
-| [`monolith/native_training/barrier_ops.py`](#monolith-native-training-barrier-ops-py) | 158 | TODO | TODO (manual) |  |
-| [`monolith/native_training/barrier_ops_test.py`](#monolith-native-training-barrier-ops-test-py) | 104 | TODO | TODO (manual) |  |
-| [`monolith/native_training/basic_restore_hook.py`](#monolith-native-training-basic-restore-hook-py) | 72 | TODO | TODO (manual) |  |
-| [`monolith/native_training/basic_restore_hook_test.py`](#monolith-native-training-basic-restore-hook-test-py) | 137 | TODO | TODO (manual) |  |
-| [`monolith/native_training/clip_ops.py`](#monolith-native-training-clip-ops-py) | 80 | TODO | TODO (manual) |  |
-| [`monolith/native_training/clip_ops_test.py`](#monolith-native-training-clip-ops-test-py) | 92 | TODO | TODO (manual) |  |
-| [`monolith/native_training/cluster_manager.py`](#monolith-native-training-cluster-manager-py) | 184 | TODO | TODO (manual) |  |
-| [`monolith/native_training/cluster_manager_test.py`](#monolith-native-training-cluster-manager-test-py) | 35 | TODO | TODO (manual) |  |
+| [`monolith/base_runner.py`](#monolith-base-runner-py) | 46 | IN PROGRESS | monolith-rs/crates/monolith-training/src | |
+| [`monolith/common/python/mem_profiling.py`](#monolith-common-python-mem-profiling-py) | 51 | IN PROGRESS | monolith-rs/crates/monolith-training/src | |
+| [`monolith/core/__init__.py`](#monolith-core-init-py) | 0 | IN PROGRESS | monolith-rs/crates/monolith-core/src | |
+| [`monolith/core/auto_checkpoint_feed_hook.py`](#monolith-core-auto-checkpoint-feed-hook-py) | 376 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
+| [`monolith/core/base_embedding_host_call.py`](#monolith-core-base-embedding-host-call-py) | 643 | IN PROGRESS | monolith-rs/crates/monolith-core/src | |
+| [`monolith/core/base_embedding_host_call_test.py`](#monolith-core-base-embedding-host-call-test-py) | 77 | IN PROGRESS | monolith-rs/crates/monolith-core/tests | |
+| [`monolith/core/base_embedding_task.py`](#monolith-core-base-embedding-task-py) | 611 | IN PROGRESS | monolith-rs/crates/monolith-core/src | |
+| [`monolith/core/base_host_call.py`](#monolith-core-base-host-call-py) | 145 | IN PROGRESS | monolith-rs/crates/monolith-core/src | |
+| [`monolith/core/base_layer.py`](#monolith-core-base-layer-py) | 161 | IN PROGRESS | monolith-rs/crates/monolith-core/src | |
+| [`monolith/core/base_layer_test.py`](#monolith-core-base-layer-test-py) | 41 | IN PROGRESS | monolith-rs/crates/monolith-core/tests | |
+| [`monolith/core/base_model_params.py`](#monolith-core-base-model-params-py) | 25 | IN PROGRESS | monolith-rs/crates/monolith-core/src | |
+| [`monolith/core/base_task.py`](#monolith-core-base-task-py) | 95 | IN PROGRESS | monolith-rs/crates/monolith-core/src | |
+| [`monolith/core/base_tpu_test.py`](#monolith-core-base-tpu-test-py) | 73 | IN PROGRESS | monolith-rs/crates/monolith-training/tests | |
+| [`monolith/core/core_test_suite.py`](#monolith-core-core-test-suite-py) | 35 | IN PROGRESS | monolith-rs/crates/monolith-core/tests | |
+| [`monolith/core/dense.py`](#monolith-core-dense-py) | 179 | IN PROGRESS | monolith-rs/crates/monolith-layers/src | |
+| [`monolith/core/dense_test.py`](#monolith-core-dense-test-py) | 108 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests | |
+| [`monolith/core/feature.py`](#monolith-core-feature-py) | 611 | IN PROGRESS | monolith-rs/crates/monolith-core/src/feature.rs |  |
+| [`monolith/core/feature_test.py`](#monolith-core-feature-test-py) | 178 | IN PROGRESS | monolith-rs/crates/monolith-core/tests |  |
+| [`monolith/core/host_call.py`](#monolith-core-host-call-py) | 248 | IN PROGRESS | monolith-rs/crates/monolith-core/src | |
+| [`monolith/core/hyperparams.py`](#monolith-core-hyperparams-py) | 439 | IN PROGRESS | monolith-rs/crates/monolith-core/src/hyperparams.rs |  |
+| [`monolith/core/hyperparams_test.py`](#monolith-core-hyperparams-test-py) | 277 | IN PROGRESS | monolith-rs/crates/monolith-core/tests |  |
+| [`monolith/core/mixed_emb_op_comb_nws.py`](#monolith-core-mixed-emb-op-comb-nws-py) | 421 | IN PROGRESS | monolith-rs/crates/monolith-layers/src |  |
+| [`monolith/core/model.py`](#monolith-core-model-py) | 320 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
+| [`monolith/core/model_imports.py`](#monolith-core-model-imports-py) | 104 | IN PROGRESS | monolith-rs/crates/monolith-core/src | |
+| [`monolith/core/model_registry.py`](#monolith-core-model-registry-py) | 174 | IN PROGRESS | monolith-rs/crates/monolith-core/src | |
+| [`monolith/core/optimizers.py`](#monolith-core-optimizers-py) | 25 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src | |
+| [`monolith/core/py_utils.py`](#monolith-core-py-utils-py) | 313 | IN PROGRESS | monolith-rs/crates/monolith-core/src | |
+| [`monolith/core/testing_utils.py`](#monolith-core-testing-utils-py) | 203 | IN PROGRESS | monolith-rs/crates/monolith-core/tests | |
+| [`monolith/core/tpu_variable.py`](#monolith-core-tpu-variable-py) | 214 | IN PROGRESS | monolith-rs/crates/monolith-tf/src | |
+| [`monolith/core/util.py`](#monolith-core-util-py) | 269 | IN PROGRESS | monolith-rs/crates/monolith-core/src | |
+| [`monolith/core/util_test.py`](#monolith-core-util-test-py) | 149 | IN PROGRESS | monolith-rs/crates/monolith-core/tests | |
+| [`monolith/core/variance_scaling.py`](#monolith-core-variance-scaling-py) | 188 | IN PROGRESS | monolith-rs/crates/monolith-core/src | |
+| [`monolith/gpu_runner.py`](#monolith-gpu-runner-py) | 226 | IN PROGRESS | monolith-rs/crates/monolith-training/src | |
+| [`monolith/native_training/alert/alert_manager.py`](#monolith-native-training-alert-alert-manager-py) | 31 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
+| [`monolith/native_training/alert/alert_manager_test.py`](#monolith-native-training-alert-alert-manager-test-py) | 32 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
+| [`monolith/native_training/barrier_ops.py`](#monolith-native-training-barrier-ops-py) | 158 | IN PROGRESS | monolith-rs/crates/monolith-training/src/barrier.rs |  |
+| [`monolith/native_training/barrier_ops_test.py`](#monolith-native-training-barrier-ops-test-py) | 104 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
+| [`monolith/native_training/basic_restore_hook.py`](#monolith-native-training-basic-restore-hook-py) | 72 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
+| [`monolith/native_training/basic_restore_hook_test.py`](#monolith-native-training-basic-restore-hook-test-py) | 137 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
+| [`monolith/native_training/clip_ops.py`](#monolith-native-training-clip-ops-py) | 80 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
+| [`monolith/native_training/clip_ops_test.py`](#monolith-native-training-clip-ops-test-py) | 92 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/tests |  |
+| [`monolith/native_training/cluster_manager.py`](#monolith-native-training-cluster-manager-py) | 184 | IN PROGRESS | monolith-rs/crates/monolith-training/src/distributed.rs |  |
+| [`monolith/native_training/cluster_manager_test.py`](#monolith-native-training-cluster-manager-test-py) | 35 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/consul.py`](#monolith-native-training-consul-py) | 149 | TODO | TODO (manual) |  |
 | [`monolith/native_training/consul_test.py`](#monolith-native-training-consul-test-py) | 59 | TODO | TODO (manual) |  |
 | [`monolith/native_training/cpu_sync_training_test.py`](#monolith-native-training-cpu-sync-training-test-py) | 360 | TODO | TODO (manual) |  |
@@ -654,10 +654,10 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/yarn_runtime.py`](#monolith-native-training-yarn-runtime-py) | 127 | TODO | TODO (manual) |  |
 | [`monolith/native_training/yarn_runtime_test.py`](#monolith-native-training-yarn-runtime-test-py) | 133 | TODO | TODO (manual) |  |
 | [`monolith/native_training/zk_utils.py`](#monolith-native-training-zk-utils-py) | 96 | TODO | TODO (manual) |  |
-| [`monolith/path_utils.py`](#monolith-path-utils-py) | 47 | TODO | TODO (manual) |  |
-| [`monolith/tpu_runner.py`](#monolith-tpu-runner-py) | 429 | TODO | TODO (manual) |  |
-| [`monolith/utils.py`](#monolith-utils-py) | 81 | TODO | TODO (manual) |  |
-| [`monolith/utils_test.py`](#monolith-utils-test-py) | 65 | TODO | TODO (manual) |  |
+| [`monolith/path_utils.py`](#monolith-path-utils-py) | 47 | IN PROGRESS | monolith-rs/crates/monolith-core/src | |
+| [`monolith/tpu_runner.py`](#monolith-tpu-runner-py) | 429 | IN PROGRESS | monolith-rs/crates/monolith-training/src | |
+| [`monolith/utils.py`](#monolith-utils-py) | 81 | IN PROGRESS | monolith-rs/crates/monolith-tf/src | |
+| [`monolith/utils_test.py`](#monolith-utils-test-py) | 65 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests | |
 
 ## Per-File Parity Checklists (All Python Files)
 
@@ -666,50 +666,41 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/__init__.py`
 <a id="monolith-init-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 55
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Package bootstrap that re-exports key submodules and enables TensorFlow monkey patching.
+- Key symbols/classes/functions: `add_module`, side-effect imports of `data`, `layers`, `model_export`, `entry`, `native_model` (as `base_model`), `estimator`.
+- External dependencies: `tensorflow.python.tools.module_util` (imported), `absl.logging`, `importlib`, `monolith.utils.enable_monkey_patch`.
+- Side effects: imports training modules on import; injects modules into `sys.modules`; may modify TensorFlow monitored_session behavior.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `add_module(module)`:
+  - Accepts a module object or a module string.
+  - If a string, imports it; derives `name` from the last path component.
+  - If `name == 'native_model'`, rename to `'base_model'`.
+  - Registers module in `sys.modules` under `monolith.<name>`.
+- On import:
+  - Calls `add_module` for `data`, `layers`, `model_export`, `entry`, `native_model` (as `base_model`), `estimator`.
+  - Calls `enable_monkey_patch()`; on exception, logs `enable_monkey_patch failed`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/lib.rs` (crate-level re-exports), plus `monolith-rs/crates/monolith-training` for training APIs.
+- Rust public API surface: `pub use` re-exports of subcrates/modules to mimic `monolith.*` namespace.
+- Data model mapping: N/A (module wiring only).
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Define a top-level Rust crate that re-exports equivalent submodules (data/layers/training/export/estimator).
+2. Ensure any TF monkey patch logic is represented (or explicitly documented as unsupported) in Rust.
+3. Avoid heavy side effects on import; if unavoidable, document and feature-gate.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: covered indirectly by `monolith/utils_test.py` monkey patch test.
+- Rust tests: add a smoke test that `monolith` re-exports are accessible.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python import side effects are heavy; Rust should provide explicit init if needed.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -2822,50 +2813,39 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/base_runner.py`
 <a id="monolith-base-runner-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 46
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Base runner class with TensorFlow summary writing helper.
+- Key symbols/classes/functions: `BaseRunner`, `write_summary`.
+- External dependencies: `tensorflow`.
+- Side effects: writes TensorFlow summary events to a writer.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `BaseRunner.__init__` accepts `*args, **kwargs` (no stored fields in base).
+- `run()` is abstract and raises `NotImplementedError`.
+- `write_summary(logs, summary_writer, current_step)`:
+  - Creates a new TF v1 Graph context.
+  - Builds `tf.compat.v1.Summary.Value` entries from `logs` dict.
+  - Writes to `summary_writer.add_summary(tf_summary, current_step)`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/base_runner.rs`.
+- Rust public API surface: `BaseRunner` trait/struct with `run` and `write_summary` helper.
+- Data model mapping: summary writer abstraction (likely TB event writer).
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a minimal runner trait with `run()`.
+2. Provide a summary writer abstraction compatible with TF event files (or document absence).
+3. Mirror log-to-summary conversion semantics.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none specific.
+- Rust tests: unit test for summary serialization if supported.
 
 **Gaps / Notes**
-- TODO (manual)
+- Rust likely needs a TensorBoard writer crate to match TF summary outputs.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -2882,50 +2862,41 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/common/python/mem_profiling.py`
 <a id="monolith-common-python-mem-profiling-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 51
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Configure tcmalloc heap profiling via environment variables.
+- Key symbols/classes/functions: `enable_tcmalloc`, `setup_heap_profile`.
+- External dependencies: `MLPEnv`, `monolith.utils`.
+- Side effects: modifies `LD_PRELOAD` and `HEAP_PROFILE_*` env vars.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `enable_tcmalloc()`:
+  - Appends `../gperftools/libtcmalloc/lib/libtcmalloc.so` (resolved via `utils.get_libops_path`) to `LD_PRELOAD`.
+- `setup_heap_profile(...)`:
+  - Calls `enable_tcmalloc()`.
+  - Uses `MLPEnv().index` to name heap profile file `hprof_<index>` in `heap_pro_file` or `utils.find_main()`.
+  - Sets env vars:
+    - `HEAPPROFILE` path
+    - `HEAP_PROFILE_INUSE_INTERVAL` and `HEAP_PROFILE_ALLOCATION_INTERVAL` scaled by `1/sample_ratio`
+    - `HEAP_PROFILE_SAMPLE_RATIO`, `HEAP_PROFILE_TIME_INTERVAL`, `HEAP_PROFILE_MMAP`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/mem_profiling.rs`.
+- Rust public API surface: functions to set environment variables and preload tcmalloc.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement environment variable setup with the same names and scaling.
+2. Provide an MLPEnv equivalent or configuration injection for index.
+3. Ensure LD_PRELOAD modification is appended (not overwritten).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none
+- Rust tests: unit tests for env var values given sample_ratio.
 
 **Gaps / Notes**
-- TODO (manual)
+- Rust cannot preload shared libs at runtime on all platforms; document OS-specific behavior.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -2942,50 +2913,31 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/__init__.py`
 <a id="monolith-core-init-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 0
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Empty initializer for `monolith.core`.
+- Key symbols/classes/functions: none
+- External dependencies: none
+- Side effects: none
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Importing this module must not execute any side effects.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/lib.rs`.
+- Rust public API surface: module boundary only.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Ensure the Rust crate exposes `monolith-core` without implicit side effects.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none
+- Rust tests: none
 
 **Gaps / Notes**
-- TODO (manual)
+- None.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -3002,50 +2954,91 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/auto_checkpoint_feed_hook.py`
 <a id="monolith-core-auto-checkpoint-feed-hook-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 376
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: TPU infeed/outfeed SessionRunHook with thread-managed queues, TPU init/shutdown, and end-of-stream stopping signals.
+- Key symbols/classes/functions: `PeriodicLogger`, `_SIGNAL`, `_OpQueueContext`, `_OpSignalOnceQueueContext`, `TPUInfeedOutfeedSessionWithEndOfStreamHandlingHook`.
+- External dependencies: `threading`, `time`, `os`, `six.moves.queue/xrange`, `tensorflow.compat.v1`, `config_pb2`, `tpu_compilation_result`, `summary_ops_v2` (plus implicit `ops`, `tpu_config`, `session_support`).
+- Side effects: spawns threads, initializes/shuts down TPU, runs TF sessions, reads env vars, logs via TF logging.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `PeriodicLogger(seconds)`:
+  - `log()` emits TF log only if elapsed time exceeds `seconds`.
+- `_SIGNAL`:
+  - `NEXT_BATCH = -1`, `STOP = -2` (negative values reserved for control).
+- `_OpQueueContext`:
+  - Starts a daemon thread running `target(self, *args)`.
+  - `send_next_batch_signal(iterations)` enqueues integer iterations.
+  - `read_iteration_counts()` yields iterations until `_SIGNAL.STOP` then returns.
+  - `join()` logs, sends STOP, joins thread.
+- `_OpSignalOnceQueueContext`:
+  - Only allows the first `send_next_batch_signal`; subsequent calls ignored.
+- `TPUInfeedOutfeedSessionWithEndOfStreamHandlingHook`:
+  - `__init__`:
+    - Stores enqueue/dequeue ops, rendezvous, master, session config, init ops, outfeed cadence.
+    - Reads embedding config from `ctx` if present.
+    - Sets `_should_initialize_tpu=False` when model-parallel + per-host input broadcast; else true.
+    - Sets `stopping_signal=False`.
+  - `_create_or_get_iterations_per_loop()`:
+    - Uses graph collection `tpu_estimator_iterations_per_loop`.
+    - If >1 existing var → `RuntimeError("Multiple iterations_per_loop_var in collection.")`.
+    - Else creates resource variable in scope `tpu_estimator`, int32 scalar, non-trainable, in LOCAL_VARIABLES, colocated with global step.
+  - `begin()`:
+    - Records `_iterations_per_loop_var`.
+    - Adds TPU shutdown op to `_finalize_ops` if `_should_initialize_tpu`.
+    - Adds summary writer init ops to `_init_ops` and flush ops to `_finalize_ops`.
+  - `_run_infeed(queue_ctx, session)`:
+    - Optional sleep (`initial_infeed_sleep_secs`).
+    - If `run_infeed_loop_on_coordinator`: for each iteration signal, runs `enqueue_ops` `steps` times.
+    - Else runs `enqueue_ops` once per signal.
+  - `_run_outfeed(queue_ctx, session)`:
+    - Runs `dequeue_ops` every `outfeed_every_n_steps`.
+    - If output includes `_USER_PROVIDED_SIGNAL_NAME`, expects a dict containing `stopping`.
+    - When first stopping signal seen, sets `stopping_signals=True` and later flips `self.stopping_signal=True`.
+  - `_assertCompilationSucceeded(result, coord)`:
+    - Parses TPU compilation proto; if `status_error_message` set → log error + `coord.request_stop()`.
+  - `after_create_session()`:
+    - If `_should_initialize_tpu`, runs `tf.tpu.initialize_system` in a fresh graph/session.
+    - Runs `_init_ops` with 30 minute timeout.
+    - If `TPU_SPLIT_COMPILE_AND_EXECUTE=1`, runs `tpu_compile_op` and asserts compilation success.
+    - Starts infeed/outfeed controller threads.
+    - If `TF_TPU_WATCHDOG_TIMEOUT>0`, starts worker watchdog.
+  - `before_run()`:
+    - If `stopping_signal` is set, raises `tf.errors.OutOfRangeError`.
+    - Reads `iterations_per_loop`, sends signals to infeed/outfeed controllers.
+  - `end()`:
+    - Joins infeed/outfeed threads; calls rendezvous `record_done`; runs finalize ops (flush + shutdown).
+  - `get_stopping_signals_and_name(features)`:
+    - If `_USER_PROVIDED_SIGNAL_NAME` in `features`, uses `tf.tpu.cross_replica_sum` to compute `stopping` boolean.
+    - Returns `(stopping_signals, _USER_PROVIDED_SIGNAL_NAME)`.
+- Env vars:
+  - `TPU_SPLIT_COMPILE_AND_EXECUTE=1` triggers separate compile step.
+  - `TF_TPU_WATCHDOG_TIMEOUT` enables worker watchdog.
+- Threading: two daemon threads (infeed/outfeed) controlled via queues.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tf/src` (TPU runtime integration).
+- Rust public API surface: no equivalent; would need a TPU session hook abstraction.
+- Data model mapping: TF session/run hooks have no direct Rust equivalent.
+- Feature gating: only relevant if TF-runtime backend is enabled.
+- Integration points: training loop / input pipeline in `monolith-training`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Decide if TPU SessionRunHook is in-scope for Rust TF backend.
+2. If in-scope, implement infeed/outfeed controller threads and queue signaling.
+3. Expose env-var toggles for compile/execute split and watchdog timeout.
+4. Provide cross-replica stopping signal handling for outfeed.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none dedicated (covered indirectly by TPU training flows).
+- Rust tests: none yet; would need integration tests with TF runtime.
+- Cross-language parity test: not applicable unless TF runtime implemented in Rust.
 
 **Gaps / Notes**
-- TODO (manual)
+- Missing imports in Python (`ops`, `tpu_config`, `session_support`) are referenced but not imported.
+- Rust has no TPU SessionRunHook analog; full parity requires TF runtime + hook infrastructure.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -3062,50 +3055,56 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/base_embedding_host_call.py`
 <a id="monolith-core-base-embedding-host-call-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 643
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Host call logic for embedding tasks, including TPU variable caching and DeepInsight metrics.
+- Key symbols/classes/functions: `BaseEmbeddingHostCall`, `update_tpu_variables_ops`, `generate_host_call_hook`.
+- External dependencies: `tensorflow.compat.v1`, `tensorflow`, `BaseHostCall`, `ReplicatedVariable`.
+- Side effects: creates TPU variables on all replicas; writes TF summaries; computes AUC.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Constants define metric names and TPU variable names.
+- `TPUVariableRestoreHook` runs assign op after session creation.
+- `BaseEmbeddingHostCall.__init__`:
+  - Stores flags for host call, deepinsight, scalar metrics, caching mode.
+  - Extracts `context` unless `cpu_test`.
+  - Creates TPU variables if `enable_host_call` and caching enabled.
+- `_create_tpu_var`:
+  - Creates per-replica TPU variables across hosts with zeros, adds to `TPU_VAR` collection.
+  - Wraps in `ReplicatedVariable`; registers restore hooks.
+- `_compute_new_value(base, delta, update_offset)`:
+  - Pads `delta` to base length, then `tf.roll` by offset, then adds to base.
+- `update_tpu_variables_ops(...)`:
+  - Clears TPU vars when `global_step % host_call_every_n_steps == 1`.
+  - Writes labels/preds/uid_buckets and req_times/sample_rates into TPU vars at computed offsets.
+  - Updates accumulated counter only after tensor updates.
+- `record_summary_tpu_variables()` collects TPU vars into host call tensors.
+- `record_summary_tensor` filters based on `enable_host_call_scalar_metrics` and deprecated metric names.
+- `_write_summary_ops`:
+  - Filters by uid_bucket and stopping_signals; computes AUC; writes scalar summaries and serialized tensors.
+- `generate_host_call_hook()`:
+  - Calls `compress_tensors()` and returns either `_host_call` or `_host_call_with_tpu` plus tensor list; or `None` if disabled.
+  - Host call writes summaries under `output_dir/host_call` with `tf2.summary`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/base_embedding_host_call.rs`.
+- Rust public API surface: host call builder with optional TPU caching mode.
+- Data model mapping: summary writer and AUC metric implementation.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Recreate TPU variable caching logic (or provide equivalent buffer) with host-call step windowing.
+2. Implement summary writing and AUC computation matching TF semantics.
+3. Mirror filtering by UID buckets and stopping signals.
+4. Provide compatibility with TPU/CPU test modes.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/core/base_embedding_host_call_test.py`
+- Rust tests: unit tests for `_compute_new_value` and host call output shapes.
 
 **Gaps / Notes**
-- TODO (manual)
+- Full parity requires TF TPU runtime; Rust may need to stub or bridge this functionality.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -3122,50 +3121,33 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/base_embedding_host_call_test.py`
 <a id="monolith-core-base-embedding-host-call-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 77
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests `_compute_new_value` in BaseEmbeddingHostCall.
+- Key symbols/classes/functions: `BaseEmbeddingHostCallTest.test_compute_new_value`.
+- External dependencies: `tensorflow.compat.v1`.
+- Side effects: none.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Constructs `BaseEmbeddingHostCall` with `enable_host_call=False` and `context=None`.
+- Verifies `_compute_new_value` behavior with different offsets.
+- Uses TF session to evaluate results and compares to expected tensors.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/tests/base_embedding_host_call.rs`.
+- Rust public API surface: `_compute_new_value` equivalent.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port `_compute_new_value` logic in Rust and add unit tests for offsets.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file
+- Rust tests: same assertions.
 
 **Gaps / Notes**
-- TODO (manual)
+- Needs tensor ops; may require a small tensor wrapper or TF binding in Rust tests.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -3182,50 +3164,56 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/base_embedding_task.py`
 <a id="monolith-core-base-embedding-task-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 611
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Base class for TPU embedding tasks; builds input pipeline, vocab sizing, and TPU embedding configs.
+- Key symbols/classes/functions: `BaseEmbeddingTask.params`, `create_input_fn`, `_post_process_example`, `create_feature_and_table_config_dict`, `process_features_for_cpu_test`.
+- External dependencies: `tensorflow.compat.v1`, `tpu_embedding`, `FeatureSlot/FeatureColumn`, `auto_checkpoint_feed_hook`, `util`.
+- Side effects: reads vocab file (possibly from HDFS), constructs TF datasets and embedding configs.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `params()` defines many embedding-related flags, including vocab sizing, QR hashing, deepinsight, host call metrics, file input ranges, and stopping signals.
+- `__init__`:
+  - Sets flags, builds vocab dict (from file or downloaded from HDFS), constructs `Env`.
+- `download_vocab_size_file_from_hdfs()`:
+  - Downloads a single `part*.csv` from HDFS into temp folder; updates `p.vocab_file_path` if successful.
+- `_create_vocab_dict()`:
+  - Reads vocab file (tsv slot_id -> count), applies overrides and offsets, returns dict.
+- `create_input_fn(mode)`:
+  - Only supports TRAIN.
+  - If `file_pattern` provided, uses `tf.data.Dataset.list_files` (no shuffle); else uses `file_folder` + `date_and_file_name_format` and `util.range_dateset` with `start_date/end_date`.
+  - Shards files per TPU host call index.
+  - Interleaves files with `cycle_length` and parses examples via `_get_feature_map` and `_post_process_example`.
+  - If `enable_stopping_signals`, appends a final batch with stop signal flag via `auto_checkpoint_feed_hook`.
+  - Prefetches with AUTOTUNE.
+- `_post_process_example`:
+  - Converts embedding tensors to SparseTensor; applies vocab size mods, QR hashing, and FeatureColumn3D row_lengths.
+  - Adds UID bucket for AUC sampling if `_UID` exists.
+- `create_feature_and_table_config_dict()`:
+  - Builds `tpu_embedding.TableConfig` and `FeatureConfig` per slot/feature slice, including QR hashing tables.
+- `process_features_for_cpu_test()`:
+  - Creates embedding variables with random init and uses `safe_embedding_lookup_sparse`.
+  - Clears internal feature/table config dicts after processing.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/base_embedding_task.rs`.
+- Rust public API surface: base embedding task trait/struct with dataset and embedding config helpers.
+- Data model mapping: TF dataset pipeline and TPU embedding configs (likely via TF runtime bridge).
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port parameter schema and vocab file parsing.
+2. Implement dataset pipeline generation or equivalent data loader.
+3. Recreate embedding config generation and QR hashing logic.
+4. Implement CPU test path for embeddings.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none direct; used by TPU runner tests.
+- Rust tests: unit tests for vocab dict creation and QR hashing config creation.
 
 **Gaps / Notes**
-- TODO (manual)
+- Full parity depends on TF TPU embedding APIs; Rust likely needs a bridge or compatibility layer.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -3242,50 +3230,47 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/base_host_call.py`
 <a id="monolith-core-base-host-call-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 145
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Collects tensors for TPU host calls, with compression/decompression by dtype.
+- Key symbols/classes/functions: `BaseHostCall.record_summary_tensor`, `compress_tensors`, `decompress_tensors`.
+- External dependencies: `tensorflow`, `absl.logging`.
+- Side effects: builds internal tensor lists; uses global_step tensor.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `__init__(output_dir, enable_host_call)`:
+  - Initializes `_tensor_names` with `"global_step"` and `_tensors` with reshaped global step.
+  - `_lists_tensor_sizes` tracks original sizes for decompression.
+- `record_summary_tensor(name, tensor)`:
+  - No-op if host call disabled.
+  - Asserts unique name, asserts tensor rank <= 1, reshapes to `[-1]`, appends.
+- `compress_tensors()`:
+  - Groups tensors by dtype; concatenates each dtype list along axis 0, then `expand_dims` to add batch dimension.
+  - Stores per-group tensor sizes in `_lists_tensor_sizes`.
+  - Replaces `_tensor_names` and `_tensors` with compressed versions.
+- `decompress_tensors(tensors)`:
+  - Splits each compressed tensor by recorded sizes; squeezes to 1D.
+  - Asserts first tensor name is `global_step` (error message uses first character only).
+  - Returns `(global_step_scalar, decompressed_tensor_list)` where global step is `decompressed_tensor_list[0][0]`.
+- `generate_host_call_hook()` default returns `None` (to be overridden).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/base_host_call.rs`.
+- Rust public API surface: `BaseHostCall` struct with tensor collection and (de)compression.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement tensor collection and dtype grouping logic.
+2. Preserve compression/decompression shapes and per-dtype grouping semantics.
+3. Mirror global_step positioning and return shape.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none specific (used indirectly by embedding host call tests).
+- Rust tests: unit tests for compress/decompress roundtrip.
 
 **Gaps / Notes**
-- TODO (manual)
+- Error message in assert uses `self._tensor_names[0][0]` (first char); keep for parity.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -3302,50 +3287,58 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/base_layer.py`
 <a id="monolith-core-base-layer-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 161
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Base class for layers with child management, name assignment, and per-graph layer loss tracking.
+- Key symbols/classes/functions: `BaseLayer`, `get_uname`, `add_layer_loss`, `get_layer_loss`.
+- External dependencies: `tensorflow`, `InstantiableParams`, `NestedMap`.
+- Side effects: global registries `_layer_loss` and `_name_inuse` are mutated.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `params()`:
+  - Returns `InstantiableParams(cls)` and defines `name` using `get_uname(cls.__name__)`.
+- `__init__(params)`:
+  - Asserts `params.name` is set.
+  - Initializes `_private_children` as `NestedMap`.
+- `children` property returns `_private_children`.
+- `__getattr__`:
+  - Raises AttributeError if `_private_children` not created.
+  - If `name` in children, returns it.
+  - If class has a property with that name, calls the property's getter to surface the same AttributeError.
+  - Else raises `"<name> is not a sub-layer of <self>."`.
+- `__call__` forwards to `fprop()`.
+- `fprop()` is abstract: raises `NotImplementedError('Abstract method of %s' % self)`.
+- `create_child(name, params)`:
+  - If `params.name` empty, assigns `self.p.name` (assumes BaseLayer has `p` attribute set by InstantiableParams).
+  - Instantiates child via `params.instantiate()` and stores under `_private_children[name]`.
+- `create_children(name, params_list)`:
+  - Creates list; for each param, sets `param.name = f"{name}_{index}"` if missing; instantiates and appends.
+- `get_uname(name)`:
+  - Uses `_name_inuse` defaultdict; **note**: code checks membership but never inserts, so it currently always returns `name` (no suffix) unless keys are inserted elsewhere.
+- `add_layer_loss(name, loss)`:
+  - Adds loss into `_layer_loss` keyed by default graph and layer name.
+- `get_layer_loss()`:
+  - Returns the dict for the current default graph.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/base_layer.rs`.
+- Rust public API surface: `BaseLayer` trait/struct, child map, `get_uname`, layer loss registry.
+- Data model mapping: `NestedMap` equivalent and parameter instantiation mechanism.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a base layer trait with child management and `fprop` entrypoint.
+2. Provide a `NestedMap` equivalent with attribute-like access.
+3. Mirror `get_uname` behavior (including current no-op uniqueness unless explicitly fixed).
+4. Implement per-graph loss registry or document deviation if Rust lacks TF graphs.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/core/base_layer_test.py`
+- Rust tests: verify create_child/create_children and `__getattr__`-like behavior.
 
 **Gaps / Notes**
-- TODO (manual)
+- BaseLayer relies on `self.p` being set by hyperparams instantiation; mirror this in Rust or document.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -3362,50 +3355,35 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/base_layer_test.py`
 <a id="monolith-core-base-layer-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 41
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests child creation APIs in `BaseLayer`.
+- Key symbols/classes/functions: `BaseLayerTest.test_create_child`, `.test_create_children`.
+- External dependencies: `base_layer`.
+- Side effects: none.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_create_child`:
+  - Instantiates BaseLayer params, sets name, creates layer, calls `create_child`, and asserts child exists.
+- `test_create_children`:
+  - Creates two child layers and asserts list length is 2.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/tests/base_layer.rs`.
+- Rust public API surface: BaseLayer child creation.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port tests using Rust BaseLayer + params instantiation.
+2. Assert child map/list presence and lengths.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file
+- Rust tests: same assertions.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python tests access `_disable_create_child` which is not defined in BaseLayer; confirm if Rust needs similar flag (likely no-op).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -3422,50 +3400,32 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/base_model_params.py`
 <a id="monolith-core-base-model-params-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 25
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Defines abstract params holder for single-task models.
+- Key symbols/classes/functions: `SingleTaskModelParams.task`.
+- External dependencies: none.
+- Side effects: none.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `SingleTaskModelParams.task()` is abstract and must be overridden to return task params; raises `NotImplementedError('Abstract method')` by default.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/base_model_params.rs`.
+- Rust public API surface: trait or struct with `task()`/`task_params()` abstract method.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Create a Rust trait for model params with `task()` returning task config.
+2. Ensure errors are explicit when called on base type.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none specific.
+- Rust tests: optional compile-time trait enforcement or runtime panic test.
 
 **Gaps / Notes**
-- TODO (manual)
+- None.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -3482,50 +3442,40 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/base_task.py`
 <a id="monolith-core-base-task-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 95
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Base class for a single training task, defining standard hyperparams and abstract input/model functions.
+- Key symbols/classes/functions: `BaseTask.params`, `create_input_fn`, `create_model_fn`.
+- External dependencies: `base_layer.BaseLayer`, `hyperparams.Params`.
+- Side effects: none.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `params()`:
+  - Extends `BaseLayer.params()` with:
+    - `accelerator` (None/"tpu"/"horovod")
+    - `input.eval_examples`, `input.train_examples`
+    - `eval.per_replica_batch_size`, `eval.steps_per_eval`, `eval.steps`
+    - `train.steps`, `train.max_steps`, `train.per_replica_batch_size`, `train.file_pattern`, `train.repeat`, `train.label_key`, `train.save_checkpoints_steps`, `train.save_checkpoints_secs`, `train.dense_only_save_checkpoints_secs`, `train.dense_only_save_checkpoints_steps`
+- `create_input_fn(mode)` and `create_model_fn()` are abstract and must be overridden.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/base_task.rs`.
+- Rust public API surface: base task trait with hyperparams schema and abstract hooks.
+- Data model mapping: `Params` equivalent (typed config or map).
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement base task trait/struct with default parameter schema.
+2. Provide typed config structures with the same field names.
+3. Ensure overridden methods are required (trait methods).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none specific.
+- Rust tests: verify default params include the expected keys.
 
 **Gaps / Notes**
-- TODO (manual)
+- This depends on the Rust `Params`/hyperparams implementation to mirror Python semantics.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -3542,50 +3492,36 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/base_tpu_test.py`
 <a id="monolith-core-base-tpu-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 73
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Base TPU tests for running TPU tasks on CPU and validating merged vector behavior.
+- Key symbols/classes/functions: `BaseTPUTest.runWithCPU`, `runMergeVectorTestOnCPU`.
+- External dependencies: `model_registry`, `TPURunner`.
+- Side effects: runs TPU runner in CPU test mode.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `runWithCPU(task_name)`:
+  - Retrieves task params, instantiates TPURunner, sets `_cpu_test=True` and `_host_call_every_n_steps=0`, runs.
+- `runMergeVectorTestOnCPU(task_name)`:
+  - Enables `merge_vector` on task params; runs in CPU test mode.
+  - Validates merged slot dims and embedding dims in runner task env.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/base_tpu.rs`.
+- Rust public API surface: TPU runner CPU-test mode.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Provide CPU test mode in Rust TPU runner.
+2. Expose task env state for merge_vector assertions.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: used as base class in TPU-related tests.
+- Rust tests: implement equivalent helper assertions.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires task env structures in Rust to match slot/dim semantics.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -3602,50 +3538,33 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/core_test_suite.py`
 <a id="monolith-core-core-test-suite-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 35
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Aggregates core unit tests into a suite.
+- Key symbols/classes/functions: `suite()`.
+- External dependencies: `unittest`, `ParamsTest`, `BaseLayerTest`, `BaseEmbeddingHostCallTest`, `UtilTest`.
+- Side effects: runs test suite when invoked as main.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `suite()` creates a `unittest.TestSuite` containing the four test classes.
+- `__main__` runs suite with `TextTestRunner(verbosity=2)`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (Rust test harness handles suites).
+- Rust public API surface: none; map to Rust test module organization.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Ensure Rust tests cover the same components.
+2. Document that Python-style suite is not required in Rust.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file
+- Rust tests: already covered by individual test modules.
 
 **Gaps / Notes**
-- TODO (manual)
+- None.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -3662,50 +3581,44 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/dense.py`
 <a id="monolith-core-dense-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 179
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Custom Dense layer combining TF Keras Dense with BaseLayer and optional kernel normalization.
+- Key symbols/classes/functions: `Dense.params`, `build`, `fprop`.
+- External dependencies: `tensorflow`, `VarianceScaling`.
+- Side effects: creates TF variables (kernel/bias/trainable norms).
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `params()`:
+  - Defines units, activation, use_bias, kernel/bias initializers, kernel norm options, and partitioner.
+- `__init__`:
+  - Initializes BaseLayer and tf.keras.layers.Dense with given params.
+  - Sets attributes: `allow_kernel_norm`, `kernel_norm_trainable`, `var_name_prefix`, `partitioner`.
+- `build(input_shape)`:
+  - Validates dtype (float/complex).
+  - Uses `VarianceScaling` initializer to create kernel; uses `tf.compat.v1.get_variable` (partitioner optional).
+  - If `allow_kernel_norm`: L2-normalizes kernel and optionally multiplies by trainable norm variable.
+  - Creates bias if `use_bias`.
+- `get_config()` merges base config with custom fields.
+- `fprop(inputs)` calls `self.call(inputs)`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/src/dense.rs`.
+- Rust public API surface: Dense layer with optional kernel normalization and partitioner hooks.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement Dense forward pass and parameter initializers.
+2. Add optional kernel normalization and trainable scaling.
+3. Preserve config serialization fields.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/core/dense_test.py`
+- Rust tests: layer instantiation, dtype handling, partitioner behavior.
 
 **Gaps / Notes**
-- TODO (manual)
+- Partitioned variables are TF-specific; Rust may need abstraction or ignore.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -3722,50 +3635,36 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/dense_test.py`
 <a id="monolith-core-dense-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 108
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests Dense layer instantiation, dtype handling, and partitioner.
+- Key symbols/classes/functions: `DenseTest` methods.
+- External dependencies: `testing_utils.layer_test`, `Dense`.
+- Side effects: creates TF variables and runs sessions.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_dense_instantiate`: runs `layer_test` for different input shapes.
+- `test_dense_dtype`: ensures output dtype is float32 when specified.
+- `test_dense`: checks output shape and runs session to initialize vars.
+- `test_dense_with_partitioner`: ensures Dense works with variable partitioner.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/dense.rs`.
+- Rust public API surface: Dense layer tests.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port tests to Rust layer API.
+2. Validate shapes and dtype outputs.
+3. Provide a mock partitioner or skip if unsupported (document).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file
+- Rust tests: parity tests.
 
 **Gaps / Notes**
-- TODO (manual)
+- Some TF-specific behaviors may require stubbing in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -3782,50 +3681,111 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/feature.py`
 <a id="monolith-core-feature-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 611
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Sail-like feature API for defining feature slots/slices/columns and embedding lookups with optional merged vector handling.
+- Key symbols/classes/functions: `FeatureSlice`, `FeatureSlot`, `FeatureColumnV1`, `FeatureColumn3D`, `Env`.
+- External dependencies: `tensorflow`, `absl.logging`, `collections.namedtuple` (imported; unused).
+- Side effects: creates TF placeholders, mutates shared `Env` state, writes to `_tpu_features`, logs via `absl.logging`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `FeatureSlice`:
+  - Constructor stores `feature_slot`, `dim`, `slice_index`, `optimizer`, `initializer`, `learning_rate_fn`.
+  - `__repr__` returns `[FeatureSlice][slot_{slot_id}][{slice_index}]` (used as dict key).
+  - `__hash__` uses `(feature_slot.slot_id(), slice_index)`.
+  - Read-only properties: `dim`, `slice_index`, `optimizer`, `initializer`, `learning_rate_fn`.
+- `FeatureSlot`:
+  - Constructor registers itself into `Env` via `env.set_feature_slot(slot_id, self)`.
+  - If `has_bias=True`, creates bias `FeatureSlice` with `dim=1`, `slice_index=0` using bias optimizer/initializer/lr and appends to `_feature_slices`.
+  - `add_feature_slice(dim, optimizer=None, initializer=None, learning_rate_fn=None)`:
+    - Defaults to `default_vec_*` settings when args are `None`.
+    - Creates `FeatureSlice` with `slice_index=len(_feature_slices)`; appends and returns it.
+  - `add_merged_feature_slice(...)`: same as `add_feature_slice` but appends to `_merged_feature_slices`.
+  - `_add_feature_column(feature_column)`:
+    - Adds to `_feature_columns`.
+    - If `has_bias=True`, sets `_bias` for **all** feature columns by calling `feature_column.embedding_lookup(feature_slices[0])`.
+  - Properties expose `bias_*`, `default_vec_*`, `feature_slices`, `merged_feature_slices`, `feature_columns`.
+- `FeatureColumnV1`:
+  - Constructor stores `feature_slot`, `fc_name`; initializes placeholder dicts and `_bias=None`; registers with `FeatureSlot`.
+  - `embedding_lookup(feature_slice, init_minval_for_oov=None, init_maxval_for_oov=None)`:
+    - Delegates to `Env._embedding_lookup`.
+  - `get_bias()` asserts `_bias is not None`.
+  - `feature_slice_to_tf_placeholder`:
+    - Asserts `env.is_finalized` (note: Python has a bug, method recurses).
+    - Returns merged or non-merged placeholder map based on `env._merge_vector`.
+- `FeatureColumn3D`:
+  - Constructor sets `max_seq_length`, logs it, registers with slot.
+  - `embedding_lookup(...)` delegates to `Env._seq_embedding_lookup`.
+  - `size_tensor_lookup()` delegates to `Env._size_tensor_lookup`.
+  - `feature_slice_to_tf_placeholder` returns 3D placeholder map.
+- `Env`:
+  - Constructor initializes `vocab_size_dict`, `_slot_id_to_feature_slot`, `_tpu_features=None`, `_is_finalized=False`, then calls `set_params(params)`.
+  - `set_params(params)` reads:
+    - `qr_multi_hashing`, `qr_hashing_threshold`, `qr_collision_rate`,
+      `use_random_init_embedding_for_oov`, `merge_vector`.
+  - `set_feature_slot(slot_id, feature_slot)`:
+    - If already finalized, returns immediately.
+    - Asserts `slot_id` uniqueness.
+  - `set_tpu_features(tpu_features)`:
+    - Assigns `_tpu_features`; if `_merge_vector` is true, calls `_split_merged_embedding` on each feature slot.
+  - `_embedding_lookup(feature_column, feature_slice, init_minval_for_oov=None, init_maxval_for_oov=None)`:
+    - Asserts slot IDs match.
+    - If `_tpu_features` exists:
+      - If `qr_multi_hashing` and `vocab_size_dict[slot_id] > qr_hashing_threshold`, uses quotient/remainder features (`fc_name_slice_0`, `fc_name_slice_1`) and returns their sum.
+      - Otherwise uses key `"{fc_name}_{slice_index}"`.
+      - If `use_random_init_embedding_for_oov` and `init_minval_for_oov` provided:
+        - Computes `norm` across axis=1, replaces near-zero rows with `tf.random.uniform` values.
+    - If no `_tpu_features`:
+      - Creates `tf.compat.v1.placeholder(tf.float32, [None, dim])` keyed by `FeatureSlice` object.
+  - `_seq_embedding_lookup(...)`:
+    - Same structure as `_embedding_lookup` but uses placeholder shape `[None, max_seq_length, dim]`.
+    - Random OOV initialization uses `tf.random.uniform` and `tf.norm(axis=1)` (3D norms).
+  - `_size_tensor_lookup(feature_column)`:
+    - If `_tpu_features` exist, reads `"{fc_name}_0_row_lengths"` and builds `[B, max_seq_length]` boolean mask (cast to `int32`).
+    - Else returns placeholder `tf.float32` with shape `[None, max_seq_length]` named `"{fc_name}_size"`.
+  - `finalize()`:
+    - Asserts not already finalized; sets `_is_finalized=True`.
+    - If `_merge_vector`, calls `_merge_vector_in_same_slot()`.
+  - `_merge_vector_in_same_slot()`:
+    - For each slot, keeps bias slice separate (assert `dim==1`).
+    - Merges remaining slices into a single merged `FeatureSlice` whose dim is sum of vector dims.
+    - For each feature column, creates placeholder for merged slice and updates `_merged_feature_slice_to_tf_placeholder`.
+  - `_split_merged_embedding(feature_slot)`:
+    - For each feature column, finds merged embedding from `_tpu_features`, splits by per-slice dims, and writes back individual embeddings into `_tpu_features` by `"{fc_name}_{slice_index}"`.
+  - Properties:
+    - `vocab_size_dict` returns stored dict.
+    - `slot_id_to_feature_slot` asserts `is_finalized` (buggy in Python) then returns map.
+    - `features` returns `_tpu_features`.
+- Determinism: random OOV embeddings depend on TF RNG.
+- Logging: `logging.info` in `FeatureColumn3D.__init__`, `logging.vlog` in lookup methods.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/feature.rs`.
+- Rust public API surface: `FeatureSlot`, `FeatureSlice`, `SparseFeatureColumn`, `DenseFeatureColumn`, `FeatureColumn` trait.
+- Data model mapping: Python Sail-like slot/slice/column + `Env` **do not exist** in Rust; current Rust types represent data containers, not TF graph wiring.
+- Feature gating: TF placeholder/graph APIs are Python-only; Rust needs an explicit TF backend or a compat layer.
+- Integration points: Python `Env` expected by embedding tasks; Rust `feature.rs` is not integrated with embedding task flow.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Decide whether to port the Sail-like API or provide a shim around existing Rust feature structs.
+2. If porting, add `Env`, `FeatureSlot`, `FeatureSlice`, `FeatureColumnV1/3D` in Rust with TF backend hooks.
+3. Implement placeholder / feature tensor registry for training/serving use cases.
+4. Add merge/split vector logic with deterministic slice ordering.
+5. Match OOV random initialization (norm threshold 1e-10) and QR hashing behavior.
+6. Capture and fix Python bugs when porting (e.g., `is_finalized` recursion, undefined `slot_id`).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/core/feature_test.py`.
+- Rust tests: add `monolith-rs/crates/monolith-core/tests/feature.rs` mirroring merge/split behavior and bias handling.
+- Cross-language parity test: compare split/merge outputs and placeholder shapes.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python `Env.is_finalized` method recurses (`return self.is_finalized`) instead of returning `_is_finalized`.
+- `_embedding_lookup` uses undefined `slot_id` in QR branch; should likely be `feature_column._feature_slot.slot_id()`.
+- `_seq_embedding_lookup` references `feature_slice.init_minval_for_oov`/`init_maxval_for_oov` which are not defined.
+- Rust `feature.rs` implements data structures, not the TF embedding/placeholder semantics used in Python.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -3842,50 +3802,51 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/feature_test.py`
 <a id="monolith-core-feature-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 178
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests bias slice creation, feature slice indexing, feature column registration, and merged vector split/merge behavior.
+- Key symbols/classes/functions: `FeatureSlotTest`, `FeatureColumnV1Test`.
+- External dependencies: `tensorflow`, `monolith.core.hyperparams`, `FeatureSlot`, `FeatureColumnV1`, `Env`.
+- Side effects: builds TF placeholders/tensors; uses TF session for split verification.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `FeatureSlotTest.test_has_bias`:
+  - `FeatureSlot(has_bias=True)` creates one bias slice with `dim=1`, `slice_index=0`.
+- `FeatureSlotTest.test_add_feature_slice`:
+  - Additional slices get incrementing `slice_index` and correct dims.
+- `FeatureColumnV1Test.test_add_feature_column`:
+  - Creating a feature column appends to `FeatureSlot._feature_columns`.
+- `FeatureColumnV1Test.test_merge_split_vector_in_same_slot`:
+  - With `merge_vector=True`:
+    - `_merge_vector_in_same_slot()` populates `_merged_feature_slices` and merged placeholder maps per slot and column.
+    - Expected merged dims:
+      - slot 1 (bias+2) -> merged dims `[1,2]`
+      - slot 2 (bias only) -> `[1]`
+      - slot 3 (no bias, 2+3) -> `[5]`
+      - slot 4 (bias+2+3+4) -> `[1,9]`
+    - `_split_merged_embedding()` splits merged embeddings into per-slice tensors with exact contents as asserted.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/feature.rs`.
+- Rust public API surface: currently missing Env + merge/split logic.
+- Data model mapping: add tests once feature API exists in Rust.
+- Feature gating: TF backend likely required for placeholder/graph ops.
+- Integration points: embedding tasks and feature pipeline.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement Rust equivalents for `Env`, `FeatureSlot`, `FeatureColumnV1`.
+2. Add merge/split vector unit tests mirroring Python.
+3. Verify placeholder/tensor semantics for no-feature and TPU-feature cases.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: `monolith-rs/crates/monolith-core/tests/feature.rs`.
+- Cross-language parity test: compare split/merge outputs and bias dims.
 
 **Gaps / Notes**
-- TODO (manual)
+- Rust feature module is currently a different abstraction; merge/split tests are not implemented.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -3902,50 +3863,41 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/host_call.py`
 <a id="monolith-core-host-call-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 248
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Host call implementation for non-TPU-variable caching; collects tensors and writes summaries (AUC, deepinsight).
+- Key symbols/classes/functions: `HostCall.record_summary_tensor`, `compress_tensors`, `generate_host_call_hook`.
+- External dependencies: `tensorflow`, `absl.logging`.
+- Side effects: creates summary writers and writes scalar/text summaries.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Similar tensor collection/compression logic to `BaseHostCall`:
+  - Global step tensor is always first.
+  - Tensors grouped by dtype, concatenated, expanded to batch dimension.
+- `generate_host_call_hook()`:
+  - If disabled, returns None.
+  - Otherwise returns `_host_call` and compressed tensors.
+  - `_host_call` decompresses tensors, writes scalar summaries and AUC; optional deepinsight text summaries via `_serialize_messages`.
+- `_serialize_messages`:
+  - Verifies shapes/dtypes, flattens tensors, writes serialized tensors as text summaries.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/host_call.rs`.
+- Rust public API surface: host call builder with summary writer integration.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port tensor compression/decompression semantics.
+2. Implement summary writer outputs (scalar + text) and AUC calculation.
+3. Support optional deepinsight serialization.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none specific.
+- Rust tests: unit tests for compress/decompress and summary output formatting.
 
 **Gaps / Notes**
-- TODO (manual)
+- Reuses logic duplicated in BaseHostCall; consider shared helper in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -3962,50 +3914,112 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/hyperparams.py`
 <a id="monolith-core-hyperparams-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 439
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Dynamic hyperparameter container with attribute + dotted-path access, nested parameter trees, immutability, stringification, and class instantiation support.
+- Key symbols/classes/functions: `_is_named_tuple`, `_SortedDict`, `_Param`, `Params`, `InstantiableParams`, `copy_params_to`, `update_params`, `allowed_kwargs`.
+- External dependencies: `copy`, `re`, `six`, `inspect.signature/Parameter`, `tensorflow` (Tensor detection for deepcopy).
+- Side effects: error messages include similar-key hints; deepcopy of `tf.Tensor` intentionally keeps a reference (no deep copy).
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_is_named_tuple(x)`:
+  - Returns true if `x` is a `tuple` and has `_fields` attribute.
+- `_SortedDict.__repr__()`:
+  - Always renders dict entries sorted by key.
+- `_Param`:
+  - Stores `name`, `value`, `description`.
+  - `__eq__` compares only name + value (description ignored).
+  - `__deepcopy__`: if value is a `tf.Tensor`, **do not copy** (keep ref); else deep-copy; memo updated.
+  - `to_string(nested_depth)`:
+    - For `Params`: delegate to nested `_to_string`.
+    - For `dict`: produce `_SortedDict` with nested `GetRepr` on values.
+    - For `list/tuple` (non-namedtuple): reconstruct same type from `GetRepr` values.
+    - If value has `Repr` method, call it (used for function-like objects).
+    - If value is `str`, wrap in double quotes.
+    - Indent with 2 spaces per nesting level.
+  - `set` stores value without copying.
+  - `get` returns stored value.
+- `Params`:
+  - Internal storage: `_params` dict mapping name → `_Param`; `_immutable` bool.
+  - `__setattr__` / `__setitem__`: if immutable -> `TypeError("This Params instance is immutable.")`. Otherwise set existing param; missing name -> `AttributeError` with `_key_error_string`.
+  - `__getattr__` / `__getitem__`: missing name -> `AttributeError` with `_key_error_string`.
+  - `__dir__` returns sorted param names. `__contains__`, `__len__` work on `_params`.
+  - `__eq__`: only equal to another `Params` with equal `_params` (uses `_Param.__eq__`).
+  - `__str__` / `_to_string`: emits multi-line block with params sorted by name; nested `Params` rendered recursively.
+  - `_similar_keys(name)`:
+    - Builds list of keys with >0.5 overlap of 3-char substrings from `name`.
+  - `_key_error_string(name)`:
+    - If similar keys exist: `"name (did you mean: [k1,k2])"` with keys sorted.
+  - `define(name, default_value, description)`:
+    - Reject if immutable → `TypeError("This Params instance is immutable.")`.
+    - Assert `name` is `str` matching `^[a-z][a-z0-9_]*$` (raises `AssertionError`).
+    - If already defined, `AttributeError("Parameter %s is already defined" % name)`.
+  - `freeze()` sets `_immutable=True`; `is_immutable()` returns bool.
+  - `_get_nested("a.b[0].c")`:
+    - Supports dot navigation into nested `Params`.
+    - Supports list indexing in a segment via `name[index]`.
+    - If missing segment: `AttributeError` with partial path.
+    - If intermediate is not `Params`: `AssertionError("Cannot introspect <type> for <path>")`.
+  - `set(**kwargs)`:
+    - If immutable -> `TypeError("This Params instance is immutable: %s" % self)`.
+    - Dotted names traverse `_get_nested`; missing keys -> `AttributeError` with similar key hints.
+    - Returns `self`.
+  - `get(name)`:
+    - Dotted names traverse `_get_nested`; missing -> `AttributeError` with similar key hints.
+  - `delete(*names)`:
+    - If immutable -> `TypeError("This Params instance is immutable.")`.
+    - Dotted names traverse `_get_nested`; missing -> `AttributeError` with similar key hints.
+    - Returns `self`.
+  - `iter_params()` yields `(name, value)` for all params (dict iteration order).
+  - `copy()` deep-copies `_params` and preserves `_immutable`.
+- `copy_params_to(from_p, to_p, skip=None)`:
+  - For each param in `from_p`, sets into `to_p`.
+  - Nested `Params` are copied via `p.copy()`.
+  - `skip` list omits names.
+- `InstantiableParams(Params)`:
+  - Defines param `cls`.
+  - `instantiate()`:
+    - If `cls.__init__` has exactly 2 parameters and `cls` has attribute `params` and `'params'` is a parameter: call `cls(self)`.
+    - Otherwise, build inverted index of all leaf (non-Params) values; pass matching `__init__` parameter names (excluding `self`, `cls`, varargs/kwargs).
+    - Additionally pass any `allowed_kwargs` present and not `None`.
+- `update_params(params, args)`:
+  - Recursively traverses params; if leaf key exists in `args`, sets and removes from `args`.
+  - Unmatched keys remain in `args`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/hyperparams.rs`.
+- Rust public API surface: `Params`, `ParamValue`, `InstantiableParams`, `copy_params_to`, `update_params`, `ParamsFactory`.
+- Data model mapping:
+  - Python `_Param` → Rust `Param` (name/value/description).
+  - Python `Params` → Rust `Params` with `BTreeMap` storage.
+  - Python raw values → Rust `ParamValue` (including `External` for TF tensors / opaque handles).
+- Feature gating: none currently; TF handle storage likely lives in `ParamValue::External` (tie into `monolith-tf` if needed).
+- Integration points: `base_layer.rs`, `base_task.rs`, `base_model_params.rs`, `model_registry.rs`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Align Rust `Params` error messages with Python (TypeError/AttributeError strings).
+2. Match `__str__` formatting (sorted keys, indent, list/dict rendering, quoting).
+3. Implement `_similar_keys` overlap logic and error hints exactly.
+4. Support list indexing in dotted paths with Python-compatible errors.
+5. Preserve Tensor/opaque value deepcopy semantics (reference copy).
+6. Implement `InstantiableParams.instantiate` reflection-style path or provide compatible factory shim.
+7. Ensure `copy_params_to` surfaces missing keys (don’t silently drop errors).
+8. Add tests mirroring `hyperparams_test.py` including exact error strings.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/core/hyperparams_test.py`.
+- Rust tests: add `monolith-rs/crates/monolith-core/tests/hyperparams.rs`.
+- Cross-language parity test: add fixture-driven JSON snapshot compare of `to_string`, errors, and nested access.
 
 **Gaps / Notes**
-- TODO (manual)
+- Rust currently raises `MonolithError::ConfigError` rather than `TypeError`/`AttributeError` equivalents; messages differ.
+- Rust `Params` does not implement equality; Python `Params.__eq__` is relied on in tests.
+- Rust `InstantiableParams` uses `ParamsFactory` (no reflection or `allowed_kwargs` handling).
+- `copy_params_to` in Rust ignores `set` errors (should propagate to match Python exceptions).
+- String rendering differs (Python uses sorted `_SortedDict` repr and special `Repr()` hook).
+- Rust treats list navigation errors differently (`Expected list index` vs Python `Cannot introspect` assertion).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -4022,42 +4036,66 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/hyperparams_test.py`
 <a id="monolith-core-hyperparams-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 277
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Unit tests defining required semantics for `Params` behavior, error messages, and string rendering.
+- Key symbols/classes/functions: `ParamsTest`, `TestEnum`.
+- External dependencies: `unittest`, `tensorflow`, `absl.flags/logging`, `monolith.core.hyperparams`.
+- Side effects: none (tests only).
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_equals`:
+  - `Params.__eq__` compares only name+value; nested `Params` must compare deeply; non-Params should not be equal.
+- `test_deep_copy`:
+  - `Params.copy()` deep-copies nested `Params`.
+  - `tf.Tensor` values are **shared** (same object identity) in copied params.
+- `test_copy_params_to`:
+  - Copy respects `skip` list; `dest` only contains copied keys.
+- `test_define_existing`:
+  - Duplicate `define` raises `AttributeError` with "already defined".
+- `test_legal_param_names`:
+  - Invalid names (`None`, empty, `_foo`, `Foo`, `1foo`, `foo$`) raise `AssertionError`.
+  - Valid examples: `foo_bar`, `foo9`.
+- `test_set_and_get`:
+  - Setting undefined param via `.set` or `setattr` raises `AttributeError` mentioning name.
+  - `set/get` works; `delete` removes; subsequent access raises `AttributeError`.
+- `test_set_and_get_nested_param`:
+  - Dotted traversal with nested `Params` works for `get`, `set`, `delete`.
+  - `set` on missing path raises `AttributeError` with dotted name.
+  - Attempting to navigate into non-Params (e.g., dict) raises `AssertionError("Cannot introspect ...")`.
+- `test_freeze`:
+  - Frozen params reject `set`, `setattr`, `delete`, `define` with `TypeError`.
+  - `get` on missing still raises `AttributeError`.
+  - Nested params remain mutable after parent frozen.
+  - Attempt to set `_immutable` attribute raises `TypeError`.
+  - `copy()` of frozen params is still immutable.
+- `test_to_string`:
+  - `str(params)` yields exact multi-line formatting:
+    - Sorted keys.
+    - Strings quoted.
+    - Dicts rendered with sorted keys and nested `Params` converted to dicts.
+    - Lists render nested `Params` as dicts.
+- `test_iter_params`:
+  - Iteration yields all keys/values (order not asserted).
+- `test_similar_keys`:
+  - Error message for misspelled attribute includes sorted similar keys:
+    - `actuvation (did you mean: [activation,activations])`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/hyperparams.rs`.
+- Rust public API surface: `Params`, `ParamValue`, `InstantiableParams`, `copy_params_to`, `update_params`.
+- Data model mapping: implement Rust tests mirroring Python assertions and error text.
+- Feature gating: none.
+- Integration points: Rust tests in `monolith-rs/crates/monolith-core/tests`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust unit tests that mirror each Python test case.
+2. Build helper to compare error strings for invalid operations.
+3. Ensure `Params` equality is implemented for Rust tests.
+4. Add string formatting parity checks using exact expected text.
+5. Validate frozen behavior and nested mutability.
 
 **Tests (Detailed)**
 - Python tests: TODO (manual)
@@ -4082,50 +4120,81 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/mixed_emb_op_comb_nws.py`
 <a id="monolith-core-mixed-emb-op-comb-nws-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 421
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Keras layer for neural width search (NWS) over embedding sizes, with optional teacher distillation transform.
+- Key symbols/classes/functions: `TeacherEmbeddingTransform`, `MixedEmbedOpComb`.
+- External dependencies: `numpy`, `tensorflow`, `tensorflow.keras.layers.Layer/InputSpec`.
+- Side effects: creates trainable TF variables, prints to stdout, uses TF random sampling.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `TeacherEmbeddingTransform(max_choice_per_embedding, teacher_embedding_sizes_list)`:
+  - Stores arrays; asserts same length.
+  - `build(input_shape)`:
+    - Input is 2D; last dim equals sum(teacher sizes).
+    - Creates `teacher_embedding_transform_weight` with shape `[sum(max_choice * size), 1]` initialized with `TruncatedNormal(stddev=0.15)`.
+    - Creates `teacher_embedding_transform_bias` with shape `[sum(max_choice)]` initialized with zeros.
+    - Calls `_snapshot_for_serving` on both (method not defined in this class).
+  - `call(inputs)`:
+    - Slices teacher embedding per size; for each slice, reshapes weight to `[size, max_choice]` and matmul.
+    - Concats results along axis 1 and adds bias.
+  - `compute_output_shape` raises `NotImplementedError`.
+  - `get_config` returns max choices + teacher sizes.
+- `MixedEmbedOpComb(slot_names, embedding_size_choices_list, warmup_steps, pretraining_steps, teacher_embedding_sizes_list=None, distillation_mask=False)`:
+  - Asserts slot names length matches choices list; prints lengths.
+  - Computes per-slot num choices, per-slot max embedding choice (sum of sizes), total embedding size, max num choices.
+  - **Note:** `teacher_embedding_sizes_list` is ignored (set to `None`), so teacher path is disabled.
+  - `build(input_shape)`:
+    - Asserts input is 2D; verifies total input dim matches total embedding size.
+    - Creates `arch_embedding_weights` variable of length sum(num_choices), init uniform(-1e-3, 1e-3).
+    - For each slot:
+      - Softmax over weights slice; compute entropy (softmax_cross_entropy_with_logits_v2).
+      - Compute expected embedding dims as weighted sum of choice sizes.
+      - If first choice size is 0, scale its prob by warmup schedule based on global step.
+      - Create per-choice masks (ranges over max_emb_choice), pad to max_num_choices.
+      - Pretraining: if global_step < pretraining_steps, probability hard-coded to `[0.5, 0.5]` (assumes 2 choices).
+      - Sample choice via `tf.random.categorical`, one-hot, select mask.
+      - Apply straight-through trick: mask * (1 + w - stop_gradient(w)).
+    - Concatenates per-slot masks into `_arch_embedding_masks_multipler`.
+    - Stores `_arch_entropy`, `_expected_emb_dims`, `_expected_zero_embedding_size_weights`,
+      `_arch_embedding_weights_after_softmax_list`.
+  - `call(inputs)`:
+    - Computes `masked_embedding = embedding * _arch_embedding_masks_multipler`.
+    - If teacher path active:
+      - Builds `TeacherEmbeddingTransform`, transforms teacher embedding.
+      - Computes distillation MSE against masked embedding (optionally with mask).
+      - Returns `(mixed_embedding, distillation_loss, teacher_embedding_transform.name)` but `mixed_embedding` is undefined (bug).
+    - Else returns `masked_embedding`.
+  - `get_config` includes `slot_names`, `embedding_size_choices_list`, `warmup_steps`, `teacher_embedding_sizes_list` (pretraining_steps and distillation flag omitted).
+  - `get_arch_embedding_weights()` returns variable; `get_summaries()` returns entropy, expected dims, and weight list.
+- Determinism: sampling uses TF RNG; dependent on global step and random categorical.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/src` (no existing equivalent).
+- Rust public API surface: none; would need a layer module for NWS + distillation.
+- Data model mapping: Keras layers + TF ops → Rust tensor ops (Candle/TF runtime).
+- Feature gating: requires TF runtime or compatible tensor ops.
+- Integration points: embedding layer selection / search in training pipeline.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Decide whether to support NWS (sampling-based) in Rust backend.
+2. If yes, implement mask sampling, expected dims, and entropy summaries.
+3. Add teacher distillation transform and MSE loss path.
+4. Ensure global step and warmup/pretraining schedules are wired.
+5. Fix Python bugs when porting (teacher path, mixed_embedding).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none in repo.
+- Rust tests: add unit tests for mask construction, sampling shapes, and expected dims.
+- Cross-language parity test: compare mask selection behavior under fixed RNG seeds.
 
 **Gaps / Notes**
-- TODO (manual)
+- `teacher_embedding_sizes_list` is ignored in `__init__` (always `None`).
+- `call()` returns `mixed_embedding` in teacher path, but it is never defined.
+- `pretraining_steps` only supports 2 choices (`[0.5, 0.5]` hard-coded).
+- `_snapshot_for_serving` is called but not defined on `Layer` (likely missing mixin).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -4142,50 +4211,77 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/model.py`
 <a id="monolith-core-model-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 320
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Deprecated Sail-like TPU Model wrapper for configuring TPU embedding tables, input pipelines, and pooling.
+- Key symbols/classes/functions: `Model`, `create_input_fn`, `create_feature_and_table_config_dict`, `sum_pooling`, `init_slot_to_dims`.
+- External dependencies: `tensorflow`, `tpu_embedding`, `absl.logging`, `math`, `FeatureSlot/FeatureColumnV1/Env`.
+- Side effects: reads vocab file, logs size info, builds TF datasets/TPU table configs.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `Model.__init__(params)`:
+  - Reads `vocab_size_per_slot`, logs if fixed.
+  - Builds vocab dict from file; constructs `Env` and runs `init_slot_to_dims()`.
+- `_create_vocab_dict(file_path, vocab_size_per_slot=None)`:
+  - Reads TSV with `slot_id<TAB>count`.
+  - Skips non-digit slot IDs; uses fixed vocab size if provided.
+  - Returns `{slot_id: vocab_size}`.
+- `_get_feature_map()`: abstract; must return TF parse feature map.
+- `_post_process_example(example)`:
+  - For each slot in `env.slot_to_dims`:
+    - If `vocab_size_per_slot` set, mod values in `slot_{id}_0`.
+    - Duplicates `slot_{id}_0` into `slot_{id}_{i}` for each additional dim.
+- `create_input_fn(file_pattern, repeat=True)`:
+  - Returns `input_fn(params)` using TF Dataset:
+    - `list_files(shuffle=False)`, shard by `context.current_input_fn_deployment()`.
+    - Optional per-shard skip from `params["shard_skip_file_number"]`.
+    - `interleave(TFRecordDataset, cycle_length, num_parallel_calls, deterministic=False)`.
+    - `batch(drop_remainder=True).map(parse_example, num_parallel_calls=AUTOTUNE, deterministic=False)`.
+    - `repeat()` if requested; `prefetch(AUTOTUNE)`.
+- `_padding_8(dim)`:
+  - Rounds up to multiple of 8.
+- `_get_slot_number(optimizer, use_gradient_accumulation)`:
+  - Maps TPU optimizer class → slot count:
+    - FTRL: 3, Adagrad: 2, Adam: 3, SGD: 1; adds 1 if gradient accumulation.
+  - Else asserts unsupported optimizer (assert uses truthy string; ineffective).
+- `_get_max_slot_number()`:
+  - Iterates env slots and dims; chooses bias vs vec optimizer per dim; returns max slot count.
+- `create_feature_and_table_config_dict()`:
+  - Requires `env.is_finalized()`.
+  - For each slot/dim: builds `tpu_embedding.TableConfig` and `FeatureConfig`.
+  - Computes and logs embedding table sizes (raw, padded-to-8, padded+max-slot).
+  - Returns `(feature_to_config_dict, table_to_config_dict)`.
+- `sum_pooling(fc_dict, input_map, features, dim, total_embeddings, add_into_embeddings=True)`:
+  - For each slot in `features`, calls `fc_dict[slot].add_vector(dim)`, appends to totals, populates `input_map` with unique keys.
+  - Returns single embedding if one feature; else `tf.add_n`.
+- `logits_fn()`, `create_model_fn()` are abstract.
+- `init_slot_to_dims()` calls `logits_fn()`, `env.finalize()`, logs slot dims.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (no direct equivalent).
+- Rust public API surface: none; core training uses different abstractions.
+- Data model mapping: TF TPU embedding configs have no Rust analog.
+- Feature gating: requires TF runtime backend.
+- Integration points: input pipelines, embedding table config, TPU training loop.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Decide whether to port deprecated Model API or replace with `base_embedding_task` parity.
+2. If ported, implement vocab dict parsing, dataset sharding, and TFRecord pipeline equivalents.
+3. Add TPU embedding config generator or document unsupported feature in Rust.
+4. Implement pooling helper and slot/embedding table sizing logs.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none in repo.
+- Rust tests: none (integration tests would be required with TF runtime).
+- Cross-language parity test: compare table config dicts and size calculations.
 
 **Gaps / Notes**
-- TODO (manual)
+- File is marked deprecated; likely superseded by `base_embedding_task.py`.
+- `Env` constructor here omits `params` argument (signature mismatch with current `Env`).
+- `_get_slot_number` uses `assert("message")` which never fails; should raise.
+- Depends on `env.slot_to_dims` and `env.slot_to_config` which do not exist in current `Env` implementation.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -4202,50 +4298,44 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/model_imports.py`
 <a id="monolith-core-model-imports-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 104
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Dynamic import helpers for task/model parameter modules.
+- Key symbols/classes/functions: `_Import`, `ImportAllParams`, `ImportParams`.
+- External dependencies: `importlib`, `absl.logging`.
+- Side effects: imports Python modules dynamically; logs import results.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_Import(name)`:
+  - Logs attempt; imports module; logs success; returns True on success.
+  - On ImportError, logs error and returns False.
+- `ImportAllParams(task_root=_ROOT, task_dirs=_DIRS, require_success=False)`:
+  - For each `task` in `task_dirs`, attempts to import `{task_root}.{task}.params.params`.
+  - If `require_success` and nothing imported, raises `LookupError`.
+  - Note: code defines `module_str` with `path` but `path` is undefined (bug); actual import uses `.params.params`.
+- `ImportParams(model_name, task_root, task_dirs, require_success=True)`:
+  - Expects `model_name` to contain a dot; else ValueError.
+  - Extracts `model_module` and attempts to import it directly.
+  - For built-in tasks, if `model_module` starts with `{task}.`, builds module path `{task_root}.{task}.params.{path}` and attempts import.
+  - If `require_success` and no import succeeded, raises LookupError with guidance.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/model_imports.rs`.
+- Rust public API surface: helper functions to load/register model param types (likely via registry rather than dynamic import).
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Provide a Rust registry-based import mechanism (explicit registration, no dynamic import).
+2. Mirror error messages and logging at call sites.
+3. Document that Python dynamic import is replaced by static registration.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none specific.
+- Rust tests: verify registry lookup error messages when missing.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses dynamic import; Rust should use explicit registration or plugin loading if required.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -4262,50 +4352,48 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/model_registry.py`
 <a id="monolith-core-model-registry-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 174
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Global registry for `SingleTaskModelParams` classes with dynamic import helpers.
+- Key symbols/classes/functions: `_ModelRegistryHelper`, `RegisterSingleTaskModel`, `GetAllRegisteredClasses`, `GetClass`, `GetParams`.
+- External dependencies: `absl.logging`, `model_imports`, `SingleTaskModelParams`.
+- Side effects: stores classes in global dict; logs registration; raises on duplicates.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Registry maps keys to param classes. Key format: `<module>.<ClassName>`; also a shortcut key with `monolith.tasks.` prefix stripped and `params.` removed.
+- `_RegisterModel(src_cls)`:
+  - Registers both full and shortcut keys.
+  - Raises ValueError on duplicate key.
+  - Logs module registration once per module.
+- `RegisterSingleTaskModel` decorator:
+  - Validates subclass of `SingleTaskModelParams` else TypeError.
+  - Registers class and returns it.
+- `GetAllRegisteredClasses()`:
+  - Logs warning if none registered.
+- `GetClass(class_key)`:
+  - Raises LookupError if missing; logs known models.
+- `GetParams(class_key)`:
+  - Instantiates model params class, calls `.task()` to get task config.
+- Module-level helpers call `model_imports.ImportAllParams` or `ImportParams` before returning registry results.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/model_registry.rs`.
+- Rust public API surface: registry with registration macro/trait and lookup by string key.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a global registry (static map) for model param factories.
+2. Provide a registration macro that enforces trait bounds.
+3. Implement lookup with detailed error listing known keys.
+4. Replace dynamic import with explicit registration in Rust.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none specific.
+- Rust tests: register dummy models, verify duplicate detection and lookup errors.
 
 **Gaps / Notes**
-- TODO (manual)
+- Shortcut key behavior must be preserved for compatibility with existing names.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -4322,50 +4410,36 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/optimizers.py`
 <a id="monolith-core-optimizers-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 25
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Maps string names to TensorFlow v1 optimizer classes.
+- Key symbols/classes/functions: `optimizers` dict.
+- External dependencies: `tf.compat.v1.train` optimizers.
+- Side effects: none.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `optimizers` contains:
+  - `'adagrad'`: `AdagradOptimizer`
+  - `'momentum'`: `MomentumOptimizer`
+  - `'rmsprop'`: `RMSPropOptimizer`
+  - `'adam'`: `AdamOptimizer`
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-optimizer/src/lib.rs`.
+- Rust public API surface: map from string to optimizer factory or enum.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Define optimizer registry in Rust with equivalent names.
+2. Map to native implementations or TF bindings if used.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: verify lookup table matches expected keys.
 
 **Gaps / Notes**
-- TODO (manual)
+- Rust may not support all TF optimizers natively; document fallbacks.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -4382,50 +4456,37 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/py_utils.py`
 <a id="monolith-core-py-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 313
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: NestedMap container with attribute access, flatten/pack utilities, and validation.
+- Key symbols/classes/functions: `NestedMap` and its methods.
+- External dependencies: `six`, `re`, `numpy` (imported but unused here).
+- Side effects: enforces key validation on set.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Keys must be valid identifiers (regex `[A-Za-z_][A-Za-z0-9_]*`) and not reserved dict attributes.
+- Attribute access maps to items; missing keys raise AttributeError listing available attributes.
+- `GetItem` and `Get` support dotted key paths; no list indexing.
+- `Set` creates nested maps along dotted path; raises if intermediate is not map/dict.
+- `Flatten`, `FlattenItems`, `Pack`, `Transform`, `IsCompatible`, `Filter`, `FilterKeyVal`, `DebugString`, `VLog` mirror Lingvo-style NestedMap.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/py_utils.rs`.
+- Rust public API surface: `NestedMap` with typed key validation and traversal helpers.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement NestedMap with key validation and attribute-like access (maybe via methods).
+2. Provide flatten/pack utilities preserving order (sorted keys).
+3. Implement filter logic with delete sentinel behavior.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: indirect via core layers.
+- Rust tests: unit tests for key validation, Get/Set, Flatten/Pack compatibility.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses dynamic attributes; Rust should expose explicit methods.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -4442,50 +4503,39 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/testing_utils.py`
 <a id="monolith-core-testing-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 203
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Test helper for Keras/BaseLayer compatibility; adapted from TF Keras testing_utils.
+- Key symbols/classes/functions: `layer_test`.
+- External dependencies: TF internal Keras/test utilities.
+- Side effects: builds models, runs predict, validates shapes/dtypes.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `layer_test`:
+  - Generates `input_data` if not provided; uses `input_shape` and `input_dtype` defaults.
+  - Instantiates layer with `kwargs`; optionally calls `adapt`.
+  - Tests `get_weights`/`set_weights` and re-instantiation with `weights` kwarg.
+  - Builds functional model `y = layer(x)` and checks output dtype.
+  - Checks expected output shape and computed output signature.
+  - Runs `model.predict` and compares output to expected if provided.
+  - Chooses assertion method based on dtype (string vs numeric).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/tests/testing_utils.rs`.
+- Rust public API surface: test helper for layer validation (if Rust layers exist).
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a minimal test harness for Rust layers with shape/dtype checks.
+2. If Rust uses different layer API, map semantics accordingly.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: used by layer tests in core.
+- Rust tests: provide helper functions for layer unit tests.
 
 **Gaps / Notes**
-- TODO (manual)
+- TF internal APIs used here are not available in Rust; might require simplified harness.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -4502,50 +4552,39 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/tpu_variable.py`
 <a id="monolith-core-tpu-variable-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 214
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: ReplicatedVariable wrapper for TPU context handling and resource variable ops.
+- Key symbols/classes/functions: `ReplicatedVariable`, `_enclosing_tpu_context`, `_tensor_conversion`.
+- External dependencies: TF internal ops.
+- Side effects: registers tensor conversion function globally.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_enclosing_tpu_context()` walks control flow contexts to find XLA TPU context.
+- `ReplicatedVariable`:
+  - Wraps list of per-replica variables; exposes `handle` that is replicated in TPU context.
+  - Implements `assign`, `assign_add`, `assign_sub`, `read_value` using resource ops.
+  - Provides `initializer`, `dtype`, `shape`, `get_shape`, `to_proto` by delegating to primary var.
+  - `_should_act_as_resource_variable` is a no-op placeholder.
+- Registers tensor conversion function and dense tensor like type (pre-TF2.3).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tf/src/tpu_variable.rs`.
+- Rust public API surface: replicated variable wrapper if TF TPU is supported.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Provide wrapper around per-replica variables with TPU context awareness.
+2. Implement assign/read operations using TF runtime or stub.
+3. Ensure tensor conversion registration or equivalent behavior in Rust.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: optional integration tests if TPU runtime is available.
 
 **Gaps / Notes**
-- TODO (manual)
+- TF TPU context is highly specific; Rust likely needs a bridge or stubs.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -4562,50 +4601,44 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/util.py`
 <a id="monolith-core-util-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 269
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: GCS utilities, checkpoint reload helpers, and dataset date filtering.
+- Key symbols/classes/functions: `download_gcs_file`, `update_params`, `range_dateset`.
+- External dependencies: `google.cloud.storage`, `tensorflow.compat.v1`, `gsutil` via subprocess.
+- Side effects: network calls to GCS, subprocess execution, logging.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `get_bucket_name_and_relavite_path(gs_file_path)` parses `gs://bucket/path` into bucket + relative path.
+- `download_gcs_file` and `download_gcs_file_with_relative_path` fetch blobs to local filename.
+- `list_gcs_files_with_prefix` returns bucket and blob iterator for prefix.
+- `parse_example_number_meta_file` reads `file,count` lines (comma separated) and ensures file names are ascending.
+- `calculate_shard_skip_file_number` computes per-shard skip counts based on completed steps and batch sizes.
+- `get_checkpoint_completed_step_number` scans GCS checkpoint `.meta` files to find max step.
+- `update_params`:
+  - Computes batch sizes based on shard count (TPU workers) and validates consistency.
+  - Uses checkpoint step to compute `shard_skip_file_number` based on meta file.
+- `get_per_file_example_numbers_for_checkpoint_reload`:
+  - Uses `gsutil ls` on dataset path, checks ordering, and matches against meta list.
+- `range_dateset` filters dataset elements by date substring between start/end dates.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/util.rs`.
+- Rust public API surface: GCS helpers and dataset date filtering.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement GCS helpers (use Google Cloud Storage SDK or `gsutil` fallback).
+2. Port checkpoint reload logic and shard skip calculations.
+3. Implement dataset date range filter (likely for TF dataset bridge).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/core/util_test.py`
+- Rust tests: replicate range_dateset filtering behavior.
 
 **Gaps / Notes**
-- TODO (manual)
+- `gsutil` subprocess usage may need replacement or explicit dependency in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -4622,50 +4655,33 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/util_test.py`
 <a id="monolith-core-util-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
-- Lines: 150
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Lines: 149
+- Purpose/role: Tests `range_dateset` date filtering behavior.
+- Key symbols/classes/functions: `UtilTest.test_range_dataset_*`.
+- External dependencies: `tensorflow.compat.v1`.
+- Side effects: none.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Tests that `range_dateset` filters dataset elements based on date substring in path.
+- Covers single date, multiple dates, out-of-bound ranges, missing start or end date.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/tests/util.rs`.
+- Rust public API surface: `range_dateset` equivalent.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port tests using a mock dataset list and filter function.
+2. Ensure output order and content match Python.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file
+- Rust tests: same scenarios.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires a dataset abstraction; may be tested with plain lists in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -4682,50 +4698,41 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/core/variance_scaling.py`
 <a id="monolith-core-variance-scaling-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 188
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Numpy-based variance scaling initializer (truncated/untruncated normal or uniform).
+- Key symbols/classes/functions: `_compute_fans`, `VarianceScaling.__call__`, `get_config`.
+- External dependencies: `numpy`, `scipy.stats.truncnorm`.
+- Side effects: uses NumPy RNG (seeded per call).
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_compute_fans(shape, data_format)` computes fan_in/fan_out for dense or conv shapes; supports `channels_first/last`.
+- `VarianceScaling.__init__` validates `scale > 0`, `mode` in `fan_in/fan_out/fan_avg`, distribution in `truncated_normal/untruncated_normal/uniform`.
+- `__call__(shape, dtype)`:
+  - Computes scaled variance based on mode.
+  - Seeds NumPy RNG with `self.seed` each call.
+  - For `truncated_normal`: uses scipy truncnorm with cutoff ±2 stddev, stddev adjusted by constant 0.87962566103423978.
+  - For `untruncated_normal`: uses `np.random.normal`.
+  - For `uniform`: uses `np.random.uniform` with limit `sqrt(3*scale)`.
+- `get_config()` returns dict with scale/mode/distribution/seed.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/variance_scaling.rs`.
+- Rust public API surface: `VarianceScaling` struct implementing initializer to produce arrays.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port `_compute_fans` logic and mode handling.
+2. Implement truncated normal sampling (use rand_distr or custom truncation) matching SciPy behavior.
+3. Ensure seeding behavior matches (seed per call).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: sample shape and distribution sanity checks; seed determinism.
 
 **Gaps / Notes**
-- TODO (manual)
+- Matching SciPy truncnorm exactly may require careful implementation.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -4742,50 +4749,60 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/gpu_runner.py`
 <a id="monolith-gpu-runner-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 226
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: GPU training/eval runner for TF Estimator, with optional Horovod multi-GPU support.
+- Key symbols/classes/functions: `GPURunner`, `create_estimator`, `run`, CLI `main`.
+- External dependencies: `tensorflow`, `horovod`, `mpi4py`, `absl.flags`, `model_registry`.
+- Side effects: initializes Horovod, configures GPU visibility, trains/evaluates model, writes summaries.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- CLI flags: `task`, `model_dir`, `save_checkpoints_steps`, `mode` (`train|eval|train_and_eval`).
+- `GPURunner.__init__`:
+  - Reads flags and task_param; sets `_mode`.
+- `create_estimator(model_fn)`:
+  - If `task_param.accelerator == 'horovod'`:
+    - `hvd.rank()` controls checkpoint saving (only rank 0).
+    - Configures `tf.compat.v1.ConfigProto` with XLA JIT ON and GPU memory growth.
+    - Sets `visible_device_list` to local rank.
+    - `num_gpus = hvd.size()`.
+  - Else: `num_gpus = 1` and uses `tf.compat.v1.estimator.RunConfig`.
+  - Returns `tf.compat.v1.estimator.Estimator` with params: train/eval batch sizes, accelerator, num_replicas, hvd_rank.
+- `run()`:
+  - Loads global step (or 0).
+  - Instantiates task; builds input_fn_train/eval and model_fn.
+  - If horovod: `hvd.init()`, sets visible GPU.
+  - For `train`:
+    - Horovod: uses `BroadcastGlobalVariablesHook(0)`.
+    - Non-horovod: `est.train`.
+  - For `eval`:
+    - Computes `num_steps` from `eval_examples` and batch size.
+    - Runs `est.evaluate` and writes summary under `model_dir/eval`.
+  - For `train_and_eval`:
+    - Loop train for `steps_per_eval` up to max_steps, evaluate and write summary.
+    - Horovod uses MPI barrier after each eval cycle.
+- `main`: fetches task params from registry and runs `GPURunner`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/gpu_runner.rs` (or CLI bin).
+- Rust public API surface: runner struct + CLI entrypoint.
+- Data model mapping: task params, estimator equivalent (likely still Python-backed or TensorFlow runtime binding).
+- Feature gating: `tf-runtime` and `horovod` (if supported) features.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Recreate CLI flags and task registry lookup in Rust.
+2. Decide how to execute training: native Rust pipeline or Python/TF bridge.
+3. If bridging TF, maintain Horovod initialization and GPU pinning logic.
+4. Mirror evaluation loop, summary writing, and MPI barrier behavior.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none specific.
+- Rust tests: integration tests for CLI argument parsing and control flow (mocked task).
 
 **Gaps / Notes**
-- TODO (manual)
+- Full parity likely requires TF Estimator execution; consider keeping Python runner or embedding TF runtime.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -4802,50 +4819,40 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/alert/alert_manager.py`
 <a id="monolith-native-training-alert-alert-manager-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 31
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Placeholder alert manager module defining a flag and stub accessor.
+- Key symbols/classes/functions: `get_default_alert_manager()`.
+- External dependencies: `absl.flags`, `absl.logging`, `google.protobuf.text_format`, `threading`, `time`, `traceback`.
+- Side effects: defines `--monolith_alert_proto` flag at import time.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Flag definition:
+  - `monolith_alert_proto` (string), default `""`, description: "The text format of alert proto."
+- `get_default_alert_manager()`:
+  - Returns `None`.
+- No other behavior implemented.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (if alerts are ported).
+- Rust public API surface: optional alert manager accessor + config flag.
+- Data model mapping: map CLI flag to config struct; no runtime behavior.
+- Feature gating: none.
+- Integration points: training runner or alert subsystem (not present).
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add a config flag or CLI option mirroring `monolith_alert_proto`.
+2. Provide a stub `get_default_alert_manager` returning `None`/`Option::None`.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: none required (flag parsing only).
+- Cross-language parity test: not applicable.
 
 **Gaps / Notes**
-- TODO (manual)
+- Module is largely empty; functionality likely lives elsewhere (or removed).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -4862,50 +4869,35 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/alert/alert_manager_test.py`
 <a id="monolith-native-training-alert-alert-manager-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 32
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Placeholder test module; no actual tests defined.
+- Key symbols/classes/functions: none (only `__main__` entrypoint).
+- External dependencies: `absl.testing`, `absl.flags/app`, `google.protobuf.text_format`.
+- Side effects: running as main executes `absltest.main()`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- No tests; `absltest.main()` called if executed.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: none.
+- Rust public API surface: none.
+- Data model mapping: none.
+- Feature gating: none.
+- Integration points: none.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. No Rust tests required unless alert manager gains functionality.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: none.
+- Cross-language parity test: not applicable.
 
 **Gaps / Notes**
-- TODO (manual)
+- No tests defined; consider removing or adding real coverage if alerting is implemented.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -4922,50 +4914,66 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/barrier_ops.py`
 <a id="monolith-native-training-barrier-ops-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 158
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: TF-based barrier primitive to block non-chief workers until chief releases barrier; includes SessionRunHook integration.
+- Key symbols/classes/functions: `BarrierOp`, `BarrierHook`, `BarrierAlreadyPlacedError`.
+- External dependencies: `tensorflow`, `absl.logging`, `threading`, `time`, `basic_restore_hook` (imported, unused).
+- Side effects: creates TF variables/placeholders, sleeps, logs every 60 seconds.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `BarrierAlreadyPlacedError`: raised when attempting to place a barrier twice.
+- `BarrierOp(capacity, is_chief=True, wait_seconds=1, name_prefix="default", barrier_callbacks=None)`:
+  - Creates `barrier_var` bool vector of length `capacity`:
+    - If `is_chief`: `LOCAL_VARIABLES`; else `VARIABLES`.
+  - Creates index placeholder `_idx_ph`.
+  - `_place_op` sets `barrier_var[idx] = True`; `_remove_op` sets `False`.
+  - `barrier_placed_tensor` references element 0.
+  - `barrier_op_action` string variable + placeholder, assign op.
+  - Uses a threading lock for thread safety.
+- `place_barrier(session, action="")`:
+  - If barrier already placed (index 0 True), raises `BarrierAlreadyPlacedError`.
+  - Sets barrier at index 0 and assigns action; runs callbacks `(action, session)`.
+- `remove_barrier(session)`:
+  - Clears barrier at index 0; no checks.
+- `is_barrier_placed(session)`:
+  - Returns `session.run(barrier_placed_tensor)`.
+- `wait_until_barrier_removed(session, index)`:
+  - Validates `index` in `(0, capacity)` else `ValueError`.
+  - Sets barrier at `index`, reads action, runs callbacks.
+  - Loops until `barrier_placed_tensor` becomes False, sleeping `wait_seconds` and logging every 60s.
+  - Removes its own barrier index after release.
+- `is_all_blocked`/`is_none_blocked`:
+  - Reads `barrier_var` and checks count equals capacity or 0.
+- `get_unblocked_indices`/`get_blocked_indices`:
+  - Returns indices with False/True in barrier vector.
+- `BarrierHook(index, barrier_op)`:
+  - `before_run` requests `barrier_placed_tensor`.
+  - `after_run`: if `index > 0` and barrier placed, calls `wait_until_barrier_removed`.
+- Threading: lock guards state changes; waiting uses sleep polling.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/barrier.rs`.
+- Rust public API surface: `Barrier` trait, `InProcessBarrier`, `PsBarrier` (async).
+- Data model mapping: TF variable barrier → async barrier/coordination via PS; no SessionRunHook equivalent.
+- Feature gating: none (used in distributed training).
+- Integration points: `runner.rs`, `distributed_ps.rs`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Decide whether a TF-variable barrier is needed in Rust (likely no).
+2. Map barrier semantics to async barrier APIs (waiting, timeouts).
+3. Provide hook-like integration if training loop expects per-step blocking.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/barrier_ops_test.py`.
+- Rust tests: add async barrier tests for arrival/release semantics.
+- Cross-language parity test: not applicable unless TF runtime added.
 
 **Gaps / Notes**
-- TODO (manual)
+- TF `basic_restore_hook` import unused.
+- Python barrier uses polling on tensor 0; Rust barrier is event-based and may not mirror per-step hook semantics.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -4982,50 +4990,44 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/barrier_ops_test.py`
 <a id="monolith-native-training-barrier-ops-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 104
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Verifies BarrierOp placement/removal and BarrierHook blocking behavior.
+- Key symbols/classes/functions: `BarrierOpsTest`.
+- External dependencies: `tensorflow`, `monitored_session._HookedSession`.
+- Side effects: spawns threads and TF sessions.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_basic`:
+  - Place barrier; double place raises `BarrierAlreadyPlacedError`.
+  - Remove barrier → `is_barrier_removed` true.
+- `test_barrier_hook_not_blocked`:
+  - Without barrier, hook does not block; global step reaches 5.
+- `test_barrier_hook_blocked`:
+  - Place barrier; worker thread blocks after 1 step.
+  - Callback called with action, sets a variable to True.
+  - Removing barrier allows training to finish; all barriers cleared.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/barrier.rs`.
+- Rust public API surface: barrier trait/implementations.
+- Data model mapping: no SessionRunHook analogue; tests should exercise async barrier directly.
+- Feature gating: none.
+- Integration points: training runner.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust tests for arrival/release semantics using in-process barrier.
+2. Add integration test for PS barrier timeout if applicable.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: add async barrier tests for arrival/release semantics.
+- Cross-language parity test: not applicable.
 
 **Gaps / Notes**
-- TODO (manual)
+- Rust barrier is async/event-based; no direct SessionRunHook equivalent.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -5042,50 +5044,47 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/basic_restore_hook.py`
 <a id="monolith-native-training-basic-restore-hook-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 72
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: SessionRunHook that invokes listener callbacks around checkpoint restore (no actual restore logic).
+- Key symbols/classes/functions: `CheckpointRestorerListener`, `CheckpointRestorerHook`.
+- External dependencies: `tensorflow.python.training.session_run_hook`, `absl.logging`.
+- Side effects: logs on creation and restore calls.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `CheckpointRestorerListener`:
+  - Interface with `begin`, `before_restore(session)`, `after_restore(session)`, `end(session)`; all no-ops by default.
+- `CheckpointRestorerHook(listeners=None)`:
+  - Logs "Create CheckpointRestorerHook."
+  - `begin()` calls `listener.begin()` for each listener.
+  - `after_create_session(session, coord)` calls `_restore(session)`.
+  - `_restore(session)`:
+    - Logs "Calling checkpoint restorer listeners."
+    - Calls `before_restore(session)` then `after_restore(session)` on each listener.
+    - **No actual restore actions performed in hook**.
+- No `end()` implementation in hook; listener `end()` is never invoked.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/hooks.rs`.
+- Rust public API surface: `Hook` trait + `CheckpointHook` (save only).
+- Data model mapping: listener callbacks map to hook lifecycle events.
+- Feature gating: none.
+- Integration points: training loop hook list.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add a Rust hook that runs listener callbacks at session start.
+2. If restore is implemented in Rust, wire callbacks before/after restore.
+3. Ensure lifecycle ordering matches Python (begin → after_create_session → before/after restore).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/basic_restore_hook_test.py`.
+- Rust tests: add hook lifecycle test in `monolith-training`.
+- Cross-language parity test: compare callback ordering under identical steps.
 
 **Gaps / Notes**
-- TODO (manual)
+- Hook does not implement `end()`, so listener `end()` is never called.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -5102,50 +5101,40 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/basic_restore_hook_test.py`
 <a id="monolith-native-training-basic-restore-hook-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 137
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Verifies listener callbacks fire during `after_create_session` and do not repeat during training.
+- Key symbols/classes/functions: `CountCheckpointRestorerListener`, `CountHook`, `CheckpointRestorerHookTest`.
+- External dependencies: `tensorflow`, `session_run_hook`.
+- Side effects: runs TF monitored sessions.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_restore_only_in_after_create_session`:
+  - Listener `begin/before_restore/after_restore` called once at session creation.
+  - Another hook receives `after_create_session` once before any `before_run/after_run`.
+  - After training steps, listener counts remain unchanged; CountHook shows before_run/after_run/end increments.
+- `test_two_listeners_with_restorer`:
+  - Two listeners both receive begin/before/after restore once.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/hooks.rs`.
+- Rust public API surface: hook lifecycle tests.
+- Data model mapping: count callbacks during `on_start` or equivalent.
+- Feature gating: none.
+- Integration points: hook list execution order.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add a Rust test that runs a hook list and validates callback order/counts.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: add CPU tensor tests for clipping behavior and immutability.
+- Cross-language parity test: compare Rust outputs vs TF for fixed inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- GPU-only custom ops in Python; Rust needs equivalent or fallback path.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -5162,50 +5151,49 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/clip_ops.py`
 <a id="monolith-native-training-clip-ops-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 80
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Custom gradient clipping with Monolith GPU ops and optional fused path.
+- Key symbols/classes/functions: `_global_norm`, `clip_by_global_norm`.
+- External dependencies: `tensorflow`, `device_utils`, `gen_monolith_ops` (custom ops).
+- Side effects: none (pure tensor ops), but relies on custom TF ops.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_global_norm(t_list)`:
+  - Returns `None` if list empty.
+  - Uses `gen_monolith_ops.global_l2_reduce` to compute L2 sum, then `sqrt`.
+- `clip_by_global_norm(t_list, clip_norm, use_norm=None)`:
+  - Requires `t_list` to be a list; else raises `TypeError("t_list should be a list")`.
+  - If `t_list` empty, returns `(t_list, 0)`.
+  - If `use_norm` provided: returns `monolith_clip_by_global_norm(t_list, use_norm, clip_norm)` and `use_norm`.
+  - If in GPU placement context: uses fused op `monolith_clip_by_global_norm_fused(t_list, clip_norm)` (returns list, norm).
+  - Otherwise computes `global_norm` via:
+    - `_global_norm` if GPU context, else `tf.linalg.global_norm`.
+  - Applies `monolith_clip_by_global_norm(t_list, global_norm, clip_norm)` and returns `(list_clipped, global_norm)`.
+- Expected semantics match `tf.clip_by_global_norm` including NaN on inf norms.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-optimizer/src` (or `monolith-tensor`).
+- Rust public API surface: clip-by-global-norm helper in optimizer utilities.
+- Data model mapping: custom TF ops → native tensor ops (Candle/TF runtime).
+- Feature gating: GPU vs CPU paths should be explicit.
+- Integration points: optimizer step and gradient pre-processing.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement global norm computation and clipping on tensor lists.
+2. Provide GPU-optimized path or document as CPU-only if missing.
+3. Ensure NaN propagation on inf norms matches TF.
+4. Add compatibility test vs `tf.clip_by_global_norm`.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/clip_ops_test.py`.
+- Rust tests: add numeric tests for clip_by_global_norm including NaN/inf cases.
+- Cross-language parity test: compare outputs against TF for fixed inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Custom ops (`monolith_clip_by_global_norm_*`) are not available in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -5222,50 +5210,43 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/clip_ops_test.py`
 <a id="monolith-native-training-clip-ops-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 92
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Validates custom clip-by-global-norm against TF behavior and input immutability.
+- Key symbols/classes/functions: `ClipOpsTest`, `NormOpsTest`.
+- External dependencies: `tensorflow`, `numpy`, `test_util`.
+- Side effects: runs GPU-only tests if available.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `ClipOpsTest._test_clip_by_global_norm`:
+  - Runs op on GPU; compares output to TF `clip_by_global_norm` (unless expected provided).
+  - Asserts input tensors are not modified in-place.
+- `test_clip_by_global_norm`:
+  - Covers simple, uneven shapes, no clipping, zero norm, inf -> NaN, and large random grads.
+- `NormOpsTest`:
+  - `test_it` (GPU only) checks `_global_norm` for inf and known values.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-optimizer/tests`.
+- Rust public API surface: clip-by-global-norm tests.
+- Data model mapping: use CPU tensors unless GPU backend exists.
+- Feature gating: GPU-only tests optional.
+- Integration points: optimizer utilities.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add CPU tests matching the Python expected outputs.
+2. Add NaN/inf propagation test.
+3. Add randomized large-shape test if memory allows.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: add temp-dir PS file round-trip test.
+- Cross-language parity test: not applicable.
 
 **Gaps / Notes**
-- TODO (manual)
+- Rust uses different discovery stack; PS file persistence may not be needed.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -5282,50 +5263,68 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/cluster_manager.py`
 <a id="monolith-native-training-cluster-manager-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 184
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Build TF cluster specs for distributed training and manage PS discovery persistence.
+- Key symbols/classes/functions: `generate_session_config`, `get_training_cluster`, `_query_ps_cluster`, `_query_chief_addr`, `_save_ps_cluster_to_file`, `_fetch_ps_cluster_from_file`.
+- External dependencies: `tensorflow`, `absl.logging`, `ServiceDiscovery`, `metric.cli`.
+- Side effects: reads/writes PS cluster file via `tf.io.gfile`, sleeps on retries, emits metrics.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `emit_store(name, value, tagkv=None)`:
+  - Delegates to `_MCLI.emit_store` (metrics).
+- `generate_session_config(cluster_and_task=None)`:
+  - If `None`, returns `ConfigProto(allow_soft_placement=True)`.
+  - Else builds `ClusterSpec` and `ConfigProto(cluster_def=...)` with:
+    - `device_filters` including `/job:ps` and `/job:chief`; non-chief adds its own job/task filter.
+  - Sets `share_cluster_devices_in_session=True`.
+  - Sets `experimental.share_session_state_in_clusterspec_propagation=True`.
+  - Disables Grappler meta optimizer.
+- `get_training_cluster(...)`:
+  - If `index == 0` (chief):
+    - If `num_redundant_ps`: try reading PS addrs from file (timeout=0); if insufficient, query discovery then save to file.
+    - Else query discovery for PS addrs.
+    - Builds cluster with `chief=[worker_addr]`, `worker=fake_worker_list`, `ps=ps_addrs`.
+    - `task={"type":"chief","index":0}`.
+  - Else (worker):
+    - Gets `chief_addr` via `_query_chief_addr`.
+    - Builds `fake_worker_list` of size `num_workers-1` and assigns `worker_addr` at `index-1`.
+    - PS addrs from file (if redundant) or discovery.
+    - `task={"type":"worker","index":index-1}`.
+  - Asserts PS count equals `num_required_ps`.
+- `_query_chief_addr(discovery)`:
+  - Polls `discovery.query("worker")` until index 0 present; sleeps 5s between retries.
+- `_query_ps_cluster(discovery, num_required_ps, model_name=None, cluster_type="stable")`:
+  - Polls `discovery.query("ps")` until enough PS; logs count and emits metrics if model_name provided.
+  - Returns sorted PS addresses by index, truncated to `num_required_ps`.
+- `_save_ps_cluster_to_file(file_name, ps_addrs)`:
+  - Writes comma-separated list to temp file and atomically renames.
+- `_fetch_ps_cluster_from_file(file_name, timeout=1800)`:
+  - Repeatedly attempts read; returns list if found, else empty after timeout.
+- `_get_ps_cluster_file_name(model_dir, uuid)`:
+  - Path: `<model_dir>/ps_cluster_dir/<uuid or "ps_info">`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/distributed.rs`, `py_discovery.rs`.
+- Rust public API surface: `ClusterConfig`, `ServiceDiscovery` implementations.
+- Data model mapping: TF `ClusterSpec` → Rust `ClusterConfig`; discovery polling → async discovery APIs.
+- Feature gating: none.
+- Integration points: distributed runner and service discovery.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Map discovery polling to Rust async discovery with retry/backoff.
+2. Add PS cluster file persistence helpers (optional).
+3. Provide cluster config builder mirroring fake worker list behavior if needed for TF_CONFIG parity.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/cluster_manager_test.py`.
+- Rust tests: add unit test for PS file round-trip and cluster config validation.
+- Cross-language parity test: compare generated cluster dictionaries for sample inputs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python uses fake worker list due to TF_CONFIG limitation; Rust cluster config may not need this.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -5342,45 +5341,32 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/cluster_manager_test.py`
 <a id="monolith-native-training-cluster-manager-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 35
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests PS cluster file persistence helpers.
+- Key symbols/classes/functions: `ClusterManagerTest.testBasic`.
+- External dependencies: `os`, `cluster_manager`.
+- Side effects: writes temp files under `TEST_TMPDIR`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `testBasic`:
+  - Writes PS addrs to file via `_save_ps_cluster_to_file`.
+  - Reads via `_fetch_ps_cluster_from_file` and asserts equality.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests`.
+- Rust public API surface: PS cluster file helper tests.
+- Data model mapping: same string list round-trip.
+- Feature gating: none.
+- Integration points: optional in discovery integration.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust test that writes/reads PS cluster file in a temp dir.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
+- Python tests: this file.
 - Rust tests: TODO (manual)
 - Cross-language parity test: TODO (manual)
 
@@ -20282,50 +20268,39 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/path_utils.py`
 <a id="monolith-path-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 47
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Locate monolith base directory and resolve paths to bundled libraries.
+- Key symbols/classes/functions: `find_main`, `get_libops_path`.
+- External dependencies: `os` only (explicitly avoids third-party imports).
+- Side effects: raises ValueError when base directory cannot be found.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `find_main()`:
+  - Uses `__file__` path; searches for split markers in order: `/__main__/`, `/site-packages/`, `/monolith/`.
+  - If marker found:
+    - For `/monolith/`: `main_dir` is path prefix before marker.
+    - Else: `main_dir` is prefix joined with the marker path component.
+  - Returns `main_dir` only if `main_dir/monolith` exists; else raises ValueError with full path in message.
+- `get_libops_path(lib_name)`:
+  - Returns `os.path.join(find_main(), lib_name)`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src/path_utils.rs`.
+- Rust public API surface: `find_main()` and `get_libops_path()`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement path resolution with the same marker order and behavior.
+2. Preserve error message details for diagnostics.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/utils_test.py` (find_main / get_libops_path).
+- Rust tests: replicate `find_main` behavior under test harness.
 
 **Gaps / Notes**
-- TODO (manual)
+- Behavior depends on Bazel layout (`__main__`); Rust tests should simulate or adjust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -20342,50 +20317,57 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/tpu_runner.py`
 <a id="monolith-tpu-runner-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 429
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: TPU training/eval runner using `tf.estimator.tpu.TPUEstimator` with embedding support and optional CPU test mode.
+- Key symbols/classes/functions: `TPURunner`, `create_tpu_estimator`, `create_tpu_estimator_on_cpu`, `run`, CLI `main`.
+- External dependencies: `tensorflow.compat.v1`, `cloud_tpu_client`, `BaseEmbeddingTask`, `model_registry`.
+- Side effects: configures TPU versions, launches training/eval, writes summaries.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- CLI flags include TPU location (`tpu`, `gcp_project`, `tpu_zone`), mode, model_dir, checkpoint interval, iteration counts, embedding options, CPU test, partition strategy, overwrite_end_date.
+- `TPURunner.__init__`:
+  - Reads flags and task_param; sets accelerator to `tpu`.
+  - Allows task_param to override save_checkpoints_steps.
+  - Optionally overwrites `train.end_date` when flag provided.
+- `create_tpu_estimator`:
+  - Optionally configures TPU version and waits for healthy.
+  - Builds TPU cluster resolver, computes total replicas and global batch size.
+  - Sets TPUConfig with iterations_per_loop and host_call settings.
+  - Uses `TPUInfeedOutfeedSessionWithEndOfStreamHandlingHook` when stopping signals enabled.
+  - Builds embedding_config_spec if feature/table configs exist.
+  - Returns TPUEstimator and total_replicas.
+- `create_tpu_estimator_on_cpu`:
+  - Creates TPUEstimator with `use_tpu=False` and small batch size; used for CPU test.
+- `run()`:
+  - Loads global step (or 0).
+  - Instantiates task; if BaseEmbeddingTask, prepares feature/table configs.
+  - Uses CPU test wrapper if enabled.
+  - `train`: `est.train`.
+  - `eval`: iterates checkpoints and evaluates; writes summaries and stops at max_steps.
+  - `train_and_eval`: not supported (raises TypeError).
+- `main`: logs FLAGS and task_param, runs runner.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/tpu_runner.rs`.
+- Rust public API surface: runner struct + CLI entrypoint.
+- Data model mapping: TPU/embedding configs likely require TF runtime bindings.
+- Feature gating: `tf-runtime`, `tpu` features.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port CLI flag set and task registry lookup.
+2. Decide runtime strategy (native Rust vs TF bridge).
+3. Preserve TPU version config and host_call/embedding config semantics if using TF.
+4. Mirror evaluation-by-checkpoint loop and summary writing.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none specific.
+- Rust tests: CLI parsing + control flow tests; TPU behavior likely gated/skipped in CI.
 
 **Gaps / Notes**
-- TODO (manual)
+- Full parity depends on TensorFlow TPU Estimator which is not available natively in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -20402,50 +20384,41 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/utils.py`
 <a id="monolith-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 81
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Small utility helpers for TF monkey patching and recursive file copy with tf.io.gfile.
+- Key symbols/classes/functions: `enable_monkey_patch`, `CopyFile`, `CopyRecursively`.
+- External dependencies: `tensorflow`, `ThreadPoolExecutor`.
+- Side effects: modifies `tensorflow.python.training.monitored_session` module attribute; copies files (possibly remote).
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `enable_monkey_patch()`:
+  - Imports `tensorflow.python.training.monitored_session` and sets `_PREEMPTION_ERRORS` to `(tf.errors.AbortedError,)`.
+- `CopyFile(src, dst, overwrite=True, skip_nonexist=True, max_retries=5)`:
+  - Uses `tf.io.gfile.copy` and retries on NotFoundError (skip if `skip_nonexist`).
+- `CopyRecursively(src, dst, max_workers=1, skip_nonexist=True, max_retries=5)`:
+  - Recursively copies a directory tree via `tf.io.gfile`.
+  - If `src` missing and `skip_nonexist`, returns; else raises ValueError.
+  - If `dst` exists, removes it then recreates.
+  - If `max_workers > 1`, uses ThreadPoolExecutor to copy files in parallel.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tf/src/utils.rs` (TF-dependent utilities) plus `monolith-core/src/path_utils.rs` for re-exports.
+- Rust public API surface: equivalents for monkey patch (if bridging TF) and recursive copy.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Provide TF monkey patch equivalent when using Python/TF runtime; otherwise document unsupported.
+2. Implement recursive copy with retries and optional parallelism.
+3. Ensure semantics match tf.io.gfile for remote paths (HDFS/GCS) where needed.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/utils_test.py`
+- Rust tests: port tests for `find_main`, `get_libops_path`, and CopyRecursively.
 
 **Gaps / Notes**
-- TODO (manual)
+- Full parity requires tf.io.gfile support; Rust may need a virtual filesystem abstraction.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -20462,50 +20435,35 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/utils_test.py`
 <a id="monolith-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 65
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests path utilities, monkey patch, and recursive copy.
+- Key symbols/classes/functions: `UtilsTest` test cases.
+- External dependencies: `tensorflow`, `monitored_session`.
+- Side effects: writes temp files in `/tmp`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `testFindMain`: `utils.find_main()` base dir last path component is `__main__` (Bazel layout assumption).
+- `testGetLibopsPath`: `utils.get_libops_path("monolith/utils_test.py")` exists.
+- `testLoadMonitoredSession`: `_PREEMPTION_ERRORS` equals `(errors.AbortedError,)` after monkey patch.
+- `testMultiThreadedCopy`: creates nested dirs/files and verifies copied content with `CopyRecursively(max_workers=2)`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tf/tests/utils.rs`.
+- Rust public API surface: path utils + recursive copy.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port tests with temp dirs and file content checks.
+2. If TF monkey patch is unsupported, document and adjust tests accordingly.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file
+- Rust tests: parity tests for path and copy semantics.
 
 **Gaps / Notes**
-- TODO (manual)
+- `find_main` behavior is tied to Bazel execution layout; Rust tests may need harness adjustments.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
