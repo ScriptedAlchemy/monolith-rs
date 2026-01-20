@@ -649,8 +649,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/touched_key_set_ops_test.py`](#monolith-native-training-touched-key-set-ops-test-py) | 51 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/src |  |
 | [`monolith/native_training/utils.py`](#monolith-native-training-utils-py) | 320 | IN PROGRESS | monolith-rs/crates/monolith-training/src/utils.rs (new) |  |
 | [`monolith/native_training/utils_test.py`](#monolith-native-training-utils-test-py) | 70 | IN PROGRESS | monolith-rs/crates/monolith-training/tests/utils.rs (new) |  |
-| [`monolith/native_training/variables.py`](#monolith-native-training-variables-py) | 147 | TODO | TODO (manual) |  |
-| [`monolith/native_training/variables_test.py`](#monolith-native-training-variables-test-py) | 89 | TODO | TODO (manual) |  |
+| [`monolith/native_training/variables.py`](#monolith-native-training-variables-py) | 147 | IN PROGRESS | monolith-rs/crates/monolith-training/src/variables.rs (new) |  |
+| [`monolith/native_training/variables_test.py`](#monolith-native-training-variables-test-py) | 89 | IN PROGRESS | monolith-rs/crates/monolith-training/tests/variables.rs (new) |  |
 | [`monolith/native_training/yarn_runtime.py`](#monolith-native-training-yarn-runtime-py) | 127 | TODO | TODO (manual) |  |
 | [`monolith/native_training/yarn_runtime_test.py`](#monolith-native-training-yarn-runtime-test-py) | 133 | TODO | TODO (manual) |  |
 | [`monolith/native_training/zk_utils.py`](#monolith-native-training-zk-utils-py) | 96 | TODO | TODO (manual) |  |
@@ -21680,50 +21680,100 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/variables.py`
 <a id="monolith-native-training-variables-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 147
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Provides a cached-variable mechanism for distributed TF training: creates local cached copies of remote variables, updates them via fetch/assign ops, and supplies a session hook.
+- Key symbols/classes/functions: `_CACHED_VARIABLES`, `CachedVariableAssociates`, `CachedVariableMeta`, `cached_value`, `cached_variable_creator`, `fetch_all_cached_variables`, `assign_all_cached_variables`, `FetchAllCachedVariablesHook`.
+- External dependencies: TensorFlow (resource variables, custom gradients, estimator hooks), `graph_meta.get_meta`.
+- Side effects:
+  - Mutates variables’ private `_cached_value` attribute.
+  - Adds variables to TF collections.
+  - Creates local (worker) `LOCAL_VARIABLES` for cache/fetch.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_CACHED_VARIABLES = "monolith_cached_variables"`: TF collection name storing original vars that are cached.
+- Data classes:
+  - `CachedVariableAssociates(async_fetched_var, async_cached_var)`.
+  - `CachedVariableMeta(var_id_to_assoc: Dict[int, CachedVariableAssociates])`.
+- `_get_meta()`:
+  - Uses `graph_meta.get_meta("cached_variables_meta", CachedVariableMeta)` to create/retrieve per-graph metadata.
+- `cached_value(var, async_cached_var)` (custom gradient):
+  - Forward: returns `async_cached_var` (cached local value).
+  - Backward: returns gradient `(dy, None)` → gradients flow to `var` only; cached var has no gradient.
+- `_get_valid_op_name(name)`:
+  - Replaces `":"` and `"/"` with `"_"` for safe op naming.
+- `cached_variable_creator(next_creator, **kwargs)`:
+  - Creates `var = next_creator(**kwargs)`.
+  - Validates: `var` must be `ResourceVariable` else `ValueError("Only ResourceVariable is supported. Do you disable V2 behavior or use strategy?")`.
+  - If `var._cached_value` already set: `ValueError("The variable has already been cached. Consider about removing cache_device.")`.
+  - Creates `async_cached_var` and `async_fetched_var` under `tf.device(None)`:
+    - `resource_variable_ops.ResourceVariable`
+    - `initial_value=var.initial_value`, `trainable=False`
+    - `collections=[tf.compat.v1.GraphKeys.LOCAL_VARIABLES]`
+    - `shape=var.shape`, `dtype=var.dtype`
+  - If `async_cached_var.device == var.device`, returns `var` unchanged (skip cache).
+  - Else:
+    - Adds `var` to `_CACHED_VARIABLES` collection.
+    - Sets `var._cached_value = cached_value(var, async_cached_var)`.
+    - Stores associates in meta: `var_id_to_assoc[id(var)] = CachedVariableAssociates(...)`.
+  - Returns `var`.
+- `fetch_all_cached_variables()`:
+  - For each `var` in `_CACHED_VARIABLES`:
+    - Gets `fetched_var = meta.var_id_to_assoc[id(var)].async_fetched_var`.
+    - Adds assign op: `fetched_var.assign(var._read_variable_op(), name="fetch_from_{device}", read_value=False)`, where device is sanitized via `_get_valid_op_name`.
+  - Returns `tf.group(ops)` (no name).
+- `assign_all_cached_variables()`:
+  - For each cached `var`:
+    - Assigns `associates.async_cached_var.assign(associates.async_fetched_var, name="assign_cached_var", read_value=False)`.
+  - Returns `tf.group(ops, name="assign_all_cached_variables")`.
+- `FetchAllCachedVariablesHook`:
+  - Initializes `_fetch_op`, `_assign_op`, `_first_run = True`.
+  - `after_create_session`: resets `_first_run`.
+  - `before_run`:
+    - If first run: synchronously `session.run(_fetch_op)` then `session.run(_assign_op)`.
+    - Returns `SessionRunArgs(_fetch_op)` to fetch each step.
+  - `after_run`: runs `_assign_op` to update cached vars after fetch.
+- Observed behavior:
+  - `var * 1.0` uses cached value (`_cached_value`), while `var` reads the actual remote value.
+  - Updates to `var` only appear in cached reads after fetch/assign.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/variables.rs` (new).
+- Rust public API surface:
+  - `cached_variable_creator(...)` equivalent for TF backend.
+  - `fetch_all_cached_variables()`, `assign_all_cached_variables()`.
+  - `FetchAllCachedVariablesHook` analog (or callback in training loop).
+- Data model mapping:
+  - TF resource variables ↔ TF runtime handles.
+  - Cached local variables stored in a per-graph registry keyed by var identity.
+- Feature gating:
+  - Only meaningful under `tf-runtime` (Candle backend has no TF graph/collections).
+- Integration points:
+  - Distributed training loops that rely on cached reads (e.g., PS-based training).
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add TF-backend registry for cached variables (keyed by var identity/handle).
+2. Implement cached read wrapper (custom gradient or TF graph rewrite) so reads use cached local vars but gradients flow to originals.
+3. Create local (worker) cached + fetched variables with `LOCAL_VARIABLES` collection.
+4. Implement fetch/assign ops; preserve op naming via `_get_valid_op_name`.
+5. Add a hook/callback in training loop that mirrors `FetchAllCachedVariablesHook` scheduling.
+6. Define behavior when cached vars colocate with originals (skip caching).
+7. Gate all behavior behind TF runtime feature; document unsupported for Candle.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/variables_test.py`.
+- Rust tests:
+  - `test_basic_cached_variable` (TF backend).
+  - `test_hook_cached_variable` (TF backend).
+  - `test_gradient_cached_variable` (TF backend).
+- Cross-language parity test:
+  - Run Python and Rust graphs with same PS setup and compare cached vs direct reads after updates.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses private TF APIs: `var._cached_value`, `var._read_variable_op()`.
+- Imports `variables_lib` and `core` but does not use them.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -21740,50 +21790,58 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/variables_test.py`
 <a id="monolith-native-training-variables-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 89
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Validates cached-variable behavior under PS training, hook scheduling, and gradient updates.
+- Key symbols/classes/functions: `CachedVariableTest.testBasic`, `.testHook`, `.testGradient`.
+- External dependencies: TensorFlow, `variables`, `test_utils.create_test_ps_cluster`.
+- Side effects: Starts local PS servers for test sessions.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `testBasic`:
+  - Create local PS cluster with 2 servers.
+  - Use `tf.variable_creator_scope(cached_variable_creator)` and place `var` on `/job:ps/task:1`.
+  - After init:
+    - `var * 1.0` returns cached value (5.0).
+    - After `var.assign_add(2.0)`: `var * 1.0` still 5.0; `var` reads 7.0.
+  - After `fetch_all_cached_variables()` + `assign_all_cached_variables()`: `var * 1.0` becomes 7.0.
+- `testHook`:
+  - Build `var` on PS with cache creator; `var_cached = var * 1.0`.
+  - Use `FetchAllCachedVariablesHook` with `SingularMonitoredSession`.
+  - After `assign_sub(var, 1.0)`:
+    - `var_cached` may take up to two runs to reflect update; final expected value is 4.0.
+- `testGradient`:
+  - Use SGD optimizer with `loss = var`.
+  - After `opt.minimize(loss)`: `var` reads 4.0 (updated).
+  - Cached read (`var * 1.0`) still 5.0 (not fetched yet).
+- Tests run with TF v1 sessions; eager disabled in `__main__`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/variables.rs` (new).
+- Rust public API surface: `cached_variable_creator`, `fetch_all_cached_variables`, `assign_all_cached_variables`, `FetchAllCachedVariablesHook`.
+- Data model mapping: TF runtime variables and sessions.
+- Feature gating: TF backend only.
+- Integration points: PS cluster creation helpers (Rust equivalent of `test_utils.create_test_ps_cluster`).
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port `testBasic` using a local PS cluster and cached variable creator.
+2. Port `testHook` with a Rust equivalent of session hook (before_run/after_run callbacks).
+3. Port `testGradient` to ensure gradients update original var but cached reads remain stale.
+4. Ensure the cached read path (`var * 1.0`) uses cached value in Rust TF backend.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `CachedVariableTest.testBasic`, `.testHook`, `.testGradient`.
+- Rust tests:
+  - `cached_variable_basic` (TF backend)
+  - `cached_variable_hook_updates` (TF backend)
+  - `cached_variable_gradient_reads` (TF backend)
+- Cross-language parity test:
+  - Compare cached vs direct reads across the same update sequence in Python and Rust.
 
 **Gaps / Notes**
-- TODO (manual)
+- Hook behavior is sensitive to session scheduling; Rust must preserve the “fetch before run, assign after run” pattern.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
