@@ -604,8 +604,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/native_task_context.py`](#monolith-native-training-native-task-context-py) | 58 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/nested_tensors.py`](#monolith-native-training-nested-tensors-py) | 110 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
 | [`monolith/native_training/nested_tensors_test.py`](#monolith-native-training-nested-tensors-test-py) | 57 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
-| [`monolith/native_training/net_utils.py`](#monolith-native-training-net-utils-py) | 133 | TODO | TODO (manual) |  |
-| [`monolith/native_training/net_utils_test.py`](#monolith-native-training-net-utils-test-py) | 94 | TODO | TODO (manual) |  |
+| [`monolith/native_training/net_utils.py`](#monolith-native-training-net-utils-py) | 133 | IN PROGRESS | monolith-rs/crates/monolith-core/src |  |
+| [`monolith/native_training/net_utils_test.py`](#monolith-native-training-net-utils-test-py) | 94 | IN PROGRESS | monolith-rs/crates/monolith-core/src |  |
 | [`monolith/native_training/optimizers/adamom.py`](#monolith-native-training-optimizers-adamom-py) | 68 | TODO | TODO (manual) |  |
 | [`monolith/native_training/optimizers/adamom_test.py`](#monolith-native-training-optimizers-adamom-test-py) | 57 | TODO | TODO (manual) |  |
 | [`monolith/native_training/optimizers/rmsprop.py`](#monolith-native-training-optimizers-rmsprop-py) | 102 | TODO | TODO (manual) |  |
@@ -18555,50 +18555,87 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/net_utils.py`
 <a id="monolith-native-training-net-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 133
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Network utility helpers for address formatting, local IP discovery, and threaded liveness checks for host:port addresses.
+- Key symbols/classes/functions: `NodeAliveChecker`, `is_ipv6_address`, `concat_ip_and_port`, `get_local_ip`, `is_ipv4_supported`, `get_local_server_addr`, `AddressFamily`.
+- External dependencies: `socket`, `threading`, `queue.Queue`, `ipaddress`, `absl.logging`.
+- Side effects:
+  - Opens TCP sockets to check liveness.
+  - Spawns threads in `NodeAliveChecker.__init__`.
+  - Prints connection errors to stdout.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`NodeAliveChecker(addrs, timeout=1, num_thread=10)`**
+  - Initializes with:
+    - `_addrs` list, `_timeout`, `_num_thread`.
+    - `_lock`, `_alive` set, `_dead` set.
+    - `_q = Queue()` populated with all `addrs`.
+  - Immediately starts `_start()` (blocks until all threads finish).
+- **`_ping(addr)`**
+  - Expects `addr` string in `host:port` form; uses `addr.rsplit(':', 1)` and `ip.strip('[]')`.
+  - Determines IPv6 via `is_ipv6_address`.
+  - Creates `socket.socket(AF_INET6 if IPv6 else AF_INET, SOCK_STREAM)` and `settimeout(timeout)`.
+  - On successful `connect`, adds `addr` to `_alive`.
+  - On exception:
+    - Prints `cannot connect to {addr}, because {err}`.
+    - Adds `addr` to `_dead`.
+  - Always closes socket if created.
+- **`_check_open()`**
+  - Drains `_q` using `get_nowait()` in a loop; for each addr calls `_ping`.
+  - Exits on `queue.Empty`.
+- **`_start()`**
+  - Spawns `_num_thread` threads running `_check_open()`.
+  - Joins all threads (synchronous completion).
+- **`all_nodes_alive()`** returns `len(_dead) == 0`.
+- **`get_dead_nodes()`** returns `list(_dead)` (order arbitrary).
+- **`get_alive_nodes()`** returns `list(_alive)` (order arbitrary).
+- **`get_addrs()`** returns `_addrs` (original list).
+- **`is_ipv6_address(ip)`**
+  - Uses `ipaddress.ip_address(ip)`; returns False on `ValueError`, else `ip_obj.version == 6`.
+- **`concat_ip_and_port(ip, port)`**
+  - If not IPv6, returns `"ip:port"`.
+  - If IPv6, returns `"[ip]:port"`.
+- **`get_local_ip()`**
+  - Tries `socket.getaddrinfo(gethostname(), None)[0][4][0]`.
+  - On `socket.gaierror`, retries with `family=AF_INET6`.
+- **`is_ipv4_supported()`**
+  - Returns `not is_ipv6_address(get_local_ip())`.
+- **`get_local_server_addr(port)`**
+  - Returns `concat_ip_and_port(get_local_ip(), port)`.
+  - Docstring notes IPv4 hosts return `gethostbyname(gethostname())` equivalent.
+- **`AddressFamily`**
+  - Constants: `IPV4 = 'ipv4'`, `IPV6 = 'ipv6'`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src` (network utils).
+- Rust public API surface:
+  - `NodeAliveChecker` equivalent (synchronous check on construction or explicit `run()`).
+  - Helpers for IPv4/IPv6 detection and addr formatting.
+- Data model mapping:
+  - Socket API via `std::net` (`TcpStream::connect_timeout`).
+  - Address parsing should accept bracketed IPv6 addresses.
+- Feature gating: none.
+- Integration points: used by distributed training/serving orchestration.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement `is_ipv6_address` using `std::net::IpAddr` parse.
+2. Implement `concat_ip_and_port` with IPv6 bracket handling.
+3. Implement `get_local_ip` with fallback IPv6 resolution.
+4. Implement `NodeAliveChecker` with thread pool + shared sets protected by mutex.
+5. Preserve behavior of printing on connection failure (stdout).
+6. Add tests for IPv6 formatting and local addr retrieval.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/net_utils_test.py`.
+- Rust tests: add unit tests for concat and local addr; add mocked checker tests.
+- Cross-language parity test: compare formatting and IPv6 detection results.
 
 **Gaps / Notes**
-- TODO (manual)
+- `NodeAliveChecker` performs all checks in `__init__` and blocks until complete.
+- Address parsing assumes `host:port` or `[ipv6]:port` format; raw IPv6 with port and no brackets may not parse correctly.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -18615,50 +18652,53 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/net_utils_test.py`
 <a id="monolith-native-training-net-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 94
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests for `net_utils` helpers and `NodeAliveChecker`.
+- Key symbols/classes/functions: `NetUtilsTest`.
+- External dependencies: `unittest`, `unittest.mock`, `random`, `time`, `absl.logging`, `monolith.native_training.net_utils`.
+- Side effects: Uses randomized sleep; modifies module-level `_FAILED_TIME` and `_DEAD_SET`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Custom `socket` class emulates `socket.socket` with:
+  - `connect` sleeping random duration in `[0, 2 * timeout]`.
+  - Marks a failure when sleep > timeout, increments `_FAILED_TIME`, and adds addr to `_DEAD_SET`.
+- `test_basic`:
+  - Mocks `net_utils.socket.socket` to return custom socket.
+  - Creates `NodeAliveChecker` with 5 localhost addrs.
+  - Asserts:
+    - `get_addrs()` matches input set.
+    - `len(alive) == 5 - _FAILED_TIME`, `len(dead) == _FAILED_TIME`.
+    - Alive set equals input set minus `_DEAD_SET`; dead set equals `_DEAD_SET`.
+    - `all_nodes_alive()` true only if `_FAILED_TIME == 0`.
+- `test_concat_ip_and_port`:
+  - Asserts IPv4 and hostname formatting (no brackets) and IPv6 formatting (`[::1]:10`).
+- `test_get_local_server_addr`:
+  - Asserts result is non-`None`.
+- `__main__`: runs `unittest.main()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-core/src` (network utils tests).
+- Rust public API surface: tests for `concat_ip_and_port`, `get_local_server_addr`, and `NodeAliveChecker`.
+- Data model mapping: mock TCP connection attempts and timeouts.
+- Feature gating: none.
+- Integration points: verify `NodeAliveChecker` behavior under simulated timeouts.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add deterministic tests for `concat_ip_and_port` with IPv4 and IPv6.
+2. Add a test for local server addr non-empty.
+3. Implement a mockable connector for `NodeAliveChecker` to emulate timeouts without real sockets.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `NetUtilsTest` in this file.
+- Rust tests: create `net_utils_concat`, `net_utils_local_addr`, `node_alive_checker_mocked`.
+- Cross-language parity test: compare IPv6 formatting and default addr shapes.
 
 **Gaps / Notes**
-- TODO (manual)
+- Randomized sleeps can make the Python test non-deterministic; Rust tests should be deterministic.
+- `_FAILED_TIME` and `_DEAD_SET` are global and not reset between tests.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
