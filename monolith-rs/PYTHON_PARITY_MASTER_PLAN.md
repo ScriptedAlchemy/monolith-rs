@@ -7015,47 +7015,77 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/data/tf_example_to_example_test.py`
-
 <a id="monolith-native-training-data-tf-example-to-example-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 183
-- Purpose/role: Validates TF Example → Monolith Example conversion and parsing.
-- Key symbols/classes/functions: `TFExampleToExampleTest.test_tf_example_to_example`.
-- External dependencies: `tensorflow`, `tf_example_to_example`, `parse_examples`.
-- Side effects: writes `/tmp/test.tfrecord`.
+- Purpose/role: End-to-end test that converts TF Example records to Monolith Example variants via `tf_example_to_example`, then parses with `parse_examples` and asserts fid/dense defaults.
+- Key symbols/classes/functions: `serialize_example`, `get_fid_v2`, `calc_hash_value`, `TFExampleToExampleTest.test_tf_example_to_example`.
+- External dependencies: TensorFlow TFRecord, numpy RNG, `tf_example_to_example`, `parse_examples`.
+- Side effects: writes `/tmp/test.tfrecord` with 10k TF Examples; uses TF1 session.
 
 **Required Behavior (Detailed)**
-- Generates TFRecord with 10k Examples containing bool/int/string/float features.
-- `tf_example_to_example` maps:
-  - sparse_features `feature0/feature1/feature4` to slots 1/2/3 (fid_v2).
-  - dense_features `feature2`; label `feature3`.
-- Parses with `parse_examples` including non-existent features; expects:
-  - missing sparse -> empty.
-  - missing dense -> zeros.
-  - instance_weight defaults to 1.0.
-  - feature4 fid uses `calc_hash_value`.
+- Helper functions:
+  - `_bytes_feature`, `_float_feature`, `_int64_feature` wrap values into `tf.train.Feature` list types.
+  - `serialize_example(feature0, feature1, feature2, feature3, feature4)` builds a `tf.train.Example` with:
+    - `feature0`: int64 (bool values allowed)
+    - `feature1`: int64
+    - `feature2`: bytes
+    - `feature3`: float
+    - `feature4`: float
+  - `get_fid_v2(slot, signature)` uses `fid_v2_mask=(1<<48)-1` and returns `(slot<<48) | (signature & mask)`.
+  - `calc_hash_value(val)` returns `int(log2(abs(val)+1))`.
+- `test_tf_example_to_example`:
+  - Disables TF2 behavior (`tf.compat.v1.disable_v2_behavior()`), uses TF1 session graph.
+  - Generates 10k samples:
+    - `feature0`: random bools
+    - `feature1`: random ints in [0,4]
+    - `feature2`: bytes from `strings[feature1]`
+    - `feature3`: random normal float
+    - `feature4`: random normal float
+  - Writes TFRecord file `/tmp/test.tfrecord` with serialized Examples.
+  - Dataset pipeline:
+    - `TFRecordDataset` → `map(tf_example_to_example)` with:
+      - `sparse_features={'feature0':1,'feature1':2,'feature4':3}` (fid_v2 slots)
+      - `dense_features=['feature2']`
+      - `label='feature3'`
+      - `instance_weight=None`
+    - Batch size 2 → `map(parse_examples)` with:
+      - `sparse_features=['not_existed1','feature0','feature1','feature4']`
+      - `dense_features=['label','feature2','feature3','not_existed2','instance_weight']`
+      - `dense_feature_types=[float32,string,float32,float32,float32]`
+      - `dense_feature_shapes=[1,1,1,1,1]`
+  - In session loop (5k batches):
+    - `not_existed1` ragged has zero values.
+    - `feature0/feature1` fids equal `get_fid_v2(slot, original int/bool)` per batch.
+    - `feature4` fid uses slot 3 and `calc_hash_value` of float value (log2(abs(val)+1)).
+    - `label` equals original `feature3` (float) per batch.
+    - `feature3` dense output is `[0,0]` (missing in conversion), `not_existed2` is `[0,0]`.
+    - `instance_weight` defaults to `[1.0,1.0]`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: `monolith-rs/crates/monolith-data/tests`.
-- Rust public API surface: TFExample conversion utilities (if present).
-- Data model mapping: TF Example → Monolith example encoding.
-- Feature gating: TFRecord parsing.
-- Integration points: data ingestion pipeline.
+- Target crate/module: `monolith-rs/crates/monolith-data/tests` (TFExample conversion) + `monolith-proto` for Example parsing.
+- Rust public API surface: test helper for TF Example serialization; conversion op `tf_example_to_example` or equivalent.
+- Data model mapping: TF Example bytes → Monolith Example variant → parsed feature dict.
+- Feature gating: TFRecord read/write and TFExample conversion backend.
+- Integration points: `feature_utils.tf_example_to_example` and `parsers.parse_examples` parity.
 
 **Implementation Steps (Detailed)**
-1. Implement TFExample → Example conversion in Rust.
-2. Add tests for missing feature defaults and fid hashing.
+1. Implement TF Example serialization helper in Rust tests (or load TFRecord fixtures generated in Python).
+2. Provide `tf_example_to_example` conversion in Rust with the same slot/fid-v2 behavior and hashing for float feature4.
+3. Ensure missing sparse features emit empty ragged values; missing dense features emit zeros; `instance_weight` defaults to 1.0.
+4. Add a Rust test that mirrors batch size 2 with deterministic input, validating fid values and dense defaults.
 
 **Tests (Detailed)**
 - Python tests: this file.
-- Rust tests: add conversion tests with fixed fixtures.
-- Cross-language parity test: compare parsed fid values and dense defaults.
+- Rust tests: `tf_example_to_example.rs` (new) that asserts identical fid/dense outputs.
+- Cross-language parity test: generate a fixed TFRecord in Python and run Rust conversion+parse on it; compare outputs.
 
 **Gaps / Notes**
-- Requires TFRecord read/write support in Rust or external tooling.
+- Uses `/tmp/test.tfrecord`; Rust tests should use tempdir paths.
+- The hash for float sparse feature4 is `int(log2(abs(val)+1))`; must match exactly.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7070,6 +7100,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/data/training_instance/python/instance_dataset_op.py`
+
 <a id="monolith-native-training-data-training-instance-python-instance-dataset-op-py"></a>
 
 **Status:** TODO (manual review required)
