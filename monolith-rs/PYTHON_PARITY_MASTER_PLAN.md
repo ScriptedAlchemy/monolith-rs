@@ -4646,7 +4646,14 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
   - Retrieves task params, instantiates TPURunner, sets `_cpu_test=True` and `_host_call_every_n_steps=0`, runs.
 - `runMergeVectorTestOnCPU(task_name)`:
   - Enables `merge_vector` on task params; runs in CPU test mode.
-  - Validates merged slot dims and embedding dims in runner task env.
+  - Validates merged slot dims and embedding dims in runner task env:
+    - `env = runner._task._env`.
+    - Asserts number of slots equals number of merged slots.
+    - For each slot, checks merged dims:
+      - If original dims start with bias 1, bias retained and other dims summed.
+      - Else all dims summed into single entry.
+    - For each TPU feature named `slot_{slot_id}_{index}`:
+      - Asserts embedding dim equals original `env._slot_to_dims[slot_id][index]`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-training/tests/base_tpu.rs`.
