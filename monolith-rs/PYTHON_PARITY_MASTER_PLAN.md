@@ -597,7 +597,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/monolith_export.py`](#monolith-native-training-monolith-export-py) | 18 | IN PROGRESS | N/A (decorator) |  |
 | [`monolith/native_training/multi_hash_table_ops.py`](#monolith-native-training-multi-hash-table-ops-py) | 695 | IN PROGRESS | N/A (TF custom ops) |  |
 | [`monolith/native_training/multi_hash_table_ops_test.py`](#monolith-native-training-multi-hash-table-ops-test-py) | 249 | IN PROGRESS | N/A (TF custom ops) |  |
-| [`monolith/native_training/multi_type_hash_table.py`](#monolith-native-training-multi-type-hash-table-py) | 435 | TODO | TODO (manual) |  |
+| [`monolith/native_training/multi_type_hash_table.py`](#monolith-native-training-multi-type-hash-table-py) | 435 | IN PROGRESS | N/A (hash table wrapper) |  |
 | [`monolith/native_training/multi_type_hash_table_test.py`](#monolith-native-training-multi-type-hash-table-test-py) | 326 | TODO | TODO (manual) |  |
 | [`monolith/native_training/native_model.py`](#monolith-native-training-native-model-py) | 1109 | TODO | TODO (manual) |  |
 | [`monolith/native_training/native_task.py`](#monolith-native-training-native-task-py) | 213 | TODO | TODO (manual) |  |
@@ -17772,50 +17772,60 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/multi_type_hash_table.py`
 <a id="monolith-native-training-multi-type-hash-table-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 435
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Abstractions for multi-type hash tables and a merged-table wrapper that deduplicates configs across slots.
+- Key symbols/classes/functions: `BaseMultiTypeHashTable`, `MultiTypeHashTable`, `MergedMultiTypeHashTable`.
+- External dependencies: TensorFlow, hash_table_ops, distribution_ops, prefetch_queue.
+- Side effects: Uses device placement; may register queue hooks for pipelined execution.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `BaseMultiTypeHashTable`:
+  - Abstract API: `lookup`, `assign`, `assign_add`, `reinitialize`, `apply_gradients`, `as_op`, `get_table_dim_sizes`.
+  - Supports queue hook aggregation via `add_queue_hook` and `get_queue_hooks`.
+- `MultiTypeHashTable`:
+  - Builds per-slot hash tables using a factory; maintains resources and learning_rate tensors.
+  - `lookup` returns per-slot embeddings.
+  - `assign` / `assign_add` / `apply_gradients` delegate to per-slot tables and return updated copy.
+  - `as_op` returns no-op dependent on all table ops.
+  - Supports fused lookup/optimize via custom ops using flattened learning rate tensor.
+  - `reinitialize` not supported (raises NotImplementedError).
+- `_IndexedValues` dataclass: records merged slots, index, and value tensor for merged operations.
+- `MergedMultiTypeHashTable`:
+  - Deduplicates slots with identical config (stringified config as key).
+  - Builds merged slot names using MD5; tracks slot->merged_slot mapping.
+  - If old naming mismatch, adds `extra_restore_names`.
+  - `lookup`:
+    - Merges slot ids by merged slot, calls underlying table lookup.
+    - Splits embeddings back to original slots using sizes.
+    - Supports optional early reorder results via `auxiliary_bundle`.
+  - `assign` / `assign_add` / `apply_gradients`:
+    - Merges ids and values before delegating.
+    - `skip_merge_id` option in `_update` to bypass merge for certain paths.
+  - `reinitialize` not supported.
+  - `get_table_dim_sizes` returns inferred sizes for merged configs.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (TF hash table ops).
+- Rust public API surface: if embedding tables are implemented in Rust, add multi-type table abstraction and merged wrapper.
+- Data model mapping: slot->embedding tensors, per-slot configs.
+- Feature gating: embedding/hash table feature only.
+- Integration points: embedding lookup and optimizer updates.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement BaseMultiTypeHashTable trait in Rust with lookup/assign APIs.
+2. Add merged-table wrapper to reduce redundant configs.
+3. Preserve slot ordering and size-based splitting for merged lookups.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `multi_type_hash_table_test.py`.
+- Rust tests: add tests for merged slot mapping and lookup correctness.
+- Cross-language parity test: compare embeddings for identical configs.
 
 **Gaps / Notes**
-- TODO (manual)
+- Merging uses `str(config)`; any changes in string representation alter merge behavior.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
