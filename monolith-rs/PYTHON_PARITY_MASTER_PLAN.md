@@ -1090,6 +1090,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
   - `addr` or (`get` + `args=addr`):
     - Connect `MonolithKazooClient` with `agent_conf.zk_servers`.
     - Traverse `/{bzid}/service/{model_name}`; support dc-aware layout (`idc:cluster/server_type:task`) and non-dc (`server_type:task`).
+    - Uses regex `TASK = r'^(\\w+):(\\d+)$'` to detect `server_type:task` nodes; otherwise treats as `idc:cluster` prefix.
     - For each replica node, read `ReplicaMeta`, print path + `archon_address`, `address`, and `ModelState.Name`.
     - Sort output; handle `NoNodeError` by printing "{model_name} has not load !" and returning.
   - `get` + `args=info`: print `cal_model_info_v2(model_dir, ckpt)`.
