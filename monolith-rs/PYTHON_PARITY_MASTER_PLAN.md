@@ -559,7 +559,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/losses/inbatch_auc_loss.py`](#monolith-native-training-losses-inbatch-auc-loss-py) | 41 | IN PROGRESS | N/A (TF custom op) |  |
 | [`monolith/native_training/losses/inbatch_auc_loss_test.py`](#monolith-native-training-losses-inbatch-auc-loss-test-py) | 71 | IN PROGRESS | N/A (TF custom op) |  |
 | [`monolith/native_training/losses/ltr_losses.py`](#monolith-native-training-losses-ltr-losses-py) | 1233 | IN PROGRESS | N/A (no Rust ranking losses yet) |  |
-| [`monolith/native_training/metric/cli.py`](#monolith-native-training-metric-cli-py) | 28 | TODO | TODO (manual) |  |
+| [`monolith/native_training/metric/cli.py`](#monolith-native-training-metric-cli-py) | 28 | IN PROGRESS | N/A (stub) |  |
 | [`monolith/native_training/metric/deep_insight_ops.py`](#monolith-native-training-metric-deep-insight-ops-py) | 134 | TODO | TODO (manual) |  |
 | [`monolith/native_training/metric/deep_insight_ops_test.py`](#monolith-native-training-metric-deep-insight-ops-test-py) | 33 | TODO | TODO (manual) |  |
 | [`monolith/native_training/metric/exit_hook.py`](#monolith-native-training-metric-exit-hook-py) | 48 | TODO | TODO (manual) |  |
@@ -15145,50 +15145,43 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/metric/cli.py`
 <a id="monolith-native-training-metric-cli-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 28
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Stub/no-op CLI client placeholder; provides a `Client` with no-op methods to satisfy callers.
+- Key symbols/classes/functions: `Client`, `get_cli`.
+- External dependencies: `absl.logging`, `threading` (imported but unused).
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `Client.__init__(*args, **kwargs)`:
+  - No-op constructor; ignores all args/kwargs.
+- `Client.__getattr__(name)`:
+  - Returns a function `method(*args, **kwargs)` that does nothing and returns `None`.
+  - Allows arbitrary attribute access without raising `AttributeError`.
+- `get_cli(*args, **kwargs)`:
+  - Returns a new `Client()`; ignores args/kwargs.
+- No logging, no threads, no I/O.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (stub).
+- Rust public API surface: optional `NoopClient` with methods that accept any inputs and do nothing.
+- Data model mapping: none.
+- Feature gating: none.
+- Integration points: callers expecting a CLI client can receive a stub.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. If Rust needs a CLI client, add a no-op struct with methods used by callers.
+2. Ensure missing method calls do not panic (mirror Python `__getattr__` permissiveness).
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: optional smoke test that unknown method calls are no-ops if implemented.
+- Cross-language parity test: not needed (stub behavior only).
 
 **Gaps / Notes**
-- TODO (manual)
+- This is a pure stub; threading/logging imports are unused.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
