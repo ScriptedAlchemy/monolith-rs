@@ -612,8 +612,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/optimizers/rmsprop_test.py`](#monolith-native-training-optimizers-rmsprop-test-py) | 77 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
 | [`monolith/native_training/optimizers/rmspropv2_test.py`](#monolith-native-training-optimizers-rmspropv2-test-py) | 112 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
 | [`monolith/native_training/optimizers/shampoo.py`](#monolith-native-training-optimizers-shampoo-py) | 207 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
-| [`monolith/native_training/prefetch_queue.py`](#monolith-native-training-prefetch-queue-py) | 379 | TODO | TODO (manual) |  |
-| [`monolith/native_training/prefetch_queue_test.py`](#monolith-native-training-prefetch-queue-test-py) | 305 | TODO | TODO (manual) |  |
+| [`monolith/native_training/prefetch_queue.py`](#monolith-native-training-prefetch-queue-py) | 379 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
+| [`monolith/native_training/prefetch_queue_test.py`](#monolith-native-training-prefetch-queue-test-py) | 305 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/ps_benchmark.py`](#monolith-native-training-ps-benchmark-py) | 273 | TODO | TODO (manual) |  |
 | [`monolith/native_training/ps_benchmark_test.py`](#monolith-native-training-ps-benchmark-test-py) | 57 | TODO | TODO (manual) |  |
 | [`monolith/native_training/ragged_utils.py`](#monolith-native-training-ragged-utils-py) | 29 | TODO | TODO (manual) |  |
@@ -19161,50 +19161,103 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/prefetch_queue.py`
 <a id="monolith-native-training-prefetch-queue-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 379
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Implements queue-based prefetching and async execution helpers that support mixed CPU/GPU tensors and nested structures.
+- Key symbols/classes/functions: `_GPUCompatiblePaddingFIFOQueue`, `_FIFOQueue`, `_MultiFIFOQueue`, `MultiQueueRunner`, `EnqueueHook`, `enqueue_dicts_with_queue_return`, `AsyncPushHook`, `AsyncFunctionMgr`.
+- External dependencies: TensorFlow queue APIs (`data_flow_ops`, `gen_data_flow_ops`), `nested_tensors`, `utils.check_ops_dependence`, `absl.logging`.
+- Side effects:
+  - Creates TF queue resources (CPU and/or GPU).
+  - Starts QueueRunner threads via hooks.
+  - Adds control dependencies to enforce async op order.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`_GPUCompatiblePaddingFIFOQueue`** (QueueBase):
+  - Wraps `padding_fifo_queue_v2` but allows placement on CPU or GPU.
+  - Validates `dtypes`/`shapes` length; raises `ValueError` if mismatch.
+  - `enqueue_many` / `dequeue_many` are **not supported** and raise `NotImplementedError`.
+- **`_FIFOQueue(dense_list, capacity=2, queue_name="prefetch_queue")`**:
+  - `dense_list` must be a list; raises:
+    - `ValueError` if `dense_list` is `None`,
+    - `TypeError` if not a list.
+  - Creates `_GPUCompatiblePaddingFIFOQueue` inside `tf.init_scope()`.
+  - `enqueue_op = queue.enqueue(flatten_tensor_list)`.
+  - `dequeue()` returns list of tensors; if single element, returns `[tensor]`.
+- **`_MultiFIFOQueue(dense_list, capacity=2, queue_name="prefetch_queue")`**:
+  - Splits tensors by device (`"GPU"` substring in `tensor.device`).
+  - Always creates CPU queue; creates GPU queue only if GPU tensors exist.
+  - `enqueue_op` is `tf.group` of all queue `enqueue_op`s.
+  - `queue` property:
+    - If only one queue, returns it.
+    - If multiple queues, raises `NotImplementedError`.
+  - `dequeue()`:
+    - If one queue, returns its dequeue.
+    - Else dequeues all queues and merges tensors back to original order using saved indices.
+  - `size()`:
+    - If multiple queues, returns CPU queue size (assumes synchronized enqueue/dequeue).
+  - `queues` property returns list of queue resources.
+- **`MultiQueueRunner`**:
+  - `_init_from_args` accepts `queue` as list:
+    - Builds grouped `close_op` and `cancel_op`.
+  - `queue` property raises `NotImplementedError` when multi-queue.
+  - `name` property returns first queue name in multi-queue case.
+- **`EnqueueHook(q)`**:
+  - Wraps `MultiQueueRunner(q.queues, [q.enqueue_op])`.
+  - Starts threads in `after_create_session`.
+- **`enqueue_dicts_with_queue_return(tensors, capacity=1, queue_name="prefetch_queue")`**
+  - If `capacity == 0`, returns `(tensors, None)` with no queue.
+  - Flattens nested tensors via `NestedTensors`.
+  - Creates `_MultiFIFOQueue` with flattened tensors.
+  - Dequeues in `tf.init_scope()` and rebuilds original nested structure.
+  - Returns `(nested_result, queue)`.
+- **`AsyncPushHook(queue, ops)`**:
+  - `begin`: stores `queue.size()`.
+  - `before_run`: returns `SessionRunArgs(run_ops)` only after queue initialized.
+  - `after_run`: sets `_queue_init` once queue size > 0.
+  - `end`: drains queue by running `run_ops` while `queue_size > 0`.
+- **`AsyncFunctionMgr(is_async=True)`**:
+  - `add_async_function(target, args=None, kwargs=None, is_async=None, queue_name="async_queue")`:
+    - If `is_async` is False, runs `target(*args, **kwargs)` synchronously.
+    - If async:
+      - Appends dummy constant tensor to `args` to avoid empty input lists.
+      - Enqueues `(args, kwargs)` via `enqueue_dicts_with_queue_return`.
+      - Builds `run_ops = target(*args[:-1], **kwargs)` under control deps on dummy tensor and dummy op.
+      - Adds `AsyncPushHook(queue, run_ops)`.
+      - Calls `utils.check_ops_dependence(queue.enqueue_op.name, dummy_op.name)` to validate dependencies.
+      - Returns `queue.enqueue_op`.
+  - `hooks` property returns list of hooks.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (queue + async helpers).
+- Rust public API surface:
+  - Queue wrapper that supports nested tensors and optional CPU/GPU split.
+  - Async function manager that enqueues inputs and runs ops via hooks.
+- Data model mapping:
+  - Preserve nested tensor structure using Rust equivalent of `NestedTensors`.
+  - Separate queues per device; merge outputs in original order.
+- Feature gating:
+  - GPU queue support depends on backend; may be optional.
+- Integration points:
+  - Used by `NativeContext.add_async_function` and estimator hooks.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement a queue abstraction with padding and fixed shapes.
+2. Implement split/merge logic for CPU/GPU tensors.
+3. Add EnqueueHook equivalents to manage background threads.
+4. Port `enqueue_dicts_with_queue_return` to flatten nested structures and rebuild.
+5. Implement AsyncFunctionMgr with dummy tensor injection and dependency checks.
+6. Add tests for nested structures, capacity 0, and async behavior.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/prefetch_queue_test.py`.
+- Rust tests: add unit tests for queue behavior, nesting, async manager, and control-dependency handling.
+- Cross-language parity test: compare nested structures and async side effects.
 
 **Gaps / Notes**
-- TODO (manual)
+- `_MultiFIFOQueue` assumes CPU/GPU queues are dequeued together; this is noted as a limitation in comments.
+- Device detection uses `"GPU" in tensor.device` string matching.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -19221,50 +19274,69 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/prefetch_queue_test.py`
 <a id="monolith-native-training-prefetch-queue-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 305
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests for queue helpers, nested tensor enqueue/dequeue, and async function manager.
+- Key symbols/classes/functions: `GPUCompatiblePaddingFIFOQueueTests`, `FIFOQueueTest`, `PrefetchTest`, `AsyncManagerTest`.
+- External dependencies: TensorFlow, `tensorflow.python.framework.test_util`, `nested_tensors`, `prefetch_queue`.
+- Side effects: Uses GPU if available; runs MonitoredSessions.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **GPUCompatiblePaddingFIFOQueueTests**
+  - `testEnqueueAndDequeue`:
+    - Enqueues three float scalars on GPU; dequeues and validates device placement and arithmetic results.
+  - `testGPUQueueCPUTensor`:
+    - Creates CPU tensors, enqueues to GPU queue, dequeues on CPU; validates results.
+  - `testMultiEnqueueAndDequeue`:
+    - Enqueues tuple `(int32, float32)` and checks values in order.
+  - `testIdentityHelper`:
+    - Ensures `tf.identity` on GPU and queue enqueue/dequeue work; checks value `2`.
+- **FIFOQueueTest**
+  - `test_fifo_queue_data`:
+    - Enqueues dense + ragged tensors; verifies round-trip values.
+  - `test_fifo_queue_capacity`:
+    - Enqueues/dequeues 4 items with capacity 4; validates values.
+- **PrefetchTest**
+  - **NOTE**: There are two methods named `test_enqueue_dicts_with_queue_return`; the second overrides the first, so only the second runs.
+  - First (shadowed) version:
+    - Enqueues dense/ragged dicts with capacity 3, validates output across multiple enqueue/dequeue cycles.
+  - Second (effective) version:
+    - Enqueues nested dicts containing tensors, strings, and `None`.
+    - Asserts string and None entries preserved before session run, then runs queue and validates tensor values.
+  - `test_enqueue_dicts_with_control_flow`:
+    - Uses control dependency (`v.assign_add(1)`) and ensures it executes when enqueuing.
+  - `test_enqueue_with_zero_capacity`:
+    - `capacity=0` returns original tensors; validates values.
+  - `test_estimator_prefetch`:
+    - Uses Estimator `predict` with enqueue hook; verifies predicted values 0..19.
+- **AsyncManagerTest**
+  - `testBasic`: async adds once even after two enqueue runs (value = 1).
+  - `testSync`: synchronous add yields value = 1 after one run.
+  - `testEmptyInput`: async function with no args still works (value = 1 after two runs).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src` (tests).
+- Rust public API surface: queue helpers, nested enqueue/dequeue, async manager hooks.
+- Data model mapping: ragged tensor support and CPU/GPU queueing if backend supports it.
+- Feature gating: GPU-specific tests conditional on backend support.
+- Integration points: estimator-style predict loops or equivalent.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port queue tests for enqueue/dequeue ordering and device placement.
+2. Add nested tensor round-trip tests (dense + ragged).
+3. Add tests for `capacity=0` passthrough.
+4. Add async function manager tests for async vs sync behavior.
+5. Document/handle duplicate test name if porting to Rust.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: mirror test classes where possible; use deterministic inputs.
+- Cross-language parity test: compare nested results and async side effects.
 
 **Gaps / Notes**
-- TODO (manual)
+- Duplicate method name in `PrefetchTest` hides the first test; only the second runs in Python.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
