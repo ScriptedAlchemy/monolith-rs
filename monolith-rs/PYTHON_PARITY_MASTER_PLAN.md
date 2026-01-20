@@ -608,9 +608,9 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/net_utils_test.py`](#monolith-native-training-net-utils-test-py) | 94 | IN PROGRESS | monolith-rs/crates/monolith-core/src |  |
 | [`monolith/native_training/optimizers/adamom.py`](#monolith-native-training-optimizers-adamom-py) | 68 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
 | [`monolith/native_training/optimizers/adamom_test.py`](#monolith-native-training-optimizers-adamom-test-py) | 57 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
-| [`monolith/native_training/optimizers/rmsprop.py`](#monolith-native-training-optimizers-rmsprop-py) | 102 | TODO | TODO (manual) |  |
-| [`monolith/native_training/optimizers/rmsprop_test.py`](#monolith-native-training-optimizers-rmsprop-test-py) | 77 | TODO | TODO (manual) |  |
-| [`monolith/native_training/optimizers/rmspropv2_test.py`](#monolith-native-training-optimizers-rmspropv2-test-py) | 112 | TODO | TODO (manual) |  |
+| [`monolith/native_training/optimizers/rmsprop.py`](#monolith-native-training-optimizers-rmsprop-py) | 102 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
+| [`monolith/native_training/optimizers/rmsprop_test.py`](#monolith-native-training-optimizers-rmsprop-test-py) | 77 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
+| [`monolith/native_training/optimizers/rmspropv2_test.py`](#monolith-native-training-optimizers-rmspropv2-test-py) | 112 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
 | [`monolith/native_training/optimizers/shampoo.py`](#monolith-native-training-optimizers-shampoo-py) | 207 | TODO | TODO (manual) |  |
 | [`monolith/native_training/prefetch_queue.py`](#monolith-native-training-prefetch-queue-py) | 379 | TODO | TODO (manual) |  |
 | [`monolith/native_training/prefetch_queue_test.py`](#monolith-native-training-prefetch-queue-test-py) | 305 | TODO | TODO (manual) |  |
@@ -18847,50 +18847,65 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/optimizers/rmsprop.py`
 <a id="monolith-native-training-optimizers-rmsprop-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 102
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Defines `RmspropOptimizer`, a TF v1 optimizer backed by the custom `resource_apply_rmsprop` op with optional v2 behavior.
+- Key symbols/classes/functions: `RmspropOptimizer`.
+- External dependencies: TensorFlow v1 optimizer APIs, `monolith.native_training.runtime.ops.gen_monolith_ops`.
+- Side effects: Creates optimizer slot variables (`m`, `v`) on first use.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`RmspropOptimizer(tf.compat.v1.train.Optimizer)`**
+  - `__init__(learning_rate=5e-6, beta1=0.99, beta2=0.999, epsilon=1e-8, weight_decay=0.0, use_locking=False, use_v2=False, name="Rmsprop")`:
+    - Stores parameters on instance, including `use_v2`.
+  - `_create_slots(var_list)`:
+    - For each variable `v`, creates zero slots:
+      - `"m"` with name scope `self._name + "/m"`.
+      - `"v"` with name scope `self._name + "/v"`.
+  - `_prepare()`:
+    - Resolves learning rate via `_call_if_callable`.
+    - Converts to tensor named `"learning_rate"`.
+  - `_apply_dense(grad, var)`:
+    - Always raises `NotImplementedError("Please use tf.compat.v1.disable_eager_execution() instead of tf.compat.v1.disable_v2_behavior()")`.
+  - `_resource_apply_dense(grad, var)`:
+    - Retrieves slots `m`, `v`.
+    - Calls `training_ops.resource_apply_rmsprop` with:
+      - `var.handle`, `m.handle`, `v.handle`,
+      - `learning_rate` cast to `grad.dtype.base_dtype`,
+      - `beta1`, `beta2`, `epsilon`, `weight_decay`,
+      - `grad`,
+      - `use_locking=self._use_locking`, `use_v2=self._use_v2`.
+  - Sparse gradients: no `_resource_apply_sparse` override.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-optimizer/src`.
+- Rust public API surface:
+  - `RmspropOptimizer` with `use_v2` toggle.
+  - Slot state for `m` and `v`.
+- Data model mapping:
+  - Slot tensors stored alongside parameters; update rule must match custom op semantics.
+- Feature gating:
+  - If TF runtime backend enabled, use TF custom op; otherwise implement in Rust.
+- Integration points:
+  - Used by training loop in `MonolithBaseModel.create_model_fn` or optimizer registry.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Confirm exact math used by `resource_apply_rmsprop` and its `use_v2` branch.
+2. Implement slot creation and zero-initialization matching TF names (`/m`, `/v`).
+3. Implement dense update rule and weight decay handling.
+4. Decide sparse gradient behavior (error or unsupported).
+5. Add tests reproducing Python values from `rmsprop_test.py` and `rmspropv2_test.py`.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/optimizers/rmsprop_test.py`, `monolith/native_training/optimizers/rmspropv2_test.py`.
+- Rust tests: add deterministic numeric tests for both v1 and v2 behavior.
+- Cross-language parity test: compare slot/var values for one update step.
 
 **Gaps / Notes**
-- TODO (manual)
+- Custom op semantics are not visible in this file; parity depends on `resource_apply_rmsprop` implementation.
+- `_apply_dense` raises a hard error; Rust should surface an equivalent error if similar path exists.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -18907,50 +18922,51 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/optimizers/rmsprop_test.py`
 <a id="monolith-native-training-optimizers-rmsprop-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 77
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests for `RmspropOptimizer` (v1 behavior) including GPU/CPU consistency.
+- Key symbols/classes/functions: `RmspropTest`, `build_graph`.
+- External dependencies: TensorFlow, `tensorflow.python.framework.test_util`, `monolith.native_training.optimizers.rmsprop`.
+- Side effects: Uses GPU if available and compares CPU/GPU results.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `build_graph()`:
+  - Creates variable `v=[0.1]`, loss `0.12 * v`.
+  - Optimizer: `RmspropOptimizer(learning_rate=0.1, weight_decay=1, beta1=0.9, beta2=0.9, epsilon=0.1)`.
+  - Returns `opt.minimize(loss)`.
+- `testBasic`:
+  - Runs training once on GPU (if available) in a fresh graph with `test_util.use_gpu()`.
+  - Checks that variables are placed on `/device:GPU:0` when GPU is available.
+  - After one step, asserts:
+    - `m` ≈ `0.06794526153774846`
+    - `v` ≈ `0.00484`
+    - variable `v` ≈ `0.03205473846225154`
+    - exactly 3 variables (m, v, and the variable).
+  - Runs the same graph on CPU (`test_util.force_cpu()`), checks `/device:CPU:0`.
+  - Asserts CPU results equal GPU results.
+- `__main__`: disables eager execution and runs `tf.test.main()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-optimizer/src` (tests).
+- Rust public API surface: `RmspropOptimizer` update step and slot access.
+- Data model mapping: slot tensors accessible and comparable.
+- Feature gating: GPU/CPU parity checks only if backend supports both.
+- Integration points: optimizer correctness tests.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Reproduce one-step update with the same hyperparameters.
+2. Assert slot and variable values match Python within tolerance.
+3. If GPU backend exists, ensure CPU/GPU parity.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `RmspropTest` in this file.
+- Rust tests: add `rmsprop_basic_update` and optional CPU/GPU parity test.
+- Cross-language parity test: compare numeric results for the same input.
 
 **Gaps / Notes**
-- TODO (manual)
+- GPU/CPU parity is asserted; Rust must match this if both backends available.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -18967,50 +18983,52 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/optimizers/rmspropv2_test.py`
 <a id="monolith-native-training-optimizers-rmspropv2-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 112
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests for `RmspropOptimizer` with `use_v2=True` (alternate update rule).
+- Key symbols/classes/functions: `RmspropTest`, `build_graph`.
+- External dependencies: TensorFlow, `tensorflow.python.framework.test_util`, `monolith.native_training.optimizers.rmsprop`.
+- Side effects: Uses GPU if available and compares CPU/GPU results.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `build_graph()`:
+  - Creates variable `v=[0.1]`, loss `0.12 * v`.
+  - Optimizer: `RmspropOptimizer(learning_rate=0.1, weight_decay=1, beta1=0.9, beta2=0.9, epsilon=0.1, use_v2=True)`.
+  - Returns `opt.minimize(loss)`.
+- `testBasic`:
+  - Runs training on GPU (if available), checks `/device:GPU:0` placement.
+  - After one step, asserts:
+    - `m` ≈ `0.068750`
+    - `v` ≈ `0.0484`
+    - variable `v` ≈ `0.031250`
+    - exactly 3 variables (m, v, variable).
+  - Runs on CPU and asserts results equal GPU.
+- `testWeightDecay`:
+  - Duplicates `testBasic` (same graph and expectations).
+- `__main__`: disables eager execution and runs `tf.test.main()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-optimizer/src` (tests).
+- Rust public API surface: `RmspropOptimizer` with `use_v2` flag.
+- Data model mapping: slot tensors accessible and comparable.
+- Feature gating: GPU/CPU parity checks conditional on backend support.
+- Integration points: optimizer correctness tests.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Reproduce one-step update with `use_v2=True`.
+2. Assert slot and variable values match Python within tolerance.
+3. If GPU backend exists, ensure CPU/GPU parity.
+4. Decide whether to keep duplicated `testWeightDecay` semantics or consolidate.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `RmspropTest` in this file.
+- Rust tests: add `rmsprop_v2_basic_update` and optional CPU/GPU parity test.
+- Cross-language parity test: compare numeric results for the same input.
 
 **Gaps / Notes**
-- TODO (manual)
+- `testWeightDecay` duplicates `testBasic` (same expectations).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
