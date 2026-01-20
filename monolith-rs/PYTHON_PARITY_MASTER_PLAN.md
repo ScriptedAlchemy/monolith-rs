@@ -439,7 +439,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/data/training_instance/python/parser_utils.py`](#monolith-native-training-data-training-instance-python-parser-utils-py) | 85 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/data/training_instance/python/pb_datasource_ops.py`](#monolith-native-training-data-training-instance-python-pb-datasource-ops-py) | 48 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/data/training_instance/python/test_data_utils.py`](#monolith-native-training-data-training-instance-python-test-data-utils-py) | 15 | IN PROGRESS | none |  |
-| [`monolith/native_training/data/transform/transforms.py`](#monolith-native-training-data-transform-transforms-py) | 250 | TODO | TODO (manual) |  |
+| [`monolith/native_training/data/transform/transforms.py`](#monolith-native-training-data-transform-transforms-py) | 250 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/data/transform/transforms_test.py`](#monolith-native-training-data-transform-transforms-test-py) | 70 | TODO | TODO (manual) |  |
 | [`monolith/native_training/data/transform_dataset_test.py`](#monolith-native-training-data-transform-dataset-test-py) | 168 | IN PROGRESS | monolith-rs/crates/monolith-data/tests |  |
 | [`monolith/native_training/data/utils.py`](#monolith-native-training-data-utils-py) | 55 | TODO | TODO (manual) |  |
@@ -7591,53 +7591,74 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/data/transform/transforms.py`
-
 <a id="monolith-native-training-data-transform-transforms-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 250
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Declarative transform objects that serialize to `TransformConfig` proto for dataset transform pipelines (filters, label generation, logical composition).
+- Key symbols/classes/functions: `Transform` (ABC), `Compose`, `FilterByFid`, `FilterByAction`, `FilterByLabel`, `FilterByValue`, `AddLabel`, `LogicalOr`.
+- External dependencies: `transform_config_pb2`, `LineId` proto descriptor for field validation.
+- Side effects: none; purely builds proto configs with validation asserts.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `Transform` abstract base:
+  - `as_proto()` returns `transform_config_pb2.TransformConfig`.
+  - `_is_leaf_node()` distinguishes leaf vs composite.
+- `Compose(transforms)`:
+  - Requires all items are `Transform` instances.
+  - `as_proto` merges each transform’s proto into a single `TransformConfig` via `MergeFrom` in order.
+  - `_is_leaf_node` returns False.
+- `FilterByFid(has_fids, filter_fids, select_fids)`:
+  - `as_proto` appends a `basic_config.filter_by_fid` entry with respective lists.
+  - `_is_leaf_node` True.
+- `FilterByAction(has_actions)`:
+  - Adds `basic_config.filter_by_action.has_actions`.
+  - `_is_leaf_node` True.
+- `FilterByLabel(thresholds)`:
+  - Adds `basic_config.filter_by_label.thresholds`.
+  - `_is_leaf_node` True.
+- `FilterByValue(field_name, op, operand, keep_empty=False)`:
+  - Validates `op` in `{gt,ge,eq,lt,le,neq,between,in,not-in,all,any,diff,startswith,endswith}`.
+  - Validates `field_name` exists in `LineId` descriptor; `operand` is not None.
+  - Infers operand type based on field cpp_type and op:
+    - Repeated fields (`field.has_options`): only `all/any/diff` allowed; only integer types; operand int or list of int.
+    - Float/double: `between` uses list; otherwise single float.
+    - Int types: `in/not-in/between` use list; otherwise single int.
+    - String: operand is str or list of str; else `RuntimeError("params error!")`.
+  - Stores `float_operand`, `int_operand`, `string_operand`, `keep_empty`.
+  - `as_proto` fills `basic_config.filter_by_value` with operands and flags.
+  - `_is_leaf_node` True.
+- `AddLabel(config, negative_value, new_sample_rate)`:
+  - Parses config `pos_actions:neg_actions:sample_rate` separated by `;` (skips empty parts).
+  - Adds `basic_config.add_label` with negative value + new sample rate and a `task_label_config` entry per task.
+  - `_is_leaf_node` True.
+- `LogicalOr(x, y)`:
+  - Requires both `x` and `y` are leaf nodes.
+  - `as_proto` creates `logical_or_config` and copies `basic_config` from each side.
+  - `_is_leaf_node` False.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-data/src` (transform config builders).
+- Rust public API surface: `Transform` trait + concrete structs mirroring Python class names; `as_proto()` to `TransformConfig`.
+- Data model mapping: transform structs → `transform_config_pb2::TransformConfig`.
+- Feature gating: none; pure config serialization.
+- Integration points: `TransformDataset` op uses serialized config (see `datasets.py`).
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Create Rust transform trait with `as_proto` and `is_leaf` methods.
+2. Implement concrete transforms with identical validation (asserts or Result errors).
+3. Preserve `Compose` merge ordering and `LogicalOr` leaf-only requirement.
+4. Implement `FilterByValue` operand parsing based on LineId descriptor in Rust.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `transforms_test.py`.
+- Rust tests: unit tests for each transform’s proto encoding and validation.
+- Cross-language parity test: serialize configs in Python and Rust and compare bytes.
 
 **Gaps / Notes**
-- TODO (manual)
+- `FilterByValue` uses `LineId` field metadata to infer types; Rust must mirror the same descriptor mapping.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -7652,6 +7673,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/data/transform/transforms_test.py`
+
 <a id="monolith-native-training-data-transform-transforms-test-py"></a>
 
 **Status:** TODO (manual review required)
