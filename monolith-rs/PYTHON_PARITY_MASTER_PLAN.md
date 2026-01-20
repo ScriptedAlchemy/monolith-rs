@@ -653,7 +653,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/variables_test.py`](#monolith-native-training-variables-test-py) | 89 | IN PROGRESS | monolith-rs/crates/monolith-training/tests/variables.rs (new) |  |
 | [`monolith/native_training/yarn_runtime.py`](#monolith-native-training-yarn-runtime-py) | 127 | IN PROGRESS | monolith-rs/crates/monolith-training/src/yarn_runtime.rs (new) |  |
 | [`monolith/native_training/yarn_runtime_test.py`](#monolith-native-training-yarn-runtime-test-py) | 133 | IN PROGRESS | monolith-rs/crates/monolith-training/tests/yarn_runtime.rs (new) |  |
-| [`monolith/native_training/zk_utils.py`](#monolith-native-training-zk-utils-py) | 96 | TODO | TODO (manual) |  |
+| [`monolith/native_training/zk_utils.py`](#monolith-native-training-zk-utils-py) | 96 | IN PROGRESS | monolith-rs/crates/monolith-training/src/zk_utils.rs (new) |  |
 | [`monolith/path_utils.py`](#monolith-path-utils-py) | 47 | IN PROGRESS | monolith-rs/crates/monolith-core/src | |
 | [`monolith/tpu_runner.py`](#monolith-tpu-runner-py) | 429 | IN PROGRESS | monolith-rs/crates/monolith-training/src | |
 | [`monolith/utils.py`](#monolith-utils-py) | 81 | IN PROGRESS | monolith-rs/crates/monolith-tf/src | |
@@ -22027,50 +22027,81 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/zk_utils.py`
 <a id="monolith-native-training-zk-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 96
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Zookeeper utilities for host selection (IPv4 vs IPv6), default server list, authenticated Kazoo client, and cleanup of stale ZK paths.
+- Key symbols/classes/functions: `_PORT`, `_HOSTS`, `_HOSTS_IPV6`, `is_ipv6_only`, `default_zk_servers`, `MonolithKazooClient`, `clear_zk_path`.
+- External dependencies: `kazoo.client.KazooClient`, `env_utils.get_zk_auth_data`, `socket`, `datetime`.
+- Side effects:
+  - Connects to ZK, mutates nodes (delete paths).
+  - Logs informational messages about IP resolution.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Globals:
+  - `_PORT = 2181`.
+  - `_HOSTS` and `_HOSTS_IPV6` are defined with IPs, then overwritten to empty lists later (current effective values are empty).
+- `is_ipv6_only()`:
+  - If any of `MY_HOST_IP`, `MY_POD_IP`, `MY_HOST_IPV6` env vars are set:
+    - Treat as “tce/byterec env”.
+    - `ipv4_addr` from `MY_HOST_IP` or `MY_POD_IP` (may be `None`).
+  - Else:
+    - `ipv4_addr = socket.gethostbyname(socket.gethostname())` (except → `None`).
+  - Logs `ipv4_addr`, then sets `ipv6_only = not ipv4_addr` and logs the result.
+  - Returns `ipv6_only`.
+- `default_zk_servers(use_ipv6: bool = False)`:
+  - If `use_ipv6` or `is_ipv6_only()`:
+    - Returns comma-joined `"[ip]:port"` entries from `_HOSTS_IPV6`.
+  - Else:
+    - Returns comma-joined `"ip:port"` entries from `_HOSTS`.
+  - With current `_HOSTS`/`_HOSTS_IPV6` emptied, returns empty string.
+- `MonolithKazooClient`:
+  - Subclasses `KazooClient`.
+  - If `auth_data` not provided, injects `get_zk_auth_data()` into kwargs.
+- `clear_zk_path(zk_server, job_name, force_clear_zk_path)`:
+  - Connects with `MonolithKazooClient(zk_server or default_zk_servers())`.
+  - `base_path = "/monolith"`, `delta = timedelta(weeks=9)`.
+  - `ensure_path(base_path)`.
+  - For each child under `/monolith`:
+    - `get_children(path, include_data=True)` → stat; if `stat.mtime // 1000 + delta < now`, delete recursively (ignore errors).
+  - For current `job_name`:
+    - If exists and `force_clear_zk_path`: delete recursively.
+    - Else: raise `ValueError("there are [<children>] in monolith zk path")` using current children list.
+  - Always stops client in `finally`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/zk_utils.rs` (new).
+- Rust public API surface:
+  - `is_ipv6_only() -> bool`
+  - `default_zk_servers(use_ipv6: bool) -> String`
+  - `MonolithZkClient` wrapper (auth inject)
+  - `clear_zk_path(zk_server: Option<&str>, job_name: &str, force: bool) -> Result<(), Error>`
+- Data model mapping:
+  - Kazoo client ↔ Rust ZK client (e.g., `zookeeper` crate).
+  - `stat.mtime` (ms) ↔ Rust stat `mtime` (ms).
+- Feature gating:
+  - ZK client optional for environments without ZK.
+- Integration points:
+  - Any training components relying on ZK-based coordination or cleanup.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Decide Rust ZK client crate and auth mechanism matching `get_zk_auth_data()`.
+2. Implement `is_ipv6_only` using env vars and hostname resolution.
+3. Port `default_zk_servers` formatting (IPv6 `[ip]:port`).
+4. Implement `clear_zk_path` with the same TTL logic (9 weeks) and error message.
+5. Preserve the “ignore delete errors” behavior on stale node cleanup.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none in repo.
+- Rust tests:
+  - Unit tests for `default_zk_servers` formatting and env-driven `is_ipv6_only`.
+  - Integration tests for `clear_zk_path` if ZK test container is available.
+- Cross-language parity test:
+  - Compare TTL deletion behavior with a mocked ZK server.
 
 **Gaps / Notes**
-- TODO (manual)
+- `_HOSTS` and `_HOSTS_IPV6` are overwritten to empty lists, so `default_zk_servers` returns empty string by default (likely a sanitization artifact).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
