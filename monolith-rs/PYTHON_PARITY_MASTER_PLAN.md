@@ -552,7 +552,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/utils.py`](#monolith-native-training-layers-utils-py) | 159 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/merge.rs |  |
 | [`monolith/native_training/learning_rate_functions.py`](#monolith-native-training-learning-rate-functions-py) | 112 | IN PROGRESS | N/A (no Rust schedule yet) |  |
 | [`monolith/native_training/learning_rate_functions_test.py`](#monolith-native-training-learning-rate-functions-test-py) | 76 | IN PROGRESS | N/A (no Rust schedule yet) |  |
-| [`monolith/native_training/logging_ops.py`](#monolith-native-training-logging-ops-py) | 56 | TODO | TODO (manual) |  |
+| [`monolith/native_training/logging_ops.py`](#monolith-native-training-logging-ops-py) | 56 | IN PROGRESS | N/A (TF custom ops) |  |
 | [`monolith/native_training/logging_ops_test.py`](#monolith-native-training-logging-ops-test-py) | 57 | TODO | TODO (manual) |  |
 | [`monolith/native_training/losses/batch_softmax_loss.py`](#monolith-native-training-losses-batch-softmax-loss-py) | 57 | TODO | TODO (manual) |  |
 | [`monolith/native_training/losses/batch_softmax_loss_test.py`](#monolith-native-training-losses-batch-softmax-loss-test-py) | 35 | TODO | TODO (manual) |  |
@@ -14630,50 +14630,45 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/logging_ops.py`
 <a id="monolith-native-training-logging-ops-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 56
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Thin wrappers around custom logging/metrics TF ops (timestamps, timers, machine health).
+- Key symbols/classes/functions: `tensors_timestamp`, `emit_timer`, `machine_info`, `check_machine_health`.
+- External dependencies: TensorFlow, absl flags, custom ops `gen_monolith_ops`.
+- Side effects: Registers a global flag `monolith_default_machine_info_mem_limit`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `tensors_timestamp(tensors)`: returns `(tensors, timestamp)` via `monolith_tensors_timestamp`.
+- `emit_timer(key, value, tags=None)`:
+  - Formats tags as `"k=v|k2=v2"`, passes to `monolith_metric_v2`.
+  - Returns TF op.
+- `machine_info(mem_limit=None, shared_name=None)`:
+  - Uses default flag if `mem_limit` is None.
+  - Calls `monolith_machine_info` with `mem_limit`, `name`, `shared_name`.
+- `check_machine_health(machine_info_tensor)`:
+  - Returns scalar string tensor from `monolith_check_machine_health`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: N/A (custom TF ops not wired in Rust).
+- Rust public API surface: None.
+- Data model mapping: Would require TF runtime bindings.
+- Feature gating: TF-runtime only if added.
+- Integration points: metrics/logging pipeline.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Decide whether to expose these custom ops in Rust TF-runtime backend.
+2. If yes, add FFI bindings and wrappers with identical signatures.
+3. Provide a config/flag equivalent for default mem_limit.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: add once bindings exist.
+- Cross-language parity test: validate emitted tags and machine health output.
 
 **Gaps / Notes**
-- TODO (manual)
+- Requires custom TF ops; currently no Rust bindings.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
