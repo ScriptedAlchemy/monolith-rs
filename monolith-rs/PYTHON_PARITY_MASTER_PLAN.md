@@ -2448,39 +2448,49 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/agent_service/replica_manager_test.py`
 <a id="monolith-agent-service-replica-manager-test-py"></a>
 
-**Status:** IN PROGRESS (manual)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 126
-- Purpose/role: Partial setup for ReplicaManager tests; builds FakeTFServing and helper registration.
-- Key symbols/classes/functions: `ReplicaMgrTest.setUpClass`, `register` helper.
-- External dependencies: FakeTFServing, FakeKazooClient, ReplicaWatcher/Updater.
-- Side effects: starts FakeTFServing servers on entry/ps ports.
+- Purpose/role: Sets up FakeTFServing and helper registration for ReplicaManager tests; no actual test cases.
+- Key symbols/classes/functions: `ReplicaMgrTest.setUpClass`, `register`.
+- External dependencies: `FakeTFServing`, `FakeKazooClient`, `ReplicaMeta`, `AgentConfig`.
+- Side effects: starts FakeTFServing servers for entry/ps in background threads.
 
 **Required Behavior (Detailed)**
 - `setUpClass`:
-  - Sets env vars for shard/replica/idc/cluster.
-  - Constructs `AgentConfig` (deploy_type mixed, dc_aware=True).
-  - Parses command strings to find model_config_file paths.
-  - Starts FakeTFServing for entry and ps; runs in background threads.
-- `register(zk)`:
-  - Creates ReplicaMeta nodes for PS tasks and entry replicas (excluding current shard/replica).
-- Note: file currently has no actual test methods beyond setup.
+  - Sets env vars:
+    - `MONOLITH_HOST_SHARD_N=5`, `SHARD_ID=1`, `REPLICA_ID=2`,
+      `TCE_INTERNAL_IDC=lf`, `TCE_LOGICAL_CLUSTER=default`.
+  - Builds `AgentConfig` with:
+    - `bzid='bzid'`, `base_name=MODEL_NAME`, `deploy_type='mixed'`,
+      `base_path=BASE_PATH`, `num_ps=20`, `num_shard=5`, `dc_aware=True`.
+  - Extracts `model_config_file` path from `agent_conf.get_cmd(...)` for ENTRY and PS.
+  - Starts two `FakeTFServing` instances (entry + ps) in background threads.
+- `tearDownClass`:
+  - Stops FakeTFServing servers and joins threads.
+- `register(zk)` helper:
+  - Creates ReplicaMeta entries for all shard/replica combos except current shard/replica.
+  - Adds ps task replicas (`ps:{task_id}/{replica_id}`) and entry replicas (`entry:0/{replica_id}`).
+  - Uses `find_free_port()` for each address and creates ephemeral nodes in ZK.
+- Note: No actual `test_*` methods are implemented beyond helper setup.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/replica_manager.rs`.
-- Rust public API surface: FakeTFServing + ReplicaManager registration.
+- Rust public API surface: FakeTFServing + ReplicaManager registration utilities.
+- Data model mapping: same path formatting and ReplicaMeta JSON encoding.
 
 **Implementation Steps (Detailed)**
-1. Port setup to Rust tests (FakeTFServing, AgentConfig).
-2. Add explicit test cases in Rust (missing in Python) for registration and lookup.
+1. Port setup/teardown as a test fixture in Rust.
+2. Implement `register` helper to populate fake ZK.
+3. Add real assertions in Rust tests (missing in Python).
 
 **Tests (Detailed)**
-- Python tests: this file (incomplete)
-- Rust tests: implement meaningful coverage for ReplicaManager behavior.
+- Python tests: none (setup only).
+- Rust tests: verify watcher/updater interactions with fake TFS and ZK nodes.
 
 **Gaps / Notes**
-- Python test file is incomplete; Rust should add assertions to cover behaviors.
+- Python test file lacks assertions; Rust should add coverage for lookups and updates.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
