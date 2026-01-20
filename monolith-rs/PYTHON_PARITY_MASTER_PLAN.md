@@ -505,9 +505,9 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/hooks/ckpt_info_test.py`](#monolith-native-training-hooks-ckpt-info-test-py) | 45 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/hooks/controller_hooks.py`](#monolith-native-training-hooks-controller-hooks-py) | 170 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks |  |
 | [`monolith/native_training/hooks/controller_hooks_test.py`](#monolith-native-training-hooks-controller-hooks-test-py) | 82 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
-| [`monolith/native_training/hooks/feature_engineering_hooks.py`](#monolith-native-training-hooks-feature-engineering-hooks-py) | 99 | TODO | TODO (manual) |  |
-| [`monolith/native_training/hooks/hook_utils.py`](#monolith-native-training-hooks-hook-utils-py) | 41 | TODO | TODO (manual) |  |
-| [`monolith/native_training/hooks/hook_utils_test.py`](#monolith-native-training-hooks-hook-utils-test-py) | 35 | TODO | TODO (manual) |  |
+| [`monolith/native_training/hooks/feature_engineering_hooks.py`](#monolith-native-training-hooks-feature-engineering-hooks-py) | 99 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks |  |
+| [`monolith/native_training/hooks/hook_utils.py`](#monolith-native-training-hooks-hook-utils-py) | 41 | IN PROGRESS | monolith-rs/crates/monolith-training/src/hooks |  |
+| [`monolith/native_training/hooks/hook_utils_test.py`](#monolith-native-training-hooks-hook-utils-test-py) | 35 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/hooks/ps_check_hooks.py`](#monolith-native-training-hooks-ps-check-hooks-py) | 97 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hooks/ps_check_hooks_test.py`](#monolith-native-training-hooks-ps-check-hooks-test-py) | 112 | TODO | TODO (manual) |  |
 | [`monolith/native_training/hooks/server/client_lib.py`](#monolith-native-training-hooks-server-client-lib-py) | 30 | TODO | TODO (manual) |  |
@@ -11342,50 +11342,54 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hooks/feature_engineering_hooks.py`
 <a id="monolith-native-training-hooks-feature-engineering-hooks-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 99
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Captures feature batches during training and dumps them as ExampleBatch protobuf files.
+- Key symbols/classes/functions: `FeatureEngineeringSaveHook`.
+- External dependencies: TensorFlow, `idl.matrix.proto.example_pb2` (ExampleBatch, FeatureListType).
+- Side effects: Writes `.pb` files under `<model_dir>/features`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `FeatureEngineeringSaveHook.__init__(config, nxt_elem, cap=100)`:
+  - Stores config, next-element tensor, and buffer cap.
+- `begin()`:
+  - Initializes `_batch_list=[]` and `_steps=0`.
+- `before_run`:
+  - Increments step counter; returns `SessionRunArgs(nxt_elem)` after the first step (skips iterator init step).
+- `after_run`:
+  - Appends `run_values.results` to batch buffer; when buffer size reaches `cap`, calls `_save_features()` and clears buffer.
+- `_save_features`:
+  - Ensures `<model_dir>/features` exists.
+  - Names output file as `chief_<uuid>.pb` for worker0, else `worker<index>_<uuid>.pb`.
+  - Converts each batch dict into `ExampleBatch`:
+    - Each key becomes a `named_feature_list` with type `INDIVIDUAL`.
+    - RaggedTensorValue uses `to_list()`, ndarray uses `tolist()`.
+    - If list entries are floats -> `float_list`, else `fid_v2_list`.
+    - Sets `example_batch.batch_size` to len(lv).
+  - Writes each serialized ExampleBatch preceded by two `<Q` headers: 0 (lagrange) and size.
+- `end`:
+  - Always attempts to save remaining batches (even empty list).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/hooks/feature_engineering_hooks.rs` (new).
+- Rust public API surface: session hook that records feature batches and writes ExampleBatch files.
+- Feature gating: TF runtime for SessionRunHook integration; feature serialization can be shared.
+- Integration points: dataset iterators and model_dir outputs.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Define a hook that buffers batch feature maps and serializes to ExampleBatch protos.
+2. Implement ragged vs dense conversion and output naming conventions.
+3. Write files with lagrange header + size + protobuf bytes.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: none.
+- Rust tests: add integration test with a small batch dict and validate file contents.
+- Cross-language parity test: compare serialized ExampleBatch output for a fixed batch.
 
 **Gaps / Notes**
-- TODO (manual)
+- `end()` currently saves even when buffer is empty; decide whether to preserve this behavior in Rust.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -11402,50 +11406,39 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hooks/hook_utils.py`
 <a id="monolith-native-training-hooks-hook-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 41
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Thin wrappers to forward only before-save or after-save callbacks.
+- Key symbols/classes/functions: `BeforeSaveListener`, `AfterSaveListener`.
+- External dependencies: TensorFlow.
+- Side effects: Delegates to wrapped listener.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `BeforeSaveListener`:
+  - Stores a `CheckpointSaverListener` and only forwards `before_save`.
+  - `__repr__` appends wrapped listener repr.
+- `AfterSaveListener`:
+  - Stores a listener and only forwards `after_save`.
+  - `__repr__` appends wrapped listener repr.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/hooks/hook_utils.rs` (new).
+- Rust public API surface: wrappers that forward only before/after save events.
+- Feature gating: TF runtime only.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement wrapper types around saver listener traits.
+2. Ensure only the intended callback is forwarded.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `hook_utils_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/hook_utils_test.rs` (new).
+- Cross-language parity test: verify callbacks fire only for intended phase.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python allows calling non-forwarded method without error (it just inherits default); Rust should match behavior or document deviations.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -11462,50 +11455,34 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/hooks/hook_utils_test.py`
 <a id="monolith-native-training-hooks-hook-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 35
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke test for BeforeSaveListener and AfterSaveListener wrappers.
+- Key symbols/classes/functions: `HookUtilsTest.testBeforeAfterSaverListener`.
+- External dependencies: TensorFlow, `hook_utils`.
+- Side effects: None.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Wraps a base `CheckpointSaverListener` and calls before/after save methods to ensure no errors.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/hook_utils_test.rs` (new).
+- Rust public API surface: hook wrapper types.
+- Feature gating: TF runtime.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Instantiate wrapper types around a dummy listener.
+2. Invoke before/after save methods and ensure no panic.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `hook_utils_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-training/tests/hook_utils_test.rs`.
+- Cross-language parity test: not required beyond smoke test.
 
 **Gaps / Notes**
-- TODO (manual)
+- This is a compile/smoke test only.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
