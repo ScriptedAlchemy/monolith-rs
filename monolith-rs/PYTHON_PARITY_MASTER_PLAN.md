@@ -409,7 +409,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/consul.py`](#monolith-native-training-consul-py) | 149 | IN PROGRESS | monolith-rs/crates/monolith-training/src/discovery.rs |  |
 | [`monolith/native_training/consul_test.py`](#monolith-native-training-consul-test-py) | 59 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/cpu_sync_training_test.py`](#monolith-native-training-cpu-sync-training-test-py) | 360 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
-| [`monolith/native_training/cpu_training.py`](#monolith-native-training-cpu-training-py) | 2449 | TODO | TODO (manual) |  |
+| [`monolith/native_training/cpu_training.py`](#monolith-native-training-cpu-training-py) | 2449 | IN PROGRESS | monolith-rs/crates/monolith-training/src/cpu_training.rs (new), monolith-rs/crates/monolith-training/src/distributed.rs (new), monolith-rs/crates/monolith-training/src/local.rs (new) |  |
 | [`monolith/native_training/cpu_training_distributed_test_binary.py`](#monolith-native-training-cpu-training-distributed-test-binary-py) | 226 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/cpu_training_test.py`](#monolith-native-training-cpu-training-test-py) | 597 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/data/__init__.py`](#monolith-native-training-data-init-py) | 20 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
@@ -5581,50 +5581,208 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/cpu_training.py`
 <a id="monolith-native-training-cpu-training-py"></a>
 
-**Status:** IN PROGRESS (manual)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 2449
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Main CPU training orchestrator for `NativeTask` (local + distributed), covering feature table construction, embedding lookups/prefetch, checkpoint/restore, export, sync/async training, PS lifecycle, and metrics.
+- Key symbols/classes/functions: `_combine_slices_as_table`, `_lookup_embedding_ids`, `_convert_parquets_to_instance`, `create_exporter`, `_CpuFeatureFactory`, `_FusedCpuFeatureFactory`, `_MetricsHeartBeatThread`, `CpuTrainingConfig`, `CpuTraining`, `DistributedCpuTrainingConfig`, `_prepare_server`, `_shutdown_ps`, `_join_ps`, `_do_worker_train`, `_do_worker_feature_engineering`, `distributed_train`, `distributed_sync_train`, `local_train_internal`, `local_feature_engineering_internal`, `local_train`.
+- External dependencies: TensorFlow (graph/session/estimator, internal file_io/summary), absl flags/logging, numpy, gRPC-free but many Monolith modules (hash tables, export, sync hooks, dataset distribution, service discovery), and optional parquet/CityHash for roughsort.
+- Side effects:
+  - Sets/clears `TF_CONFIG` env var.
+  - Starts TF servers (PS/worker), threads (metrics heartbeat, PS sync).
+  - Writes files (`debugging_info.pb`, checkpoints, dense-only checkpoints, candidate item pb).
+  - Alters global flags (`FLAGS.dataset_worker_idx`, `FLAGS.dataset_num_workers`, `FLAGS.monolith_alert_proto`).
+  - Pushes tensors into TF collections for dequeued features and hooks.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Flags:
+  - Defines `monolith_chief_alert_proto` flag; chief maps it to `FLAGS.monolith_alert_proto`.
+- Utility helpers:
+  - `_combine_slices_as_table(slices, hashtable_config)`:
+    - Builds `EmbeddingHashTableConfig`, appends all slice segments.
+    - If exporting, sets `EntryConfig.entry_type = SERVING`.
+    - Collects `learning_rate_fn` per slice.
+    - Calls `hashtable_config.mutate_table(table_config)`.
+    - Returns `HashTableConfigInstance(table_config, learning_rate_fns)`.
+  - `_lookup_embedding_ids(hash_table, name_to_embedding_ids)`:
+    - Converts ragged tensors to `values` and calls `hash_table.lookup`.
+  - `_convert_parquets_to_instance(parquets_path, instance_path)`:
+    - Requires `parquets_path` to be a directory; selects **latest date subdir** (YYYYMMDD).
+    - Requires `.snappy.parquet` files; reads `item_id` and `fids`.
+    - Uses `CityHash64(str(item_id)) & ((1<<63)-1)` for item_id.
+    - Writes `Instance` protobufs as `[u64_len][bytes]` records to `instance_path`.
+  - `create_exporter(...)`:
+    - `ExportMode.STANDALONE` → `StandaloneExporter`.
+    - `ExportMode.DISTRIBUTED` → `DistributedExporter` with `dense_only`, `allow_gpu`, `clear_entry_devices`, `include_graphs`, `global_step_as_timestamp=config.enable_sync_training`, `with_remote_gpu`.
+    - Else raises `ValueError("Invalid export_mode: ...")`.
+- Feature factories:
+  - `_CpuFeatureFactory.apply_gradients`:
+    - `emb_grads = utils.propagate_back_gradients(grads_and_vars, embeddings.values())`.
+    - Maps slot→ids and slot→grads; `global_step = tf.identity(get_or_create_global_step())`.
+    - Enqueues `_push` via `AsyncFunctionMgr.add_async_function`, queue `postpush_queue`.
+  - `_FusedCpuFeatureFactory.apply_gradients`:
+    - Computes gradients on `/device:GPU:0`.
+    - Calls `hash_table.apply_gradients(..., auxiliary_bundle, scale, skip_merge_id)` depending on `use_native_multi_hash_table`.
+- Metrics:
+  - `_MetricsHeartBeatThread` emits `training_heart_beat` with `{type: running/stopped}` every interval; flushes each time.
+- `get_req_time(features)`:
+  - Returns `features["req_time"][0]` if present; else `None`.
+- `CpuTrainingConfig` (dataclass, gflags linked `use_dataservice`):
+  - Fields/defaults (non-None):
+    - `server_type="worker"`, `index=0`, `num_ps=0`, `num_workers=1`, `model_name=""`.
+    - `filter_capacity=300000000`, `filter_split_num=7`, `filter_type=FilterType.SLIDING_HASH_FILTER`, `filter_equal_probability=True`, `hashtable_init_capacity=0`.
+    - `embedding_prefetch_capacity=0`, `enable_embedding_postpush=False`, `enable_variable_prefetch=False`, `enable_variable_postpush=False`.
+    - `enable_sync_training=False`, `enable_partial_sync_training=False`, `enable_gpu_training=False`, `processes_per_gpu=1`, `merge_sync_training_ckpt=True`.
+    - `mode=tf.estimator.ModeKeys.TRAIN`, `enable_realtime_training=False`, `enable_async_optimize=False`.
+    - `enable_pipelined_fwda2a=False`, `enable_pipelined_bwda2a=False`.
+    - `profile_save_steps_interval=5000`, `reorder_fids_in_data_pipeline=False`.
+    - `chief_timeout_secs=1800`, `dense_only_stop_training_when_save=False`.
+    - `warmup_file="./warmup_file"`, `skip_zero_embedding_when_serving=False`, `max_rpc_deadline_millis=30000`.
+    - `checkpoints_max_to_keep=10`, `cluster_type="stable"`, `max_slow_start_wait_minute=10`.
+    - `enable_model_ckpt_info=False`, `feature_eviction_on_save=False`, `only_feature_engineering=False`.
+    - `enable_variable_partition=True`, `enable_fused_layout=False`, `force_shutdown_ps=False`.
+    - `clear_nn=False`, `continue_training=False`, `enable_model_dump=False`.
+    - `enable_resource_constrained_roughsort=False`, `roughsort_items_use_parquet=False`.
+    - `items_input_lagrangex_header=False`, `items_input_has_sort_id=False`.
+    - `items_input_kafka_dump=False`, `items_input_kafka_dump_prefix=False`.
+    - `num_extra_dsworker_on_gpu_worker=0`, `save_summary_steps=100`, `log_step_count_steps=100`.
+  - Fields/defaults (None):
+    - `use_native_multi_hash_table=None`, `partial_recovery=None`.
+    - `tide_start_hour=None`, `tide_start_minute=None`, `tide_end_hour=None`, `tide_end_minute=None`, `tide_save_secs=None`.
+    - `profile_some_steps_from=None`, `profile_with_nvprof_from_to=None`.
+    - `save_checkpoints_secs=None`, `save_checkpoints_steps=None`, `dense_only_save_checkpoints_secs=None`, `dense_only_save_checkpoints_steps=None`.
+    - `submit_time_secs=None`, `containers_ready_time_secs=None`.
+    - `reload_alias_map=None`, `enable_alias_map_auto_gen=None`.
+    - `roughsort_candidate_items_path=None`.
+    - `device_fn=None`, `use_dataservice=None`.
+  - `enable_full_sync_training` = `enable_sync_training and not enable_partial_sync_training`.
+- Serving-config conversion:
+  - `_make_serving_config_from_training_config` disables prefetch/postpush and sync flags; if sync training, disables sync and may set `num_ps = num_workers`.
+  - `_make_serving_feature_configs_from_training_configs` sets entry_type to SERVING, sets `skip_zero_embedding`, and calls `cuckoo.SetInParent()`.
+- Context helpers:
+  - `make_native_task_context` builds `NativeTaskContext` with PS/worker indices and sync backend.
+  - `is_chief`: MPI rank 0 for sync/partial sync; otherwise worker index 0.
+- `CpuTraining.__init__`:
+  - Requires `server_type == "worker"`.
+  - Derives `model_name` from `task.p.metrics.deep_insight_name` or class name.
+  - For realtime training: sets `partial_recovery=True` and `dense_only_save_checkpoints_secs=1800` if unset.
+  - Defaults `use_native_multi_hash_table=True` if None.
+  - Updates parser contexts and dataset flags.
+  - Collects feature configs via `DumpUtils` (if dumped) or `_collect_feature_name_to_table_config`.
+  - Builds serving feature configs and optional dummy merged table (if not native multi hash table).
+  - Initializes fused-layout params and export context list.
+- `CpuTraining.create_input_fn`:
+  - Wraps task input_fn; optionally reorders fids via `distribution_ops.fused_reorder_by_indices`.
+  - Uses `datasets.distribute` when `use_dataservice` and not exporting.
+  - Always `prefetch(tf.data.AUTOTUNE)`.
+- `CpuTraining.create_model_fn`:
+  - Builds hash tables + hash filters (and sync clients).
+  - Uses GPU device for hash filters if `use_gpu_emb_table`.
+  - For exporting: returns hash_filters = `[None]`.
+  - For sync training, uses in-worker hash table creation and queue configs.
+  - Returns pipelined model_fn via `_get_pipelined_model_fn`.
+- `CpuTraining._get_pipelined_model_fn`:
+  - If no embedding features: disable feature_factory and return raw model_fn.
+  - Defines restore hooks (`CheckpointRestorerHook`) for hash tables, filters, and `CustomRestoreListener`.
+  - Save hooks:
+    - `PartialRecoverySaver` with `max_to_keep`, `exempt_checkpoint_paths`, `skip_save` if not root node.
+    - `HashTableCheckpointSaverListener`, `MultiHashTableCheckpointSaverListener`, `HashFilterCheckpointSaverListener`.
+    - Optional `FidSlotCountSaverListener`, feature eviction listeners.
+    - Dense-only saver hooks and optional `SyncTrainingSaverControlHook`.
+    - Errors if both `save_checkpoints_secs` and `save_checkpoints_steps` are set.
+  - Training hooks:
+    - `SetCurrentSessionHook` first.
+    - Barrier hooks + PS health check if async training.
+    - Queue hooks, cached-variable hooks, async function hooks.
+  - `model_fn` path:
+    - Creates hash_table, hash_filters and `AsyncFunctionMgr`.
+    - Handles EOF signal in features (keys `"2"` or `EofAwareTask.EOF_KEY`).
+    - Fused layout path uses `hash_table.lookup(..., ret_lookup_callable_fn=True)` and sets `EmbeddingLayoutFactory`.
+    - Non-fused path does embedding lookup + optional prefetch queue; records dequeued features into TF collections.
+    - Builds `CpuFeatureFactory` or `FusedCpuFeatureFactory` depending on sync training.
+    - If exporting with remote GPU, uses `RemotePredictHelper` to call a subgraph; builds prediction-only EstimatorSpec.
+    - Adds restore/save/metrics hooks when not exporting.
+    - For partial sync training and non-root worker, constructs custom Scaffold with local init ops.
+    - Adds dequeued EOF to collection.
+- `DistributedCpuTrainingConfig` extends `CpuTrainingConfig` with `model_dir`, thread counts, retry/timeout, redundant PS, uuid, and fountain config.
+- PS/worker helpers:
+  - `_prepare_server` initializes PS machine info via `logging_ops.machine_info`.
+  - `_shutdown_ps` enqueues a shutdown token into each PS queue.
+  - `_join_ps` blocks on PS queue; optionally runs a parameter sync thread using `ParameterSyncClient`.
+  - `_get_blocked_addrs` extracts all cluster addresses except ignored jobs.
+  - `NodeAliveCheckerError` raised when nodes unreachable.
+- Worker execution:
+  - `_do_worker_train`:
+    - Validates task is `NativeTask`, forbids `enable_model_dump` with `with_remote_gpu`.
+    - Builds `RunConfig` with `save_summary_steps/log_step_count_steps * num_workers`.
+    - Optionally wraps with `EofAwareTask` if partial sync or dataservice.
+    - Calls `estimator.train(..., max_steps=params.train.max_steps)`.
+    - For `enable_resource_constrained_roughsort`: runs an extra training pass on candidate items.
+  - `_do_worker_feature_engineering`:
+    - Runs dataset iterator and `FeatureEngineeringSaveHook` in `MonitoredTrainingSession`.
+  - `_run_ps_benchmark`: runs extra PS benchmark task and restores cluster.
+  - `_save_debugging_info`: writes `debugging_info.pb` with cluster + feature configs.
+- `distributed_train`:
+  - Validates config; sets alert proto on chief.
+  - Creates TF server, registers with discovery, starts PS or worker flow.
+  - Worker flow handles retries, node health checks, metrics heartbeat thread, benchmark PS, and graceful shutdown (kill/finish application via yarn_runtime).
+- `distributed_sync_train`:
+  - MPI-based sync training; sets `use_gpu_emb_table` when GPU training enabled.
+  - Adjusts session config (memory optimization, optional XLA).
+  - Only rank 0 writes summaries; non-root uses NOP summary writer.
+  - Adds sync hooks (`ParameterSyncHook`, `SyncTrainingInfoHook`).
+- Local entry points:
+  - `local_train_internal`:
+    - Creates local PS servers if requested and sets `TF_CONFIG`.
+    - Disables meta optimizer (ragged tensors).
+    - Runs estimator.train for `steps`.
+    - Optionally runs roughsort item pass.
+  - `local_feature_engineering_internal`:
+    - Similar to distributed FE path but for local graph; supports profiler start/stop.
+  - `local_train`:
+    - Builds `CpuTrainingConfig`, optionally removes model_dir, calls local_* based on `only_feature_engineering`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/cpu_training.rs` (new), `monolith-rs/crates/monolith-training/src/distributed.rs` (new), `monolith-rs/crates/monolith-training/src/local.rs` (new).
+- Rust public API surface:
+  - `CpuTrainingConfig`, `DistributedCpuTrainingConfig`, `CpuTraining` wrapper.
+  - `distributed_train`, `distributed_sync_train`, `local_train`, `local_feature_engineering`.
+  - Exporter selection and hook wiring.
+- Data model mapping:
+  - TF Estimator-based pipeline ↔ Rust training loop (Candle or TF runtime).
+  - Hash table ops ↔ `monolith-hash-table` + distributed PS equivalents.
+  - TF collections/hook APIs ↔ Rust hook/callback system.
+- Feature gating:
+  - TF runtime required for estimator compatibility, saved_model export, and custom ops.
+  - MPI/horovod for sync training (`get_mpi_rank/size`).
+  - gRPC + service discovery for distributed orchestration.
+- Integration points:
+  - Hash tables (`hash_table_ops`, `multi_hash_table_ops`), dataset distribution (`datasets`), exporter (`saved_model_exporters`), hooks (`session_run_hooks`, `sync_training_hooks`), metrics (`metric/cli`).
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Define Rust config structs mirroring all `CpuTrainingConfig` and `DistributedCpuTrainingConfig` fields and defaults.
+2. Implement feature config collection (`DummyFeatureFactory` analogue) or load from dump metadata.
+3. Port exporter creation (standalone/distributed), including dense-only export path.
+4. Implement hash table creation logic for async vs sync training and fused layout.
+5. Recreate embedding prefetch queue + async postpush pipeline.
+6. Implement hook system that mirrors restore/save/metrics/barrier hook ordering.
+7. Port distributed orchestration (service discovery, PS lifecycle, retries, heartbeat).
+8. Implement local training utilities and roughsort item conversion.
+9. Provide TF runtime shims for cached-variable handling and partitioned variables if TF backend is used.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `cpu_training_test.py`, `cpu_training_distributed_test_binary.py` + integration harness.
+- Rust tests:
+  - Unit tests for config defaults and serving-config conversion.
+  - Integration tests for local training and distributed orchestration once TF backend exists.
+- Cross-language parity test:
+  - Compare checkpoint layout, export artifacts, and hash table update semantics on a minimal model.
 
 **Gaps / Notes**
-- TODO (manual)
+- Uses several TF private APIs and graph collections; Rust will need a custom hook framework.
+- `should_do_first_save` is forced `False`, diverging from intended partial recovery behavior.
+- Relies on `TF_CONFIG` env var and estimator graph semantics; Candle backend will require a new control-plane.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
