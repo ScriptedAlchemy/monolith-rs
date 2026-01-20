@@ -2187,20 +2187,40 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: in-memory state updates and watch callbacks.
 
 **Required Behavior (Detailed)**
+- Watch helpers:
+  - `ChildrenWatch`: registers with catalog; `__call__` passes `(children,event)` if `send_event`, else `(children)`.
+  - `DataWatch`: registers with catalog; `__call__` first tries `(data,state,event)` then falls back to `(data,state)` on `TypeError`.
+  - `Election.run` executes callback under a lock; `cancel()` calls `self.lock.cancel()` (not supported by threading.Lock).
 - `Node`:
-  - Tracks `path`, `value`, `ephemeral`, `children`, timestamps, and version.
-  - `set()` updates value/version and triggers data watch with CHANGED event.
-  - `create_child()` creates child Node and triggers parent children watch.
-  - `remove_child()` handles recursive delete and triggers children watch; raises NotEmptyError if needed.
-  - `__del__` triggers DELETED events and cleans children.
+  - Fields: `path`, `value`, `ephemeral`, `children`, `_ctime/_mtime` (unix seconds), `_version`.
+  - On init: fires CREATED event to data/children watches if present.
+  - `state` returns `ZnodeStat` with `dataLength=len(value)` and `numChildren=len(children)`.
+  - `set(value)` updates mtime/version, triggers CHANGED event.
+  - `set_data_watch`/`set_children_watch` immediately invoke watchers with current state and `event=None`.
+  - `create_child(path, ...)`:
+    - Computes child path from basename (root special-cased).
+    - Creates `Node`, adds to children.
+    - Triggers CHILD event on parent children watch.
+  - `get_or_create_child`, `get_child`, `has_child` helpers.
+  - `remove_child(path, recursive=False)`:
+    - Raises `NotEmptyError` if child has children and `recursive` False.
+    - Deletes child and triggers CHILD event; raises `NoNodeError` if missing.
+  - `__del__`: fires DELETED event to data/children watches, deletes children, clears fields.
 - `Catalog`:
-  - Holds root node; maintains data/children watches and sequence counters.
-  - `ensure_path()` creates nodes along path.
-  - `create()` supports `makepath` and `sequence` numbering; raises NodeExistsError if exists.
-  - `delete()`, `set()`, `get()` operate on nodes.
+  - Holds root `Node('/')`, watch registries, and `_sequence_paths`.
+  - `add_data_watch`/`add_children_watch` attach to existing node if found.
+  - `ensure_path(path)` creates nodes along path and attaches registered watches.
+  - `create(path, value=b'', ephemeral=False, makepath=False, sequence=False)`:
+    - If `sequence`: appends zero-padded 10-digit counter (starts at 0000000000).
+    - If `makepath`: ensures parent path; else requires parent to exist.
+    - Raises `NodeExistsError` if child exists.
+  - `delete`, `set`, `get` delegate to nodes (raises `NoNodeError` if missing).
 - `FakeKazooClient`:
-  - API compatible subset: `start`, `stop`, `create`, `delete`, `set`, `get`, `exists`, `get_children`, `ensure_path`, `retry`.
-  - Provides `DataWatch`, `ChildrenWatch`, `Election` constructors via `partial`.
+  - `start()` initializes `Catalog`; `stop()` clears it.
+  - CRUD: `create`, `delete(recursive=True)`, `set`, `get` (returns `(value,state)`), `exists`, `get_children`.
+  - `ensure_path` delegates to catalog.
+  - `retry` calls function directly.
+  - `DataWatch`, `ChildrenWatch`, `Election` exposed via `partial`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/support/fake_zk.rs`.
@@ -2244,11 +2264,25 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: creates and deletes in-memory nodes; prints watch outputs.
 
 **Required Behavior (Detailed)**
-- `test_create`: create path with `makepath=True` and assert returned path.
-- `test_set_get`: create node, set/get, verify NoNodeError on invalid path.
-- `test_delete`: delete node and parent path.
-- `test_data_watch`: register DataWatch and ensure callback is invoked.
-- `test_children_watch`: register ChildrenWatch with `send_event=True` and ensure callback is invoked on child creation.
+- Class setup/teardown:
+  - `setUpClass`: `client = FakeKazooClient(); client.start()`.
+  - `tearDownClass`: `client.stop()`.
+- `test_create`:
+  - `client.create('/monolith/zk/data', makepath=True)` returns same path.
+  - Catches/ logs `NoNodeError` or `NodeExistsError`.
+- `test_set_get`:
+  - Create with `include_data=True`; expect `(path, state)`.
+  - `set` on non-existent child raises `NoNodeError` (logged).
+  - `get` on non-existent child raises `NoNodeError` (logged).
+  - `get` on existing path returns original bytes.
+- `test_delete`:
+  - Create then `client.delete(path)` and `client.delete('/monolith')`.
+- `test_data_watch`:
+  - Create path, register `DataWatch(path, func)`; callback prints args.
+- `test_children_watch`:
+  - Register `ChildrenWatch('/monolith/zk', send_event=True)`; create child path.
+  - Register `DataWatch` on `/monolith/zk/data`.
+  - Create `/monolith/zk/test` to trigger watch callbacks.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/mocked_zkclient.rs`.
