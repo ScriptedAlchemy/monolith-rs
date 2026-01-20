@@ -519,7 +519,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/hvd_lib.py`](#monolith-native-training-hvd-lib-py) | 65 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/input.py`](#monolith-native-training-input-py) | 45 | IN PROGRESS | monolith-rs/crates/monolith-data/src |  |
 | [`monolith/native_training/layers/__init__.py`](#monolith-native-training-layers-init-py) | 46 | IN PROGRESS | monolith-rs/crates/monolith-layers/src |  |
-| [`monolith/native_training/layers/add_bias.py`](#monolith-native-training-layers-add-bias-py) | 110 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/add_bias.py`](#monolith-native-training-layers-add-bias-py) | 110 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/add_bias.rs |  |
 | [`monolith/native_training/layers/add_bias_test.py`](#monolith-native-training-layers-add-bias-test-py) | 65 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/advanced_activations.py`](#monolith-native-training-layers-advanced-activations-py) | 217 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/advanced_activations_test.py`](#monolith-native-training-layers-advanced-activations-test-py) | 84 | TODO | TODO (manual) |  |
@@ -12344,50 +12344,83 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/add_bias.py`
 <a id="monolith-native-training-layers-add-bias-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 110
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Keras layer that adds a learnable bias to inputs while handling `channels_first`/`channels_last` formats for 3D/4D/5D tensors.
+- Key symbols/classes/functions: `AddBias(Layer)` with `build`, `call`, `get_config`.
+- External dependencies: TensorFlow (`Layer`, `InputSpec`, `initializers`, `regularizers`, `tf.nn.bias_add`), Monolith utils (`get_ndim`, `int_shape`, `with_params`), layer utils (`check_dim`, `dim_size`), `monolith_export`.
+- Side effects: Adds a trainable weight named `"bias"` during `build`; decorated with `@with_params` and `@monolith_export`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- Initialization:
+  - `initializer = initializers.get(initializer) or tf.initializers.Zeros()`.
+  - `regularizer = regularizers.get(regularizer)`.
+  - `input_spec = InputSpec(min_ndim=2)`; `bias=None`.
+- Build:
+  - `shape = list(map(check_dim, input_shape[1:]))` (batch dim removed).
+  - `check_dim(None) -> -1`, so unknown dims propagate to bias shape.
+  - `self.add_weight(name='bias', shape=shape, dtype=tf.float32, initializer=initializer, regularizer=regularizer)`.
+- Call:
+  - `data_format = kwargs.get('data_format', 'channels_last')`.
+  - Validate `data_format` is `"channels_first"` or `"channels_last"`; otherwise raise `ValueError('Unknown data_format: ' + str(data_format))`.
+  - `bias_shape = int_shape(self.bias)` (tuple, `-1` for unknown dims).
+  - If `len(bias_shape)` is not `1` and not `get_ndim(inputs) - 1`, raise:
+    - `ValueError('Unexpected bias dimensions %d, expect to be 1 or %d dimensions' % (len(bias_shape), get_ndim(inputs)))`.
+  - For `get_ndim(inputs) == 5`:
+    - `channels_first`:
+      - `len(bias_shape)==1`: reshape to `(1, C, 1, 1, 1)`.
+      - `len(bias_shape)>1`: reshape to `(1, bias_shape[3]) + bias_shape[:3]`.
+    - `channels_last`:
+      - `len(bias_shape)==1`: reshape to `(1, 1, 1, C)`.
+      - `len(bias_shape)>1`: reshape to `(1,) + bias_shape`.
+  - For `get_ndim(inputs) == 4`:
+    - `channels_first`:
+      - `len(bias_shape)==1`: reshape to `(1, C, 1, 1)`.
+      - `len(bias_shape)>1`: reshape to `(1, bias_shape[2]) + bias_shape[:2]`.
+    - `channels_last`:
+      - `len(bias_shape)==1`: `tf.nn.bias_add(inputs, bias, data_format='NHWC')`.
+      - `len(bias_shape)>1`: reshape to `(1,) + bias_shape`.
+  - For `get_ndim(inputs) == 3`:
+    - `channels_first`:
+      - `len(bias_shape)==1`: reshape to `(1, C, 1)`.
+      - `len(bias_shape)>1`: reshape to `(1, bias_shape[1], bias_shape[0])`.
+    - `channels_last`:
+      - `len(bias_shape)==1`: reshape to `(1, 1, C)`.
+      - `len(bias_shape)>1`: reshape to `(1,) + bias_shape`.
+  - Else (2D or other): `tf.nn.bias_add(inputs, bias)`.
+- Serialization:
+  - `get_config()` serializes initializer/regularizer and merges with base config.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/src/add_bias.rs`.
+- Rust public API surface: `AddBias`, `DataFormat`, `forward_with_format`, builder-style setters.
+- Data model mapping:
+  - Python `initializer` → Rust `Initializer`.
+  - Python `regularizer` → Rust `Regularizer`.
+  - Python `data_format` string → Rust `DataFormat`.
+- Feature gating: None; pure Rust.
+- Integration points: Re-export `AddBias` from `monolith_layers::prelude` for parity with Python `layers` aggregator.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Enforce Python error cases in Rust:
+   - Reject bias shapes not equal to `1` or `ndim-1` with the same message text.
+   - Reject invalid `data_format` string on parse.
+2. Verify reshape permutations match Python for 3D/4D/5D (channels-first permutations).
+3. Match `tf.nn.bias_add` semantics for 4D channels-last and 2D inputs (broadcast + dtype behavior).
+4. Decide how to handle unknown dimensions (`-1` in Python) in Rust, document and test.
+5. Add `LayerParams` metadata or config serialization to mirror `with_params` and `get_config`.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/add_bias_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/add_bias_test.rs` (new).
+- Cross-language parity test:
+  - Generate fixed bias + random tensors (3D/4D/5D) and compare outputs between Python and Rust.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python allows `-1` dims in bias shape; Rust currently assumes known sizes.
+- Python uses `tf.nn.bias_add` for 2D and 4D `channels_last`; Rust currently uses reshape + add.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
