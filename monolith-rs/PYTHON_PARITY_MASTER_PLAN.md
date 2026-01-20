@@ -447,7 +447,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/debugging/debugging_server.py`](#monolith-native-training-debugging-debugging-server-py) | 217 | IN PROGRESS | monolith-rs/crates/monolith-training/src/debugging |  |
 | [`monolith/native_training/demo.py`](#monolith-native-training-demo-py) | 57 | IN PROGRESS | monolith-rs/crates/monolith-training/examples |  |
 | [`monolith/native_training/dense_reload_utils.py`](#monolith-native-training-dense-reload-utils-py) | 457 | IN PROGRESS | monolith-rs/crates/monolith-training/src/checkpoint |  |
-| [`monolith/native_training/dense_reload_utils_test.py`](#monolith-native-training-dense-reload-utils-test-py) | 192 | TODO | TODO (manual) |  |
+| [`monolith/native_training/dense_reload_utils_test.py`](#monolith-native-training-dense-reload-utils-test-py) | 192 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/device_utils.py`](#monolith-native-training-device-utils-py) | 231 | TODO | TODO (manual) |  |
 | [`monolith/native_training/device_utils_test.py`](#monolith-native-training-device-utils-test-py) | 104 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distribute/distributed_dataset.py`](#monolith-native-training-distribute-distributed-dataset-py) | 81 | TODO | TODO (manual) |  |
@@ -8078,53 +8078,55 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/dense_reload_utils_test.py`
-
 <a id="monolith-native-training-dense-reload-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 192
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests for dense reload utilities: variable name inference, feed dict splitting for partitioned vars, and custom restore listener modes.
+- Key symbols/classes/functions: `DenseReloadUtilsTest`, `setUpClass`, `test_infer_variable_name`, `test_calc_feed_dict`, `test_alias_map_listener`, `test_clear_nn_listener`.
+- External dependencies: TensorFlow, `GlorotNormal`, `Ones`, `infer_variable_name`, `calc_feed_dict`, `CustomRestoreListener`.
+- Side effects: creates and deletes checkpoint files under `./ckpt`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `setUpClass`:
+  - Builds a graph with `global_step`, a partitioned variable `partition` (shape 1280x512), and `small_var`.
+  - Saves checkpoint `ckpt/test-<global_step>` in cwd.
+- `tearDownClass`:
+  - Removes `./ckpt` directory if exists.
+- `test_infer_variable_name`:
+  - Creates a partitioned variable and checks `infer_variable_name` removes `/part_xx` to yield `{partition_var.name:0}`.
+- `test_calc_feed_dict`:
+  - Creates partitioned `partition2` and `small_var2`.
+  - Builds `alias_map` mapping new names to old checkpoint names (`small_var2` → `small_var`, `partition2 parts` → `partition`).
+  - Creates placeholders with `origin_name` for each var/partition.
+  - `calc_feed_dict` returns mapping for each alias; asserts shapes match partition shapes.
+- `test_alias_map_listener`:
+  - Builds same alias_map/placeholders and calls `CustomRestoreListener(alias_map=..., model_dir=./ckpt).begin()` (no asserts, just should not error).
+- `test_clear_nn_listener`:
+  - Creates `CustomRestoreListener(clear_nn=True, model_dir=./ckpt)` and calls `begin()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests`.
+- Rust public API surface: dense reload utilities and custom restore listener.
+- Data model mapping: checkpoint vars/partitioned vars to Rust checkpoint reader and feed dict logic.
+- Feature gating: requires checkpoint reader and graph variable introspection.
+- Integration points: `dense_reload_utils.py` implementation.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Build Rust tests that create a checkpoint with partitioned variables (or mock the reader).
+2. Verify `infer_variable_name` removes partition suffixes.
+3. Validate `calc_feed_dict` splitting behavior for partitioned variables.
+4. Ensure custom restore listener handles alias_map and clear_nn without error.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: `dense_reload_utils_test.rs` analog with temp directories.
+- Cross-language parity test: compare feed dict splits on a shared checkpoint.
 
 **Gaps / Notes**
-- TODO (manual)
+- The Python tests rely on TF checkpoint creation; Rust tests may need to use Python-generated checkpoints.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8139,6 +8141,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/device_utils.py`
+
 <a id="monolith-native-training-device-utils-py"></a>
 
 **Status:** TODO (manual review required)
