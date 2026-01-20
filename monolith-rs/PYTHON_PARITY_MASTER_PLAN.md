@@ -546,7 +546,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/layers/norms.py`](#monolith-native-training-layers-norms-py) | 343 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/normalization.rs |  |
 | [`monolith/native_training/layers/norms_test.py`](#monolith-native-training-layers-norms-test-py) | 84 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/norms_test.rs |  |
 | [`monolith/native_training/layers/pooling.py`](#monolith-native-training-layers-pooling-py) | 101 | IN PROGRESS | monolith-rs/crates/monolith-layers/src/pooling.rs |  |
-| [`monolith/native_training/layers/pooling_test.py`](#monolith-native-training-layers-pooling-test-py) | 141 | TODO | TODO (manual) |  |
+| [`monolith/native_training/layers/pooling_test.py`](#monolith-native-training-layers-pooling-test-py) | 141 | IN PROGRESS | monolith-rs/crates/monolith-layers/tests/pooling_test.rs |  |
 | [`monolith/native_training/layers/sparse_nas.py`](#monolith-native-training-layers-sparse-nas-py) | 31 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/sparse_nas_test.py`](#monolith-native-training-layers-sparse-nas-test-py) | 23 | TODO | TODO (manual) |  |
 | [`monolith/native_training/layers/utils.py`](#monolith-native-training-layers-utils-py) | 159 | TODO | TODO (manual) |  |
@@ -14300,50 +14300,50 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/layers/pooling_test.py`
 <a id="monolith-native-training-layers-pooling-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 141
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke tests for Sum/Max/Avg pooling instantiation, serialization, and forward call.
+- Key symbols/classes/functions: `PoolingTest` methods `test_sp_*`, `test_mp_*`, `test_ap_*`.
+- External dependencies: TensorFlow v1 session mode, NumPy.
+- Side effects: Runs session after variable init.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- SumPooling:
+  - Params-based instantiate and direct constructor.
+  - `test_sp_call`: list of 5 tensors `(100,10)`, sum output.
+- MaxPooling:
+  - Params-based instantiate and direct constructor.
+  - `test_mp_call`: list of 5 tensors `(100,10)`, sum output.
+- AvgPooling:
+  - Params-based instantiate and direct constructor.
+  - `test_ap_call`: list of 5 tensors `(100,10)`, sum output.
+- Serialization:
+  - `get_config` and `from_config` for each pooling type.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-layers/tests/pooling_test.rs`.
+- Rust public API surface: `SumPooling`, `MaxPooling`, `AvgPooling`.
+- Data model mapping:
+  - Params-based instantiation ↔ Rust config/builder (if needed).
+  - No parameters beyond defaults.
+- Feature gating: None.
+- Integration points: `monolith_layers::pooling`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust tests for pooling ops on list of tensors (len=5).
+2. Add tests for len=1 list to match Python `Pooling.call`.
+3. Add serialization tests if config metadata is implemented.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/layers/pooling_test.py`.
+- Rust tests: `monolith-rs/crates/monolith-layers/tests/pooling_test.rs` (new).
+- Cross-language parity test:
+  - Fix input tensors; compare sums for each pooling type.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python pooling layers rely on Keras `Layer` base; Rust pooling is a trait. Map serialization accordingly.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
