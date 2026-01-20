@@ -2911,9 +2911,9 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - `stub` property:
   - Uses `MY_HOST_IP` env or local hostname; connects to `{host}:{agent_port}`.
 - `get_server_type`:
-  - If input is string, maps `ps/entry/dense` to enum using `FLAGS.server_type` (note: uses global flags).
-- `heart_beat`: sends `HeartBeatRequest` and prints addresses.
-- `get_replicas`: sends `GetReplicasRequest` and prints address list.
+  - If input is string, ignores the value and maps **`FLAGS.server_type`** to enum (ps/entry/dense); else returns `st`.
+- `heart_beat`: sends `HeartBeatRequest` and prints `resp.addresses` (flush=True).
+- `get_replicas`: sends `GetReplicasRequest` and prints `resp.address_list.address` (flush=True).
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-cli/src/agent_svr_client.rs` or library module.
