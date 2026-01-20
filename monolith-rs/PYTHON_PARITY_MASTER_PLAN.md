@@ -616,8 +616,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/prefetch_queue_test.py`](#monolith-native-training-prefetch-queue-test-py) | 305 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/ps_benchmark.py`](#monolith-native-training-ps-benchmark-py) | 273 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
 | [`monolith/native_training/ps_benchmark_test.py`](#monolith-native-training-ps-benchmark-test-py) | 57 | IN PROGRESS | monolith-rs/crates/monolith-training/src |  |
-| [`monolith/native_training/ragged_utils.py`](#monolith-native-training-ragged-utils-py) | 29 | TODO | TODO (manual) |  |
-| [`monolith/native_training/ragged_utils_test.py`](#monolith-native-training-ragged-utils-test-py) | 32 | TODO | TODO (manual) |  |
+| [`monolith/native_training/ragged_utils.py`](#monolith-native-training-ragged-utils-py) | 29 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
+| [`monolith/native_training/ragged_utils_test.py`](#monolith-native-training-ragged-utils-test-py) | 32 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
 | [`monolith/native_training/remote_predict_ops.py`](#monolith-native-training-remote-predict-ops-py) | 0 | TODO | TODO (manual) |  |
 | [`monolith/native_training/restore_test.py`](#monolith-native-training-restore-test-py) | 240 | TODO | TODO (manual) |  |
 | [`monolith/native_training/runner_utils.py`](#monolith-native-training-runner-utils-py) | 396 | TODO | TODO (manual) |  |
@@ -19507,50 +19507,43 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/ragged_utils.py`
 <a id="monolith-native-training-ragged-utils-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 29
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Provides a faster cached alternative to `RaggedTensor.value_rowids()` using a custom op.
+- Key symbols/classes/functions: `fused_value_rowids`.
+- External dependencies: TensorFlow, `gen_monolith_ops.monolith_fused_value_rowids`.
+- Side effects: Caches result on the `RaggedTensor` instance via `monolith_fused_value_rowids` attribute.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`fused_value_rowids(rt)`**
+  - Validates `rt` is a `tf.RaggedTensor`; otherwise raises `ValueError("rt must be RaggedTensor")`.
+  - If `rt` lacks attribute `monolith_fused_value_rowids`, computes it once via:
+    - `ops.monolith_fused_value_rowids(rt.row_splits)`.
+  - Returns the cached tensor (same object on subsequent calls).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tensor/src`.
+- Rust public API surface: `fused_value_rowids(ragged)` helper.
+- Data model mapping:
+  - Ragged tensor must expose `row_splits`.
+  - Cache results on ragged tensor wrapper if possible.
+- Feature gating: requires custom op or Rust implementation of row-id computation.
+- Integration points: used in ragged pipelines and feature preprocessing.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Implement row-id computation or bind to TF custom op when TF backend enabled.
+2. Add caching on ragged tensor wrapper to avoid recomputation.
+3. Preserve error message for non-ragged input.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/ragged_utils_test.py`.
+- Rust tests: add caching test and expected row-ids for a sample ragged tensor.
+- Cross-language parity test: compare value_rowids output and object identity if applicable.
 
 **Gaps / Notes**
-- TODO (manual)
+- Attribute-based caching mutates the ragged tensor object; Rust should use a wrapper or external cache.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -19567,50 +19560,40 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/ragged_utils_test.py`
 <a id="monolith-native-training-ragged-utils-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 32
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Tests `fused_value_rowids` caching and output correctness.
+- Key symbols/classes/functions: `RaggedUtilsTestCase`.
+- External dependencies: TensorFlow, `ragged_utils`.
+- Side effects: Disables eager execution in `__main__`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_basic`:
+  - Creates `rt = tf.ragged.constant([[], [1], [2, 3]])`.
+  - Calls `fused_value_rowids` twice; asserts returned objects are identical (`is`).
+  - Asserts values equal `[1, 2, 2]`.
+- `__main__`: disables eager execution and runs `tf.test.main()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-tensor/src` (tests).
+- Rust public API surface: `fused_value_rowids` and caching behavior.
+- Data model mapping: ragged tensor representation with `row_splits`.
+- Feature gating: custom op or Rust implementation required.
+- Integration points: ragged pipelines using row-id mapping.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add a test that calls `fused_value_rowids` twice and checks cache hit semantics (if applicable).
+2. Verify output row-ids for a sample ragged tensor.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `RaggedUtilsTestCase` in this file.
+- Rust tests: add `ragged_utils_basic` test.
+- Cross-language parity test: compare row-id outputs for identical ragged input.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python relies on object identity for caching; Rust may need explicit cache handles.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
