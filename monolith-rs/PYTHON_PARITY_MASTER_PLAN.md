@@ -1573,41 +1573,104 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/agent_service/backends.py`
 <a id="monolith-agent-service-backends-py"></a>
 
-**Status:** IN PROGRESS (manual)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 402
-- Purpose/role: Backend abstractions + ZK implementation for layouts, saved models, and service info.
-- Key symbols/classes/functions: `SavedModel`, `SavedModelDeployConfig`, `Container`, `ContainerServiceInfo`, `AgentBackend`, `CtrlBackend`, `SyncBackend`, `ZKBackend`
-- External dependencies: `kazoo`, `dataclasses_json`, `monolith.native_training.zk_utils`
-- Side effects: ZK reads/writes, watches, retry loops, thread sync.
+- Purpose/role: Backend abstractions + ZK implementation for layouts, saved models, service info, and sync targets.
+- Key symbols/classes/functions: `SavedModel`, `SavedModelDeployConfig`, `Container`, `ContainerServiceInfo`, `AgentBackend`, `CtrlBackend`, `SyncBackend`, `ZKBackend`.
+- External dependencies: `kazoo` (ChildrenWatch, state, errors), `dataclasses_json`, `MonolithKazooClient`.
+- Side effects: ZK reads/writes, ephemeral nodes, watchers, retry/set on conflicts.
 
 **Required Behavior (Detailed)**
-- Dataclasses serialize/deserialize to JSON bytes.
-- ZKBackend implements:
-  - Layout watchers (ChildrenWatch) and callbacks
-  - Saved model registration & layout updates
-  - Service info reporting + retrieval
-  - Sync target subscription
-- Correct handling of ZK errors (NodeExists, NoNode, ConnectionClosed, etc.).
+- Data classes:
+  - `SavedModel(model_name, sub_graph)` is frozen; `__str__` → `"model:sub_graph"`.
+  - `SavedModelDeployConfig` + `ContainerServiceInfo` are `dataclass_json` with `serialize()` → UTF-8 JSON bytes; `deserialize()` uses `from_json`.
+  - `Container(ctx_cluster, ctx_id)` string format `"cluster:id"`.
+- Abstract backends:
+  - `AgentBackend`: layout callbacks, sync_available_saved_models, report/get service info, get_service_map, start/stop.
+  - `CtrlBackend`: list/declare saved models, add/remove layout, bzid_info, start/stop.
+  - `SyncBackend`: subscribe_model, get_sync_targets, start/stop.
+- `ZKBackend.__init__(bzid, zk_servers)`:
+  - Creates `MonolithKazooClient` and registers a listener:
+    - `KazooState.LOST` → sets `_is_lost` event.
+    - other states → clears `_is_lost`.
+  - Tracks `_available_saved_model` (set), `_service_info_map` (dict), `_children_watcher_map` (path→ChildrenWatch), `_sync_model_name`.
+- `sync_available_saved_models(container, saved_models)`:
+  - If `_is_lost` set: clears available set, calls `_zk.restart()`, returns.
+  - Computes add/remove sets; for each add: create ephemeral binding node at
+    `/{bzid}/binding/{model}/{sub_graph}:{container}` (makepath=True).
+  - For each remove: delete the binding node.
+  - Updates `_available_saved_model` to the new set.
+- `register_layout_callback(layout_path, callback)`:
+  - Ensures layout path exists and sets a ChildrenWatch via `_children_watch`.
+  - `callback_wrap(children)`:
+    - Parses `model_name:sub_graph` from each child.
+    - Reads deploy config from `/saved_models/{model}/{sub_graph}`; if missing logs error.
+    - Builds list of `(SavedModel, SavedModelDeployConfig)` and `model_names` set.
+    - Resets `_service_info_map` to only those model_names (preserving existing sub-maps).
+    - For each model_name, registers binding watch on `/{bzid}/binding/{model_name}` with `_bind_callback`.
+    - Calls `callback(saved_models)` and returns its result.
+- `_bind_callback(model_name, children)`:
+  - If model_name not tracked, returns False.
+  - For each child `sub_graph:ctx_cluster:ctx_id:...`, fetches `ContainerServiceInfo`.
+  - Populates `_service_info_map[model_name][sub_graph]` with service infos.
+- `report_service_info(container, service_info)`:
+  - Creates ephemeral node at `/{bzid}/container_service/{container}` with serialized JSON bytes.
+- `get_service_info(container)`:
+  - Reads node and deserializes `ContainerServiceInfo` (returns None on NoNode).
+- `_children_watch(path, callback)`:
+  - If watcher exists and not stopped, log and skip.
+  - Ensures path exists before creating `ChildrenWatch`.
+- `list_saved_models(model_name)`:
+  - Reads children under `/{bzid}/saved_models/{model_name}`, returns `SavedModel` list.
+  - Returns empty list on `NoNodeError`.
+- `decl_saved_model(saved_model, deploy_config)`:
+  - Creates znode at `/{bzid}/saved_models/{model}/{sub_graph}` with JSON bytes (makepath=True).
+- `add_to_layout(layout, saved_model)`:
+  - Ensures path `"{layout}/{model:sub_graph}"` exists.
+- `remove_from_layout(layout, saved_model)`:
+  - Deletes path; ignores NoNodeError.
+- `bzid_info()`:
+  - Collects `model_info` (deploy configs + bindings), `container_info` (service info + saved_models), `layout_info` (sorted saved_model list).
+  - Increments `sub_graphs_available` when bindings exist.
+  - Returns sorted dicts for stable output.
+- Sync backend:
+  - `subscribe_model(model_name)`: sets `_sync_model_name` (asserts only once) and registers binding watch.
+  - `get_sync_targets(sub_graph)`:
+    - If `_is_lost` set, clears available and restarts ZK.
+    - Returns `(f"{model}:{sub_graph}", [service_info.grpc...])`.
+- ZK helpers:
+  - `create_znode`: on `NodeExistsError` uses `_zk.retry(_zk.set, path=..., value=...)`; logs other exceptions.
+  - `delete_znode`: logs errors on exception.
+  - `get_znode`: returns bytes or None on `NoNodeError`.
+- `start()`/`stop()` delegate to `_zk.start()` / `_zk.stop()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: new `monolith-rs/crates/monolith-serving/src/agent_backend.rs` + ZK integration (feature gated).
-- Rust public API surface: trait equivalents for AgentBackend/CtrlBackend/SyncBackend and ZK implementation.
-- Integration points: `ReplicaManager`, `ModelManager`, agent controllers.
+- Target crate/module: `monolith-rs/crates/monolith-serving/src/agent_backend.rs` + ZK integration (feature gated).
+- Rust public API surface:
+  - Structs: `SavedModel`, `SavedModelDeployConfig`, `Container`, `ContainerServiceInfo` (serde JSON).
+  - Traits: `AgentBackend`, `CtrlBackend`, `SyncBackend`.
+  - `ZkBackend` implementing all three.
+- Data model mapping:
+  - ZK nodes: `/saved_models`, `/layouts`, `/binding`, `/container_service` with JSON payloads.
+  - Service map: `HashMap<Model, HashMap<SubGraph, Vec<ContainerServiceInfo>>>`.
+- Integration points: `AgentV3`, `agent_controller`, `tfs_monitor`, `replica_manager`.
 
 **Implementation Steps (Detailed)**
-1. Define Rust structs for SavedModel, SavedModelDeployConfig, Container, ContainerServiceInfo with serde JSON.
-2. Define backend traits mirroring Python abstract base classes.
-3. Implement ZK backend with watchers; match callback semantics and payload formats.
-4. Port error handling and retry behaviors.
+1. Port data classes with `serde_json` encode/decode to bytes.
+2. Implement backend traits and ZK client wrapper with watch support.
+3. Match ChildrenWatch semantics (invoke callback on changes).
+4. Preserve ZK LOST behavior (restart + clear available set).
+5. Mirror `bzid_info` output structure and sorting.
 
 **Tests (Detailed)**
 - Python tests: `monolith/agent_service/backends_test.py`
-- Rust tests: add ZK mock tests for layout watches and serialization.
+- Rust tests: mock ZK for layout watches, binding updates, and bzid_info structure.
+- Cross-language parity test: compare serialized JSON payloads and service_map updates.
 
 **Gaps / Notes**
-- No Rust ZK backend yet; needs full parity implementation.
+- Requires Rust ZK client with watcher support; ensure watcher stop semantics match `ChildrenWatch`.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -1624,18 +1687,63 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/agent_service/backends_test.py`
 <a id="monolith-agent-service-backends-test-py"></a>
 
-**Status:** IN PROGRESS (manual)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 134
-- Purpose/role: Tests ZKBackend saved_model declaration, layout callbacks, bindings, and sync targets.
-- Key symbols/classes/functions: `ZKBackendTest` methods
+- Purpose/role: Tests ZKBackend layout callbacks, service info, binding updates, and sync targets using a fake ZK client.
+- Key symbols/classes/functions: `ZKBackendTest` methods (`test_register_service`, `test_layout_callback`, `test_sync_available_models`, `test_service_map`, `test_sync_backend`).
 - External dependencies: `FakeKazooClient`, `ZKBackend`, `SavedModel`, `SavedModelDeployConfig`.
-- Side effects: ZK node creation in fake client.
+- Side effects: Creates/deletes ZK nodes in fake client.
 
 **Required Behavior (Detailed)**
 - `setUpClass`:
-  - Initialize ZKBackend with FakeKazooClient, report service info, register layout callback.
+  - `bzid='gip'`, `container=Container("default","asdf")`.
+  - `service_info` with grpc/http/archon/agent/idc.
+  - Instantiate `ZKBackend`, replace `_zk` with `FakeKazooClient`.
+  - Register layout callback on `"/gip/layouts/test_layout/mixed"`.
+  - Call `report_service_info(container, service_info)`.
+- `test_register_service`:
+  - `get_service_info(container)` returns the same `service_info`.
+- `test_layout_callback`:
+  - Declares saved models `entry, ps_0, ps_1, ps_2` and adds to layout.
+  - Expects `layout_record` to be list of `(SavedModel, SavedModelDeployConfig)` for each subgraph.
+  - After removing `entry`, expects callback list with only ps_* entries.
+- `test_sync_available_models`:
+  - Syncs available models `entry, ps_0, ps_1`.
+  - Asserts binding znodes exist at `/gip/binding/test_ffm_model/<sub_graph>:<container>`.
+- `test_service_map`:
+  - Syncs available models `entry, ps_0`.
+  - Expects service map `{'test_ffm_model': {'ps_0': [service_info], 'entry': [service_info]}}`.
+- `test_sync_backend`:
+  - `subscribe_model("test_ffm_model")`, then sync available models `ps_0, ps_1, ps_2`.
+  - `get_sync_targets("ps_1")` returns `("test_ffm_model:ps_1", [service_info.grpc])`.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-serving/tests/backends.rs` (new).
+- Rust public API surface: `ZkBackend` + fake ZK client.
+- Data model mapping: JSON serialization for deploy config + service info.
+- Feature gating: tests require fake ZK or in-memory backend.
+
+**Implementation Steps (Detailed)**
+1. Implement FakeZK client in Rust with create/get/delete and ChildrenWatch semantics.
+2. Port layout callback test to verify `SavedModelDeployConfig` list ordering.
+3. Port binding and service_map assertions.
+4. Port sync backend target selection test.
+
+**Tests (Detailed)**
+- Python tests: `ZKBackendTest` in this file.
+- Rust tests:
+  - `zk_backend_register_service`
+  - `zk_backend_layout_callback`
+  - `zk_backend_sync_available_models`
+  - `zk_backend_service_map`
+  - `zk_backend_sync_backend`
+- Cross-language parity test:
+  - Compare service_map and binding paths generated by Python vs Rust for identical inputs.
+
+**Gaps / Notes**
+- Tests rely on `TEST_TMPDIR` for `SavedModelDeployConfig` base paths.
 - `test_register_service`: `get_service_info(container)` equals originally reported service info.
 - `test_layout_callback`:
   - Declare saved_models and add to layout; callback receives list of `(SavedModel, DeployConfig)` in order.
@@ -2208,34 +2316,102 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/agent_service/replica_manager.py`
 <a id="monolith-agent-service-replica-manager-py"></a>
 
-**Status:** IN PROGRESS (manual)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 835
-- Purpose/role: Maintains replica registration and status updates in ZK; watches for replica changes and exposes lookup APIs.
+- Purpose/role: Maintains replica registration and status updates in ZK, watches for replica changes, and exposes lookup APIs for serving + parameter sync.
 - Key symbols/classes/functions: `ReplicaWatcher`, `ReplicaUpdater`, `ZKListener`, `ReplicaManager`, `SyncBackendWrapper`.
-- External dependencies: `kazoo`, `TFSMonitor`, `AgentConfig`, `ReplicaMeta`, `ModelState`, metrics.
-- Side effects: ZK watches, ephemeral node creation, periodic polling, metrics emission.
+- External dependencies: `kazoo`, `TFSMonitor`, `AgentConfig`, `ReplicaMeta`, `ModelState`, `ClientConfig.TargetExtraInfo`, metrics CLI.
+- Side effects: ZK watches + ephemeral nodes, periodic polling, metrics emission.
 
 **Required Behavior (Detailed)**
 - `ReplicaWatcher`:
-  - Watches ZK paths under `/{bzid}/service/{base_name}`.
-  - Supports dc-aware paths (`idc:cluster/server_type:task`) and non-dc paths.
-  - Uses ChildrenWatch/DataWatch to maintain `replicas` dict: `{task_path: {replica_id: ReplicaMeta}}`.
-  - `_poll()` resyncs periodically (every 60s) and re-registers missing ephemeral nodes (when local replica was removed).
-  - `get_all_replicas`, `get_replicas`, `get_replica`, `get_replicas_with_extra_info` filter by server type, idc/cluster, and ModelState.AVAILABLE.
+  - Chooses `_zk_watch_address_family`:
+    - If requested IPv4 but `is_ipv6_only()` returns True, switches to IPv6.
+  - `path_prefix = /{bzid}/service/{base_name}`.
+  - `watch_data()`:
+    - DC-aware: watch `path_prefix` for `idc:cluster`, then tasks, then replicas.
+    - Non-DC: watch tasks directly.
+    - Starts `_poll` thread (daemon).
+  - `DataWatch` handler:
+    - If data empty: mark stat UNKNOWN if existing.
+    - Event `CREATED`/None: add/update.
+    - `CHANGED`: update.
+    - `DELETED`: remove replica; delete task path if empty.
+    - `NONE`: set UNKNOWN.
+  - `_poll()` every 60s:
+    - Rebuilds `replicas_tmp` by scanning ZK.
+    - Computes removed replicas; for PS/DENSE deploys, re-registers missing local replicas with correct grpc/archon ports.
+    - Updates `self.replicas = replicas_tmp`.
+  - Lookup helpers:
+    - `get_all_replicas`: returns `{task -> [addr...]}` for AVAILABLE replicas; dc-aware key includes `idc/cluster`.
+    - `get_replicas`: returns list for specific task.
+    - `get_replica`: returns single addr or list or None.
+    - `get_replicas_with_extra_info`: returns `{addr -> TargetExtraInfo(idc, cluster, replica_id)}`.
+  - `to_sync_wrapper()`: returns `SyncBackendWrapper`.
 - `ReplicaUpdater`:
-  - `register()` creates ephemeral nodes for entry/ps/dense; supports `replica_id == -1` (sequence node) for entry.
-  - `_do_update()` queries `TFSMonitor.get_model_status` and updates ZK with new ModelState.
-  - `_updater` loop updates each model_name; handles exceptions by setting UNKNOWN.
-  - `_check_version` emits metrics for latest model version and update timestamps.
-  - `_reregister` loop re-registers after ZK connection loss.
+  - Tracks `meta` map of `replica_path -> ReplicaMeta`.
+  - `model_names` includes:
+    - `ps_{task_id}` for PS shards owned by this shard id.
+    - `entry` if deploy_type MIXED or ENTRY.
+    - `dense_0` if dense_alone and deploy_type MIXED or DENSE.
+  - `_do_register(replica_path, grpc_port, archon_port)`:
+    - Builds host from `MY_HOST_IP` or hostname; IPv6 from `MY_HOST_IPV6` or getaddrinfo.
+    - Creates ReplicaMeta with UNKNOWN state and addresses (ipv4/ipv6 + archon).
+    - Creates ephemeral znode; for ENTRY with replica_id == -1 uses `sequence=True` and updates config.replica_id.
+    - If node exists, updates value if different.
+  - `register()`:
+    - Registers entry, ps shards, and dense based on deploy_type and shard assignment.
+  - `_do_update(name)`:
+    - Calls `TFSMonitor.get_model_status(name)`.
+    - If error: set stat UNKNOWN and update/create znode.
+    - Else: select latest AVAILABLE version (or latest version); if error_code != OK, raise.
+    - If state changed, update znode.
+  - `_updater()`:
+    - Loops every 1s; skips if `_should_update` is False.
+    - Updates all `model_names`; logs exceptions with traceback.
+  - `_check_version()`:
+    - Emits metrics:
+      - `serving_model.latest_version`
+      - `serving_model.since_last_update` (global metric)
+      - `serving_model.update_ts`
+    - Tags include model_name, idc/cluster, replica_id, shard_id, base_name.
+  - `_watch_update()` runs `_check_version()` every 60s.
+  - `_reregister()` every 10s: if `_should_reregister` True, calls `register()` and sets `_should_update=True`.
+  - `start()` starts TFSMonitor and threads; `stop()` joins threads and clears meta.
 - `ZKListener`:
-  - On LOST: disables polling and updating; on reconnect: triggers reregister.
+  - On `LOST`: disables watcher polling + updater updates, sets `_has_lost`.
+  - On reconnect after LOST: sets `_should_reregister=True`, sleeps 5s, re-enables polling.
 - `ReplicaManager`:
-  - Combines watcher and updater; exposes lookup APIs and `is_ps_set_started` / `is_dense_set_started`.
+  - Wires watcher + updater and registers ZKListener.
+  - `start()`: `updater.register()`, `watcher.watch_data()`, `updater.start()`.
+  - `stop()`: stops updater then watcher.
+  - `is_ps_set_started()` ensures each PS task has at least one AVAILABLE replica; `is_dense_set_started()` checks dense replicas when enabled.
 - `SyncBackendWrapper`:
-  - Implements `SyncBackend` for parameter sync; returns replicas with extra info.
+  - `subscribe_model` stores model name.
+  - `get_sync_targets("ps_i")` returns `(sub_graph, watcher.get_replicas_with_extra_info(...))`.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-serving/src/replica_manager.rs`.
+- Rust public API surface: `ReplicaWatcher`, `ReplicaUpdater`, `ReplicaManager`, `SyncBackendWrapper`.
+- Data model mapping: `ReplicaMeta`, `ModelState`, `TFSServerType`, `ServerType`, `ClientConfig.TargetExtraInfo`.
+- Integration points: ZK client, TFSMonitor, metrics client.
+
+**Implementation Steps (Detailed)**
+1. Implement ZK watchers and periodic polling reconciliation.
+2. Port registration/update logic with identical address selection and replica_id sequencing.
+3. Port metrics emission with same prefixes/tags and cadence.
+4. Implement ZK LOST handling and re-registration semantics.
+5. Provide sync backend wrapper returning extra-info targets.
+
+**Tests (Detailed)**
+- Python tests: `monolith/agent_service/replica_manager_test.py`
+- Rust tests: fake ZK + fake TFS server to validate registration, updates, and watcher maps.
+
+**Gaps / Notes**
+- `get_replicas_with_extra_info` returns a dict despite type hint List[str].
+- Uses environment variables (`MY_HOST_IP`, `MY_HOST_IPV6`, `MONOLITH_METRIC_PREFIX`, `TCE_PSM`) for address/metrics.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/replica_manager.rs`.
@@ -2272,39 +2448,49 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/agent_service/replica_manager_test.py`
 <a id="monolith-agent-service-replica-manager-test-py"></a>
 
-**Status:** IN PROGRESS (manual)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 126
-- Purpose/role: Partial setup for ReplicaManager tests; builds FakeTFServing and helper registration.
-- Key symbols/classes/functions: `ReplicaMgrTest.setUpClass`, `register` helper.
-- External dependencies: FakeTFServing, FakeKazooClient, ReplicaWatcher/Updater.
-- Side effects: starts FakeTFServing servers on entry/ps ports.
+- Purpose/role: Sets up FakeTFServing and helper registration for ReplicaManager tests; no actual test cases.
+- Key symbols/classes/functions: `ReplicaMgrTest.setUpClass`, `register`.
+- External dependencies: `FakeTFServing`, `FakeKazooClient`, `ReplicaMeta`, `AgentConfig`.
+- Side effects: starts FakeTFServing servers for entry/ps in background threads.
 
 **Required Behavior (Detailed)**
 - `setUpClass`:
-  - Sets env vars for shard/replica/idc/cluster.
-  - Constructs `AgentConfig` (deploy_type mixed, dc_aware=True).
-  - Parses command strings to find model_config_file paths.
-  - Starts FakeTFServing for entry and ps; runs in background threads.
-- `register(zk)`:
-  - Creates ReplicaMeta nodes for PS tasks and entry replicas (excluding current shard/replica).
-- Note: file currently has no actual test methods beyond setup.
+  - Sets env vars:
+    - `MONOLITH_HOST_SHARD_N=5`, `SHARD_ID=1`, `REPLICA_ID=2`,
+      `TCE_INTERNAL_IDC=lf`, `TCE_LOGICAL_CLUSTER=default`.
+  - Builds `AgentConfig` with:
+    - `bzid='bzid'`, `base_name=MODEL_NAME`, `deploy_type='mixed'`,
+      `base_path=BASE_PATH`, `num_ps=20`, `num_shard=5`, `dc_aware=True`.
+  - Extracts `model_config_file` path from `agent_conf.get_cmd(...)` for ENTRY and PS.
+  - Starts two `FakeTFServing` instances (entry + ps) in background threads.
+- `tearDownClass`:
+  - Stops FakeTFServing servers and joins threads.
+- `register(zk)` helper:
+  - Creates ReplicaMeta entries for all shard/replica combos except current shard/replica.
+  - Adds ps task replicas (`ps:{task_id}/{replica_id}`) and entry replicas (`entry:0/{replica_id}`).
+  - Uses `find_free_port()` for each address and creates ephemeral nodes in ZK.
+- Note: No actual `test_*` methods are implemented beyond helper setup.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/replica_manager.rs`.
-- Rust public API surface: FakeTFServing + ReplicaManager registration.
+- Rust public API surface: FakeTFServing + ReplicaManager registration utilities.
+- Data model mapping: same path formatting and ReplicaMeta JSON encoding.
 
 **Implementation Steps (Detailed)**
-1. Port setup to Rust tests (FakeTFServing, AgentConfig).
-2. Add explicit test cases in Rust (missing in Python) for registration and lookup.
+1. Port setup/teardown as a test fixture in Rust.
+2. Implement `register` helper to populate fake ZK.
+3. Add real assertions in Rust tests (missing in Python).
 
 **Tests (Detailed)**
-- Python tests: this file (incomplete)
-- Rust tests: implement meaningful coverage for ReplicaManager behavior.
+- Python tests: none (setup only).
+- Rust tests: verify watcher/updater interactions with fake TFS and ZK nodes.
 
 **Gaps / Notes**
-- Python test file is incomplete; Rust should add assertions to cover behaviors.
+- Python test file lacks assertions; Rust should add coverage for lookups and updates.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
