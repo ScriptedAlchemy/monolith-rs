@@ -967,12 +967,26 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 **Required Behavior (Detailed)**
 - `run_agent(conf_path, tfs_log, use_mps, replica_id, dense_service_index)`:
   - Mutates `REPLICA_ID` and `DENSE_SERVICE_IDX` when `use_mps` is true.
-  - Loads `AgentConfig` from file and instantiates AgentV1 or AgentV3 based on `agent_version`.
-  - Starts `ModelManager` for rough sort model; terminates self on failure.
+  - If `use_mps`: sets env vars and suffixes `tfs_log` with `.mps{dense_service_index}`.
+  - Loads `AgentConfig` from file; uses `conf_path = dirname(agent_config_path)`.
+  - `agent_version` dispatch:
+    - `1` -> `AgentV1(config, conf_path, tfs_log)`.
+    - `2` -> raises `Exception('agent_version v2 is not support')`.
+    - `3` -> `AgentV3(config, conf_path, tfs_log)`.
+    - else -> raises `Exception("agent_version error ...")`.
+  - Starts `ModelManager(rough_sort_model_name, rough_sort_model_p2p_path, rough_sort_model_local_path, True)`.
+  - If `model_manager.start()` returns False: log error, `os.kill(os.getpid(), SIGKILL)`.
+  - Calls `agent.start()` then `agent.wait_for_termination()`.
 - `main()`:
-  - Initializes HDFS env via `env_utils.setup_hdfs_env()`.
-  - Loads AgentConfig, handles `DeployType.DENSE` + `dense_service_num > 1` by spawning multiple processes.
-  - Otherwise runs single agent.
+  - Calls `env_utils.setup_hdfs_env()` in try/except; logs failure.
+  - Logs full env via `logging.info(f'environ is : {os.environ!r}')`.
+  - If `FLAGS.conf` missing: prints `FLAGS.get_help()` and returns.
+  - Loads `AgentConfig.from_file(FLAGS.conf)`.
+  - If `deploy_type == DENSE` and `dense_service_num > 1`:
+    - Spawns `dense_service_num` processes running `run_agent`.
+    - `cur_rid = config.replica_id * dense_service_num + i`.
+    - Joins all processes.
+  - Else: calls `run_agent(FLAGS.conf, FLAGS.tfs_log, False, config.replica_id, 0)`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-cli` or `monolith-rs/crates/monolith-serving/src/bin/*` (new binary).
