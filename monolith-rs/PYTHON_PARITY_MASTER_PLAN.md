@@ -606,8 +606,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/nested_tensors_test.py`](#monolith-native-training-nested-tensors-test-py) | 57 | IN PROGRESS | monolith-rs/crates/monolith-tensor/src |  |
 | [`monolith/native_training/net_utils.py`](#monolith-native-training-net-utils-py) | 133 | IN PROGRESS | monolith-rs/crates/monolith-core/src |  |
 | [`monolith/native_training/net_utils_test.py`](#monolith-native-training-net-utils-test-py) | 94 | IN PROGRESS | monolith-rs/crates/monolith-core/src |  |
-| [`monolith/native_training/optimizers/adamom.py`](#monolith-native-training-optimizers-adamom-py) | 68 | TODO | TODO (manual) |  |
-| [`monolith/native_training/optimizers/adamom_test.py`](#monolith-native-training-optimizers-adamom-test-py) | 57 | TODO | TODO (manual) |  |
+| [`monolith/native_training/optimizers/adamom.py`](#monolith-native-training-optimizers-adamom-py) | 68 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
+| [`monolith/native_training/optimizers/adamom_test.py`](#monolith-native-training-optimizers-adamom-test-py) | 57 | IN PROGRESS | monolith-rs/crates/monolith-optimizer/src |  |
 | [`monolith/native_training/optimizers/rmsprop.py`](#monolith-native-training-optimizers-rmsprop-py) | 102 | TODO | TODO (manual) |  |
 | [`monolith/native_training/optimizers/rmsprop_test.py`](#monolith-native-training-optimizers-rmsprop-test-py) | 77 | TODO | TODO (manual) |  |
 | [`monolith/native_training/optimizers/rmspropv2_test.py`](#monolith-native-training-optimizers-rmspropv2-test-py) | 112 | TODO | TODO (manual) |  |
@@ -18715,50 +18715,64 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/optimizers/adamom.py`
 <a id="monolith-native-training-optimizers-adamom-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 68
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Defines `AdamomOptimizer`, a TF v1 optimizer backed by a custom Monolith op (`resource_apply_adamom`).
+- Key symbols/classes/functions: `AdamomOptimizer`.
+- External dependencies: TensorFlow v1 optimizer APIs, `monolith.native_training.runtime.ops.gen_monolith_ops`.
+- Side effects: Creates optimizer slot variables (`m`, `v`, `c`) on first use.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- **`AdamomOptimizer(tf.compat.v1.train.Optimizer)`**
+  - `__init__(learning_rate=5e-6, ada_decay=0.9999, mom_decay=0.99, epsilon=1e-6, weight_decay=0.0, use_locking=False, name="Adamom")`:
+    - Stores parameters on instance.
+    - `_learning_rate_tensor` initialized to `None`.
+  - `_create_slots(var_list)`:
+    - For each variable `v`, creates zero slots:
+      - `"m"` with name scope `self._name + "/m"`.
+      - `"v"` with name scope `self._name + "/v"`.
+      - `"c"` with name scope `self._name + "/c"`.
+  - `_prepare()`:
+    - Resolves learning rate via `_call_if_callable`.
+    - Converts to tensor named `"learning_rate"`.
+  - `_resource_apply_dense(grad, var)`:
+    - Retrieves slots `m`, `v`, `c`.
+    - Calls `training_ops.resource_apply_adamom` with:
+      - `var.handle`, `m.handle`, `v.handle`, `c.handle`,
+      - `learning_rate` cast to `grad.dtype.base_dtype`,
+      - `ada_decay`, `mom_decay`, `epsilon`, `weight_decay`,
+      - `grad`,
+      - `use_locking=self._use_locking`.
+  - Sparse gradients: no `_resource_apply_sparse` override; relies on base-class behavior (likely unsupported).
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-optimizer/src`.
+- Rust public API surface:
+  - `AdamomOptimizer` with identical hyperparameters.
+  - Slot state for `m`, `v`, `c`.
+- Data model mapping:
+  - Slot tensors stored alongside parameters; update rule must match custom op semantics.
+- Feature gating:
+  - If TF runtime backend enabled, use TF custom op; otherwise implement in Rust.
+- Integration points:
+  - Used by training loop in `MonolithBaseModel.create_model_fn`.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Confirm exact math used by `resource_apply_adamom` (check TF custom op source).
+2. Implement slot creation and zero-initialization matching TF names (`/m`, `/v`, `/c`).
+3. Implement dense update rule and weight decay handling.
+4. Decide behavior for sparse gradients (error or unsupported).
+5. Add tests reproducing Python values in `adamom_test.py`.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/optimizers/adamom_test.py`.
+- Rust tests: add deterministic numeric test for a single variable update.
+- Cross-language parity test: compare slot values and updated var after one step.
 
 **Gaps / Notes**
-- TODO (manual)
+- Custom op semantics are not visible in this file; parity depends on `resource_apply_adamom` implementation.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -18775,50 +18789,48 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/optimizers/adamom_test.py`
 <a id="monolith-native-training-optimizers-adamom-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 57
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Validates `AdamomOptimizer` slot creation and update values.
+- Key symbols/classes/functions: `AdamomTest`.
+- External dependencies: TensorFlow v1 test APIs, `monolith.native_training.optimizers.adamom`.
+- Side effects: Disables eager execution in `__main__`.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `testBasic`:
+  - Creates variable `v=[0.1]` and loss `loss = 0.12 * v`.
+  - Optimizer: `AdamomOptimizer(learning_rate=0.1, weight_decay=0.01, ada_decay=0.99, mom_decay=0.9)`.
+  - Runs one `minimize` step.
+  - Reads all variables and asserts:
+    - slot `m` ≈ `0.0121`
+    - slot `c` ≈ `1.0`
+    - slot `v` ≈ `0.014641`
+    - variable `v` ≈ `0.090000336`
+  - Expects exactly 4 variables (`m`, `v`, `c`, and the original variable).
+- `__main__`:
+  - `tf.compat.v1.disable_eager_execution()`, then `tf.test.main()`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-optimizer/src` (tests).
+- Rust public API surface: `AdamomOptimizer` update step and slot access.
+- Data model mapping: slot tensors must be accessible and comparable.
+- Feature gating: custom op parity when TF runtime backend used.
+- Integration points: training loop tests or direct optimizer tests.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Reproduce the one-step update with a single scalar variable.
+2. Assert slot values and updated var match Python within tolerance.
+3. Ensure slot naming/ordering does not affect test outcomes.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `AdamomTest` in this file.
+- Rust tests: add `adamom_basic_update` golden test.
+- Cross-language parity test: compare slot/var values for the same input and hyperparameters.
 
 **Gaps / Notes**
-- TODO (manual)
+- The numeric expectations depend on custom op semantics; confirm via TF op source.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
