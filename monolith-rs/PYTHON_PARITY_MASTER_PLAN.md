@@ -457,7 +457,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/distributed_ps.py`](#monolith-native-training-distributed-ps-py) | 2108 | IN PROGRESS | monolith-rs/crates/monolith-training/src/ps |  |
 | [`monolith/native_training/distributed_ps_benchmark.py`](#monolith-native-training-distributed-ps-benchmark-py) | 168 | IN PROGRESS | monolith-rs/crates/monolith-training/benches |  |
 | [`monolith/native_training/distributed_ps_factory.py`](#monolith-native-training-distributed-ps-factory-py) | 262 | IN PROGRESS | monolith-rs/crates/monolith-training/src/ps |  |
-| [`monolith/native_training/distributed_ps_factory_test.py`](#monolith-native-training-distributed-ps-factory-test-py) | 87 | TODO | TODO (manual) |  |
+| [`monolith/native_training/distributed_ps_factory_test.py`](#monolith-native-training-distributed-ps-factory-test-py) | 87 | IN PROGRESS | monolith-rs/crates/monolith-training/tests |  |
 | [`monolith/native_training/distributed_ps_sync.py`](#monolith-native-training-distributed-ps-sync-py) | 531 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distributed_ps_sync_test.py`](#monolith-native-training-distributed-ps-sync-test-py) | 109 | TODO | TODO (manual) |  |
 | [`monolith/native_training/distributed_ps_test.py`](#monolith-native-training-distributed-ps-test-py) | 979 | TODO | TODO (manual) |  |
@@ -8740,53 +8740,48 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distributed_ps_factory_test.py`
-
 <a id="monolith-native-training-distributed-ps-factory-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual)
 
 **Python Summary**
 - Lines: 87
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Smoke tests for distributed hash table factory functions; primarily checks that constructors run without errors.
+- Key symbols/classes/functions: `_get_test_slot_to_config`, `_get_test_hash_filters`, `FactoryTest`.
+- External dependencies: Horovod (enabled via env), TensorFlow PS cluster utilities, `test_utils.generate_test_hash_table_config`.
+- Side effects: sets `MONOLITH_WITH_HOROVOD=True`; may initialize Horovod.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `_get_test_slot_to_config()`:
+  - Uses `test_utils.generate_test_hash_table_config(4, learning_rate=0.1)`; returns slot map with keys `"1"`, `"2"`.
+- `_get_test_hash_filters(num)`:
+  - Returns `hash_filter_ops.create_hash_filters(num, False)`.
+- Tests:
+  - `test_create_in_worker_multi_type_hash_table*`: calls `create_in_worker_multi_type_hash_table` with hvd initialized.
+  - `test_create_multi_type_hash_table_0_ps`: local (no PS) creation.
+  - `test_create_multi_type_hash_table_2_ps`: creates PS cluster and calls factory under a session.
+  - `test_create_multi_type_hash_table_2_ps_with_reduced_packets`: same with `reduce_network_packets=True`.
+  - `test_create_native_multi_hash_table_0_ps` and `_2_ps`: native multi-hash table creation.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests`.
+- Rust public API surface: factory functions in `distributed_ps_factory`.
+- Data model mapping: slot configs to table instances.
+- Feature gating: Horovod/PS cluster support.
+- Integration points: distributed PS creation.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Add Rust smoke tests to ensure factory functions are callable in local/PS modes.
+2. If Horovod not supported, gate tests accordingly.
+3. Verify hash filter creation and config plumbing.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: this file.
+- Rust tests: `distributed_ps_factory_test.rs` (smoke only).
+- Cross-language parity test: not required beyond constructor success.
 
 **Gaps / Notes**
-- TODO (manual)
+- These are grammar/smoke tests, not functional correctness tests.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -8801,6 +8796,7 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - [ ] Cross-language parity test completed
 
 ### `monolith/native_training/distributed_ps_sync.py`
+
 <a id="monolith-native-training-distributed-ps-sync-py"></a>
 
 **Status:** TODO (manual review required)
