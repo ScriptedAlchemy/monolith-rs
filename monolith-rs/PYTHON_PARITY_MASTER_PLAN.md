@@ -495,7 +495,7 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/hash_filter_ops.py`](#monolith-native-training-hash-filter-ops-py) | 326 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
 | [`monolith/native_training/hash_filter_ops_test.py`](#monolith-native-training-hash-filter-ops-test-py) | 228 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests |  |
 | [`monolith/native_training/hash_table_ops.py`](#monolith-native-training-hash-table-ops-py) | 738 | IN PROGRESS | monolith-rs/crates/monolith-tf/src |  |
-| [`monolith/native_training/hash_table_ops_benchmark.py`](#monolith-native-training-hash-table-ops-benchmark-py) | 148 | TODO | TODO (manual) |  |
+| [`monolith/native_training/hash_table_ops_benchmark.py`](#monolith-native-training-hash-table-ops-benchmark-py) | 148 | IN PROGRESS | TODO (manual) |  |
 | [`monolith/native_training/hash_table_ops_test.py`](#monolith-native-training-hash-table-ops-test-py) | 1200 | IN PROGRESS | monolith-rs/crates/monolith-tf/tests |  |
 | [`monolith/native_training/hash_table_utils.py`](#monolith-native-training-hash-table-utils-py) | 50 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/src |  |
 | [`monolith/native_training/hash_table_utils_test.py`](#monolith-native-training-hash-table-utils-test-py) | 45 | IN PROGRESS | monolith-rs/crates/monolith-hash-table/tests |  |
@@ -11052,6 +11052,55 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 **Gaps / Notes**
 - Heavy reliance on custom TF ops; full parity requires TF runtime + compiled ops.
 - Save/restore path handling must match asset dir naming to avoid silent failures.
+
+**Verification Checklist (Must be Checked Off)**
+- [ ] All public functions/classes mapped to Rust
+- [ ] Behavior matches Python on normal inputs
+- [ ] Error handling parity confirmed
+- [ ] Config/env precedence parity confirmed
+- [ ] I/O formats identical (proto/JSON/TFRecord/pbtxt)
+- [ ] Threading/concurrency semantics preserved
+- [ ] Logging/metrics parity confirmed
+- [ ] Performance risks documented
+- [ ] Rust tests added and passing
+- [ ] Cross-language parity test completed
+
+### `monolith/native_training/hash_table_ops_benchmark.py`
+<a id="monolith-native-training-hash-table-ops-benchmark-py"></a>
+
+**Status:** IN PROGRESS (manual)
+
+**Python Summary**
+- Lines: 148
+- Purpose/role: Benchmarks hash table lookup and optimize paths (single-thread vs multi-thread).
+- Key symbols/classes/functions: `HashTableOpsBenchmark` tests.
+- External dependencies: TensorFlow, `hash_table_ops`.
+- Side effects: Prints timing to stdout.
+
+**Required Behavior (Detailed)**
+- `test_lookup` / `test_lookup_multi_thread`:
+  - Build table with len=10000, dim=32; assign ones for all but last 5 IDs.
+  - Run lookup in a loop and validate embeddings (ones vs zeros).
+- `test_basic_optimize` / `test_multi_threads_optimize` / `test_multi_threads_optimize_with_dedup`:
+  - Build table with len=1,000,000; lookup, compute grads, apply gradients (optionally MT/dedup), print timing.
+
+**Rust Mapping (Detailed)**
+- Target crate/module: `monolith-rs/crates/monolith-examples/src/bin/hash_table_ops_benchmark.rs` (new).
+- Rust public API surface: hash table benchmark harness.
+- Feature gating: TF runtime + custom ops for parity.
+
+**Implementation Steps (Detailed)**
+1. Port benchmark loops to Rust, mirroring data sizes and operations.
+2. Add CLI flags for MT/dedup variants.
+3. Validate outputs in debug mode.
+
+**Tests (Detailed)**
+- Python tests: this file.
+- Rust tests: none; benchmark only.
+- Cross-language parity test: compare output correctness and rough timing.
+
+**Gaps / Notes**
+- Uses `tf.test.TestCase` for benchmarking; Rust should use criterion or custom timers.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
