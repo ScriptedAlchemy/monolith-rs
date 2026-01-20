@@ -651,8 +651,8 @@ This table enumerates **every** Python file under `monolith/` with line counts a
 | [`monolith/native_training/utils_test.py`](#monolith-native-training-utils-test-py) | 70 | IN PROGRESS | monolith-rs/crates/monolith-training/tests/utils.rs (new) |  |
 | [`monolith/native_training/variables.py`](#monolith-native-training-variables-py) | 147 | IN PROGRESS | monolith-rs/crates/monolith-training/src/variables.rs (new) |  |
 | [`monolith/native_training/variables_test.py`](#monolith-native-training-variables-test-py) | 89 | IN PROGRESS | monolith-rs/crates/monolith-training/tests/variables.rs (new) |  |
-| [`monolith/native_training/yarn_runtime.py`](#monolith-native-training-yarn-runtime-py) | 127 | TODO | TODO (manual) |  |
-| [`monolith/native_training/yarn_runtime_test.py`](#monolith-native-training-yarn-runtime-test-py) | 133 | TODO | TODO (manual) |  |
+| [`monolith/native_training/yarn_runtime.py`](#monolith-native-training-yarn-runtime-py) | 127 | IN PROGRESS | monolith-rs/crates/monolith-training/src/yarn_runtime.rs (new) |  |
+| [`monolith/native_training/yarn_runtime_test.py`](#monolith-native-training-yarn-runtime-test-py) | 133 | IN PROGRESS | monolith-rs/crates/monolith-training/tests/yarn_runtime.rs (new) |  |
 | [`monolith/native_training/zk_utils.py`](#monolith-native-training-zk-utils-py) | 96 | TODO | TODO (manual) |  |
 | [`monolith/path_utils.py`](#monolith-path-utils-py) | 47 | IN PROGRESS | monolith-rs/crates/monolith-core/src | |
 | [`monolith/tpu_runner.py`](#monolith-tpu-runner-py) | 429 | IN PROGRESS | monolith-rs/crates/monolith-training/src | |
@@ -21858,50 +21858,92 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/yarn_runtime.py`
 <a id="monolith-native-training-yarn-runtime-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 127
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Yarn/Primus runtime helpers for local host resolution and AppMaster gRPC control (kill, finish, savepoint).
+- Key symbols/classes/functions: `get_local_host`, `_get_primus_am_host`, `_get_channel`, `maybe_kill_application`, `maybe_finish_application`, `create_primus_save_point`.
+- External dependencies: `grpc`, `primus_am_service_pb2(_grpc)`, `net_utils.get_local_ip`, env vars.
+- Side effects:
+  - Creates/caches gRPC channels.
+  - Sends kill/succeed/savepoint requests to AppMaster.
+  - Sleeps while waiting for savepoint completion.
+  - Logs info/error messages.
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `get_local_host()`:
+  - If `CLOUDNATIVE_INET_ADDR` env var exists: use first entry before comma.
+  - Else if `YARN_INET_ADDR` exists: use that value.
+  - Else: `net_utils.get_local_ip()`.
+  - Asserts non-empty result and returns it.
+- `_get_primus_am_host()`:
+  - If both `PRIMUS_AM_RPC_HOST` and `PRIMUS_AM_RPC_PORT` are set, returns `"host:port"`.
+  - Else returns empty string.
+- `_get_channel(addr)`:
+  - Caches `grpc.insecure_channel(addr)` in `_CHANNEL_MAP`.
+  - Returns cached channel for the same addr.
+- `maybe_kill_application(reason) -> bool`:
+  - If Primus AM host is available:
+    - Builds `KillRequest` with `exit_code=1`, `diagnose=reason`, `graceful_shutdown_timeout_ms=20000`.
+    - Calls `stub.kill(req, timeout=10)`.
+    - Returns `True` on success; `False` on `grpc.RpcError`.
+  - If no host: logs “Current framework doesn't support kill. Ignore killing...” and returns `False`.
+- `maybe_finish_application()`:
+  - If Primus AM host is available:
+    - Builds `SucceedRequest` with `graceful_shutdown_timeout_ms=20000`.
+    - Calls `stub.succeed(req, timeout=10)`.
+    - Returns `True` on success; logs on `grpc.RpcError` (returns `None`).
+  - If no host: returns `None` (no log).
+- `create_primus_save_point(dst) -> bool`:
+  - If Primus AM host is available:
+    - Calls `createSavepoint` with `savepoint_dir=dst`.
+    - If response `code != 0`, logs error and returns `False`.
+    - Else polls `createSavepointStatus` every 5s:
+      - `PENDING`/`RUNNING`: sleep and continue.
+      - `SUCCEEDED`: log success and return `True`.
+      - Any other state: log error and return `False`.
+    - On `grpc.RpcError`: logs and returns `False`.
+  - If no host: returns `None`.
+- Threading/concurrency:
+  - `_CHANNEL_MAP` is a global dict without a lock; concurrent callers can race.
+- Performance:
+  - Savepoint polling is blocking with 5s sleep intervals.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/src/yarn_runtime.rs` (new).
+- Rust public API surface:
+  - `get_local_host() -> String`
+  - `maybe_kill_application(reason: &str) -> bool`
+  - `maybe_finish_application() -> Option<bool>`
+  - `create_primus_save_point(dst: &str) -> Option<bool>`
+- Data model mapping:
+  - gRPC service `primus_am_service.proto` already in `monolith-rs/proto`.
+  - Use tonic/grpc-generated client stubs for `AppMasterService`.
+- Feature gating:
+  - Requires gRPC + proto build; optional if runtime doesn't use Primus.
+- Integration points:
+  - Distributed training orchestration that needs to terminate or checkpoint jobs.
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Generate Rust gRPC client from `primus_am_service.proto`.
+2. Implement env-var host resolution (`CLOUDNATIVE_INET_ADDR` > `YARN_INET_ADDR` > `net_utils` equivalent).
+3. Add a channel cache (e.g., `DashMap` or `Mutex<HashMap<...>>`) to mirror `_CHANNEL_MAP`.
+4. Implement `maybe_kill_application` and `maybe_finish_application` with the same timeout and fields.
+5. Implement `create_primus_save_point` with polling loop + 5s sleep.
+6. Mirror return semantics (False vs None) or document a deliberate normalization.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `monolith/native_training/yarn_runtime_test.py`.
+- Rust tests:
+  - `get_local_host_env_override` (CLOUDNATIVE_INET_ADDR + YARN_INET_ADDR cases).
+  - gRPC kill/finish/savepoint flow using an in-process gRPC server.
+- Cross-language parity test:
+  - Simulate the same gRPC server and verify request fields + timeouts.
 
 **Gaps / Notes**
-- TODO (manual)
+- `maybe_finish_application` does not return `False` on errors; it logs and returns `None`.
+- `create_primus_save_point` and `maybe_finish_application` return `None` when no Primus host is configured.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -21918,50 +21960,57 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/native_training/yarn_runtime_test.py`
 <a id="monolith-native-training-yarn-runtime-test-py"></a>
 
-**Status:** TODO (manual review required)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 133
-- Purpose/role: TODO (manual)
-- Key symbols/classes/functions: TODO (manual)
-- External dependencies: TODO (manual)
-- Side effects: TODO (manual)
+- Purpose/role: Exercises env-based host resolution and gRPC AppMaster controls (kill/finish/savepoint).
+- Key symbols/classes/functions: `YarnRuntimeTest`, `test_get_local_host_*`, `test_kill`, `test_finish`, `test_save_primus`.
+- External dependencies: gRPC, Primus AM proto stubs, `unittest.mock` for env vars.
+- Side effects: Starts in-process gRPC servers (unix: addresses).
 
 **Required Behavior (Detailed)**
-- Define the **functional contract** (inputs → outputs) for every public function/class.
-- Enumerate **error cases** and exact exception/messages that callers rely on.
-- Capture **config + env var** behaviors (defaults, overrides, precedence).
-- Document **I/O formats** used (proto shapes, TFRecord schemas, JSON, pbtxt).
-- Note **threading/concurrency** assumptions (locks, async behavior, callbacks).
-- Identify **determinism** requirements (seeds, ordering, float tolerances).
-- Identify **performance characteristics** that must be preserved.
-- Enumerate **metrics/logging** semantics (what is logged/when).
+- `test_get_local_host_overwrite`:
+  - With `YARN_INET_ADDR=1.2.3.4`, `get_local_host()` returns `1.2.3.4`.
+- `test_get_local_host_overwrite_by_cloudnative`:
+  - With `CLOUDNATIVE_INET_ADDR=1.2.3.4,5.6.7.8`, returns `1.2.3.4`.
+- `test_get_local_host_basic`:
+  - Calls `get_local_host()` without explicit env overrides (no assertion).
+- `test_kill`:
+  - Sets `PRIMUS_AM_RPC_HOST=unix`, `PRIMUS_AM_RPC_PORT=test_kill`.
+  - Starts gRPC server with `kill` handler; validates `request.diagnose` equals reason.
+  - Calls `maybe_kill_application(reason)` and asserts handler invoked.
+- `test_finish`:
+  - Similar setup; installs `succeed` handler; asserts invoked after `maybe_finish_application()`.
+- `test_save_primus`:
+  - Sets Primus host/port; installs `createSavepoint` and `createSavepointStatus` handlers.
+  - Status handler returns `SUCCEEDED`; `create_primus_save_point(dst)` returns `True`.
 
 **Rust Mapping (Detailed)**
-- Target crate/module: TODO (manual)
-- Rust public API surface: TODO (manual)
-- Data model mapping: TODO (manual)
-- Feature gating: TODO (manual)
-- Integration points: TODO (manual)
+- Target crate/module: `monolith-rs/crates/monolith-training/tests/yarn_runtime.rs` (new).
+- Rust public API surface: `get_local_host`, `maybe_kill_application`, `maybe_finish_application`, `create_primus_save_point`.
+- Data model mapping: use Rust gRPC server/client for `AppMasterService`.
+- Feature gating: tests require gRPC + proto build; optional for non-Primus builds.
+- Integration points: gRPC server harness for tests (likely tokio + tonic).
 
 **Implementation Steps (Detailed)**
-1. Extract all public symbols + docstrings; map to Rust equivalents.
-2. Port pure logic first (helpers, utils), then stateful services.
-3. Recreate exact input validation and error semantics.
-4. Mirror side effects (files, env vars, sockets) in Rust.
-5. Add config parsing and defaults matching Python behavior.
-6. Add logging/metrics parity (field names, levels, cadence).
-7. Integrate into call graph (link to downstream Rust modules).
-8. Add tests and golden fixtures; compare outputs with Python.
-9. Document deviations (if any) and mitigation plan.
+1. Port env override tests for `get_local_host`.
+2. Implement a local gRPC server with unary handlers for `kill`, `succeed`, `createSavepoint`, `createSavepointStatus`.
+3. Validate request fields (e.g., `diagnose` for kill) and that calls occur.
+4. Ensure unix-domain or loopback TCP addressing works in Rust test harness.
 
 **Tests (Detailed)**
-- Python tests: TODO (manual)
-- Rust tests: TODO (manual)
-- Cross-language parity test: TODO (manual)
+- Python tests: `YarnRuntimeTest.test_get_local_host_*`, `.test_kill`, `.test_finish`, `.test_save_primus`.
+- Rust tests:
+  - `get_local_host_env_overrides`
+  - `maybe_kill_application_calls_stub`
+  - `maybe_finish_application_calls_stub`
+  - `create_primus_save_point_succeeds`
+- Cross-language parity test:
+  - Compare request fields and call ordering with a mock gRPC server.
 
 **Gaps / Notes**
-- TODO (manual)
+- Python tests use gRPC addresses like `unix:test_kill`; Rust must support unix-domain channels or adapt tests to TCP.
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
