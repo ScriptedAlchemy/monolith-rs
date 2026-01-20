@@ -2842,51 +2842,73 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 ### `monolith/agent_service/tfs_monitor.py`
 <a id="monolith-agent-service-tfs-monitor-py"></a>
 
-**Status:** IN PROGRESS (manual)
+**Status:** IN PROGRESS (manual review complete)
 
 **Python Summary**
 - Lines: 303
 - Purpose/role: gRPC monitor for TensorFlow Serving model status and config reload.
 - Key symbols/classes/functions: `TFSMonitor`, `get_model_status` (singledispatch), `gen_model_config`, `handle_reload_config_request`.
-- External dependencies: TF Serving gRPC stubs, `ModelServerConfig`, `PublishMeta`.
-- Side effects: gRPC calls to TFS servers.
+- External dependencies: TF Serving gRPC stubs, `ModelServerConfig`, `PublishMeta`, `StatusProto`.
+- Side effects: gRPC calls to TFS servers; opens/closes channels.
 
 **Required Behavior (Detailed)**
-- Maintains gRPC stubs for ENTRY/PS/DENSE based on deploy_type and ports.
-- `get_addr(sub_model_name)` chooses port based on deploy type and sub_model type.
-- `get_service_type(sub_model_name)` returns TFSServerType or None.
-- `get_model_status(PublishMeta)`:
-  - For each sub_model, builds `GetModelStatusRequest`.
-  - For dense nodes (entry when dense-along-entry), may omit version unless `fix_dense_version`.
-  - On RPC errors, returns UNKNOWN with StatusProto error code/details.
-  - Returns map `{tfs_model_name: (version_path, ModelVersionStatus)}`.
-- `get_model_status(name, version=None, signature_name=None)`:
-  - Returns list of ModelVersionStatus for a model via `GetModelStatus`.
-- `gen_model_config(pms)`:
-  - Builds ModelServerConfig per service type from PublishMeta list.
-  - For dense nodes: use `latest` policy unless `fix_dense_version`.
-  - For ps/entry: `specific` policy with version number.
+- Host selection:
+  - `host` property: if unset or localhost, resolves to `get_local_ip()`.
+- Stubs:
+  - `connect()` creates `grpc.insecure_channel` + `ModelServiceStub` and `PredictionServiceStub` per deploy_type:
+    - ENTRY: `tfs_entry_port`
+    - PS: `tfs_ps_port`
+    - DENSE: `tfs_dense_port` (only if dense_alone).
+  - `start()` resets stubs and calls `connect()`.
+  - `stop()` closes channels and clears stubs.
+- Address selection:
+  - `get_addr(sub_model_name)` chooses port based on deploy_type and sub_model.
+  - `get_service_type(sub_model_name)` maps to `TFSServerType` or None.
+- `get_model_status(PublishMeta, fix_dense_version=False)`:
+  - For each sub_model in `pm.sub_models`:
+    - Builds `tfs_model_name = f"{model}:{sub_model}"`.
+    - Dense node detection:
+      - If not dense_alone and entry → dense node.
+      - If dense_alone and dense → dense node.
+    - If dense node and `fix_dense_version=False`, request **no version** (latest).
+    - Else request specific version = basename of version path.
+  - If no statuses returned: create `ModelVersionStatus` with `state=UNKNOWN` and `StatusProto(error_code=NOT_FOUND)`.
+  - If multiple statuses: sort by version and select latest (or AVAILABLE if present).
+  - On `_InactiveRpcError`: returns UNKNOWN with StatusProto error_code from `e.code().value[0]`.
+  - Returns `{tfs_model_name: (version_path, ModelVersionStatus)}`.
+- `get_model_status(name, version=None, signature_name=None)` overload:
+  - Determines service_type via `get_service_type`.
+  - If None, returns empty list.
+  - Else sends `GetModelStatusRequest` and returns list of ModelVersionStatus.
+- `gen_model_config(pms, fix_dense_version=False)`:
+  - Builds `ModelServerConfig` per service type.
+  - Skips `PublishMeta` where `ptype == UNLOAD`.
+  - Dense nodes:
+    - version_policy = `latest` if not fix_dense_version; else `specific`.
+    - version_data = `1` if latest, else version basename.
+  - Non-dense nodes: `specific` version policy with basename.
+  - Appends configs into appropriate service type list.
 - `handle_reload_config_request(service_type, model_configs)`:
-  - Ensures default model config is present.
-  - Sends ReloadConfigRequest to appropriate service.
+  - Ensures `DEFAULT_MODEL_CONFIG` is present if missing.
+  - Sends `HandleReloadConfigRequest` to appropriate stub; returns `StatusProto`.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/src/tfs_monitor.rs`.
-- Rust public API surface: `TFSMonitor` struct with status and reload APIs.
-- Data model mapping: TF Serving protos and `PublishMeta` equivalents.
+- Rust public API surface: `TfsMonitor` with status query + reload APIs.
+- Data model mapping: TF Serving protos, `PublishMeta`, `ModelServerConfig`.
 
 **Implementation Steps (Detailed)**
 1. Port gRPC client setup for entry/ps/dense.
-2. Implement singledispatch-like overloads (Rust traits/enum arguments).
-3. Port model config generation logic and dense version policy.
-4. Add default model config injection.
+2. Implement overload semantics for `get_model_status`.
+3. Port dense-node version policy logic (latest vs specific).
+4. Add default model config injection on reload.
 
 **Tests (Detailed)**
 - Python tests: `monolith/agent_service/tfs_monitor_test.py`
-- Rust tests: start fake TFS servers and verify reload/status.
+- Rust tests: fake TFS servers; verify reload responses + status selection.
 
 **Gaps / Notes**
-- Requires TF Serving protos + stubs in Rust.
+- Error code mapping uses `e.code().value[0]` (non-obvious; must preserve).
 
 **Verification Checklist (Must be Checked Off)**
 - [ ] All public functions/classes mapped to Rust
@@ -2913,15 +2935,43 @@ Every file listed below must be fully mapped to Rust with parity behavior verifi
 - Side effects: starts fake TF serving servers.
 
 **Required Behavior (Detailed)**
-- Setup:
-  - Start FakeTFServing for entry and ps ports; wait for readiness.
-  - Create `TFSMonitor` and connect.
+- Class setup:
+  - Set env vars: `HOST_SHARD_ENV=10`, `SHARD_ID=1`, `REPLICA_ID=2`.
+  - Build `AgentConfig(bzid='bzid', deploy_type='mixed')`.
+  - Start `FakeTFServing` for entry and ps with `num_versions=2`, ports from config, `ModelServerConfig()`.
+  - Start servers in threads, `sleep(2)` for readiness.
+  - Create `TFSMonitor`, call `connect()`, init `data = {}`.
+- Class teardown: `monitor.stop()`, stop both fake servers.
+- `setUp`:
+  - Build `sub_models` dict with `entry`, `ps_0`, `ps_3`, `ps_5` pointing at `path.format(sub_model, version)`.
+  - `PublishMeta(model_name='test_1', num_ps=5, shard_id/replica_id from config)`.
+  - Save `data['setUp'] = monitor.get_model_status(pm)`.
+- `tearDown`:
+  - Rebuild same `PublishMeta`, `sleep(1)`.
+  - Compare `before_status` vs `after_status = monitor.get_model_status(pm)`; assert same length.
+  - If `data['execute'] == 'reload_config'`:
+    - For each model, ensure version path unchanged.
+    - `before` status must be `version == -1` and `error_code == 5` (NOT_FOUND).
+    - `after` status cases:
+      - `version == -1`: allowed (no extra check).
+      - `version == 1`: only for `entry` model names.
+      - else `version == int(os.path.basename(version_path))`.
+  - Else (remove_config):
+    - For each model, `after.version == -1`, version path unchanged.
+    - If `before.version == -1`, `before.status.error_code == 5` (NOT_FOUND).
+    - Else `before.version > 0`.
 - `test_reload_config`:
-  - Generate PublishMeta list with random ps counts and entry submodel.
-  - Call `gen_model_config` then `handle_reload_config_request` per service type.
+  - For `i in range(10)`:
+    - `num_ps = random.randint(5, 20)`.
+    - `sub_models` includes `ps_{j}` for `j in range(num_ps)` where `j % 3 == 0`.
+    - Always include `entry` submodel.
+    - Build `PublishMeta(model_name=f'test_{i}', num_ps=num_ps)` and append.
+  - `model_configs = monitor.gen_model_config(pms)`.
+  - For each service_type, if config list non-empty: `handle_reload_config_request`.
+  - Set `data['execute'] = 'reload_config'`.
 - `test_remove_config`:
-  - Similar to reload config but with different models; ensures reload path can remove models.
-- `tearDown`: compares before/after status; ensures NOT_FOUND responses for unloaded models.
+  - Same as reload but `i in range(5, 10)` (different model names), set `data['execute'] = 'remove_config'`.
+- Randomness: no seed set; tests rely on structural invariants rather than specific PS counts.
 
 **Rust Mapping (Detailed)**
 - Target crate/module: `monolith-rs/crates/monolith-serving/tests/tfs_monitor.rs`.
