@@ -12,7 +12,6 @@ import {
   ctx,
 } from "@unpack/ai";
 
-export const discoverReport = assetRef("discover_report");
 export const discoverSummary = assetRef("discover_summary");
 
 type DiscoverySummary = {
@@ -108,22 +107,26 @@ export const discoverRepo = action(async (actx): Promise<DiscoverySummary> => {
 
 export default (
   <Program
-    id="discover"
+    id="discover-summary"
     target={{ language: "md" }}
-    description="Sanity-check required repo roots (monolith/, monolith-rs/) and load existing parity artifacts (index + per-file checklist tree) into bounded summary outputs."
-  ><Asset id="discover_summary" kind="json" path="../generated/parity/00-discover/discovery.summary.json" /><Asset id="discover_report" kind="doc" path="../generated/parity/00-discover/discovery.report.md" /><Action id="discover-repo" export="discoverRepo" cache /><Agent id="write-discover-summary" produces={["discover_summary"]}><Prompt><System>
+    description="Sanity-check required repo roots (monolith/, monolith-rs/) and load existing parity artifacts (index + per-file checklist tree) into a bounded discovery summary JSON."
+  >
+    <Asset
+      id="discover_summary"
+      kind="json"
+      path="../generated/parity/00-discover/discovery.summary.json"
+    />
+    <Action id="discover-repo" export="discoverRepo" cache />
+    <Agent id="write-discover-summary" produces={["discover_summary"]}>
+      <Prompt>
+        <System>
           You maintain a parity planning pipeline. You produce strictly valid JSON and write files using apply_patch.
-        </System><Context>{ctx.actionResult("discover-repo", { as: "Discovery summary (computed)" })}</Context><Instructions>
-          {`Write JSON to \`{{assets.discover_summary.path}}\` using apply_patch.
-The JSON must be a single object and must exactly match the provided discovery summary.`}
-        </Instructions></Prompt></Agent><Agent id="write-discover-report" needs={["write-discover-summary"]} produces={["discover_report"]}><Prompt><System>
-          You maintain a parity planning pipeline. You write concise, operational markdown and write files using apply_patch.
-        </System><Context>{ctx.actionResult("discover-repo", { as: "Discovery summary (computed)" })}</Context><Instructions>
-          {`Write a brief report to \`{{assets.discover_report.path}}\` using apply_patch.
-Include:
-1) Whether the expected roots and artifacts exist.
-2) Python file count vs parity checklist file count.
-3) Any notes/warnings from the discovery summary.
-Keep it stable and deterministic (do not include timestamps).`}
-        </Instructions></Prompt></Agent></Program>
+        </System>
+        <Context>{ctx.actionResult("discover-repo", { as: "Discovery summary (computed)" })}</Context>
+        <Instructions>{`Write JSON to \`{{assets.discover_summary.path}}\` using apply_patch.
+The JSON must be a single object and must exactly match the provided discovery summary.`}</Instructions>
+      </Prompt>
+    </Agent>
+  </Program>
 );
+

@@ -1,4 +1,4 @@
-import "./00-discover.ai.tsx";
+import "./00-discover-summary.ai.tsx";
 
 import {
   Action,
@@ -14,7 +14,7 @@ import {
   ctx,
 } from "@unpack/ai";
 
-import { discoverSummary } from "./00-discover.ai.tsx";
+import { discoverSummary } from "./00-discover-summary.ai.tsx";
 
 export const inventoryValidationSummary = assetRef("inventory_validation_summary");
 export const inventoryValidationReport = assetRef("inventory_validation_report");

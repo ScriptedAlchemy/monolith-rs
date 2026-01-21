@@ -5,15 +5,21 @@
   "entry": "task/index.ai.tsx",
   "modules": [
     {
-      "id": "discover",
-      "path": "task/00-discover.ai.tsx",
-      "description": "Sanity-check required repo roots (monolith/, monolith-rs/) and load existing parity artifacts (index + per-file checklist tree) into bounded summary outputs."
+      "id": "discover-summary",
+      "path": "task/00-discover-summary.ai.tsx",
+      "description": "Sanity-check required repo roots (monolith/, monolith-rs/) and load existing parity artifacts into a bounded discovery summary JSON."
+    },
+    {
+      "id": "discover-report",
+      "path": "task/00-discover-report.ai.tsx",
+      "description": "Write a brief discovery report derived from the discovery summary JSON.",
+      "dependsOn": ["discover-summary"]
     },
     {
       "id": "validate-inventory",
       "path": "task/01-validate-inventory.ai.tsx",
       "description": "Validate that every monolith/**/*.py file is accounted for (expected 334): parity index row count matches checklist files; report missing/extra items and emit machine-readable counts/diffs.",
-      "dependsOn": ["discover"]
+      "dependsOn": ["discover-summary"]
     },
     {
       "id": "generate-mapping-table",

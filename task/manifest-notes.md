@@ -18,7 +18,11 @@ Note: module ids below are suggestions for `task/*.ai.tsx` files; keep each modu
 
 ### Phase 0: Repo/Artifact Sanity + Inputs
 
-1) `task/00-discover.ai.tsx`
+1) `task/00-discover-summary.ai.tsx`
+   - Emits `generated/parity/00-discover/discovery.summary.json` (machine-readable discovery output).
+
+2) `task/00-discover-report.ai.tsx`
+   - Emits `generated/parity/00-discover/discovery.report.md` (human-facing discovery report).
    - Responsibility:
      - Load/read existing inventory artifacts (Python file list, counts) and the Rust parity checklist tree.
      - Verify required base directories exist (`monolith/`, `monolith-rs/`).

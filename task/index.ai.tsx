@@ -1,4 +1,5 @@
-import "./00-discover.ai.tsx";
+import "./00-discover-summary.ai.tsx";
+import "./00-discover-report.ai.tsx";
 import "./01-validate-inventory.ai.tsx";
 import "./10-generate-mapping-table.ai.tsx";
 import "./11-normalize-mapping.ai.tsx";

@@ -758,6 +758,13 @@ The JSON must be a single object and must exactly match the provided computed da
       id="write-parity-dashboard-doc"
       needs={["write-parity-dashboard-json"]}
       produces={["parity_dashboard_doc"]}
+      external_needs={[
+        { alias: "mappingConventionsDoc", agent: "write-mapping-conventions-doc" },
+        { alias: "parityTestHarnessPlanDoc", agent: "write-parity-test-harness-plan-doc" },
+        { alias: "utilsEntrypointsPlanDoc", agent: "write-utils-entrypoints-plan-doc" },
+        { alias: "thirdPartyAndCodegenPlanDoc", agent: "write-third-party-and-codegen-plan-doc" },
+        { alias: "agentServiceImplWorkItemsDoc", agent: "write-agent-service-impl-work-items-doc" },
+      ]}
     >
       <Prompt>
         <System>
