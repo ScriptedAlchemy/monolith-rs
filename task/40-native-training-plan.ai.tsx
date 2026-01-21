@@ -228,6 +228,14 @@ export default (
             as: "estimator.py",
             mode: "code",
           })}
+          {ctx.file("monolith/native_training/native_model.py", {
+            as: "native_model.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/native_training/layers/multi_task.py", {
+            as: "layers/multi_task.py",
+            mode: "code",
+          })}
           {ctx.file("monolith/native_training/save_utils.py", {
             as: "save_utils.py",
             mode: "code",
@@ -240,12 +248,24 @@ export default (
             as: "distributed_ps.py",
             mode: "code",
           })}
+          {ctx.file("monolith/native_training/yarn_runtime.py", {
+            as: "yarn_runtime.py",
+            mode: "code",
+          })}
           {ctx.file("monolith/native_training/data/datasets.py", {
             as: "data/datasets.py",
             mode: "code",
           })}
           {ctx.file("monolith/native_training/data/parsers.py", {
             as: "data/parsers.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/native_training/data/kafka_dataset_test.py", {
+            as: "data/kafka_dataset_test.py",
+            mode: "code",
+          })}
+          {ctx.file("monolith/native_training/estimator_dist_test.py", {
+            as: "estimator_dist_test.py",
             mode: "code",
           })}
           {ctx.file("monolith/native_training/model_export/saved_model_exporters.py", {

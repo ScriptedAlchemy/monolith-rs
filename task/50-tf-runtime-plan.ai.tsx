@@ -24,7 +24,7 @@ export const tfRuntimePlanJson = assetRef("tf_runtime_plan_json");
 
 type TfRuntimeSearchResult = {
   path: string;
-  hits: string[];
+  signals: string[];
 };
 
 type TfRuntimePlanInputs = {
@@ -59,13 +59,36 @@ type TfRuntimePlanInputs = {
   };
 };
 
-function extractHits(text: string, patterns: RegExp[]): string[] {
-  const hits: string[] = [];
-  for (const re of patterns) {
-    const m = text.match(re);
-    if (m) hits.push(re.source);
+type NormalizedRustTarget = {
+  kind: string;
+  crate?: string;
+  path?: string;
+  fullPath?: string;
+  raw?: string;
+};
+
+type NormalizedRecord = {
+  pythonPath: string;
+  status: string;
+  rustTargets: NormalizedRustTarget[];
+  notes: string;
+  issues: string[];
+  naJustification?: string;
+  suggestedRustTestLocation?: string;
+};
+
+type NormalizedMapping = {
+  records: NormalizedRecord[];
+};
+
+type SignalPattern = { id: string; re: RegExp };
+
+function extractSignals(text: string, patterns: SignalPattern[]): string[] {
+  const out: string[] = [];
+  for (const p of patterns) {
+    if (p.re.test(text)) out.push(p.id);
   }
-  return hits;
+  return out.sort();
 }
 
 export const computeTfRuntimePlanInputs = action(
@@ -82,18 +105,21 @@ export const computeTfRuntimePlanInputs = action(
       .slice()
       .sort();
 
-    const tfPatterns = [
-      /\bimport\s+tensorflow\s+as\s+tf\b/,
-      /\bfrom\s+tensorflow\b/,
-      /\btf\.saved_model\b/,
-      /\bsaved_model\b/,
-      /\bparse_saved_model\b/,
-      /\bmeta_graph_pb2\b/,
-      /\bsignature_def\b/,
-      /\btf\.load_library\b/,
-      /\bload_library\b/,
-      /\bget_libops_path\b/,
-      /\bTFServing\b/i,
+    const tfPatterns: SignalPattern[] = [
+      { id: "import_tensorflow_as_tf", re: /\bimport\s+tensorflow\s+as\s+tf\b/ },
+      { id: "from_tensorflow_import", re: /\bfrom\s+tensorflow\b/ },
+      { id: "tf_saved_model_api", re: /\btf\.saved_model\b/ },
+      { id: "tf_compat_v1_saved_model", re: /\btf\.compat\.v1\.saved_model\b/ },
+      { id: "saved_model_token", re: /\bsaved_model\b/ },
+      { id: "parse_saved_model", re: /\bparse_saved_model\b/ },
+      { id: "meta_graph_pb2", re: /\bmeta_graph_pb2\b/ },
+      { id: "signature_def", re: /\bsignature_def\b/ },
+      { id: "tf_session", re: /\btf\.(compat\.v1\.)?Session\b/ },
+      { id: "session_run", re: /\bsess\.run\b/ },
+      { id: "tf_load_library", re: /\btf\.load_library\b/ },
+      { id: "load_library_token", re: /\bload_library\b/ },
+      { id: "get_libops_path", re: /\bget_libops_path\b/ },
+      { id: "tf_serving_token", re: /\bTFServing\b/i },
     ];
 
     const candidates: TfRuntimeSearchResult[] = [];
@@ -110,9 +136,9 @@ export const computeTfRuntimePlanInputs = action(
         continue;
       }
 
-      const hits = extractHits(content, tfPatterns);
-      if (hits.length > 0) {
-        candidates.push({ path: p, hits: hits.slice().sort() });
+      const signals = extractSignals(content, tfPatterns);
+      if (signals.length > 0) {
+        candidates.push({ path: p, signals });
       }
 
       if (
@@ -153,10 +179,10 @@ export const computeTfRuntimePlanInputs = action(
       );
     }
 
-    let normalized: any | undefined;
+    let normalized: NormalizedMapping | undefined;
     if (normalizedRaw != null) {
       try {
-        normalized = JSON.parse(normalizedRaw);
+        normalized = JSON.parse(normalizedRaw) as NormalizedMapping;
       } catch {
         warnings.push(
           `Failed to parse ${normalizedMappingPath} as JSON; TF runtime plan will ignore it.`,
@@ -164,36 +190,29 @@ export const computeTfRuntimePlanInputs = action(
       }
     }
 
+    const candidateSignalsByPath = new Map(
+      candidates.map((c) => [c.path, c.signals] as const),
+    );
+
     const tfDependentPythonFiles = (normalized?.records ?? [])
-      .filter((r: any) => typeof r?.pythonPath === "string")
-      .filter((r: any) => {
-        const p = String(r.pythonPath);
-        if (p.includes("/native_training/")) return true;
-        if (p.includes("/agent_service/")) return true;
-        if (p.includes("/core/")) return true;
+      .filter((r) => typeof r?.pythonPath === "string")
+      .filter((r) => {
+        const p = r.pythonPath;
+        const signals = candidateSignalsByPath.get(p) ?? [];
+        if (signals.length > 0) return true;
+        if (/\btensorflow\b/i.test(r.notes ?? "")) return true;
         return false;
       })
-      .filter((r: any) => {
-        const p = String(r.pythonPath);
-        const hits = candidates.find((c) => c.path === p)?.hits ?? [];
-        if (hits.length > 0) return true;
-        const notes = String(r.notes ?? "");
-        if (/\btensorflow\b/i.test(notes)) return true;
-        return false;
-      })
-      .map((r: any) => ({
+      .map((r) => ({
         pythonPath: String(r.pythonPath),
         status: String(r.status ?? "TODO"),
         rustTargets: (r.rustTargets ?? [])
-          .map((t: any) => t?.fullPath ?? t?.raw ?? "")
-          .filter((s: any) => typeof s === "string" && s.length > 0)
+          .map((t) => t?.fullPath ?? t?.raw ?? "")
+          .filter((s) => typeof s === "string" && s.length > 0)
           .slice()
           .sort(),
         notes: String(r.notes ?? "").trim(),
-        issues: (r.issues ?? [])
-          .filter((x: any) => typeof x === "string")
-          .slice()
-          .sort(),
+        issues: (r.issues ?? []).filter((x) => typeof x === "string").slice().sort(),
         naJustification:
           typeof r.naJustification === "string" ? r.naJustification : undefined,
         suggestedRustTestLocation:
@@ -201,7 +220,7 @@ export const computeTfRuntimePlanInputs = action(
             ? r.suggestedRustTestLocation
             : undefined,
       }))
-      .sort((a: any, b: any) => a.pythonPath.localeCompare(b.pythonPath));
+      .sort((a, b) => a.pythonPath.localeCompare(b.pythonPath));
 
     return {
       inputs: { pythonGlob, tfRuntimeOpsGlob, normalizedMappingPath },
@@ -297,12 +316,24 @@ export default (
               mode: "code",
             },
           )}
+          {ctx.file("monolith/native_training/estimator.py", {
+            as: "estimator.py (SavedModel export/import behavior)",
+            mode: "code",
+          })}
           {ctx.file("monolith/native_training/model_export/demo_predictor.py", {
             as: "demo_predictor.py (SavedModel load + signature usage)",
             mode: "code",
           })}
           {ctx.file("monolith/native_training/data/datasets.py", {
             as: "datasets.py (tf.data + custom op usage excerpt)",
+            mode: "code",
+          })}
+          {ctx.file("monolith/base_runner.py", {
+            as: "base_runner.py (TensorFlow runtime entrypoint surface)",
+            mode: "code",
+          })}
+          {ctx.file("monolith/tpu_runner.py", {
+            as: "tpu_runner.py (TensorFlow compat.v1 usage surface)",
             mode: "code",
           })}
         </Context>

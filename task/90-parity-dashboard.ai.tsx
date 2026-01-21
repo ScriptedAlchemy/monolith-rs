@@ -2,9 +2,13 @@ import "./01-validate-inventory.ai.tsx";
 import "./10-generate-mapping-table.ai.tsx";
 import "./11-normalize-mapping.ai.tsx";
 import "./20-agent-service-plan.ai.tsx";
+import "./21-agent-service-impl.ai.tsx";
 import "./30-core-plan.ai.tsx";
+import "./35-utils-and-entrypoints-plan.ai.tsx";
 import "./40-native-training-plan.ai.tsx";
 import "./50-tf-runtime-plan.ai.tsx";
+import "./60-third-party-and-codegen-plan.ai.tsx";
+import "./80-parity-test-harness-plan.ai.tsx";
 
 import {
   Action,
@@ -34,15 +38,31 @@ import {
   normalizedMappingJson,
 } from "./11-normalize-mapping.ai.tsx";
 import {
+  parityTestHarnessPlanDoc,
+  parityTestHarnessPlanJson,
+} from "./80-parity-test-harness-plan.ai.tsx";
+import {
   agentServicePlanDoc,
   agentServicePlanJson,
 } from "./20-agent-service-plan.ai.tsx";
+import {
+  agentServiceImplWorkItemsDoc,
+  agentServiceImplWorkItemsJson,
+} from "./21-agent-service-impl.ai.tsx";
 import { corePlanDoc, corePlanJson } from "./30-core-plan.ai.tsx";
+import {
+  utilsEntrypointsPlanDoc,
+  utilsEntrypointsPlanJson,
+} from "./35-utils-and-entrypoints-plan.ai.tsx";
 import {
   nativeTrainingPlanDoc,
   nativeTrainingPlanJson,
 } from "./40-native-training-plan.ai.tsx";
 import { tfRuntimePlanDoc, tfRuntimePlanJson } from "./50-tf-runtime-plan.ai.tsx";
+import {
+  thirdPartyAndCodegenPlanDoc,
+  thirdPartyAndCodegenPlanJson,
+} from "./60-third-party-and-codegen-plan.ai.tsx";
 
 export const parityDashboardDoc = assetRef("parity_dashboard_doc");
 export const parityDashboardJson = assetRef("parity_dashboard_json");
@@ -70,6 +90,14 @@ type ParityDashboard = {
     mappingGapsPath: string;
     normalizedMappingPath: string;
     mappingConventionsPath: string;
+    parityHarnessPlanJsonPath: string;
+    parityHarnessPlanDocPath: string;
+    utilsEntrypointsPlanJsonPath: string;
+    utilsEntrypointsPlanDocPath: string;
+    thirdPartyAndCodegenPlanJsonPath: string;
+    thirdPartyAndCodegenPlanDocPath: string;
+    agentServiceImplWorkItemsJsonPath: string;
+    agentServiceImplWorkItemsDocPath: string;
     domainPlanJsonPaths: Record<Domain, string>;
     domainPlanDocPaths: Record<Domain, string>;
   };
@@ -108,6 +136,37 @@ type ParityDashboard = {
         workstreamCount: number;
       }
     >;
+    parityHarness: {
+      harnessCount: number;
+      requiredByDefaultCount: number;
+      tfOptionalCount: number;
+      warnings: string[];
+    };
+    otherPlans: {
+      utilsAndEntrypoints: {
+        available: boolean;
+        pythonFiles: number;
+        workspaceFiles: number;
+        abslFlags: number;
+        pythonImports: number;
+        warnings: string[];
+      };
+      thirdPartyAndCodegen: {
+        available: boolean;
+        protobufFiles: number;
+        customOpFiles: number;
+        bazelWorkspaceFiles: number;
+        tensorflowPatchFilesTouched: number;
+        envVars: number;
+        warnings: string[];
+      };
+      agentServiceImpl: {
+        available: boolean;
+        workItemCount: number;
+        priorityCounts: Record<string, number>;
+        warnings: string[];
+      };
+    };
   };
   blockers: string[];
   nextWorkQueue: {
@@ -159,6 +218,22 @@ export const computeParityDashboardInputs = action(
       "generated/parity/11-normalize-mapping/normalized_mapping.json";
     const mappingConventionsPath =
       "generated/parity/11-normalize-mapping/mapping_conventions.md";
+    const parityHarnessPlanJsonPath =
+      "generated/parity/80-parity-test-harness-plan/parity_test_harness_plan.json";
+    const parityHarnessPlanDocPath =
+      "generated/parity/80-parity-test-harness-plan/parity_test_harness_plan.md";
+    const utilsEntrypointsPlanJsonPath =
+      "generated/parity/35-utils-and-entrypoints-plan/utils_and_entrypoints_plan.json";
+    const utilsEntrypointsPlanDocPath =
+      "generated/parity/35-utils-and-entrypoints-plan/utils_and_entrypoints_plan.md";
+    const thirdPartyAndCodegenPlanJsonPath =
+      "generated/parity/60-third-party-and-codegen-plan/third_party_and_codegen_plan.json";
+    const thirdPartyAndCodegenPlanDocPath =
+      "generated/parity/60-third-party-and-codegen-plan/third_party_and_codegen_plan.md";
+    const agentServiceImplWorkItemsJsonPath =
+      "generated/parity/21-agent-service-impl/agent_service_impl_work_items.json";
+    const agentServiceImplWorkItemsDocPath =
+      "generated/parity/21-agent-service-impl/agent_service_impl_work_items.md";
 
     const domainPlanJsonPaths: Record<Domain, string> = {
       agent_service:
@@ -196,6 +271,12 @@ export const computeParityDashboardInputs = action(
     const inventory = await readJsonIfExists(inventorySummaryPath);
     const mapping = await readJsonIfExists(mappingJsonPath);
     const normalized = await readJsonIfExists(normalizedMappingPath);
+    const parityHarness = await readJsonIfExists(parityHarnessPlanJsonPath);
+    const utilsEntrypoints = await readJsonIfExists(utilsEntrypointsPlanJsonPath);
+    const thirdPartyAndCodegen = await readJsonIfExists(
+      thirdPartyAndCodegenPlanJsonPath,
+    );
+    const agentServiceImpl = await readJsonIfExists(agentServiceImplWorkItemsJsonPath);
 
     const invExpected = Number(inventory?.expected?.pythonFiles ?? 334);
     const invFound = Number(inventory?.counts?.pythonFiles ?? 0);
@@ -271,6 +352,17 @@ export const computeParityDashboardInputs = action(
         .map((issue) => ({ issue, count: counted[issue] ?? 0 }));
     })();
 
+    const harnessWarnings = stableStringArray(parityHarness?.warnings);
+    const harnesses = Array.isArray(parityHarness?.requiredHarnesses)
+      ? parityHarness.requiredHarnesses
+      : [];
+    const requiredByDefaultCount = harnesses.filter(
+      (h: any) => h?.gating?.requiredByDefault === true,
+    ).length;
+    const tfOptionalCount = harnesses.filter(
+      (h: any) => h?.gating?.tfRuntimeOptional === true,
+    ).length;
+
     if (mappingUnknown > 0) {
       blockers.push(
         `Mapping table has ${mappingUnknown} python files with empty/unknown Rust targets; normalization and plans will be noisy until resolved.`,
@@ -315,6 +407,59 @@ export const computeParityDashboardInputs = action(
       core: await readDomainPlan("core"),
       native_training: await readDomainPlan("native_training"),
       tf_runtime: await readDomainPlan("tf_runtime"),
+    };
+
+    const otherPlans: ParityDashboard["snapshot"]["otherPlans"] = {
+      utilsAndEntrypoints: {
+        available: utilsEntrypoints != null,
+        pythonFiles: Array.isArray(utilsEntrypoints?.pythonFiles)
+          ? utilsEntrypoints.pythonFiles.length
+          : Number(utilsEntrypoints?.pythonFiles?.length ?? 0),
+        workspaceFiles: Array.isArray(utilsEntrypoints?.workspaceFiles)
+          ? utilsEntrypoints.workspaceFiles.length
+          : Number(utilsEntrypoints?.workspaceFiles?.length ?? 0),
+        abslFlags: Array.isArray(utilsEntrypoints?.derived?.abslFlags)
+          ? utilsEntrypoints.derived.abslFlags.length
+          : 0,
+        pythonImports: Array.isArray(utilsEntrypoints?.derived?.pythonImports)
+          ? utilsEntrypoints.derived.pythonImports.length
+          : 0,
+        warnings: stableStringArray(utilsEntrypoints?.warnings),
+      },
+      thirdPartyAndCodegen: {
+        available: thirdPartyAndCodegen != null,
+        protobufFiles: Number(thirdPartyAndCodegen?.proto?.totalFiles ?? 0),
+        customOpFiles: Number(thirdPartyAndCodegen?.customOps?.totalFiles ?? 0),
+        bazelWorkspaceFiles: Array.isArray(thirdPartyAndCodegen?.codegenAndBuild?.bazelFiles)
+          ? thirdPartyAndCodegen.codegenAndBuild.bazelFiles.length
+          : Array.isArray(thirdPartyAndCodegen?.inputs?.bazelWorkspaceFiles)
+            ? thirdPartyAndCodegen.inputs.bazelWorkspaceFiles.length
+            : 0,
+        tensorflowPatchFilesTouched: Number(
+          thirdPartyAndCodegen?.orgTensorflow?.patchStats?.filesTouched ?? 0,
+        ),
+        envVars: Array.isArray(thirdPartyAndCodegen?.signals?.envVars)
+          ? thirdPartyAndCodegen.signals.envVars.length
+          : 0,
+        warnings: stableStringArray(thirdPartyAndCodegen?.warnings),
+      },
+      agentServiceImpl: {
+        available: agentServiceImpl != null,
+        workItemCount: Array.isArray(agentServiceImpl?.workItems)
+          ? agentServiceImpl.workItems.length
+          : Array.isArray(agentServiceImpl?.items)
+            ? agentServiceImpl.items.length
+            : 0,
+        priorityCounts: (() => {
+          const items = Array.isArray(agentServiceImpl?.workItems)
+            ? agentServiceImpl.workItems
+            : Array.isArray(agentServiceImpl?.items)
+              ? agentServiceImpl.items
+              : [];
+          return countBy(items, (it: any) => String(it?.priority ?? "unknown"));
+        })(),
+        warnings: stableStringArray(agentServiceImpl?.warnings),
+      },
     };
 
     const mkItem = (w: ParityWorkItem) => ({
@@ -472,6 +617,14 @@ export const computeParityDashboardInputs = action(
         mappingGapsPath,
         normalizedMappingPath,
         mappingConventionsPath,
+        parityHarnessPlanJsonPath,
+        parityHarnessPlanDocPath,
+        utilsEntrypointsPlanJsonPath,
+        utilsEntrypointsPlanDocPath,
+        thirdPartyAndCodegenPlanJsonPath,
+        thirdPartyAndCodegenPlanDocPath,
+        agentServiceImplWorkItemsJsonPath,
+        agentServiceImplWorkItemsDocPath,
         domainPlanJsonPaths,
         domainPlanDocPaths,
       },
@@ -501,7 +654,14 @@ export const computeParityDashboardInputs = action(
           warnings: normalizedWarnings,
           topIssueKinds: normalizedIssueKinds,
         },
+        parityHarness: {
+          harnessCount: harnesses.length,
+          requiredByDefaultCount,
+          tfOptionalCount,
+          warnings: harnessWarnings,
+        },
         domains,
+        otherPlans,
       },
       blockers: blockers.slice().sort(),
       nextWorkQueue: {
@@ -515,12 +675,103 @@ export const computeParityDashboardInputs = action(
 );
 
 export default (
-  <Program id="parity-dashboard" target={{ language: "md" }} description="Roll up inventory validation, mapping, conventions, and domain plans into a single parity dashboard: coverage status, open parity gaps, and prioritized next work queue."><Asset id="parity_dashboard_doc" kind="doc" path="../generated/parity/90-parity-dashboard/parity_dashboard.md" /><Asset id="parity_dashboard_json" kind="json" path="../generated/parity/90-parity-dashboard/parity_dashboard.json" /><Action id="compute-parity-dashboard-inputs" export="computeParityDashboardInputs" cache /><Agent id="write-parity-dashboard-json" produces={["parity_dashboard_json"]} external_needs={[{ alias: "inventoryValidationSummary", agent: "write-inventory-validation-summary" }, { alias: "inventoryValidationReport", agent: "write-inventory-validation-report" }, { alias: "pythonRustMappingJson", agent: "write-mapping-json" }, { alias: "pythonRustMappingTable", agent: "write-mapping-table" }, { alias: "pythonRustMappingGaps", agent: "write-mapping-gaps" }, { alias: "normalizedMappingJson", agent: "write-normalized-mapping-json" }, { alias: "mappingConventionsDoc", agent: "write-mapping-conventions-doc" }, { alias: "agentServicePlanJson", agent: "write-agent-service-plan-json" }, { alias: "agentServicePlanDoc", agent: "write-agent-service-plan-doc" }, { alias: "corePlanJson", agent: "write-core-plan-json" }, { alias: "corePlanDoc", agent: "write-core-plan-doc" }, { alias: "nativeTrainingPlanJson", agent: "write-native-training-plan-json" }, { alias: "nativeTrainingPlanDoc", agent: "write-native-training-plan-doc" }, { alias: "tfRuntimePlanJson", agent: "write-tf-runtime-plan-json" }, { alias: "tfRuntimePlanDoc", agent: "write-tf-runtime-plan-doc" }]}><Prompt><System>
+  <Program
+    id="parity-dashboard"
+    target={{ language: "md" }}
+    description="Roll up inventory validation, mapping, conventions, and domain plans into a single parity dashboard: coverage status, open parity gaps, and prioritized next work queue."
+  >
+    <Asset
+      id="parity_dashboard_doc"
+      kind="doc"
+      path="../generated/parity/90-parity-dashboard/parity_dashboard.md"
+    />
+    <Asset
+      id="parity_dashboard_json"
+      kind="json"
+      path="../generated/parity/90-parity-dashboard/parity_dashboard.json"
+    />
+    <Action id="compute-parity-dashboard-inputs" export="computeParityDashboardInputs" cache />
+    <Agent
+      id="write-parity-dashboard-json"
+      produces={["parity_dashboard_json"]}
+      external_needs={[
+        { alias: "inventoryValidationSummary", agent: "write-inventory-validation-summary" },
+        { alias: "inventoryValidationReport", agent: "write-inventory-validation-report" },
+        { alias: "pythonRustMappingJson", agent: "write-mapping-json" },
+        { alias: "pythonRustMappingTable", agent: "write-mapping-table" },
+        { alias: "pythonRustMappingGaps", agent: "write-mapping-gaps" },
+        { alias: "normalizedMappingJson", agent: "write-normalized-mapping-json" },
+        { alias: "mappingConventionsDoc", agent: "write-mapping-conventions-doc" },
+        { alias: "parityTestHarnessPlanJson", agent: "write-parity-test-harness-plan-json" },
+        { alias: "parityTestHarnessPlanDoc", agent: "write-parity-test-harness-plan-doc" },
+        { alias: "agentServicePlanJson", agent: "write-agent-service-plan-json" },
+        { alias: "agentServicePlanDoc", agent: "write-agent-service-plan-doc" },
+        { alias: "agentServiceImplWorkItemsJson", agent: "write-agent-service-impl-work-items-json" },
+        { alias: "agentServiceImplWorkItemsDoc", agent: "write-agent-service-impl-work-items-doc" },
+        { alias: "corePlanJson", agent: "write-core-plan-json" },
+        { alias: "corePlanDoc", agent: "write-core-plan-doc" },
+        { alias: "utilsEntrypointsPlanJson", agent: "write-utils-entrypoints-plan-json" },
+        { alias: "utilsEntrypointsPlanDoc", agent: "write-utils-entrypoints-plan-doc" },
+        { alias: "nativeTrainingPlanJson", agent: "write-native-training-plan-json" },
+        { alias: "nativeTrainingPlanDoc", agent: "write-native-training-plan-doc" },
+        { alias: "tfRuntimePlanJson", agent: "write-tf-runtime-plan-json" },
+        { alias: "tfRuntimePlanDoc", agent: "write-tf-runtime-plan-doc" },
+        { alias: "thirdPartyAndCodegenPlanJson", agent: "write-third-party-and-codegen-plan-json" },
+        { alias: "thirdPartyAndCodegenPlanDoc", agent: "write-third-party-and-codegen-plan-doc" },
+      ]}
+    >
+      <Prompt>
+        <System>
           You maintain a parity planning pipeline. You produce strictly valid JSON and write files using apply_patch.
-        </System><Context>{ctx.dependency(inventoryValidationSummary, { as: "Inventory validation summary (JSON)", mode: "code" })}{ctx.dependency(inventoryValidationReport, { as: "Inventory validation report (MD)", mode: "quote" })}{ctx.dependency(pythonRustMappingJson, { as: "Python->Rust mapping (JSON)", mode: "code" })}{ctx.dependency(pythonRustMappingTable, { as: "Python->Rust mapping (MD table)", mode: "quote" })}{ctx.dependency(pythonRustMappingGaps, { as: "Mapping gaps report (MD)", mode: "quote" })}{ctx.dependency(normalizedMappingJson, { as: "Normalized mapping (canonical JSON)", mode: "code" })}{ctx.dependency(mappingConventionsDoc, { as: "Mapping conventions (MD)", mode: "quote" })}{ctx.dependency(agentServicePlanJson, { as: "Agent service plan (JSON)", mode: "code" })}{ctx.dependency(agentServicePlanDoc, { as: "Agent service plan (MD)", mode: "quote" })}{ctx.dependency(corePlanJson, { as: "Core plan (JSON)", mode: "code" })}{ctx.dependency(corePlanDoc, { as: "Core plan (MD)", mode: "quote" })}{ctx.dependency(nativeTrainingPlanJson, { as: "Native training plan (JSON)", mode: "code" })}{ctx.dependency(nativeTrainingPlanDoc, { as: "Native training plan (MD)", mode: "quote" })}{ctx.dependency(tfRuntimePlanJson, { as: "TF runtime plan (JSON)", mode: "code" })}{ctx.dependency(tfRuntimePlanDoc, { as: "TF runtime plan (MD)", mode: "quote" })}{ctx.actionResult("compute-parity-dashboard-inputs", { as: "Computed dashboard payload (JSON)" })}</Context><Instructions>{`Write JSON to \`{{assets.parity_dashboard_json.path}}\` using apply_patch.
-The JSON must be a single object and must exactly match the provided computed dashboard payload.`}</Instructions></Prompt></Agent><Agent id="write-parity-dashboard-doc" needs={["write-parity-dashboard-json"]} produces={["parity_dashboard_doc"]}><Prompt><System>
+        </System>
+        <Context>
+          {ctx.dependency(inventoryValidationSummary, { as: "Inventory validation summary (JSON)", mode: "code" })}
+          {ctx.dependency(inventoryValidationReport, { as: "Inventory validation report (MD)", mode: "quote" })}
+          {ctx.dependency(pythonRustMappingJson, { as: "Python->Rust mapping (JSON)", mode: "code" })}
+          {ctx.dependency(pythonRustMappingTable, { as: "Python->Rust mapping (MD table)", mode: "quote" })}
+          {ctx.dependency(pythonRustMappingGaps, { as: "Mapping gaps report (MD)", mode: "quote" })}
+          {ctx.dependency(normalizedMappingJson, { as: "Normalized mapping (canonical JSON)", mode: "code" })}
+          {ctx.dependency(mappingConventionsDoc, { as: "Mapping conventions (MD)", mode: "quote" })}
+          {ctx.dependency(parityTestHarnessPlanJson, { as: "Parity test harness plan (JSON)", mode: "code" })}
+          {ctx.dependency(parityTestHarnessPlanDoc, { as: "Parity test harness plan (MD)", mode: "quote" })}
+          {ctx.dependency(agentServicePlanJson, { as: "Agent service plan (JSON)", mode: "code" })}
+          {ctx.dependency(agentServicePlanDoc, { as: "Agent service plan (MD)", mode: "quote" })}
+          {ctx.dependency(agentServiceImplWorkItemsJson, { as: "Agent service implementation work items (JSON)", mode: "code" })}
+          {ctx.dependency(agentServiceImplWorkItemsDoc, { as: "Agent service implementation work items (MD)", mode: "quote" })}
+          {ctx.dependency(corePlanJson, { as: "Core plan (JSON)", mode: "code" })}
+          {ctx.dependency(corePlanDoc, { as: "Core plan (MD)", mode: "quote" })}
+          {ctx.dependency(utilsEntrypointsPlanJson, { as: "Utils and entrypoints plan (JSON)", mode: "code" })}
+          {ctx.dependency(utilsEntrypointsPlanDoc, { as: "Utils and entrypoints plan (MD)", mode: "quote" })}
+          {ctx.dependency(nativeTrainingPlanJson, { as: "Native training plan (JSON)", mode: "code" })}
+          {ctx.dependency(nativeTrainingPlanDoc, { as: "Native training plan (MD)", mode: "quote" })}
+          {ctx.dependency(tfRuntimePlanJson, { as: "TF runtime plan (JSON)", mode: "code" })}
+          {ctx.dependency(tfRuntimePlanDoc, { as: "TF runtime plan (MD)", mode: "quote" })}
+          {ctx.dependency(thirdPartyAndCodegenPlanJson, { as: "Third-party and codegen plan (JSON)", mode: "code" })}
+          {ctx.dependency(thirdPartyAndCodegenPlanDoc, { as: "Third-party and codegen plan (MD)", mode: "quote" })}
+          {ctx.actionResult("compute-parity-dashboard-inputs", { as: "Computed dashboard payload (JSON)" })}
+        </Context>
+        <Instructions>{`Write JSON to \`{{assets.parity_dashboard_json.path}}\` using apply_patch.
+The JSON must be a single object and must exactly match the provided computed dashboard payload.`}</Instructions>
+      </Prompt>
+    </Agent>
+    <Agent
+      id="write-parity-dashboard-doc"
+      needs={["write-parity-dashboard-json"]}
+      produces={["parity_dashboard_doc"]}
+    >
+      <Prompt>
+        <System>
           You write deterministic engineering dashboards. You must reference output paths via assets bindings and write files using apply_patch.
-        </System><Context>{ctx.agent("write-parity-dashboard-json", { artifacts: ["parity_dashboard_json"], as: "Dashboard JSON (generated by this module)" })}{ctx.dependency(mappingConventionsDoc, { as: "Mapping conventions (MD)", mode: "quote" })}</Context><Instructions>{`Write a parity dashboard to \`{{assets.parity_dashboard_doc.path}}\` using apply_patch.
+        </System>
+        <Context>
+          {ctx.agent("write-parity-dashboard-json", { artifacts: ["parity_dashboard_json"], as: "Dashboard JSON (generated by this module)" })}
+          {ctx.dependency(mappingConventionsDoc, { as: "Mapping conventions (MD)", mode: "quote" })}
+          {ctx.dependency(parityTestHarnessPlanDoc, { as: "Parity harness plan (MD)", mode: "quote" })}
+          {ctx.dependency(utilsEntrypointsPlanDoc, { as: "Utils and entrypoints plan (MD)", mode: "quote" })}
+          {ctx.dependency(thirdPartyAndCodegenPlanDoc, { as: "Third-party and codegen plan (MD)", mode: "quote" })}
+          {ctx.dependency(agentServiceImplWorkItemsDoc, { as: "Agent service impl work items (MD)", mode: "quote" })}
+        </Context>
+        <Instructions>{`Write a parity dashboard to \`{{assets.parity_dashboard_doc.path}}\` using apply_patch.
 
 Requirements:
 1) Deterministic: stable ordering; no timestamps.
@@ -528,6 +779,8 @@ Requirements:
 3) Structure:
    - Title + purpose.
    - Snapshot table: inventory, mapping, normalized mapping, and per-domain plan counts.
+   - Parity test harness snapshot: harness count, default-required harnesses, TF-optional count, plus link to the harness plan artifacts.
+   - Additional plan snapshots: utils/entrypoints, third-party+codegen, and agent_service implementation work items.
    - Blockers (from the dashboard JSON) as a short bullet list.
    - "Next Work Queue" section with P0/P1/P2 lists (id, title, rationale, dependencies, and key artifacts).
    - "Domain Status" sections for: agent_service, core, native_training, tf_runtime.
