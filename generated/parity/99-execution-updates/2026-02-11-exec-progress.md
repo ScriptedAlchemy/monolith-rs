@@ -894,6 +894,15 @@
   - `MixedIndexMetadataPresence`,
   - underlying discovery error (`forced discover failure`).
 
+### 83) ParameterSync replicator drop-safety lifecycle guard
+- Added `Drop` implementation for `ParameterSyncReplicatorTask`:
+  - best-effort stop signal send,
+  - background join handle abort as a safety net when explicit
+    `stop().await` is not called.
+- This prevents forgotten task handles from leaving detached replication loops
+  alive indefinitely.
+- Added regression `test_parameter_sync_replicator_task_drop_is_safe`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1029,6 +1038,7 @@
 132. `cargo test --workspace -q` ✅ (post worker timeout diagnostics enhancement retaining last discovery backend error and full workspace rerun)
 133. `cargo test -p monolith-training -q` ✅ (post combined ordering+discovery timeout diagnostics regression coverage)
 134. `cargo test --workspace -q` ✅ (post combined ordering+discovery timeout diagnostics regression coverage and full workspace rerun)
+135. `cargo test -p monolith-training -q` ✅ (post ParameterSync replicator drop-safety lifecycle guard and regression coverage)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
