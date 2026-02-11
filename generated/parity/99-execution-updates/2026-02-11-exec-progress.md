@@ -949,6 +949,15 @@
 - Added async regression
   `test_run_worker_role_clears_stale_discovery_error_after_successful_discover`.
 
+### 89) Stale ordering-issue cleanup after usable rediscovery
+- Refined worker discovery retry diagnostics so successful ordering with at
+  least one usable endpoint clears previously latched ordering inconsistency
+  markers.
+- Prevents stale `last ordering issue` context from being reported after
+  topology recovery when retries still time out due to insufficient PS quorum.
+- Added async regression
+  `test_run_worker_role_clears_stale_ordering_issue_after_usable_discovery`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1096,6 +1105,7 @@
 144. `cargo test --workspace -q` ✅ (post worker timeout diagnostics enhancement reporting retry attempt count and full workspace rerun)
 145. `cargo test -p monolith-training -q` ✅ (post stale discovery-error cleanup on successful rediscovery attempts in worker timeout diagnostics)
 146. `cargo test --workspace -q` ✅ (post stale discovery-error cleanup on successful rediscovery attempts and full workspace rerun)
+147. `cargo test -p monolith-training -q` ✅ (post stale ordering-issue cleanup on usable rediscovery attempts in worker timeout diagnostics)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
