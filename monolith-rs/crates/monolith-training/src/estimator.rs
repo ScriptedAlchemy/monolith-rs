@@ -187,6 +187,14 @@ pub trait ModelFn: Send + Sync {
     ///
     /// The loss value for training/eval, or predictions for predict mode.
     fn call(&self, mode: EstimatorMode) -> EstimatorResult<f64>;
+
+    /// Produces predictions for a single input example.
+    ///
+    /// Default implementation keeps backward compatibility with legacy `call(Predict)`
+    /// behavior by returning a single scalar prediction.
+    fn predict(&self, _features: &[f32]) -> EstimatorResult<Vec<f32>> {
+        Ok(vec![self.call(EstimatorMode::Predict)? as f32])
+    }
 }
 
 /// A simple model function that returns a constant loss (for testing).
@@ -367,10 +375,10 @@ impl<M: ModelFn> Estimator<M> {
         })
     }
 
-    /// Runs prediction.
+    /// Runs prediction for a fixed number of examples.
     ///
-    /// This is a stub implementation that would be extended with actual
-    /// input data handling.
+    /// This method preserves compatibility with existing callsites by producing
+    /// predictions from empty feature vectors.
     ///
     /// # Arguments
     ///
@@ -384,19 +392,30 @@ impl<M: ModelFn> Estimator<M> {
     ///
     /// Returns an error if prediction fails.
     pub fn predict(&mut self, num_examples: usize) -> EstimatorResult<PredictResult> {
-        tracing::info!("Running prediction for {} examples", num_examples);
+        let empty_inputs = vec![Vec::<f32>::new(); num_examples];
+        self.predict_with_inputs(&empty_inputs)
+    }
 
-        let mut predictions = Vec::with_capacity(num_examples);
+    /// Runs prediction using explicit input features.
+    ///
+    /// # Arguments
+    ///
+    /// * `inputs` - Per-example feature vectors.
+    ///
+    /// # Returns
+    ///
+    /// A `PredictResult` containing one output vector per input example.
+    pub fn predict_with_inputs(&mut self, inputs: &[Vec<f32>]) -> EstimatorResult<PredictResult> {
+        tracing::info!("Running prediction for {} examples", inputs.len());
+        let mut predictions = Vec::with_capacity(inputs.len());
 
-        for _ in 0..num_examples {
-            // In a real implementation, this would return actual predictions
-            let output = self.model_fn.call(EstimatorMode::Predict)?;
-            predictions.push(vec![output as f32]);
+        for features in inputs {
+            predictions.push(self.model_fn.predict(features)?);
         }
 
         Ok(PredictResult {
             predictions,
-            num_examples,
+            num_examples: inputs.len(),
         })
     }
 
@@ -538,5 +557,33 @@ mod tests {
         let result = estimator.predict(5).unwrap();
         assert_eq!(result.num_examples, 5);
         assert_eq!(result.predictions.len(), 5);
+    }
+
+    struct InputAwareModelFn;
+
+    impl ModelFn for InputAwareModelFn {
+        fn call(&self, mode: EstimatorMode) -> EstimatorResult<f64> {
+            match mode {
+                EstimatorMode::Train | EstimatorMode::Eval => Ok(0.1),
+                EstimatorMode::Predict => Ok(0.0),
+            }
+        }
+
+        fn predict(&self, features: &[f32]) -> EstimatorResult<Vec<f32>> {
+            let sum = features.iter().copied().sum::<f32>();
+            Ok(vec![sum, features.len() as f32])
+        }
+    }
+
+    #[test]
+    fn test_estimator_predict_with_inputs() {
+        let config = EstimatorConfig::new(PathBuf::from("/tmp/model"));
+        let model_fn = InputAwareModelFn;
+        let mut estimator = Estimator::new(config, model_fn);
+
+        let inputs = vec![vec![1.0, 2.0, 3.0], vec![4.0]];
+        let result = estimator.predict_with_inputs(&inputs).unwrap();
+        assert_eq!(result.num_examples, 2);
+        assert_eq!(result.predictions, vec![vec![6.0, 3.0], vec![4.0, 1.0]]);
     }
 }
