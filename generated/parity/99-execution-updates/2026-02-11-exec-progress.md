@@ -720,6 +720,18 @@
   - `test_worker_lifecycle_guards`
   to validate typed invalid-configuration behavior for lifecycle misuse.
 
+### 67) Local-cluster running-state enforcement for register/train paths
+- Added `LocalCluster::ensure_cluster_running()` and wired it into:
+  - `register_parameter(...)`
+  - `train_step(...)`
+- This prevents parameter registration or training updates from executing against
+  partially started / stopped cluster roles.
+- Added regression coverage:
+  - `test_local_cluster_register_parameter_requires_running_cluster`
+  - `test_local_cluster_train_step_requires_running_cluster`
+  to validate explicit invalid-configuration errors when callers invoke these
+  operations outside the running lifecycle window.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -823,6 +835,7 @@
 100. `cargo test --workspace -q` ✅ (post local-cluster lifecycle guard semantics and full workspace regression rerun)
 101. `cargo test -p monolith-training -q` ✅ (post local PS/worker lifecycle guard parity hardening and new regression coverage)
 102. `cargo test --workspace -q` ✅ (post local PS/worker lifecycle guard parity hardening and full workspace regression rerun)
+103. `cargo test -p monolith-training -q` ✅ (post local-cluster running-state enforcement for register/train operations)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
