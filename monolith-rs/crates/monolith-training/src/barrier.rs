@@ -6,7 +6,7 @@
 //! - Remote PS-coordinated (via gRPC)
 //! - ZK/Consul-backed (future)
 
-use crate::distributed_ps::{PsClient, PsError};
+use crate::distributed_ps::{PsClient, PsError, PsResult};
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::Barrier as TokioBarrier;
@@ -63,6 +63,12 @@ pub struct PsBarrier {
 impl PsBarrier {
     pub fn new(client: PsClient, timeout_ms: i64) -> Self {
         Self { client, timeout_ms }
+    }
+
+    /// Connects a PS-backed barrier directly from shard addresses.
+    pub async fn connect(addrs: &[&str], timeout_ms: i64) -> PsResult<Self> {
+        let client = PsClient::connect(addrs).await?;
+        Ok(Self::new(client, timeout_ms))
     }
 }
 
@@ -173,5 +179,11 @@ mod tests {
         assert!(matches!(err, BarrierError::InvalidConfig(_)));
 
         server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_barrier_connect_requires_addresses() {
+        let res = PsBarrier::connect(&[], 100).await;
+        assert!(matches!(res, Err(PsError::InvalidConfig(_))));
     }
 }
