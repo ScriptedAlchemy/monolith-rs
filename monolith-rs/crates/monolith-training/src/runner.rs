@@ -99,8 +99,8 @@ pub fn distributed_config_from_runner(
     }
 }
 
-fn ordered_ps_addrs(ps_services: Vec<ServiceInfo>) -> Vec<String> {
-    let mut indexed = Vec::with_capacity(ps_services.len());
+fn ordered_ps_addrs(ps_services: Vec<ServiceInfo>, required_num_ps: usize) -> Vec<String> {
+    let mut indexed: std::collections::BTreeMap<usize, String> = std::collections::BTreeMap::new();
     for svc in &ps_services {
         let Some(idx_str) = svc.metadata.get("index") else {
             let mut addrs: Vec<String> = ps_services.into_iter().map(|s| s.address()).collect();
@@ -114,14 +114,28 @@ fn ordered_ps_addrs(ps_services: Vec<ServiceInfo>) -> Vec<String> {
             addrs.dedup();
             return addrs;
         };
-        indexed.push((idx, svc.address()));
+        let addr = svc.address();
+        indexed
+            .entry(idx)
+            .and_modify(|current| {
+                if addr < *current {
+                    *current = addr.clone();
+                }
+            })
+            .or_insert(addr);
     }
 
-    indexed.sort_by(|(a_idx, a_addr), (b_idx, b_addr)| {
-        a_idx.cmp(b_idx).then_with(|| a_addr.cmp(b_addr))
-    });
-    indexed.dedup_by(|(a_idx, _), (b_idx, _)| a_idx == b_idx);
-    indexed.into_iter().map(|(_, addr)| addr).collect()
+    let mut ordered = Vec::with_capacity(required_num_ps);
+    for idx in 0..required_num_ps {
+        let Some(addr) = indexed.get(&idx) else {
+            // All services reported index metadata, but contiguous shard set
+            // is incomplete. Force caller to retry discovery instead of
+            // connecting with a gap (e.g. 0,2 without 1).
+            return Vec::new();
+        };
+        ordered.push(addr.clone());
+    }
+    ordered
 }
 
 /// Run a PS or worker process using the provided discovery backend.
@@ -319,7 +333,7 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
             .await
             .unwrap_or_default();
 
-        let addrs = ordered_ps_addrs(ps_services);
+        let addrs = ordered_ps_addrs(ps_services, cfg.num_ps);
 
         if addrs.len() >= cfg.num_ps {
             ps_addrs = addrs;
@@ -483,7 +497,7 @@ mod tests {
         let mut ps0 = ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 20001);
         ps0 = ps0.with_metadata("index", "0");
 
-        let ordered = ordered_ps_addrs(vec![ps1, ps0]);
+        let ordered = ordered_ps_addrs(vec![ps1, ps0], 2);
         assert_eq!(
             ordered,
             vec!["127.0.0.1:20001".to_string(), "127.0.0.1:10001".to_string()]
@@ -495,10 +509,24 @@ mod tests {
         let ps_b = ServiceInfo::new("ps-b", "ps-b", "ps", "127.0.0.1", 30001);
         let ps_a = ServiceInfo::new("ps-a", "ps-a", "ps", "127.0.0.1", 20001);
 
-        let ordered = ordered_ps_addrs(vec![ps_b, ps_a]);
+        let ordered = ordered_ps_addrs(vec![ps_b, ps_a], 2);
         assert_eq!(
             ordered,
             vec!["127.0.0.1:20001".to_string(), "127.0.0.1:30001".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_ordered_ps_addrs_requires_contiguous_index_set() {
+        let mut ps0 = ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 10001);
+        ps0 = ps0.with_metadata("index", "0");
+        let mut ps2 = ServiceInfo::new("ps-2", "ps-2", "ps", "127.0.0.1", 30001);
+        ps2 = ps2.with_metadata("index", "2");
+
+        let ordered = ordered_ps_addrs(vec![ps0, ps2], 2);
+        assert!(
+            ordered.is_empty(),
+            "missing shard index should force discovery retry"
         );
     }
 
