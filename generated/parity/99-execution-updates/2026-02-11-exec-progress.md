@@ -600,6 +600,7 @@
 66. `cargo test -p monolith-training -q` ✅ (post explicit discovery-guard close lifecycle API + idempotence coverage)
 67. `cargo test --workspace -q` ✅ (post distributed/runtime + discovery lifecycle parity hardening)
 68. `cargo test -p monolith-training -q` ✅ (post batched PS per-entry dim validation + parallel batch fanout)
+69. `cargo test --workspace -q` ✅ (post batched PS per-entry validation hardening and regression coverage)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
