@@ -470,6 +470,19 @@
   - per-shard stats retrieval after lookup traffic,
   - multi-shard health/stats fanout behavior.
 
+### 44) PS client batch multi-table convenience APIs
+- Added batched client helpers aligned with proto batch messages:
+  - `batch_lookup(BatchLookupRequest) -> BatchLookupResponse`
+  - `batch_apply_gradients(BatchApplyGradientsRequest) -> BatchApplyGradientsResponse`
+- Refactored client internals to expose reusable per-request response helpers:
+  - `lookup_response(...)`
+  - `apply_gradients_response(...)`
+- Batched calls preserve per-request status semantics:
+  - successful sub-requests return status `0`,
+  - failed sub-requests are encoded with status `1` and per-entry error messages
+    rather than aborting the whole batch.
+- Added async regression coverage for mixed-success batch lookup/apply behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -533,6 +546,7 @@
 59. `cargo test --workspace -q` ✅ (post typed PS client barrier error mapping and additional status-semantics tests)
 60. `cargo test -p monolith-training -q` ✅ (post PS client shard/all health+stats API additions)
 61. `cargo test --workspace -q` ✅ (post PS client health/stats API additions and shard validation coverage)
+62. `cargo test -p monolith-training -q` ✅ (post PS client batch lookup/apply convenience API additions)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
