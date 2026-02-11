@@ -1335,6 +1335,17 @@
 - Ensures invalid timeout config fails fast before runtime discovery orchestration
   starts.
 
+### 124) Timeout diagnostics now include concrete timeout duration
+- Enhanced timeout error messages for both wrappers to include elapsed budget:
+  - `Timed out during discovery operation: <op> <service_id> after <N>ms`
+  - `Timed out during discovery cleanup: <op> <service_id> after <N>ms`
+- Expanded regressions to assert timeout duration visibility in returned errors
+  for:
+  - connect/register/discover operation timeout paths,
+  - deregister/disconnect cleanup timeout paths.
+- This improves runtime diagnosability for timeout tuning and environment
+  debugging without changing error-precedence behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1556,6 +1567,8 @@
 218. `cargo test --workspace -q` ✅ (post run-config/runner-config discovery-timeout field propagation full workspace rerun)
 219. `cargo test -p monolith-training -q` ✅ (post distributed timeout validation guards and zero-timeout validation regressions)
 220. `cargo test --workspace -q` ✅ (post distributed timeout validation guards and zero-timeout validation regressions full workspace rerun)
+221. `cargo test -p monolith-training -q` ✅ (post timeout-diagnostics duration context enrichment across operation/cleanup timeout regressions)
+222. `cargo test --workspace -q` ✅ (post timeout-diagnostics duration context enrichment full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
