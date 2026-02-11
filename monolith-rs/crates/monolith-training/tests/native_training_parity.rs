@@ -909,6 +909,37 @@ async fn distributed_runner_from_run_config_rejects_empty_worker_service_type() 
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_rejects_empty_table_name() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 1,
+        table_name: " ".to_string(),
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("distributed config requires non-empty table_name"),
+        "empty run-config table name should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_zero_parameter_sync_interval_with_targets() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -3109,6 +3140,37 @@ async fn distributed_runner_from_runner_config_rejects_empty_worker_service_type
     assert!(
         err.contains("distributed config requires non-empty discovery_service_type_worker"),
         "empty runner-config worker service type should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_empty_table_name() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        table_name: "  ".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("distributed config requires non-empty table_name"),
+        "empty runner-config table name should be rejected by distributed config validation: {err}"
     );
 }
 

@@ -242,6 +242,9 @@ impl TrainCommand {
         if self.discovery_service_type_worker.trim().is_empty() {
             anyhow::bail!("--discovery-service-type-worker must be non-empty");
         }
+        if self.table_name.trim().is_empty() {
+            anyhow::bail!("--table-name must be non-empty in distributed mode");
+        }
         if !self.parameter_sync_targets.is_empty() && self.parameter_sync_interval_ms == 0 {
             anyhow::bail!(
                 "--parameter-sync-interval-ms must be > 0 when --parameter-sync-target is provided"
@@ -823,6 +826,18 @@ mod tests {
         assert!(
             err.contains("--discovery-service-type-worker must be non-empty"),
             "unexpected worker service-type validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_empty_table_name() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.table_name = " ".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--table-name must be non-empty in distributed mode"),
+            "unexpected table-name validation error: {err}"
         );
     }
 

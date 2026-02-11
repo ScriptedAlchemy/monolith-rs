@@ -1904,6 +1904,22 @@
   discovery/register loops, aligning diagnostics and lifecycle behavior across
   high-level and low-level distributed runtime surfaces.
 
+### 166) Non-empty distributed table-name validation parity across CLI/runtime configs
+- Added distributed runtime validation requiring non-empty/trimmed `table_name`
+  in `DistributedRunConfig::validate`.
+- Added CLI distributed-config builder counterpart requiring non-empty
+  `--table-name` in distributed mode.
+- Added regression coverage:
+  - CLI unit:
+    - `test_build_distributed_run_config_rejects_empty_table_name`
+  - distributed config unit:
+    - `test_distributed_config_validate_rejects_empty_table_name`
+  - native-training integration parity:
+    - `distributed_runner_from_run_config_rejects_empty_table_name`
+    - `distributed_runner_from_runner_config_rejects_empty_table_name`
+- Prevents malformed empty table names from reaching PS lookup/apply paths and
+  failing later in distributed worker execution loops.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2212,6 +2228,8 @@
 305. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post worker discovery-timeout service-type diagnostic enrichment full workspace rerun under ambient ZK auth env)
 306. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post distributed role-index range validation parity across CLI/runtime entrypoints)
 307. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post distributed role-index range validation parity full workspace rerun under ambient ZK auth env)
+308. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post non-empty distributed table-name validation parity across CLI/runtime config entrypoints)
+309. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post non-empty distributed table-name validation parity full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
