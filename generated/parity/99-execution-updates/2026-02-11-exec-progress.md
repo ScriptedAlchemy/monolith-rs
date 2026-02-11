@@ -1097,6 +1097,16 @@
 - Added regression:
   - `zk_operations_fail_after_close`.
 
+### 101) Runner-utils MLP discovery guard lifecycle regression coverage
+- Added regression coverage for `monolith_discovery` guard close-path using MLP
+  discovery backend.
+- Ensures:
+  - MLP discovery guard is initialized and queryable from env wiring,
+  - `MonolithDiscoveryGuard::close()` is idempotent for the MLP backend,
+  - post-close query returns `LocalModeNoDiscovery` from cleared guard state.
+- Added per-test environment snapshot + mutex in `runner_utils` tests to
+  guarantee deterministic env-var test isolation.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1267,6 +1277,8 @@
 167. `cargo test --workspace -q` ✅ (post strict Consul query_all malformed-entry validation and full workspace regression rerun)
 168. `cargo test -p monolith-training -q` ✅ (post ZK closed-state operation guards and after-close lifecycle regression)
 169. `cargo test --workspace -q` ✅ (post ZK closed-state operation guards and full workspace regression rerun)
+170. `cargo test -p monolith-training -q` ✅ (post runner-utils MLP guard close-lifecycle regression addition)
+171. `cargo test --workspace -q` ✅ (post runner-utils MLP guard close-lifecycle regression addition and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
