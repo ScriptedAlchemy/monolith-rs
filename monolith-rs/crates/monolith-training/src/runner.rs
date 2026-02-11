@@ -336,7 +336,16 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         return Err(e);
     }
 
-    deregister_result?;
+    if let Err(de) = deregister_result {
+        if let Err(disconnect_err) = disconnect_result {
+            tracing::warn!(
+                service_id = %service_id,
+                error = %disconnect_err,
+                "Failed to disconnect discovery after successful role with deregister failure"
+            );
+        }
+        return Err(anyhow::Error::from(de));
+    }
     disconnect_result?;
     Ok(())
 }
@@ -689,6 +698,28 @@ mod tests {
         }
     }
 
+    struct FailingConnectAndDisconnectDiscovery {
+        connect_count: AtomicUsize,
+        disconnect_count: AtomicUsize,
+    }
+
+    impl FailingConnectAndDisconnectDiscovery {
+        fn new() -> Self {
+            Self {
+                connect_count: AtomicUsize::new(0),
+                disconnect_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn connect_count(&self) -> usize {
+            self.connect_count.load(Ordering::SeqCst)
+        }
+
+        fn disconnect_count(&self) -> usize {
+            self.disconnect_count.load(Ordering::SeqCst)
+        }
+    }
+
     struct FailingDeregisterAfterSuccessDiscovery {
         ps_addr: String,
         disconnect_count: AtomicUsize,
@@ -720,6 +751,30 @@ mod tests {
     }
 
     impl FailingDisconnectAfterSuccessDiscovery {
+        fn new(ps_addr: String) -> Self {
+            Self {
+                ps_addr,
+                disconnect_count: AtomicUsize::new(0),
+                deregister_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn disconnect_count(&self) -> usize {
+            self.disconnect_count.load(Ordering::SeqCst)
+        }
+
+        fn deregister_count(&self) -> usize {
+            self.deregister_count.load(Ordering::SeqCst)
+        }
+    }
+
+    struct FailingDeregisterAndDisconnectAfterSuccessDiscovery {
+        ps_addr: String,
+        disconnect_count: AtomicUsize,
+        deregister_count: AtomicUsize,
+    }
+
+    impl FailingDeregisterAndDisconnectAfterSuccessDiscovery {
         fn new(ps_addr: String) -> Self {
             Self {
                 ps_addr,
@@ -787,6 +842,43 @@ mod tests {
         async fn disconnect(&self) -> DiscoveryResult<()> {
             self.disconnect_count.fetch_add(1, Ordering::SeqCst);
             Ok(())
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            Ok(Vec::new())
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for FailingConnectAndDisconnectDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            self.connect_count.fetch_add(1, Ordering::SeqCst);
+            Err(crate::discovery::DiscoveryError::ConnectionFailed(
+                "forced connect failure".to_string(),
+            ))
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+            Err(crate::discovery::DiscoveryError::Internal(
+                "forced disconnect failure".to_string(),
+            ))
         }
 
         async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
@@ -915,6 +1007,62 @@ mod tests {
         async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
             self.deregister_count.fetch_add(1, Ordering::SeqCst);
             Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for FailingDeregisterAndDisconnectAfterSuccessDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+            Err(crate::discovery::DiscoveryError::Internal(
+                "forced disconnect failure".to_string(),
+            ))
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn discover_async(&self, service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            if service_type == "ps" {
+                let (host, port) = self
+                    .ps_addr
+                    .split_once(':')
+                    .ok_or_else(|| {
+                        crate::discovery::DiscoveryError::Internal("invalid ps addr".to_string())
+                    })?;
+                let port: u16 = port
+                    .parse()
+                    .map_err(|_| {
+                        crate::discovery::DiscoveryError::Internal(
+                            "invalid ps port".to_string(),
+                        )
+                    })?;
+                let mut ps = ServiceInfo::new("ps-0", "ps-0", "ps", host, port);
+                ps = ps.with_metadata("index", "0");
+                Ok(vec![ps])
+            } else {
+                Ok(Vec::new())
+            }
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            self.deregister_count.fetch_add(1, Ordering::SeqCst);
+            Err(crate::discovery::DiscoveryError::Internal(
+                "forced deregister failure".to_string(),
+            ))
         }
     }
 
@@ -2124,6 +2272,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_returns_connect_error_when_connect_and_disconnect_fail() {
+        let discovery = Arc::new(FailingConnectAndDisconnectDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(res.is_err(), "expected connect failure");
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("forced connect failure"),
+            "connect error should be returned even if disconnect also fails: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should still be attempted even when it also fails"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_attempts_disconnect_when_deregister_fails_after_success() {
         let ps = PsServer::new(0, 8);
         let (listener, actual_addr) = bind_ephemeral("127.0.0.1:0".parse().unwrap())
@@ -2211,6 +2385,48 @@ mod tests {
             discovery.disconnect_count(),
             1,
             "disconnect should be attempted exactly once"
+        );
+
+        ps_server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_prefers_deregister_error_when_both_post_success_cleanup_steps_fail(
+    ) {
+        let ps = PsServer::new(0, 8);
+        let (listener, actual_addr) = bind_ephemeral("127.0.0.1:0".parse().unwrap())
+            .await
+            .unwrap();
+        let ps_server = tokio::spawn(
+            tonic::transport::Server::builder()
+                .add_service(Arc::clone(&ps).into_service())
+                .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener)),
+        );
+
+        let discovery = Arc::new(FailingDeregisterAndDisconnectAfterSuccessDiscovery::new(
+            actual_addr.to_string(),
+        ));
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            dim: 8,
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(res.is_err(), "expected cleanup failures after successful run");
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("forced deregister failure"),
+            "deregister failure should take precedence when both cleanup steps fail: {msg}"
+        );
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should still be attempted even if deregister already failed"
         );
 
         ps_server.abort();
