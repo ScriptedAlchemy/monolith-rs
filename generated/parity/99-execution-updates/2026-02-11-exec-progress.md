@@ -1159,6 +1159,13 @@
 - Added regression:
   - `test_ps_abort_cancels_inflight_blocking_heartbeat`.
 
+### 108) Connect-failure discovery cleanup in distributed runner
+- Hardened `run_distributed(...)` initialization path:
+  - if `discovery.connect()` fails, runner now attempts
+    `discovery.disconnect()` best-effort before returning error.
+- Added regression:
+  - `test_run_distributed_attempts_disconnect_when_connect_fails`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1343,6 +1350,8 @@
 181. `cargo test --workspace -q` ✅ (post heartbeat stop timeout guard for blocking heartbeat calls and full workspace rerun)
 182. `cargo test -p monolith-training -q` ✅ (post stop-aware in-flight heartbeat cancellation refactor)
 183. `cargo test --workspace -q` ✅ (post stop-aware in-flight heartbeat cancellation refactor and full workspace rerun)
+184. `cargo test -p monolith-training -q` ✅ (post connect-failure discovery disconnect cleanup hardening)
+185. `cargo test --workspace -q` ✅ (post connect-failure discovery disconnect cleanup hardening and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
