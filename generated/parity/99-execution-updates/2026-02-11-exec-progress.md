@@ -1561,6 +1561,19 @@
   by adding direct elapsed-time evidence for cleanup-timeout propagation through
   both config entrypoints.
 
+### 143) Register-path cleanup-timeout propagation integration coverage
+- Added register-path cleanup-timeout regressions:
+  - `distributed_runner_from_run_config_honors_cleanup_timeout_after_register_timeout`
+  - `distributed_runner_from_runner_config_honors_cleanup_timeout_after_register_timeout`
+- Uses blocked worker `register_async` plus blocked cleanup operations with
+  small configured operation/cleanup timeouts to validate:
+  - runtime remains non-hanging,
+  - register timeout diagnostics preserve configured operation timeout context,
+  - total elapsed runtime stays bounded by configured cleanup-timeout behavior
+    across both config entrypoints.
+- Complements connect-path cleanup-timeout coverage to ensure cleanup-timeout
+  propagation is validated for both setup failure families (connect + register).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1822,6 +1835,8 @@
 258. `cargo test --workspace -q` ✅ (post zero-timeout validation integration regressions across run/runner config entrypoints full workspace rerun)
 259. `cargo test -p monolith-training -q` ✅ (post cleanup-timeout propagation integration regressions across run/runner config entrypoints)
 260. `cargo test --workspace -q` ✅ (post cleanup-timeout propagation integration regressions across run/runner config entrypoints full workspace rerun)
+261. `cargo test -p monolith-training -q` ✅ (post register-path cleanup-timeout propagation integration regressions across run/runner config entrypoints)
+262. `cargo test --workspace -q` ✅ (post register-path cleanup-timeout propagation integration regressions across run/runner config entrypoints full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
