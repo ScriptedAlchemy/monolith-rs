@@ -808,6 +808,7 @@
 97. `cargo test -p monolith-training -q` ✅ (post cancellable PS discovery heartbeat lifecycle management in distributed runner)
 98. `cargo test --workspace -q` ✅ (post runner heartbeat lifecycle cancellation refactor and full workspace regression rerun)
 99. `cargo test -p monolith-training -q` ✅ (post local-cluster start/stop lifecycle guard semantics and regression tests)
+100. `cargo test --workspace -q` ✅ (post local-cluster lifecycle guard semantics and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
