@@ -496,6 +496,16 @@ impl ParameterServerTraining for PsServerHandle {
                 num_arrived: 0,
             }));
         }
+        if req.worker_id < 0 || req.worker_id >= req.num_workers {
+            return Ok(Response::new(BarrierResponse {
+                status_code: 1,
+                error_message: format!(
+                    "worker_id {} out of range for num_workers={}",
+                    req.worker_id, req.num_workers
+                ),
+                num_arrived: 0,
+            }));
+        }
 
         // Get or create barrier state
         let barrier_state = {
@@ -1206,6 +1216,25 @@ mod tests {
             .into_inner();
         assert_eq!(bad.status_code, 1);
         assert!(bad.error_message.contains("expects num_workers=1"));
+    }
+
+    #[tokio::test]
+    async fn test_ps_server_barrier_worker_id_range_validation() {
+        let ps = PsServer::new(0, 2);
+        let handle = PsServerHandle(ps);
+
+        let bad = handle
+            .barrier(Request::new(BarrierRequest {
+                barrier_id: "bwid".to_string(),
+                worker_id: 2, // out of [0,2)
+                num_workers: 2,
+                timeout_ms: 50,
+            }))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(bad.status_code, 1);
+        assert!(bad.error_message.contains("out of range"));
     }
 
     #[tokio::test]
