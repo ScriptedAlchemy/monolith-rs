@@ -2225,6 +2225,73 @@ async fn distributed_runner_from_run_config_surfaces_disconnect_timeout_with_cus
     ps_server.abort();
 }
 
+#[tokio::test]
+async fn distributed_runner_from_run_config_preserves_deregister_timeout_with_disconnect_timeout_context_after_success(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let (ps_server, ps_addr) = spawn_worker_success_ps_server(8).await;
+    let discovery = Arc::new(HangingCleanupAfterSuccessFromConfigDiscovery::new(
+        ps_addr.to_string(),
+        true,
+        true,
+    ));
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        dim: 8,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when both cleanup steps block after successful worker run"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: deregister worker-0 from trainer_custom after 20ms"
+        ),
+        "deregister timeout should remain primary in run-config post-success cleanup path when both cleanup steps block: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after successful role completion"),
+        "run-config post-success cleanup path should append cleanup issue context when both cleanup steps block: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
+        ),
+        "run-config post-success cleanup issue context should include disconnect timeout diagnostics when both cleanup steps block: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+    ps_server.abort();
+}
+
 struct HangingConnectAndCleanupFromRunConfigDiscovery {
     connect_count: AtomicUsize,
     disconnect_count: AtomicUsize,
@@ -5635,6 +5702,72 @@ async fn distributed_runner_from_runner_config_surfaces_disconnect_timeout_with_
             "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
         ),
         "disconnect timeout diagnostics should include custom worker service type from RunnerConfig after successful worker run: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+    ps_server.abort();
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_deregister_timeout_with_disconnect_timeout_context_after_success(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let (ps_server, ps_addr) = spawn_worker_success_ps_server(8).await;
+    let discovery = Arc::new(HangingCleanupAfterSuccessFromConfigDiscovery::new(
+        ps_addr.to_string(),
+        true,
+        true,
+    ));
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        dim: 8,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when both cleanup steps block after successful worker run"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: deregister worker-0 from trainer_custom after 20ms"
+        ),
+        "deregister timeout should remain primary in runner-config post-success cleanup path when both cleanup steps block: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after successful role completion"),
+        "runner-config post-success cleanup path should append cleanup issue context when both cleanup steps block: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
+        ),
+        "runner-config post-success cleanup issue context should include disconnect timeout diagnostics when both cleanup steps block: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);

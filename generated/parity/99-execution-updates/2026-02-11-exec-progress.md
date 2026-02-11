@@ -2267,6 +2267,22 @@
   cleanup diagnostics, preserving deterministic error precedence while exposing
   actionable cleanup failure context.
 
+### 188) Post-success cleanup parity now preserves deregister failure precedence while appending disconnect diagnostics
+- Hardened `run_distributed` successful-role cleanup path:
+  - when both cleanup steps fail (`deregister` + `disconnect`), returned error
+    now preserves primary deregister failure while appending disconnect cleanup
+    diagnostics in the same message.
+- Expanded parity tests:
+  - runner unit regression now asserts combined cleanup context + disconnect
+    failure diagnostics when both post-success cleanup steps fail.
+  - native-training integration regressions (RunConfig + RunnerConfig) now
+    assert successful worker run + both blocked cleanup steps produce:
+    - primary deregister timeout diagnostics,
+    - appended cleanup issue context for successful-role completion,
+    - appended disconnect timeout diagnostics with configured cleanup timeout.
+- Result: setup, role-error, and post-success cleanup branches now all surface
+  rich cleanup diagnostics with deterministic primary-error precedence.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2619,6 +2635,9 @@
 349. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post register-timeout cleanup-diagnostic integration parity expansion full workspace rerun under ambient ZK auth env)
 350. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post connect-failure cleanup-diagnostic propagation in runner + run/runner connect-timeout integration parity expansion)
 351. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post connect-failure cleanup-diagnostic propagation hardening full workspace rerun under ambient ZK auth env)
+352. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post post-success cleanup diagnostic propagation hardening for combined deregister+disconnect failure paths)
+353. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post post-success cleanup diagnostic propagation hardening targeted CLI regression check)
+354. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post post-success cleanup diagnostic propagation hardening full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
