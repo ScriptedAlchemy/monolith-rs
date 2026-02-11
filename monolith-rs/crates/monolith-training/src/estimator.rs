@@ -340,6 +340,11 @@ impl<M: ModelFn> Estimator<M> {
         }
     }
 
+    /// Creates an estimator from execution-time runner configuration.
+    pub fn from_runner_config(runner_conf: &crate::run_config::RunnerConfig, model_fn: M) -> Self {
+        Self::new(runner_conf.to_estimator_config(), model_fn)
+    }
+
     /// Returns a reference to the configuration.
     pub fn config(&self) -> &EstimatorConfig {
         &self.config
@@ -602,6 +607,24 @@ mod tests {
         assert_eq!(result.global_step, 10);
         assert!(!result.stopped_early);
         assert!(result.final_metrics.is_some());
+    }
+
+    #[test]
+    fn test_estimator_from_runner_config() {
+        let runner = crate::run_config::RunnerConfig {
+            model_dir: PathBuf::from("/tmp/model_from_runner"),
+            log_step_count_steps: 7,
+            restore_ckpt: Some("model.ckpt-88".to_string()),
+            ..crate::run_config::RunnerConfig::default()
+        };
+        let model_fn = ConstantModelFn::new(0.5);
+        let estimator = Estimator::from_runner_config(&runner, model_fn);
+        assert_eq!(estimator.config().model_dir, PathBuf::from("/tmp/model_from_runner"));
+        assert_eq!(estimator.config().log_step_count_steps, 7);
+        assert_eq!(
+            estimator.config().warm_start_from,
+            Some(PathBuf::from("model.ckpt-88"))
+        );
     }
 
     #[test]

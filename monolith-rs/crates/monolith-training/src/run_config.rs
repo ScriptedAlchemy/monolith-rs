@@ -230,6 +230,28 @@ impl RunConfig {
             );
         }
     }
+
+    /// Builds an estimator config directly from user-facing run config values.
+    pub fn to_estimator_config(&self) -> crate::estimator::EstimatorConfig {
+        let mut cfg = crate::estimator::EstimatorConfig::new(self.model_dir.clone())
+            .with_log_step_count_steps(self.log_step_count_steps);
+        if let Some(restore_ckpt) = &self.restore_ckpt {
+            cfg = cfg.with_warm_start_from(PathBuf::from(restore_ckpt));
+        }
+        cfg
+    }
+}
+
+impl RunnerConfig {
+    /// Builds an estimator config from execution-time runner configuration.
+    pub fn to_estimator_config(&self) -> crate::estimator::EstimatorConfig {
+        let mut cfg = crate::estimator::EstimatorConfig::new(self.model_dir.clone())
+            .with_log_step_count_steps(self.log_step_count_steps);
+        if let Some(restore_ckpt) = &self.restore_ckpt {
+            cfg = cfg.with_warm_start_from(PathBuf::from(restore_ckpt));
+        }
+        cfg
+    }
 }
 
 #[cfg(test)]
@@ -354,5 +376,33 @@ mod tests {
             std::env::var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER").unwrap(),
             "3"
         );
+    }
+
+    #[test]
+    fn test_runner_config_to_estimator_config() {
+        let rc = RunnerConfig {
+            model_dir: PathBuf::from("/tmp/model_dir"),
+            log_step_count_steps: 42,
+            restore_ckpt: Some("model.ckpt-30".to_string()),
+            ..RunnerConfig::default()
+        };
+        let est = rc.to_estimator_config();
+        assert_eq!(est.model_dir, PathBuf::from("/tmp/model_dir"));
+        assert_eq!(est.log_step_count_steps, 42);
+        assert_eq!(est.warm_start_from, Some(PathBuf::from("model.ckpt-30")));
+    }
+
+    #[test]
+    fn test_run_config_to_estimator_config() {
+        let rc = RunConfig {
+            model_dir: PathBuf::from("/tmp/model_dir2"),
+            log_step_count_steps: 21,
+            restore_ckpt: Some("model.ckpt-61".to_string()),
+            ..RunConfig::default()
+        };
+        let est = rc.to_estimator_config();
+        assert_eq!(est.model_dir, PathBuf::from("/tmp/model_dir2"));
+        assert_eq!(est.log_step_count_steps, 21);
+        assert_eq!(est.warm_start_from, Some(PathBuf::from("model.ckpt-61")));
     }
 }
