@@ -896,6 +896,7 @@
 111. `cargo test -p monolith-training -q` ✅ (post conflicting duplicate shard-index advertisement guard in worker discovery ordering)
 112. `cargo test --workspace -q` ✅ (post conflicting duplicate shard-index advertisement guard and full workspace regression rerun)
 113. `cargo test -p monolith-training -q` ✅ (post run/runner config propagation of discovery service-role names and table settings into distributed runtime config)
+114. `cargo test --workspace -q` ✅ (post run/runner config discovery-role + table/dim propagation updates and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
