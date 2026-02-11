@@ -1395,6 +1395,40 @@ mod tests {
         }
     }
 
+    struct WorkerTimeoutWithFailingCleanupDiscovery {
+        connect_count: AtomicUsize,
+        discover_count: AtomicUsize,
+        disconnect_count: AtomicUsize,
+        deregister_count: AtomicUsize,
+    }
+
+    impl WorkerTimeoutWithFailingCleanupDiscovery {
+        fn new() -> Self {
+            Self {
+                connect_count: AtomicUsize::new(0),
+                discover_count: AtomicUsize::new(0),
+                disconnect_count: AtomicUsize::new(0),
+                deregister_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn connect_count(&self) -> usize {
+            self.connect_count.load(Ordering::SeqCst)
+        }
+
+        fn disconnect_count(&self) -> usize {
+            self.disconnect_count.load(Ordering::SeqCst)
+        }
+
+        fn deregister_count(&self) -> usize {
+            self.deregister_count.load(Ordering::SeqCst)
+        }
+
+        fn discover_count(&self) -> usize {
+            self.discover_count.load(Ordering::SeqCst)
+        }
+    }
+
     struct FailingDisconnectAfterSuccessDiscovery {
         ps_addr: String,
         disconnect_count: AtomicUsize,
@@ -1826,6 +1860,45 @@ mod tests {
             Err(crate::discovery::DiscoveryError::Internal(
                 "forced discover failure".to_string(),
             ))
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            self.deregister_count.fetch_add(1, Ordering::SeqCst);
+            Err(crate::discovery::DiscoveryError::Internal(
+                "forced deregister failure".to_string(),
+            ))
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for WorkerTimeoutWithFailingCleanupDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            self.connect_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+            Err(crate::discovery::DiscoveryError::Internal(
+                "forced disconnect failure".to_string(),
+            ))
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            self.discover_count.fetch_add(1, Ordering::SeqCst);
+            Ok(Vec::new())
         }
 
         async fn watch_async(
@@ -5309,6 +5382,103 @@ mod tests {
             msg.contains("disconnect worker-2 via trainer_custom")
                 && msg.contains("forced disconnect failure"),
             "discover failure cleanup issue context should include custom worker service-type disconnect-failure diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_timeout_when_cleanup_steps_fail() {
+        let discovery = Arc::new(WorkerTimeoutWithFailingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(
+            res.is_err(),
+            "worker timeout with failing cleanup should surface as a role error"
+        );
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker timeout should remain primary over cleanup failures: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "worker timeout diagnostics should include cleanup issue context when cleanup fails: {msg}"
+        );
+        assert!(
+            msg.contains("deregister worker-0 from worker")
+                && msg.contains("forced deregister failure"),
+            "worker-timeout cleanup issue context should include worker deregister-failure diagnostics: {msg}"
+        );
+        assert!(
+            msg.contains("disconnect worker-0 via worker")
+                && msg.contains("forced disconnect failure"),
+            "worker-timeout cleanup issue context should include worker disconnect-failure diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_timeout_with_custom_service_types_and_index_when_cleanup_steps_fail(
+    ) {
+        let discovery = Arc::new(WorkerTimeoutWithFailingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 3,
+            num_ps: 1,
+            num_workers: 4,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(
+            res.is_err(),
+            "worker timeout with failing cleanup should surface as a role error with custom service types/index"
+        );
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker timeout should remain primary over cleanup failures with custom service types/index: {msg}"
+        );
+        assert!(
+            msg.contains("service type: parameter_server_custom"),
+            "worker-timeout diagnostics should include custom PS service-type context when cleanup fails: {msg}"
+        );
+        assert!(
+            msg.contains("for worker-3"),
+            "worker-timeout diagnostics should include propagated worker index when cleanup fails: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "worker-timeout diagnostics should include cleanup issue context when cleanup fails with custom service types/index: {msg}"
+        );
+        assert!(
+            msg.contains("deregister worker-3 from trainer_custom")
+                && msg.contains("forced deregister failure"),
+            "worker-timeout cleanup issue context should include custom worker service-type deregister-failure diagnostics: {msg}"
+        );
+        assert!(
+            msg.contains("disconnect worker-3 via trainer_custom")
+                && msg.contains("forced disconnect failure"),
+            "worker-timeout cleanup issue context should include custom worker service-type disconnect-failure diagnostics: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(discovery.discover_count(), 1);
