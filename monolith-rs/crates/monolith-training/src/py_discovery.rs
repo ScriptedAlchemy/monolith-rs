@@ -390,6 +390,8 @@ impl ServiceDiscoveryAsync for TfConfigServiceDiscovery {
 #[derive(Debug, Clone)]
 struct MlpEnv {
     role: String,                      // uppercase
+    index: usize,
+    host: Option<String>,
     all_roles: HashMap<String, usize>, // uppercase role -> count
 }
 
@@ -399,6 +401,14 @@ impl MlpEnv {
             .unwrap_or_default()
             .trim()
             .to_uppercase();
+        let index = std::env::var("MLP_ROLE_INDEX")
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(0);
+        let host = std::env::var("MLP_HOST")
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
 
         // Parse `MLP_<ROLE>_NUM` keys.
         let mut all_roles: HashMap<String, usize> = HashMap::new();
@@ -413,7 +423,12 @@ impl MlpEnv {
             }
         }
 
-        Self { role, all_roles }
+        Self {
+            role,
+            index,
+            host,
+            all_roles,
+        }
     }
 
     fn num_replicas(&self, role: &str) -> usize {
@@ -444,6 +459,24 @@ impl MlpEnv {
         let port = self.get_port(role, index)?;
         Some(format!("{}:{}", host, port))
     }
+
+    fn current_host_candidates(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        if !self.role.is_empty() {
+            if let Some(h) = self.get_host(&self.role, self.index, true) {
+                out.push(h);
+            }
+            if let Some(h) = self.get_host(&self.role, self.index, false) {
+                out.push(h);
+            }
+        }
+        if let Some(h) = self.host.clone() {
+            out.push(h);
+        }
+        out.sort();
+        out.dedup();
+        out
+    }
 }
 
 /// Environment-variable based discovery matching Python's `MLPServiceDiscovery`.
@@ -465,18 +498,60 @@ impl MlpServiceDiscovery {
         }
     }
 
+    pub fn server_type(&self) -> Option<String> {
+        if self.env.role.is_empty() {
+            None
+        } else {
+            Some(self.env.role.to_lowercase())
+        }
+    }
+
+    pub fn index(&self) -> usize {
+        self.env.index
+    }
+
+    pub fn addr(&self) -> Option<String> {
+        self.server_type()
+            .and_then(|role| self.env.get_addr(&role, self.index(), true))
+    }
+
     fn key(name: &str, index: i32) -> String {
         format!("{}:{}", name.trim().to_lowercase(), index)
     }
 
+    pub fn deregister_all(&self) {
+        let mut filters = self.filters.lock().unwrap();
+        for (name, num) in &self.env.all_roles {
+            for idx in 0..*num {
+                filters.insert(Self::key(&name.to_lowercase(), idx as i32));
+            }
+        }
+    }
+
+    pub fn query_all(&self) -> Result<HashMap<String, HashMap<i32, String>>> {
+        let mut out = HashMap::new();
+        for name in ["ps", "worker", "chief"] {
+            out.insert(name.to_string(), self.query(name)?);
+        }
+        Ok(out)
+    }
+
     fn validate(&self, name: &str, index: i32, addr: &str) -> Result<()> {
+        let role_name = name.trim().to_uppercase();
+        if !self.env.all_roles.contains_key(&role_name) {
+            return Err(DiscoveryError::ConfigError(format!(
+                "Unknown MLP role {:?}",
+                name
+            )));
+        }
+
         if index < 0 {
             return Err(DiscoveryError::ConfigError(format!(
                 "index must be >= 0, got {}",
                 index
             )));
         }
-        let n = self.env.num_replicas(name);
+        let n = self.env.num_replicas(&role_name);
         if (index as usize) >= n {
             return Err(DiscoveryError::ConfigError(format!(
                 "index {} out of bounds for role {:?} (num_replicas={})",
@@ -484,10 +559,33 @@ impl MlpServiceDiscovery {
             )));
         }
 
-        // Best-effort address validation: ensure the port matches the configured port.
-        let (_host, port_str) = addr
+        // Match Python-style host/port checks:
+        // - host must be one of local aliases, expected primary/non-primary host,
+        //   or current process host aliases.
+        // - port must match MLP_<ROLE>_<IDX>_PORT.
+        let (real_host, port_str) = addr
             .split_once(':')
             .ok_or_else(|| DiscoveryError::ConfigError(format!("Invalid addr: {:?}", addr)))?;
+        let mut allowed_hosts: HashSet<String> = ["local", "localhost", "127.0.0.1", "0.0.0.0"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        if let Some(h) = self.env.get_host(&role_name, index as usize, true) {
+            allowed_hosts.insert(h);
+        }
+        if let Some(h) = self.env.get_host(&role_name, index as usize, false) {
+            allowed_hosts.insert(h);
+        }
+        for h in self.env.current_host_candidates() {
+            allowed_hosts.insert(h);
+        }
+        if !allowed_hosts.contains(real_host) {
+            return Err(DiscoveryError::ConfigError(format!(
+                "Host mismatch for {:?}.{}: got {:?}",
+                name, index, real_host
+            )));
+        }
+
         let port: u16 = port_str.parse().map_err(|_| {
             DiscoveryError::ConfigError(format!("Invalid port in addr: {:?}", addr))
         })?;
@@ -528,6 +626,12 @@ impl PyServiceDiscovery for MlpServiceDiscovery {
     }
 
     fn query(&self, name: &str) -> Result<HashMap<i32, String>> {
+        if name.trim().is_empty() {
+            return Err(DiscoveryError::ConfigError(
+                "name must be non-empty".to_string(),
+            ));
+        }
+
         let num = self.env.num_replicas(name);
         if num == 0 {
             return Ok(HashMap::new());
@@ -642,5 +746,149 @@ impl ServiceDiscoveryAsync for MlpServiceDiscovery {
 
     async fn deregister_async(&self, service_id: &str) -> crate::discovery::Result<()> {
         ServiceDiscovery::deregister(self, service_id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    static MLP_ENV_TEST_MUTEX: Mutex<()> = Mutex::new(());
+
+    struct EnvSnapshot {
+        saved: Vec<(String, Option<String>)>,
+    }
+
+    impl EnvSnapshot {
+        fn install(vars: &[(&str, &str)], managed_keys: &[&str]) -> Self {
+            let mut saved = Vec::with_capacity(managed_keys.len());
+            for key in managed_keys {
+                saved.push(((*key).to_string(), std::env::var(key).ok()));
+                std::env::remove_var(key);
+            }
+            for (k, v) in vars {
+                std::env::set_var(k, v);
+            }
+            Self { saved }
+        }
+    }
+
+    impl Drop for EnvSnapshot {
+        fn drop(&mut self) {
+            for (k, v) in &self.saved {
+                if let Some(v) = v {
+                    std::env::set_var(k, v);
+                } else {
+                    std::env::remove_var(k);
+                }
+            }
+        }
+    }
+
+    const MLP_MANAGED_KEYS: &[&str] = &[
+        "MLP_ROLE",
+        "MLP_ROLE_INDEX",
+        "MLP_HOST",
+        "MLP_WORKER_NUM",
+        "MLP_PS_NUM",
+        "MLP_CHIEF_NUM",
+        "MLP_WORKER_0_PRIMARY_HOST",
+        "MLP_WORKER_0_HOST",
+        "MLP_WORKER_0_PORT",
+        "MLP_WORKER_1_PRIMARY_HOST",
+        "MLP_WORKER_1_HOST",
+        "MLP_WORKER_1_PORT",
+        "MLP_PS_0_PRIMARY_HOST",
+        "MLP_PS_0_HOST",
+        "MLP_PS_0_PORT",
+        "MLP_CHIEF_0_PRIMARY_HOST",
+        "MLP_CHIEF_0_HOST",
+        "MLP_CHIEF_0_PORT",
+    ];
+
+    fn install_default_mlp_env() -> EnvSnapshot {
+        EnvSnapshot::install(
+            &[
+                ("MLP_ROLE", "worker"),
+                ("MLP_ROLE_INDEX", "0"),
+                ("MLP_HOST", "worker0"),
+                ("MLP_WORKER_NUM", "2"),
+                ("MLP_PS_NUM", "1"),
+                ("MLP_CHIEF_NUM", "1"),
+                ("MLP_WORKER_0_PRIMARY_HOST", "worker0"),
+                ("MLP_WORKER_0_HOST", "worker0"),
+                ("MLP_WORKER_0_PORT", "2222"),
+                ("MLP_WORKER_1_PRIMARY_HOST", "worker1"),
+                ("MLP_WORKER_1_HOST", "worker1"),
+                ("MLP_WORKER_1_PORT", "2223"),
+                ("MLP_PS_0_PRIMARY_HOST", "ps0"),
+                ("MLP_PS_0_HOST", "ps0"),
+                ("MLP_PS_0_PORT", "3333"),
+                ("MLP_CHIEF_0_PRIMARY_HOST", "chief0"),
+                ("MLP_CHIEF_0_HOST", "chief0"),
+                ("MLP_CHIEF_0_PORT", "4444"),
+            ],
+            MLP_MANAGED_KEYS,
+        )
+    }
+
+    #[test]
+    fn test_mlp_service_discovery_query_all_and_filters() {
+        let _guard = MLP_ENV_TEST_MUTEX.lock().unwrap();
+        let _env = install_default_mlp_env();
+
+        let d = MlpServiceDiscovery::new();
+        assert_eq!(d.server_type().as_deref(), Some("worker"));
+        assert_eq!(d.index(), 0);
+        assert_eq!(d.addr().as_deref(), Some("worker0:2222"));
+
+        let ps = d.query("ps").unwrap();
+        assert_eq!(ps.get(&0).unwrap(), "ps0:3333");
+
+        let workers = d.query("worker").unwrap();
+        assert_eq!(workers.get(&0).unwrap(), "worker0:2222");
+        assert_eq!(workers.get(&1).unwrap(), "worker1:2223");
+
+        PyServiceDiscovery::deregister(&d, "worker", 1, "worker1:2223").unwrap();
+        let workers = d.query("worker").unwrap();
+        assert_eq!(workers.len(), 1);
+        assert_eq!(workers.get(&0).unwrap(), "worker0:2222");
+
+        let all = d.query_all().unwrap();
+        assert_eq!(all.get("ps").unwrap().get(&0).unwrap(), "ps0:3333");
+        assert_eq!(
+            all.get("chief").unwrap().get(&0).unwrap(),
+            "chief0:4444"
+        );
+
+        d.deregister_all();
+        let all = d.query_all().unwrap();
+        assert!(all.get("ps").unwrap().is_empty());
+        assert!(all.get("worker").unwrap().is_empty());
+        assert!(all.get("chief").unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_mlp_register_rejects_unexpected_host() {
+        let _guard = MLP_ENV_TEST_MUTEX.lock().unwrap();
+        let _env = install_default_mlp_env();
+
+        let d = MlpServiceDiscovery::new();
+        let err = PyServiceDiscovery::register(&d, "ps", 0, "untrusted-host:3333").unwrap_err();
+        assert!(
+            err.to_string().contains("Host mismatch"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_mlp_query_requires_non_empty_name() {
+        let _guard = MLP_ENV_TEST_MUTEX.lock().unwrap();
+        let _env = install_default_mlp_env();
+
+        let d = MlpServiceDiscovery::new();
+        let err = d.query("").unwrap_err();
+        assert!(err.to_string().contains("name must be non-empty"));
     }
 }
