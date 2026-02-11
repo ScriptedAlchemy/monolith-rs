@@ -2522,8 +2522,10 @@ async fn distributed_runner_from_run_config_preserves_connect_failure_with_clean
     let discovery = Arc::new(FailingConnectWithHangingDisconnectFromConfigDiscovery::new());
     let run = RunConfig {
         is_local: true,
+        index: 0,
         num_ps: 1,
         num_workers: 1,
+        discovery_service_type_worker: "trainer_custom".to_string(),
         discovery_cleanup_timeout_ms: 20,
         ..RunConfig::default()
     };
@@ -2553,8 +2555,10 @@ async fn distributed_runner_from_run_config_preserves_connect_failure_with_clean
         "connect-failure diagnostics via RunConfig should include cleanup issue context when cleanup disconnect blocks: {msg}"
     );
     assert!(
-        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker after 20ms"),
-        "connect-failure cleanup context via RunConfig should include disconnect-timeout diagnostics: {msg}"
+        msg.contains(
+            "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
+        ),
+        "connect-failure cleanup context via RunConfig should include disconnect-timeout diagnostics with custom worker service type: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
@@ -3684,6 +3688,7 @@ async fn distributed_runner_from_runner_config_preserves_connect_failure_with_cl
         index: 0,
         num_ps: 1,
         num_workers: 1,
+        discovery_service_type_worker: "trainer_custom".to_string(),
         discovery_cleanup_timeout_ms: 20,
         ..RunnerConfig::default()
     };
@@ -3712,8 +3717,10 @@ async fn distributed_runner_from_runner_config_preserves_connect_failure_with_cl
         "connect-failure diagnostics via RunnerConfig should include cleanup issue context when cleanup disconnect blocks: {msg}"
     );
     assert!(
-        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker after 20ms"),
-        "connect-failure cleanup context via RunnerConfig should include disconnect-timeout diagnostics: {msg}"
+        msg.contains(
+            "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
+        ),
+        "connect-failure cleanup context via RunnerConfig should include disconnect-timeout diagnostics with custom worker service type: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);

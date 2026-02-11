@@ -2298,6 +2298,19 @@
   integration test binary compilation/execution remains green with expanded
   connect-failure coverage.
 
+### 190) Connect-failure cleanup-timeout diagnostics now verify custom worker service-type propagation in RunConfig/RunnerConfig paths
+- Tightened existing connect-failure + blocked-disconnect integration assertions
+  to validate custom worker discovery-service-type propagation in cleanup
+  timeout operation diagnostics.
+- Updated tests:
+  - `distributed_runner_from_run_config_preserves_connect_failure_with_cleanup_timeout_context`
+  - `distributed_runner_from_runner_config_preserves_connect_failure_with_cleanup_timeout_context`
+- Both now configure `discovery_service_type_worker = "trainer_custom"` and
+  assert timeout diagnostics include:
+  - `disconnect worker-0 via trainer_custom after 20ms`
+- This closes the remaining service-type-context parity gap for connect-failure
+  cleanup-timeout diagnostics in run/runner configuration entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2656,6 +2669,9 @@
 355. `ZK_AUTH=user:pass cargo test -p monolith-training --test native_training_parity -q` ✅ (post connect-failure cleanup-disconnect-failure integration parity expansion and missing test-double restoration)
 356. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post native-training connect-failure cleanup-failure integration parity expansion targeted training/cli rerun)
 357. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post connect-failure cleanup-failure integration parity expansion full workspace rerun under ambient ZK auth env)
+358. `ZK_AUTH=user:pass cargo test -p monolith-training --test native_training_parity -q` ✅ (post custom worker service-type propagation assertions for connect-failure cleanup-timeout diagnostics in run/runner entrypoints)
+359. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post connect-failure cleanup-timeout custom-service-type parity assertion updates targeted training/cli rerun)
+360. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post connect-failure cleanup-timeout custom-service-type parity assertion updates full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
