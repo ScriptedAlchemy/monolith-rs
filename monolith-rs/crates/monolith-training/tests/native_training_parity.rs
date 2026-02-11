@@ -982,6 +982,55 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_when_clea
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_honors_cleanup_timeout_after_register_timeout() {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    let discovery = Arc::new(HangingRegisterAndCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 10,
+        discovery_cleanup_timeout_ms: 10,
+        ..RunConfig::default()
+    };
+
+    let started = Instant::now();
+    let res = tokio::time::timeout(
+        Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when register and cleanup are blocked"
+    );
+    let elapsed = started.elapsed();
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out during discovery operation: register worker-0 after 10ms"),
+        "operation timeout diagnostics should include configured operation timeout: {msg}"
+    );
+    assert!(
+        elapsed < Duration::from_millis(150),
+        "cleanup timeout from RunConfig should bound blocked register-cleanup duration (elapsed: {:?})",
+        elapsed
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_preserves_ps_register_timeout_when_cleanup_blocks() {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
     use std::sync::Arc;
@@ -1448,6 +1497,55 @@ async fn distributed_runner_from_runner_config_preserves_register_timeout_when_c
     assert!(
         msg.contains("Timed out during discovery operation: register worker-0 after 20ms"),
         "register timeout should remain primary over cleanup timeout when configured via RunnerConfig: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_honors_cleanup_timeout_after_register_timeout() {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    let discovery = Arc::new(HangingRegisterAndCleanupFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 10,
+        discovery_cleanup_timeout_ms: 10,
+        ..RunnerConfig::default()
+    };
+
+    let started = Instant::now();
+    let res = tokio::time::timeout(
+        Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when register and cleanup are blocked"
+    );
+    let elapsed = started.elapsed();
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out during discovery operation: register worker-0 after 10ms"),
+        "operation timeout diagnostics should include configured operation timeout: {msg}"
+    );
+    assert!(
+        elapsed < Duration::from_millis(150),
+        "cleanup timeout from RunnerConfig should bound blocked register-cleanup duration (elapsed: {:?})",
+        elapsed
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
