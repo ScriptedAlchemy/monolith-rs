@@ -646,6 +646,14 @@
 - Added regression `test_ps_barrier_connect_requires_addresses` to verify
   connect-time config guard behavior remains typed (`PsError::InvalidConfig`).
 
+### 60) Worker runtime PS connection reuse
+- Optimized distributed worker runtime setup to reuse one `PsClient` instance
+  for both:
+  - direct lookup/apply training operations,
+  - barrier synchronization via `PsBarrier`.
+- Removed duplicate `PsClient::connect(...)` call in worker role startup,
+  reducing unnecessary connection establishment overhead.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -736,6 +744,7 @@
 87. `cargo test --workspace -q` ✅ (post typed barrier-layer mapping and latest distributed/runtime PS client hardening)
 88. `cargo test -p monolith-training -q` ✅ (post PsBarrier direct-connect convenience API + connect guard regression)
 89. `cargo test --workspace -q` ✅ (post PsBarrier connect convenience API and latest barrier/distributed PS hardening)
+90. `cargo test -p monolith-training -q` ✅ (post worker runtime PS client connection reuse optimization)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
