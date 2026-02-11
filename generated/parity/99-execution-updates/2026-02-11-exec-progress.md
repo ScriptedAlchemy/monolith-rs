@@ -987,6 +987,15 @@
   - `test_spawn_watch_poll_loop_stops_after_receivers_drop`
   validating both event emission and cleanup-on-unsubscribe behavior.
 
+### 92) In-memory discovery watcher sender cleanup
+- Hardened `InMemoryDiscovery::notify_watchers(...)` lifecycle behavior:
+  - removes sender entries when there are no active receivers,
+  - also removes sender entries when broadcast send fails.
+- This prevents stale per-service watch sender entries from accumulating after
+  subscribers disconnect.
+- Added regression
+  `test_in_memory_removes_dead_watchers_after_notification`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1140,6 +1149,7 @@
 150. `cargo test --workspace -q` ✅ (post worker heartbeat lifecycle cleanup and full workspace regression rerun)
 151. `cargo test -p monolith-training -q` ✅ (post discovery watch poller lifecycle cleanup and unsubscribe-stop regressions)
 152. `cargo test --workspace -q` ✅ (post discovery watch poller lifecycle cleanup and full workspace regression rerun)
+153. `cargo test -p monolith-training -q` ✅ (post in-memory discovery dead-watcher sender cleanup)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
