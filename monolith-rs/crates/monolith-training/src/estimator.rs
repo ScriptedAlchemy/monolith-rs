@@ -7,6 +7,7 @@ use crate::hooks::{Hook, HookAction, HookList};
 use crate::metrics::{Metrics, MetricsRecorder};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::Arc;
 use thiserror::Error;
 
 /// Errors that can occur during estimator operations.
@@ -50,6 +51,10 @@ pub enum EstimatorError {
     /// Run config merge/build error.
     #[error("Run config error: {0}")]
     RunConfig(#[from] crate::run_config::RunConfigError),
+
+    /// Distributed runtime error.
+    #[error("Distributed runtime error: {0}")]
+    Distributed(String),
 }
 
 /// Result type for estimator operations.
@@ -590,6 +595,18 @@ impl<M: ModelFn> Estimator<M> {
 
         Ok((final_train, final_eval))
     }
+
+    /// Runs distributed runtime orchestration from runner config.
+    pub async fn run_distributed_runtime<D: crate::discovery::ServiceDiscoveryAsync + 'static + ?Sized>(
+        discovery: Arc<D>,
+        runner_conf: &crate::run_config::RunnerConfig,
+        role: crate::runner::Role,
+        bind_addr: std::net::SocketAddr,
+    ) -> EstimatorResult<()> {
+        crate::runner::run_distributed_from_runner_config(discovery, runner_conf, role, bind_addr)
+            .await
+            .map_err(|e| EstimatorError::Distributed(e.to_string()))
+    }
 }
 
 #[cfg(test)]
@@ -673,6 +690,50 @@ mod tests {
             estimator.config().warm_start_from,
             Some(PathBuf::from("model.ckpt-100"))
         );
+    }
+
+    #[tokio::test]
+    async fn test_estimator_run_distributed_runtime_smoke() {
+        use crate::discovery::InMemoryDiscovery;
+        use crate::run_config::RunnerConfig;
+        use crate::runner::Role;
+
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let ps_runner = RunnerConfig {
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            ..RunnerConfig::default()
+        };
+        let worker_runner = RunnerConfig {
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            ..RunnerConfig::default()
+        };
+
+        let discovery_bg = Arc::clone(&discovery);
+        let ps_runner_bg = ps_runner.clone();
+        let ps_task = tokio::spawn(async move {
+            Estimator::<ConstantModelFn>::run_distributed_runtime(
+                discovery_bg,
+                &ps_runner_bg,
+                Role::Ps,
+                "127.0.0.1:0".parse().unwrap(),
+            )
+            .await
+        });
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let worker_res = Estimator::<ConstantModelFn>::run_distributed_runtime(
+            Arc::clone(&discovery),
+            &worker_runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        )
+        .await;
+        assert!(worker_res.is_ok(), "worker failed: {worker_res:?}");
+        ps_task.abort();
     }
 
     #[test]
