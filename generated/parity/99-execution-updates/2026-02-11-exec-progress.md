@@ -932,6 +932,14 @@
 - Added regression
   `test_run_worker_role_reports_raw_vs_usable_observed_counts`.
 
+### 87) Worker timeout diagnostics now include retry attempt count
+- Extended worker discovery timeout diagnostics to report total attempts made
+  (`connect_retries + 1`) in final timeout messages.
+- This improves operational debuggability by explicitly distinguishing retry
+  budget exhaustion from immediate failures.
+- Added async regression
+  `test_run_worker_role_timeout_reports_attempt_count`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1075,6 +1083,7 @@
 140. `cargo test --workspace -q` ✅ (post worker timeout diagnostics enhancement reporting max observed PS count and full workspace rerun)
 141. `cargo test -p monolith-training -q` ✅ (post raw-vs-usable PS visibility diagnostics enhancement in worker discovery timeout path)
 142. `cargo test --workspace -q` ✅ (post raw-vs-usable PS visibility diagnostics enhancement and full workspace rerun)
+143. `cargo test -p monolith-training -q` ✅ (post worker timeout diagnostics enhancement reporting retry attempt count)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
