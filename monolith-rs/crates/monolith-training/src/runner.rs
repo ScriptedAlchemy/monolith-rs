@@ -314,8 +314,7 @@ where
 }
 
 async fn await_discovery_operation<T, Fut>(
-    service_id: &str,
-    op_name: &'static str,
+    op_name: &str,
     timeout: Duration,
     fut: Fut,
 ) -> anyhow::Result<T>
@@ -325,9 +324,8 @@ where
     match tokio::time::timeout(timeout, fut).await {
         Ok(res) => res.map_err(anyhow::Error::from),
         Err(_) => Err(anyhow::anyhow!(
-            "Timed out during discovery operation: {} {} after {}ms",
+            "Timed out during discovery operation: {} after {}ms",
             op_name,
-            service_id,
             timeout.as_millis()
         )),
     }
@@ -352,12 +350,8 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         ),
     };
 
-    if let Err(e) = await_discovery_operation(
-        &service_id,
-        "connect",
-        operation_timeout,
-        discovery.connect(),
-    )
+    let connect_op = format!("connect {service_id}");
+    if let Err(e) = await_discovery_operation(&connect_op, operation_timeout, discovery.connect())
     .await
     {
         if let Err(disconnect_err) =
@@ -390,9 +384,9 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
             );
             service = service.with_metadata("addr", cfg.bind_addr.to_string());
             service = service.with_metadata("index", cfg.index.to_string());
+            let register_op = format!("register {service_id} as {service_type}");
             match await_discovery_operation(
-                &service_id,
-                "register",
+                &register_op,
                 operation_timeout,
                 discovery.register_async(service),
             )
@@ -504,16 +498,16 @@ async fn run_ps_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     let mut service = ServiceInfo::new(
         service_id.to_string(),
         service_id.to_string(),
-        service_type,
+        service_type.clone(),
         actual_addr.ip().to_string(),
         actual_addr.port(),
     );
     service = service.with_metadata("addr", actual_addr.to_string());
     service = service.with_metadata("index", cfg.index.to_string());
     service = service.with_metadata("allow_update", "true");
+    let register_op = format!("register {service_id} as {service_type}");
     await_discovery_operation(
-        service_id,
-        "register",
+        &register_op,
         cfg.discovery_operation_timeout,
         discovery.register_async(service),
     )
@@ -564,9 +558,9 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         let mut max_raw_ps_observed: usize = 0;
         let mut max_usable_ps_observed: usize = 0;
         for attempt in 0..=cfg.connect_retries {
+            let discover_op = format!("discover {service_id}");
             let ps_services = match await_discovery_operation(
-                service_id,
-                "discover",
+                &discover_op,
                 cfg.discovery_operation_timeout,
                 discovery.discover_async(&cfg.discovery_service_type_ps),
             )
@@ -3166,7 +3160,7 @@ mod tests {
         );
         let msg = res.unwrap().unwrap_err().to_string();
         assert!(
-            msg.contains("Timed out during discovery operation: register worker-0 after 20ms"),
+            msg.contains("Timed out during discovery operation: register worker-0 as worker after 20ms"),
             "register timeout should remain primary over cleanup timeout failures: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
@@ -3199,7 +3193,7 @@ mod tests {
         );
         let msg = res.unwrap().unwrap_err().to_string();
         assert!(
-            msg.contains("Timed out during discovery operation: register ps-0 after 20ms"),
+            msg.contains("Timed out during discovery operation: register ps-0 as ps after 20ms"),
             "ps register timeout should remain primary over cleanup timeout failures: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
