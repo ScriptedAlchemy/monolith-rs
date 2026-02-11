@@ -382,6 +382,18 @@
 - Added regression coverage validating failed apply requests are reflected in
   stats counters and latency fields.
 
+### 36) PS barrier runtime semantics hardening
+- Hardened `distributed_ps` barrier behavior:
+  - validates `num_workers > 0`,
+  - enforces consistent `num_workers` per `barrier_id`,
+  - returns explicit mismatch diagnostics when barrier shape changes.
+- Improved barrier round handling:
+  - leader resets arrived-count after successful round,
+  - timeout path decrements pending arrival count best-effort.
+- Added async regression tests covering:
+  - multi-round barrier reuse and successful reset behavior,
+  - mismatched `num_workers` rejection semantics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -429,6 +441,7 @@
 43. `cargo test -p monolith-training -q` ✅ (post PS lookup/apply latency stats tracking)
 44. `cargo test -p monolith-training -q` ✅ (post failed-apply request accounting in PS stats)
 45. `cargo test --workspace -q` ✅ (post PS latency + failed-apply stats parity updates)
+46. `cargo test -p monolith-training -q` ✅ (post PS barrier semantics hardening)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
