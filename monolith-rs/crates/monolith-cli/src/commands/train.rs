@@ -10,6 +10,7 @@ use monolith_data::example::total_fid_count;
 use monolith_data::{CompressionType, TFRecordReader};
 use monolith_training::discovery::ServiceDiscoveryAsync;
 use monolith_training::runner::{run_distributed, DistributedRunConfig, Role};
+use std::collections::HashSet;
 use std::fs::File;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -281,6 +282,14 @@ impl TrainCommand {
             .any(|target| target.trim() != target)
         {
             anyhow::bail!("--parameter-sync-target entries must not have leading/trailing whitespace");
+        }
+        let mut seen_parameter_sync_targets = HashSet::with_capacity(self.parameter_sync_targets.len());
+        if self
+            .parameter_sync_targets
+            .iter()
+            .any(|target| !seen_parameter_sync_targets.insert(target))
+        {
+            anyhow::bail!("--parameter-sync-target entries must be unique");
         }
         if !self.parameter_sync_targets.is_empty() && self.parameter_sync_model_name.trim().is_empty()
         {
@@ -969,6 +978,21 @@ mod tests {
         assert!(
             err.contains("--parameter-sync-target entries must not have leading/trailing whitespace"),
             "unexpected parameter-sync target whitespace validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_duplicate_parameter_sync_target_entry() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec![
+            "127.0.0.1:8500".to_string(),
+            "127.0.0.1:8500".to_string(),
+        ];
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--parameter-sync-target entries must be unique"),
+            "unexpected parameter-sync target uniqueness validation error: {err}"
         );
     }
 

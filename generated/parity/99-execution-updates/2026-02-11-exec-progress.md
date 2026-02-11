@@ -2020,6 +2020,22 @@
 - Prevents subtle replication endpoint/model signature mismatches caused by
   whitespace-tainted metadata while preserving early, actionable diagnostics.
 
+### 172) Unique parameter-sync target validation parity across CLI/runtime entrypoints
+- Added distributed runtime validation requiring unique
+  `parameter_sync_targets` entries.
+- Added CLI distributed-config builder counterpart requiring unique
+  `--parameter-sync-target` entries.
+- Added regression coverage:
+  - CLI unit:
+    - `test_build_distributed_run_config_rejects_duplicate_parameter_sync_target_entry`
+  - distributed config unit:
+    - `test_distributed_config_validate_rejects_duplicate_parameter_sync_target_entries`
+  - native-training integration parity:
+    - `distributed_runner_from_run_config_rejects_duplicate_parameter_sync_target_entry`
+    - `distributed_runner_from_runner_config_rejects_duplicate_parameter_sync_target_entry`
+- Prevents duplicate online push fanout caused by repeated target endpoints and
+  guarantees deterministic one-target-one-push replication intent.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2340,6 +2356,8 @@
 317. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post whitespace-padded distributed table-name validation full workspace rerun under ambient ZK auth env)
 318. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post whitespace-padded parameter-sync metadata validation parity across CLI/runtime entrypoints)
 319. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post whitespace-padded parameter-sync metadata validation full workspace rerun under ambient ZK auth env)
+320. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post unique parameter-sync target validation parity across CLI/runtime entrypoints)
+321. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post unique parameter-sync target validation parity full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

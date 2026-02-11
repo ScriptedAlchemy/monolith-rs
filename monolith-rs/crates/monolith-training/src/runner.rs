@@ -15,6 +15,7 @@ use crate::distributed_ps::{PsClient, PsServer};
 use crate::parameter_sync_replicator::{DirtyTracker, ParameterSyncReplicator};
 use crate::run_config::RunnerConfig;
 use crate::runner_utils::initialize_restore_checkpoint_from_runner_defaults;
+use std::collections::HashSet;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -175,6 +176,14 @@ impl DistributedRunConfig {
             anyhow::bail!(
                 "distributed config requires parameter_sync_targets entries without leading/trailing whitespace"
             );
+        }
+        let mut seen_parameter_sync_targets = HashSet::with_capacity(self.parameter_sync_targets.len());
+        if self
+            .parameter_sync_targets
+            .iter()
+            .any(|target| !seen_parameter_sync_targets.insert(target))
+        {
+            anyhow::bail!("distributed config requires unique parameter_sync_targets entries");
         }
         if !self.parameter_sync_targets.is_empty() && self.parameter_sync_model_name.trim().is_empty()
         {
@@ -2198,6 +2207,22 @@ mod tests {
             err.contains(
                 "distributed config requires parameter_sync_targets entries without leading/trailing whitespace"
             ),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_duplicate_parameter_sync_target_entries() {
+        let cfg = DistributedRunConfig {
+            parameter_sync_targets: vec![
+                "127.0.0.1:8500".to_string(),
+                "127.0.0.1:8500".to_string(),
+            ],
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("distributed config requires unique parameter_sync_targets entries"),
             "unexpected validation error: {err}"
         );
     }
