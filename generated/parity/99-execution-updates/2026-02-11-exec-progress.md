@@ -494,6 +494,13 @@
   - a timed-out worker does not spuriously count as an arrived participant later,
   - subsequent retry from both workers releases the barrier correctly.
 
+### 46) Batch lookup duplicate-preservation regression coverage
+- Added async test `test_ps_client_batch_lookup_preserves_duplicate_found_flags` to
+  validate that `batch_lookup` preserves per-request duplicate semantics:
+  - first `create_if_missing=true` call reports duplicate entries as initialized,
+  - subsequent lookup reports duplicate entries as found,
+  - `num_found` / `num_initialized` match duplicated request cardinality.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -560,6 +567,7 @@
 62. `cargo test -p monolith-training -q` ✅ (post PS client batch lookup/apply convenience API additions)
 63. `cargo test --workspace -q` ✅ (post PS client batch lookup/apply additions and regression coverage)
 64. `cargo test -p monolith-training -q` ✅ (post local-cluster barrier timeout cleanup + retry regression)
+65. `cargo test -p monolith-training -q` ✅ (post batch-lookup duplicate found-flag regression coverage)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
