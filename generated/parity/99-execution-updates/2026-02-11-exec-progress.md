@@ -1611,6 +1611,17 @@
 - Completes barrier-timeout input validation matrix for non-positive values
   (zero + negative) across CLI, run-config, and runner-config paths.
 
+### 147) Distributed dim input validation coverage across CLI/config entrypoints
+- Added distributed-mode dim validation in train CLI distributed-config builder:
+  - rejects `--dim=0` with actionable CLI-facing error.
+- Added CLI regression:
+  - `test_build_distributed_run_config_rejects_zero_dim`
+- Added run/runner config entrypoint integration regressions:
+  - `distributed_runner_from_run_config_rejects_zero_dim`
+  - `distributed_runner_from_runner_config_rejects_zero_dim`
+- Confirms `dim > 0` validation is enforced consistently across CLI assembly
+  and both config entrypoint runtime validation paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1880,6 +1891,8 @@
 266. `cargo test --workspace -q` ✅ (post barrier-timeout input validation coverage across CLI and config entrypoints full workspace rerun)
 267. `cargo test -p monolith-cli -q && cargo test -p monolith-training -q` ✅ (post negative barrier-timeout validation coverage across CLI and config entrypoints)
 268. `cargo test --workspace -q` ✅ (post negative barrier-timeout validation coverage across CLI and config entrypoints full workspace rerun)
+269. `cargo test -p monolith-cli -q && cargo test -p monolith-training -q` ✅ (post distributed dim input validation coverage across CLI and config entrypoints)
+270. `cargo test --workspace -q` ✅ (post distributed dim input validation coverage across CLI and config entrypoints full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
