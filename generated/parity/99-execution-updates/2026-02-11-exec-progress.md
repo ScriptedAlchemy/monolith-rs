@@ -515,6 +515,21 @@
   - subsequent query returns `LocalModeNoDiscovery`,
   - repeated close remains successful.
 
+### 48) Batched PS client per-entry validation + fanout hardening
+- Hardened `PsClient` batch helper semantics:
+  - `batch_lookup(...)` now validates each sub-request `dim_size > 0` before cast,
+    preventing invalid i32→usize conversion edge cases.
+  - `batch_apply_gradients(...)` now validates each sub-request `dim_size > 0`
+    with the same per-entry error semantics.
+- Refactored batch request processing to run per-entry calls concurrently via
+  `futures::join_all` while preserving response order.
+- Updated internal response helpers (`lookup_response`, `apply_gradients_response`)
+  to shared immutable-client usage needed by concurrent batch orchestration.
+- Added async regression coverage:
+  - `test_ps_client_batch_lookup_validates_dim_size_per_entry`
+  - `test_ps_client_batch_apply_validates_dim_size_per_entry`
+  ensuring invalid entries fail without aborting valid peer entries.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -584,6 +599,7 @@
 65. `cargo test -p monolith-training -q` ✅ (post batch-lookup duplicate found-flag regression coverage)
 66. `cargo test -p monolith-training -q` ✅ (post explicit discovery-guard close lifecycle API + idempotence coverage)
 67. `cargo test --workspace -q` ✅ (post distributed/runtime + discovery lifecycle parity hardening)
+68. `cargo test -p monolith-training -q` ✅ (post batched PS per-entry dim validation + parallel batch fanout)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
