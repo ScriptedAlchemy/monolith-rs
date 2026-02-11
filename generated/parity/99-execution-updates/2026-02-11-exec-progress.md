@@ -426,6 +426,15 @@
   - verifies cross-shard lookup/create behavior,
   - verifies duplicate-gradient aggregation + update correctness across shards.
 
+### 40) PS client no-shard guard semantics
+- Hardened `PsClient` configuration/runtime guards:
+  - `connect(&[])` now returns `InvalidConfig` instead of creating an unusable client.
+  - `lookup` / `apply_gradients` / `barrier` now fail fast with `InvalidConfig`
+    when no shard clients are configured.
+- Added async regression coverage for:
+  - empty-address connect rejection,
+  - lookup behavior on an explicitly empty client instance.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -481,6 +490,7 @@
 51. `cargo test --workspace -q` ✅ (post PS barrier worker-id validation and generation-state runtime checks)
 52. `cargo test -p monolith-training -q` ✅ (post PS client parallel shard fanout implementation)
 53. `cargo test --workspace -q` ✅ (post PS client parallel fanout runtime implementation and end-to-end shard test)
+54. `cargo test -p monolith-training -q` ✅ (post PS client no-shard configuration guards)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
