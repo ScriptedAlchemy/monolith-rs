@@ -425,6 +425,19 @@ pub struct LocalCluster {
 }
 
 impl LocalCluster {
+    fn prune_released_barriers(&mut self) {
+        // Keep released epochs that may still be observed by lagging workers.
+        // Once all workers have advanced beyond an epoch (epoch < min step),
+        // that release marker can be safely discarded.
+        let min_step = self
+            .workers
+            .iter()
+            .map(Worker::current_step)
+            .min()
+            .unwrap_or(0);
+        self.released_barriers.retain(|&epoch, _| epoch >= min_step);
+    }
+
     fn remove_barrier_waiter(&mut self, epoch: u64, worker_index: usize) {
         if let Some(waiters) = self.barrier_waiters.get_mut(&epoch) {
             waiters.remove(&worker_index);
@@ -553,6 +566,8 @@ impl LocalCluster {
     /// returns [`BarrierStatus::Waiting`] until all workers have arrived at the
     /// same epoch, then returns [`BarrierStatus::Released`] for the last caller.
     pub fn sync_barrier(&mut self, worker_index: usize) -> DistributedResult<BarrierStatus> {
+        self.prune_released_barriers();
+
         let worker = self.workers.get(worker_index).ok_or_else(|| {
             DistributedError::InvalidConfiguration(format!(
                 "Worker index {} out of range",
@@ -944,5 +959,42 @@ mod tests {
                 participants: 2
             }
         );
+    }
+
+    #[test]
+    fn test_local_cluster_prunes_released_barriers_after_all_workers_advance() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000)],
+            vec![make_addr(6000), make_addr(6001)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
+        cluster.start().unwrap();
+
+        // Release epoch 0 barrier.
+        assert!(matches!(
+            cluster.sync_barrier(0).unwrap(),
+            BarrierStatus::Waiting { epoch: 0, .. }
+        ));
+        assert!(matches!(
+            cluster.sync_barrier(1).unwrap(),
+            BarrierStatus::Released { epoch: 0, .. }
+        ));
+        assert!(cluster.released_barriers.contains_key(&0));
+
+        // Advance only worker 0; worker 1 should still observe epoch 0 as released.
+        let grads: HashMap<String, Vec<f32>> = HashMap::new();
+        cluster.train_step(0, &grads).unwrap();
+        assert!(matches!(
+            cluster.sync_barrier(1).unwrap(),
+            BarrierStatus::Released { epoch: 0, .. }
+        ));
+        assert!(cluster.released_barriers.contains_key(&0));
+
+        // Once worker 1 advances too, epoch 0 is obsolete and can be pruned.
+        cluster.train_step(1, &grads).unwrap();
+        let _ = cluster.sync_barrier(0).unwrap(); // triggers prune pass
+        assert!(!cluster.released_barriers.contains_key(&0));
     }
 }
