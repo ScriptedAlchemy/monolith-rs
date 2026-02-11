@@ -104,22 +104,45 @@ pub fn distributed_config_from_runner(
 }
 
 fn ordered_ps_addrs(ps_services: Vec<ServiceInfo>, required_num_ps: usize) -> Vec<String> {
+    let mut saw_index_metadata = false;
+    let mut saw_missing_index_metadata = false;
+    let mut saw_invalid_index_metadata = false;
+
+    let mut parsed = Vec::with_capacity(ps_services.len());
+    for svc in &ps_services {
+        match svc.metadata.get("index") {
+            Some(idx_str) => match idx_str.parse::<usize>() {
+                Ok(idx) => {
+                    saw_index_metadata = true;
+                    parsed.push((idx, svc.address()));
+                }
+                Err(_) => {
+                    saw_index_metadata = true;
+                    saw_invalid_index_metadata = true;
+                }
+            },
+            None => {
+                saw_missing_index_metadata = true;
+            }
+        }
+    }
+
+    if !saw_index_metadata {
+        let mut addrs: Vec<String> = ps_services.into_iter().map(|s| s.address()).collect();
+        addrs.sort();
+        addrs.dedup();
+        return addrs;
+    }
+
+    if saw_missing_index_metadata || saw_invalid_index_metadata {
+        // Mixed/invalid metadata is treated as inconsistent discovery state:
+        // force caller retry instead of silently switching to address ordering.
+        return Vec::new();
+    }
+
     let mut indexed: std::collections::BTreeMap<usize, String> = std::collections::BTreeMap::new();
     let mut conflicting_index = false;
-    for svc in &ps_services {
-        let Some(idx_str) = svc.metadata.get("index") else {
-            let mut addrs: Vec<String> = ps_services.into_iter().map(|s| s.address()).collect();
-            addrs.sort();
-            addrs.dedup();
-            return addrs;
-        };
-        let Ok(idx) = idx_str.parse::<usize>() else {
-            let mut addrs: Vec<String> = ps_services.into_iter().map(|s| s.address()).collect();
-            addrs.sort();
-            addrs.dedup();
-            return addrs;
-        };
-        let addr = svc.address();
+    for (idx, addr) in parsed {
         if let Some(current) = indexed.get(&idx) {
             if current != &addr {
                 conflicting_index = true;
@@ -562,6 +585,33 @@ mod tests {
         assert!(
             ordered.is_empty(),
             "conflicting duplicate index should force discovery retry"
+        );
+    }
+
+    #[test]
+    fn test_ordered_ps_addrs_rejects_mixed_index_metadata_presence() {
+        let mut ps0 = ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 10001);
+        ps0 = ps0.with_metadata("index", "0");
+        let ps1 = ServiceInfo::new("ps-1", "ps-1", "ps", "127.0.0.1", 20001);
+
+        let ordered = ordered_ps_addrs(vec![ps0, ps1], 2);
+        assert!(
+            ordered.is_empty(),
+            "mixed index metadata should force discovery retry"
+        );
+    }
+
+    #[test]
+    fn test_ordered_ps_addrs_rejects_invalid_index_metadata() {
+        let mut ps0 = ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 10001);
+        ps0 = ps0.with_metadata("index", "not-an-int");
+        let mut ps1 = ServiceInfo::new("ps-1", "ps-1", "ps", "127.0.0.1", 20001);
+        ps1 = ps1.with_metadata("index", "1");
+
+        let ordered = ordered_ps_addrs(vec![ps0, ps1], 2);
+        assert!(
+            ordered.is_empty(),
+            "invalid index metadata should force discovery retry"
         );
     }
 
