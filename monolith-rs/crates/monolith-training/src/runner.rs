@@ -101,6 +101,7 @@ pub fn distributed_config_from_runner(
 
 fn ordered_ps_addrs(ps_services: Vec<ServiceInfo>, required_num_ps: usize) -> Vec<String> {
     let mut indexed: std::collections::BTreeMap<usize, String> = std::collections::BTreeMap::new();
+    let mut conflicting_index = false;
     for svc in &ps_services {
         let Some(idx_str) = svc.metadata.get("index") else {
             let mut addrs: Vec<String> = ps_services.into_iter().map(|s| s.address()).collect();
@@ -115,14 +116,20 @@ fn ordered_ps_addrs(ps_services: Vec<ServiceInfo>, required_num_ps: usize) -> Ve
             return addrs;
         };
         let addr = svc.address();
-        indexed
-            .entry(idx)
-            .and_modify(|current| {
-                if addr < *current {
-                    *current = addr.clone();
-                }
-            })
-            .or_insert(addr);
+        if let Some(current) = indexed.get(&idx) {
+            if current != &addr {
+                conflicting_index = true;
+                break;
+            }
+        } else {
+            indexed.insert(idx, addr);
+        }
+    }
+
+    if conflicting_index {
+        // Multiple endpoints advertised the same shard index. Treat as
+        // inconsistent discovery state and force worker retry.
+        return Vec::new();
     }
 
     let mut ordered = Vec::with_capacity(required_num_ps);
@@ -527,6 +534,22 @@ mod tests {
         assert!(
             ordered.is_empty(),
             "missing shard index should force discovery retry"
+        );
+    }
+
+    #[test]
+    fn test_ordered_ps_addrs_rejects_conflicting_duplicate_index() {
+        let mut ps0_a = ServiceInfo::new("ps-0a", "ps-0a", "ps", "127.0.0.1", 10001);
+        ps0_a = ps0_a.with_metadata("index", "0");
+        let mut ps0_b = ServiceInfo::new("ps-0b", "ps-0b", "ps", "127.0.0.1", 20001);
+        ps0_b = ps0_b.with_metadata("index", "0");
+        let mut ps1 = ServiceInfo::new("ps-1", "ps-1", "ps", "127.0.0.1", 30001);
+        ps1 = ps1.with_metadata("index", "1");
+
+        let ordered = ordered_ps_addrs(vec![ps0_a, ps0_b, ps1], 2);
+        assert!(
+            ordered.is_empty(),
+            "conflicting duplicate index should force discovery retry"
         );
     }
 
