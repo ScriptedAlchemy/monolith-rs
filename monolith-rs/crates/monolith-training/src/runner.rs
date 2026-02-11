@@ -2658,6 +2658,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_worker_role_discover_timeout_includes_service_type_context() {
+        let discovery = Arc::new(HangingDiscoverDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_operation_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(Arc::clone(&discovery), "worker-0", cfg)
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains(
+                "last discovery error: Timed out during discovery operation: discover worker-0 for parameter_server_custom after 20ms"
+            ),
+            "discover timeout should include queried service-type context, got: {msg}"
+        );
+        assert_eq!(
+            discovery.discover_count(),
+            1,
+            "worker should perform one discover attempt when connect_retries=0"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_worker_role_clears_stale_discovery_error_after_successful_discover() {
         let discovery = Arc::new(SequencedDiscoverErrorThenPartialDiscovery::new());
         let cfg = DistributedRunConfig {
