@@ -1,8 +1,8 @@
-//! Distributed training stubs.
+//! Distributed training runtime helpers.
 //!
-//! This module provides stub implementations for distributed training components
-//! including parameter servers and workers. These are placeholders for future
-//! integration with actual distributed training infrastructure.
+//! This module provides local-process distributed training components including
+//! parameter servers, workers, and a lightweight local cluster coordinator used
+//! by parity tests and runtime orchestration.
 
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -144,10 +144,7 @@ pub struct ParameterState {
     pub version: u64,
 }
 
-/// A stub implementation of a parameter server.
-///
-/// In a real implementation, this would handle distributed parameter storage
-/// and synchronization across workers.
+/// A local parameter server implementation.
 ///
 /// # Examples
 ///
@@ -194,9 +191,13 @@ impl ParameterServer {
     }
 
     /// Starts the parameter server.
-    ///
-    /// This is a stub that just sets the running flag.
     pub fn start(&mut self) -> DistributedResult<()> {
+        if self.running {
+            return Err(DistributedError::InvalidConfiguration(format!(
+                "parameter server {} is already running",
+                self.server_index
+            )));
+        }
         tracing::info!("Starting parameter server {}", self.server_index);
         self.running = true;
         Ok(())
@@ -204,6 +205,12 @@ impl ParameterServer {
 
     /// Stops the parameter server.
     pub fn stop(&mut self) -> DistributedResult<()> {
+        if !self.running {
+            return Err(DistributedError::InvalidConfiguration(format!(
+                "parameter server {} is not running",
+                self.server_index
+            )));
+        }
         tracing::info!("Stopping parameter server {}", self.server_index);
         self.running = false;
         Ok(())
@@ -284,10 +291,7 @@ impl ParameterServer {
     }
 }
 
-/// A stub implementation of a distributed training worker.
-///
-/// In a real implementation, this would handle training steps and
-/// communication with parameter servers.
+/// A local distributed training worker implementation.
 ///
 /// # Examples
 ///
@@ -347,9 +351,13 @@ impl Worker {
     }
 
     /// Starts the worker.
-    ///
-    /// This is a stub that just sets the running flag.
     pub fn start(&mut self) -> DistributedResult<()> {
+        if self.running {
+            return Err(DistributedError::InvalidConfiguration(format!(
+                "worker {} is already running",
+                self.worker_index
+            )));
+        }
         tracing::info!(
             "Starting worker {} of {}",
             self.worker_index,
@@ -361,6 +369,12 @@ impl Worker {
 
     /// Stops the worker.
     pub fn stop(&mut self) -> DistributedResult<()> {
+        if !self.running {
+            return Err(DistributedError::InvalidConfiguration(format!(
+                "worker {} is not running",
+                self.worker_index
+            )));
+        }
         tracing::info!(
             "Stopping worker {} at step {}",
             self.worker_index,
@@ -371,8 +385,6 @@ impl Worker {
     }
 
     /// Simulates a training step.
-    ///
-    /// This is a stub that just increments the step counter.
     pub fn step(&mut self) -> DistributedResult<()> {
         if !self.running {
             return Err(DistributedError::CommunicationError(
@@ -390,10 +402,7 @@ impl Worker {
         Ok(())
     }
 
-    /// Synchronizes with other workers (stub).
-    ///
-    /// In a real implementation, this would perform an all-reduce or similar
-    /// synchronization operation.
+    /// Synchronizes with other workers.
     pub fn sync_barrier(&self) -> DistributedResult<()> {
         if !self.running {
             return Err(DistributedError::CommunicationError(
@@ -735,6 +744,22 @@ mod tests {
     }
 
     #[test]
+    fn test_parameter_server_lifecycle_guards() {
+        let mut ps = ParameterServer::new(1);
+        assert!(matches!(
+            ps.stop().unwrap_err(),
+            DistributedError::InvalidConfiguration(_)
+        ));
+
+        ps.start().unwrap();
+        assert!(matches!(
+            ps.start().unwrap_err(),
+            DistributedError::InvalidConfiguration(_)
+        ));
+        ps.stop().unwrap();
+    }
+
+    #[test]
     fn test_parameter_server_apply_gradients() {
         let mut ps = ParameterServer::new(0);
         ps.set_parameter("w", vec![1.0, 2.0, 3.0]);
@@ -776,6 +801,22 @@ mod tests {
 
         // Barrier fails once stopped.
         assert!(worker.sync_barrier().is_err());
+    }
+
+    #[test]
+    fn test_worker_lifecycle_guards() {
+        let mut worker = Worker::new(1, 2);
+        assert!(matches!(
+            worker.stop().unwrap_err(),
+            DistributedError::InvalidConfiguration(_)
+        ));
+
+        worker.start().unwrap();
+        assert!(matches!(
+            worker.start().unwrap_err(),
+            DistributedError::InvalidConfiguration(_)
+        ));
+        worker.stop().unwrap();
     }
 
     #[test]
