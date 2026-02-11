@@ -637,11 +637,21 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
             .await;
 
     if let Err(e) = role_res {
+        let mut cleanup_issues = Vec::new();
         if let Err(de) = deregister_result {
             tracing::warn!(service_id = %service_id, error = %de, "Failed to deregister service after role error");
+            cleanup_issues.push(format!("{deregister_op}: {de}"));
         }
         if let Err(de) = disconnect_result {
             tracing::warn!(service_id = %service_id, error = %de, "Failed to disconnect discovery after role error");
+            cleanup_issues.push(format!("{disconnect_op}: {de}"));
+        }
+        if !cleanup_issues.is_empty() {
+            return Err(anyhow::anyhow!(
+                "{} (discovery cleanup encountered issues after role error: {})",
+                e,
+                cleanup_issues.join("; ")
+            ));
         }
         return Err(e);
     }
@@ -4682,6 +4692,18 @@ mod tests {
             msg.contains("for worker-0"),
             "worker-discovery timeout diagnostics should include worker service-id context: {msg}"
         );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "worker-role errors should include cleanup issue context when cleanup steps fail: {msg}"
+        );
+        assert!(
+            msg.contains("Timed out during discovery cleanup: deregister worker-0 from worker"),
+            "cleanup issue context should include deregister timeout diagnostics: {msg}"
+        );
+        assert!(
+            msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker"),
+            "cleanup issue context should include disconnect timeout diagnostics: {msg}"
+        );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(discovery.deregister_count(), 1);
         assert_eq!(discovery.disconnect_count(), 1);
@@ -4724,6 +4746,18 @@ mod tests {
         assert!(
             msg.contains("for worker-0"),
             "worker-discovery timeout diagnostics should include worker service-id context with custom discover service type: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "worker-role errors should include cleanup issue context with custom service type when cleanup steps fail: {msg}"
+        );
+        assert!(
+            msg.contains("Timed out during discovery cleanup: deregister worker-0 from worker"),
+            "cleanup issue context should include worker deregister timeout diagnostics with custom discovery service type: {msg}"
+        );
+        assert!(
+            msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker"),
+            "cleanup issue context should include worker disconnect timeout diagnostics with custom discovery service type: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(discovery.deregister_count(), 1);

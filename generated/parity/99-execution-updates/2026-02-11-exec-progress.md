@@ -2219,6 +2219,22 @@
   - native-training integration tests for both RunConfig and RunnerConfig
     entrypoints, covering service-type/table-name/model/signature internal-whitespace rejection.
 
+### 185) Role-error returns now include cleanup-failure diagnostics without losing primary failure semantics
+- Improved distributed runner error reporting for role failures with blocked or
+  failing cleanup steps:
+  - preserves the primary role error text (e.g. worker PS-discovery timeout,
+    register timeout),
+  - appends cleanup issue diagnostics in the same returned error string:
+    `discovery cleanup encountered issues after role error: ...`.
+- Ensures callers can observe cleanup failures directly from returned errors
+  while retaining deterministic primary-error precedence.
+- Regression updates:
+  - runner unit tests now assert appended cleanup diagnostics in worker discovery
+    timeout + blocked cleanup scenarios.
+  - native-training integration tests (RunConfig + RunnerConfig) now assert
+    cleanup issue context presence and cleanup timeout operation diagnostics in
+    worker discovery timeout + blocked cleanup flows.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2565,6 +2581,8 @@
 343. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post native-training https default-port duplicate normalization integration parity expansion full workspace rerun under ambient ZK auth env)
 344. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post strict internal-whitespace normalization for distributed service/table/parameter-sync identity fields across CLI/runtime validation layers)
 345. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post strict internal-whitespace normalization for distributed service/table/parameter-sync identity fields full workspace rerun under ambient ZK auth env)
+346. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post role-error cleanup issue context propagation while preserving primary error text in distributed runner + parity test updates)
+347. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post role-error cleanup issue context propagation parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
