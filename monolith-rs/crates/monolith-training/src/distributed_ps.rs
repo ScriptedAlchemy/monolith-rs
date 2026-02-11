@@ -828,7 +828,9 @@ impl PsClient {
 
         // Step 3: Parallel lookup from all shards
         let mut shard_results: HashMap<usize, (Vec<f32>, Vec<bool>)> = HashMap::new();
-        let mut shard_fid_to_idx: HashMap<i64, usize> = HashMap::new();
+        // Track exact (shard_id, local_idx) to avoid ad-hoc integer encoding collisions
+        // for large per-shard batches.
+        let mut shard_fid_to_idx: HashMap<i64, (usize, usize)> = HashMap::new();
         let mut lookup_futures = Vec::new();
         for (shard_id, shard_fids) in shard_batches.iter().enumerate() {
             if shard_fids.is_empty() {
@@ -837,7 +839,7 @@ impl PsClient {
 
             // Track position in this shard's results.
             for (local_idx, &fid) in shard_fids.iter().enumerate() {
-                shard_fid_to_idx.insert(fid, shard_id * 1_000_000 + local_idx);
+                shard_fid_to_idx.insert(fid, (shard_id, local_idx));
             }
 
             let mut client = self.clients[shard_id].clone();
@@ -865,10 +867,7 @@ impl PsClient {
         let mut unique_embeddings = vec![0.0f32; unique_fids.len() * dim_size];
         let mut unique_found = vec![false; unique_fids.len()];
         for (unique_idx, &fid) in unique_fids.iter().enumerate() {
-            if let Some(&encoded) = shard_fid_to_idx.get(&fid) {
-                let shard_id = encoded / 1_000_000;
-                let local_idx = encoded % 1_000_000;
-
+            if let Some(&(shard_id, local_idx)) = shard_fid_to_idx.get(&fid) {
                 if let Some((shard_emb, shard_found)) = shard_results.get(&shard_id) {
                     let src_start = local_idx * dim_size;
                     let dst_start = unique_idx * dim_size;
