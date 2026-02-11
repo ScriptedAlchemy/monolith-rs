@@ -2763,6 +2763,37 @@
 - Result: register-failure cleanup diagnostics now have complete
   default/custom + indexed parity across runner + RunConfig + RunnerConfig.
 
+### 216) Default-service indexed connect-failure cleanup parity expanded (failure + timeout)
+- Added runner-level indexed default-service connect-failure regressions:
+  - cleanup-timeout:
+    - `test_run_distributed_connect_failure_does_not_hang_when_disconnect_blocks_with_default_service_type_and_index`
+    - `test_run_distributed_ps_connect_failure_does_not_hang_when_disconnect_blocks_with_default_service_type_and_index`
+  - cleanup-failure:
+    - `test_run_distributed_returns_connect_error_when_connect_and_disconnect_fail_with_default_service_type_and_index`
+    - `test_run_distributed_returns_ps_connect_error_when_connect_and_disconnect_fail_with_default_service_type_and_index`
+- Added RunConfig indexed default-service connect-failure integration regressions:
+  - cleanup-timeout:
+    - `distributed_runner_from_run_config_preserves_default_worker_connect_failure_with_index_cleanup_timeout_context`
+    - `distributed_runner_from_run_config_preserves_default_ps_connect_failure_with_index_cleanup_timeout_context`
+  - cleanup-failure:
+    - `distributed_runner_from_run_config_preserves_default_worker_connect_failure_with_index_disconnect_failure_context`
+    - `distributed_runner_from_run_config_preserves_default_ps_connect_failure_with_index_disconnect_failure_context`
+- Added RunnerConfig indexed default-service connect-failure integration regressions:
+  - cleanup-timeout:
+    - `distributed_runner_from_runner_config_preserves_default_worker_connect_failure_with_index_cleanup_timeout_context`
+    - `distributed_runner_from_runner_config_preserves_default_ps_connect_failure_with_index_cleanup_timeout_context`
+  - cleanup-failure:
+    - `distributed_runner_from_runner_config_preserves_default_worker_connect_failure_with_index_disconnect_failure_context`
+    - `distributed_runner_from_runner_config_preserves_default_ps_connect_failure_with_index_disconnect_failure_context`
+- New assertions verify indexed default-service connect-failure diagnostics preserve:
+  - worker index (`worker-3`) and ps index (`ps-2`),
+  - primary connect-failure precedence,
+  - role-error cleanup issue context,
+  - explicit indexed disconnect cleanup operation context for both timeout and
+    failure paths.
+- Result: connect-failure cleanup diagnostics now have complete
+  default/custom + indexed parity across runner + RunConfig + RunnerConfig.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3184,6 +3215,9 @@
 418. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post default-service indexed register-failure cleanup failure/timeout parity expansion)
 419. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post default-service indexed register-failure cleanup parity compatibility verification)
 420. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post default-service indexed register-failure cleanup parity expansion full workspace rerun under ambient ZK auth env)
+421. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post default-service indexed connect-failure cleanup failure/timeout parity expansion)
+422. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post default-service indexed connect-failure cleanup parity compatibility verification)
+423. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post default-service indexed connect-failure cleanup parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
