@@ -1886,6 +1886,24 @@
 - Improves timeout diagnosability while preserving existing error-precedence
   semantics and cleanup-timeout behavior.
 
+### 165) Distributed role-index range validation parity across CLI/runtime entrypoints
+- Added distributed runtime config validation for role-specific index bounds:
+  - PS role requires `index < num_ps`
+  - worker role requires `index < num_workers`
+- Added CLI distributed-config builder validation counterparts:
+  - reject `--num-ps=0`
+  - reject `--num-workers-cluster=0`
+  - reject `--index >= --num-ps` when `--role ps`
+  - reject `--index >= --num-workers-cluster` when `--role worker`
+- Added regression coverage across all layers:
+  - CLI unit tests for all new numeric/range guards
+  - distributed config unit tests for role-based index range checks
+  - native-training integration parity tests for run-config and runner-config
+    entrypoints rejecting out-of-range PS/worker indices
+- Ensures invalid role/index topology is rejected deterministically before
+  discovery/register loops, aligning diagnostics and lifecycle behavior across
+  high-level and low-level distributed runtime surfaces.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2192,6 +2210,8 @@
 303. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post run/runner worker-discovery error precedence parity regressions full workspace rerun under ambient ZK auth env)
 304. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker discovery-timeout service-type diagnostic enrichment + run/runner propagation regressions)
 305. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post worker discovery-timeout service-type diagnostic enrichment full workspace rerun under ambient ZK auth env)
+306. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post distributed role-index range validation parity across CLI/runtime entrypoints)
+307. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post distributed role-index range validation parity full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

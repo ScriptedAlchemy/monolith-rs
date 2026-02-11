@@ -221,6 +221,18 @@ impl TrainCommand {
         if self.barrier_timeout_ms <= 0 {
             anyhow::bail!("--barrier-timeout-ms must be > 0");
         }
+        if self.num_ps == 0 {
+            anyhow::bail!("--num-ps must be > 0 in distributed mode");
+        }
+        if self.num_workers_cluster == 0 {
+            anyhow::bail!("--num-workers-cluster must be > 0 in distributed mode");
+        }
+        if matches!(self.role, TrainRole::Ps) && self.index >= self.num_ps {
+            anyhow::bail!("--index must be < --num-ps for --role ps");
+        }
+        if matches!(self.role, TrainRole::Worker) && self.index >= self.num_workers_cluster {
+            anyhow::bail!("--index must be < --num-workers-cluster for --role worker");
+        }
         if self.dim == 0 {
             anyhow::bail!("--dim must be > 0 in distributed mode");
         }
@@ -618,7 +630,7 @@ mod tests {
         cmd.distributed = true;
         cmd.role = TrainRole::Ps;
         cmd.index = 3;
-        cmd.num_ps = 2;
+        cmd.num_ps = 4;
         cmd.num_workers_cluster = 4;
         cmd.bind_addr = "127.0.0.1:12345".to_string();
         cmd.discovery_service_type_ps = "parameter_server_custom".to_string();
@@ -632,7 +644,7 @@ mod tests {
         let cfg = cmd.build_distributed_run_config().unwrap().unwrap();
         assert!(matches!(cfg.role, Role::Ps));
         assert_eq!(cfg.index, 3);
-        assert_eq!(cfg.num_ps, 2);
+        assert_eq!(cfg.num_ps, 4);
         assert_eq!(cfg.num_workers, 4);
         assert_eq!(cfg.bind_addr.to_string(), "127.0.0.1:12345");
         assert_eq!(cfg.discovery_service_type_ps, "parameter_server_custom");
@@ -723,6 +735,58 @@ mod tests {
         assert!(
             err.contains("--barrier-timeout-ms must be > 0"),
             "unexpected barrier-timeout validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_zero_num_ps() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.num_ps = 0;
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--num-ps must be > 0 in distributed mode"),
+            "unexpected num-ps validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_zero_num_workers_cluster() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.num_workers_cluster = 0;
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--num-workers-cluster must be > 0 in distributed mode"),
+            "unexpected num-workers-cluster validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_ps_index_out_of_range() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.role = TrainRole::Ps;
+        cmd.num_ps = 2;
+        cmd.index = 2;
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--index must be < --num-ps for --role ps"),
+            "unexpected ps index-range validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_worker_index_out_of_range() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.role = TrainRole::Worker;
+        cmd.num_workers_cluster = 2;
+        cmd.index = 2;
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--index must be < --num-workers-cluster for --role worker"),
+            "unexpected worker index-range validation error: {err}"
         );
     }
 

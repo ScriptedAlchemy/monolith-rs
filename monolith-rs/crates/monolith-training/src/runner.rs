@@ -95,6 +95,23 @@ impl DistributedRunConfig {
         if self.num_workers == 0 {
             anyhow::bail!("distributed config requires num_workers > 0");
         }
+        match self.role {
+            Role::Ps if self.index >= self.num_ps => {
+                anyhow::bail!(
+                    "distributed config requires index < num_ps for ps role (index={} num_ps={})",
+                    self.index,
+                    self.num_ps
+                );
+            }
+            Role::Worker if self.index >= self.num_workers => {
+                anyhow::bail!(
+                    "distributed config requires index < num_workers for worker role (index={} num_workers={})",
+                    self.index,
+                    self.num_workers
+                );
+            }
+            _ => {}
+        }
         if self.dim == 0 {
             anyhow::bail!("distributed config requires dim > 0");
         }
@@ -1936,6 +1953,36 @@ mod tests {
         let err = cfg.validate().unwrap_err().to_string();
         assert!(
             err.contains("distributed config requires discovery_cleanup_timeout > 0"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_ps_index_out_of_range() {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 2,
+            num_ps: 2,
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("distributed config requires index < num_ps for ps role"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_worker_index_out_of_range() {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 3,
+            num_workers: 3,
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("distributed config requires index < num_workers for worker role"),
             "unexpected validation error: {err}"
         );
     }
