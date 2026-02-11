@@ -125,6 +125,20 @@
 - Added unit + integration coverage ensuring Consul discovery context now succeeds
   without explicit `psm` argument.
 
+### 10) RunnerConfig post-init style restore semantics
+- Expanded `run_config::{RunConfig, RunnerConfig}` with restore/runtime parity fields:
+  - `index`,
+  - `restore_dir`,
+  - `restore_ckpt`.
+- Added `runner_utils::initialize_restore_checkpoint_from_runner(...)`:
+  - no-op when `restore_dir` is absent,
+  - chief path (`is_local || index == 0`) performs restore copy immediately,
+  - non-chief path waits for chief sync artifacts through existing prepare helper.
+- Added unit + integration tests for:
+  - no-restore-dir passthrough,
+  - chief/worker synchronization through config-driven initialization,
+  - merge behavior carrying restore fields from `RunConfig` into `RunnerConfig`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -138,6 +152,7 @@
 9. `cargo test -p monolith-training -q` ✅ (post ZK discovery selection + `isabs` helper updates)
 10. `cargo test -p monolith-training -q` ✅ (post checkpoint-state override/retry parity helper)
 11. `cargo test -p monolith-training -q` ✅ (post monolith_discovery Consul auto-psm behavior)
+12. `cargo test -p monolith-training -q` ✅ (post RunnerConfig restore-init parity helper updates)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
