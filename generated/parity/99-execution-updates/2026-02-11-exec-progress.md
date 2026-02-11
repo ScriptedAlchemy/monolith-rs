@@ -244,6 +244,17 @@
   - estimator config fields propagated correctly from run/runner configs,
   - runtime env export side effects occur during runner-config based construction.
 
+### 20) Configurable restore synchronization timing parity
+- Added restore synchronization timing fields to both config layers:
+  - `restore_sync_timeout_secs`
+  - `restore_sync_poll_interval_ms`
+- Wired new defaults through merge + override extraction paths.
+- Added `initialize_restore_checkpoint_from_runner_defaults(...)` to consume
+  runner-config timing settings and drive restore wait behavior.
+- Updated distributed runner config-entrypoint path to use these config-driven
+  restore synchronization timings instead of hard-coded values.
+- Added regression tests for merge behavior and defaulted restore initialization.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -269,6 +280,7 @@
 21. `cargo test -p monolith-training -q` ✅ (post checkpoint override edge-case hardening)
 22. `cargo test -p monolith-training -q` ✅ (post `RunnerDiscovery` helper integration)
 23. `cargo test -p monolith-training -q` ✅ (post estimator constructors from run/runner config)
+24. `cargo test -p monolith-training -q` ✅ (post configurable restore sync timing integration)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
