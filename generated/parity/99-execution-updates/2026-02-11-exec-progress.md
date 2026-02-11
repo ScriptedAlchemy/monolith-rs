@@ -354,6 +354,17 @@
 - Added regression coverage validating restore side effects and estimator config
   propagation through the runner-config initialized constructor path.
 
+### 33) Local-cluster blocking barrier parity helper
+- Extended `distributed::LocalCluster` barrier semantics:
+  - added `DistributedError::BarrierTimeout { epoch, timeout_ms }`,
+  - added `wait_for_barrier(worker_index, timeout, poll_interval)` blocking helper,
+  - preserved released-epoch state so repeated callers at same epoch observe
+    `BarrierStatus::Released`.
+- Added regression tests for:
+  - release visibility on repeated barrier checks,
+  - timeout behavior when not all workers arrive,
+  - successful blocking wait release when peers arrive.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -396,6 +407,7 @@
 38. `cargo test -p monolith-training -q` ✅ (post run-config restore initialization helper parity APIs)
 39. `cargo test -p monolith-training -q` ✅ (post initialized estimator constructor from runner config)
 40. `cargo test --workspace -q` ✅ (post latest run-config restore init and runner-config initializer parity updates)
+41. `cargo test -p monolith-training -q` ✅ (post local-cluster blocking barrier parity helper)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
