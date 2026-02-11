@@ -432,12 +432,14 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         }
 
         if attempt == cfg.connect_retries {
+            let attempts_made = attempt + 1;
             match (last_ordering_issue, last_discovery_error.as_deref()) {
                 (Some(issue), Some(discovery_error)) => {
                     anyhow::bail!(
-                        "Timed out waiting for PS discovery: got {} expected {} (max raw observed: {}; max usable observed: {}; last ordering issue: {:?}; last discovery error: {})",
+                        "Timed out waiting for PS discovery: got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last ordering issue: {:?}; last discovery error: {})",
                         addrs.len(),
                         cfg.num_ps,
+                        attempts_made,
                         max_raw_ps_observed,
                         max_usable_ps_observed,
                         issue,
@@ -446,9 +448,10 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
                 }
                 (Some(issue), None) => {
                     anyhow::bail!(
-                        "Timed out waiting for PS discovery: got {} expected {} (max raw observed: {}; max usable observed: {}; last ordering issue: {:?})",
+                        "Timed out waiting for PS discovery: got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last ordering issue: {:?})",
                         addrs.len(),
                         cfg.num_ps,
+                        attempts_made,
                         max_raw_ps_observed,
                         max_usable_ps_observed,
                         issue
@@ -456,9 +459,10 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
                 }
                 (None, Some(discovery_error)) => {
                     anyhow::bail!(
-                        "Timed out waiting for PS discovery: got {} expected {} (max raw observed: {}; max usable observed: {}; last discovery error: {})",
+                        "Timed out waiting for PS discovery: got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last discovery error: {})",
                         addrs.len(),
                         cfg.num_ps,
+                        attempts_made,
                         max_raw_ps_observed,
                         max_usable_ps_observed,
                         discovery_error
@@ -466,9 +470,10 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
                 }
                 (None, None) => {
                     anyhow::bail!(
-                        "Timed out waiting for PS discovery: got {} expected {} (max raw observed: {}; max usable observed: {})",
+                        "Timed out waiting for PS discovery: got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {})",
                         addrs.len(),
                         cfg.num_ps,
+                        attempts_made,
                         max_raw_ps_observed,
                         max_usable_ps_observed
                     );
@@ -1196,6 +1201,28 @@ mod tests {
         assert!(
             msg.contains("max usable observed: 0"),
             "expected usable observed count to remain zero under ordering inconsistency, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_timeout_reports_attempt_count() {
+        let discovery = Arc::new(SequencedPartialPsDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 2,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 1,
+            retry_backoff_ms: 1,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg)
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("attempts: 2"),
+            "expected timeout to report attempt count, got: {msg}"
         );
     }
 
