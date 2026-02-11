@@ -434,6 +434,7 @@ mod tests {
             discovery_operation_timeout_ms: 6789,
             discovery_cleanup_timeout_ms: 321,
             discovery_service_type_ps: "parameter_server".to_string(),
+            discovery_service_type_worker: "trainer".to_string(),
             table_name: "item_emb".to_string(),
             dim: 256,
             ..RunConfig::default()
@@ -462,6 +463,10 @@ mod tests {
         assert_eq!(
             overrides.get("discovery_service_type_ps").unwrap(),
             &serde_json::json!("parameter_server")
+        );
+        assert_eq!(
+            overrides.get("discovery_service_type_worker").unwrap(),
+            &serde_json::json!("trainer")
         );
         assert_eq!(overrides.get("table_name").unwrap(), &serde_json::json!("item_emb"));
         assert_eq!(overrides.get("dim").unwrap(), &serde_json::json!(256));

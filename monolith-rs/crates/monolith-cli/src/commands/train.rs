@@ -584,6 +584,8 @@ mod tests {
         cmd.num_ps = 2;
         cmd.num_workers_cluster = 4;
         cmd.bind_addr = "127.0.0.1:12345".to_string();
+        cmd.discovery_service_type_ps = "parameter_server_custom".to_string();
+        cmd.discovery_service_type_worker = "trainer_custom".to_string();
         cmd.discovery_operation_timeout_ms = 1234;
         cmd.discovery_cleanup_timeout_ms = 4321;
         cmd.heartbeat_interval_secs = 7;
@@ -596,6 +598,8 @@ mod tests {
         assert_eq!(cfg.num_ps, 2);
         assert_eq!(cfg.num_workers, 4);
         assert_eq!(cfg.bind_addr.to_string(), "127.0.0.1:12345");
+        assert_eq!(cfg.discovery_service_type_ps, "parameter_server_custom");
+        assert_eq!(cfg.discovery_service_type_worker, "trainer_custom");
         assert_eq!(cfg.discovery_operation_timeout, Duration::from_millis(1234));
         assert_eq!(cfg.discovery_cleanup_timeout, Duration::from_millis(4321));
         assert_eq!(cfg.heartbeat_interval, Some(Duration::from_secs(7)));
