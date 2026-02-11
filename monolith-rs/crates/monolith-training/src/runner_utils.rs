@@ -9,6 +9,7 @@
 //! - `copy_checkpoint_from_restore_dir` which mirrors the file behavior.
 
 use std::fs;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -235,6 +236,62 @@ impl RunnerDiscovery {
                 zk_server,
             } => Some((deep_insight_name.as_str(), zk_server.as_str())),
             _ => None,
+        }
+    }
+
+    pub fn register(&self, name: &str, index: i32, addr: &str) -> Result<(), RunnerUtilsError> {
+        match self {
+            RunnerDiscovery::TfConfig(d) => d
+                .register(name, index, addr)
+                .map_err(|e| RunnerUtilsError::Discovery(e.to_string())),
+            RunnerDiscovery::Mlp(d) => d
+                .register(name, index, addr)
+                .map_err(|e| RunnerUtilsError::Discovery(e.to_string())),
+            RunnerDiscovery::Consul(d) => d
+                .register(name, index, addr)
+                .map_err(|e| RunnerUtilsError::Discovery(e.to_string())),
+            RunnerDiscovery::Zk { .. } => Err(RunnerUtilsError::Discovery(
+                "zk registration must use native_training::service_discovery::ZkServiceDiscovery"
+                    .to_string(),
+            )),
+        }
+    }
+
+    pub fn deregister(&self, name: &str, index: i32, addr: &str) -> Result<(), RunnerUtilsError> {
+        match self {
+            RunnerDiscovery::TfConfig(d) => d
+                .deregister(name, index, addr)
+                .map_err(|e| RunnerUtilsError::Discovery(e.to_string())),
+            RunnerDiscovery::Mlp(d) => d
+                .deregister(name, index, addr)
+                .map_err(|e| RunnerUtilsError::Discovery(e.to_string())),
+            RunnerDiscovery::Consul(d) => d
+                .deregister(name, index, addr)
+                .map_err(|e| RunnerUtilsError::Discovery(e.to_string())),
+            RunnerDiscovery::Zk { .. } => Err(RunnerUtilsError::Discovery(
+                "zk deregistration must use native_training::service_discovery::ZkServiceDiscovery"
+                    .to_string(),
+            )),
+        }
+    }
+
+    pub fn query(&self, name: &str) -> Result<BTreeMap<i32, String>, RunnerUtilsError> {
+        match self {
+            RunnerDiscovery::TfConfig(d) => d
+                .query(name)
+                .map(|m| m.into_iter().collect::<BTreeMap<_, _>>())
+                .map_err(|e| RunnerUtilsError::Discovery(e.to_string())),
+            RunnerDiscovery::Mlp(d) => d
+                .query(name)
+                .map(|m| m.into_iter().collect::<BTreeMap<_, _>>())
+                .map_err(|e| RunnerUtilsError::Discovery(e.to_string())),
+            RunnerDiscovery::Consul(d) => d
+                .query(name)
+                .map_err(|e| RunnerUtilsError::Discovery(e.to_string())),
+            RunnerDiscovery::Zk { .. } => Err(RunnerUtilsError::Discovery(
+                "zk query must use native_training::service_discovery::ZkServiceDiscovery"
+                    .to_string(),
+            )),
         }
     }
 
@@ -564,6 +621,8 @@ all_model_checkpoint_paths: "model.ckpt-0"
         let discovery = get_discovery(&rc, None).unwrap();
         let d = discovery.expect("expected discovery");
         assert_eq!(d.kind(), "tf_config");
+        let ps = d.query("ps").unwrap();
+        assert_eq!(ps.get(&0).unwrap(), "host1:2222");
     }
 
     #[test]
@@ -602,6 +661,8 @@ all_model_checkpoint_paths: "model.ckpt-0"
         let (job, zk) = discovery.zk_config().expect("zk config");
         assert_eq!(job, "test_job");
         assert_eq!(zk, "127.0.0.1:2181");
+        let err = discovery.query("ps").unwrap_err();
+        assert!(matches!(err, RunnerUtilsError::Discovery(_)));
     }
 
     #[test]
