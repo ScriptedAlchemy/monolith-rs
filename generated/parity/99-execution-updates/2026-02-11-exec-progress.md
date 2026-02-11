@@ -1415,6 +1415,16 @@
 - Complements worker-discover integration coverage to cover setup-timeout
   precedence invariants through run-config entrypoint.
 
+### 131) Runner-config connect-timeout precedence integration coverage
+- Added runner-config entrypoint counterpart regression:
+  - `distributed_runner_from_runner_config_preserves_connect_timeout_when_cleanup_blocks`
+- Confirms through `run_distributed_from_runner_config(...)` that:
+  - blocked connect + blocked cleanup disconnect does not hang,
+  - configured connect timeout remains primary error with duration context,
+  - cleanup disconnect attempt still executes once.
+- Ensures setup-timeout precedence parity is now covered across both
+  run-config and runner-config distributed entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1652,6 +1662,8 @@
 234. `cargo test --workspace -q` ✅ (post run-config discover-timeout integration regression coverage full workspace rerun)
 235. `cargo test -p monolith-training -q` ✅ (post run-config connect-timeout precedence integration regression under blocked cleanup)
 236. `cargo test --workspace -q` ✅ (post run-config connect-timeout precedence integration regression under blocked cleanup full workspace rerun)
+237. `cargo test -p monolith-training -q` ✅ (post runner-config connect-timeout precedence integration regression under blocked cleanup)
+238. `cargo test --workspace -q` ✅ (post runner-config connect-timeout precedence integration regression under blocked cleanup full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
