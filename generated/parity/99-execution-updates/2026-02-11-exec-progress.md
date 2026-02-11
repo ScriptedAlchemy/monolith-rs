@@ -36,12 +36,27 @@
 - Added regression tests for rank-2 concat on both dimensions.
 - Removed strict DIEN hidden-size panic in stock example model constructor to keep forward path shape-safe.
 
+### 5) Native-training parity improvements (entrypoint/runtime helpers)
+- `hooks::CheckpointHook` now performs real persistence by default:
+  - writes checkpoint payload files to `model_dir/checkpoint-<step>.json`,
+  - supports retention with `max_to_keep`,
+  - prunes oldest checkpoints once retention threshold is exceeded.
+- `estimator::ModelFn` now supports input-aware prediction:
+  - added default `predict(&[f32]) -> Vec<f32>` API,
+  - `Estimator::predict_with_inputs` executes prediction over explicit feature vectors,
+  - legacy `predict(num_examples)` remains compatible by delegating to empty feature vectors.
+- `native_training::hvd_lib` upgraded from fixed stubs to env-driven parity helpers:
+  - robust BytePS/Horovod backend detection from `MONOLITH_WITH_BYTEPS`,
+  - rank/size/local_rank/local_size read from Horovod/OMPI/BytePS env conventions,
+  - defensive fallbacks for missing/invalid values.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
 2. `cargo test -p monolith-layers -q` ✅  
 3. `cargo test -p monolith-examples --bin stock_prediction test_model_forward -q` ✅  
 4. `cargo test --workspace -q` ✅
+5. `cargo test -p monolith-training -q` ✅ (re-run after each native-training change)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
