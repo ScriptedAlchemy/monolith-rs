@@ -15,9 +15,12 @@ use crate::distributed_ps::{PsClient, PsServer};
 use crate::parameter_sync_replicator::{DirtyTracker, ParameterSyncReplicator};
 use crate::run_config::RunnerConfig;
 use crate::runner_utils::initialize_restore_checkpoint_from_runner_defaults;
+use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
+
+const DISCOVERY_CLEANUP_TIMEOUT: Duration = Duration::from_millis(200);
 
 /// Helper for tests: bind to `127.0.0.1:0` and return the chosen address.
 async fn bind_ephemeral(
@@ -276,22 +279,30 @@ async fn stop_heartbeat_task(
     }
 }
 
+async fn await_discovery_cleanup<Fut>(
+    service_id: &str,
+    op_name: &'static str,
+    fut: Fut,
+) -> anyhow::Result<()>
+where
+    Fut: Future<Output = crate::discovery::Result<()>>,
+{
+    match tokio::time::timeout(DISCOVERY_CLEANUP_TIMEOUT, fut).await {
+        Ok(res) => res.map_err(anyhow::Error::from),
+        Err(_) => Err(anyhow::anyhow!(
+            "Timed out during discovery cleanup: {} {}",
+            op_name,
+            service_id
+        )),
+    }
+}
+
 /// Run a PS or worker process using the provided discovery backend.
 pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     discovery: Arc<D>,
     cfg: DistributedRunConfig,
 ) -> anyhow::Result<()> {
     cfg.validate()?;
-    if let Err(e) = discovery.connect().await {
-        if let Err(disconnect_err) = discovery.disconnect().await {
-            tracing::warn!(
-                error = %disconnect_err,
-                "Failed to disconnect discovery after connect failure"
-            );
-        }
-        return Err(anyhow::Error::from(e));
-    }
-
     let (service_type, service_id) = match cfg.role {
         Role::Ps => (
             cfg.discovery_service_type_ps.clone(),
@@ -302,6 +313,18 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
             format!("worker-{}", cfg.index),
         ),
     };
+
+    if let Err(e) = discovery.connect().await {
+        if let Err(disconnect_err) =
+            await_discovery_cleanup(&service_id, "disconnect", discovery.disconnect()).await
+        {
+            tracing::warn!(
+                error = %disconnect_err,
+                "Failed to disconnect discovery after connect failure"
+            );
+        }
+        return Err(anyhow::Error::from(e));
+    }
 
     let role_res: anyhow::Result<()> = match cfg.role {
         Role::Ps => run_ps_role(Arc::clone(&discovery), &service_id, service_type, cfg).await,
@@ -323,8 +346,11 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         }
     };
 
-    let deregister_result = discovery.deregister_async(&service_id).await;
-    let disconnect_result = discovery.disconnect().await;
+    let deregister_result =
+        await_discovery_cleanup(&service_id, "deregister", discovery.deregister_async(&service_id))
+            .await;
+    let disconnect_result =
+        await_discovery_cleanup(&service_id, "disconnect", discovery.disconnect()).await;
 
     if let Err(e) = role_res {
         if let Err(de) = deregister_result {
@@ -698,6 +724,28 @@ mod tests {
         }
     }
 
+    struct FailingConnectWithHangingDisconnectDiscovery {
+        connect_count: AtomicUsize,
+        disconnect_count: AtomicUsize,
+    }
+
+    impl FailingConnectWithHangingDisconnectDiscovery {
+        fn new() -> Self {
+            Self {
+                connect_count: AtomicUsize::new(0),
+                disconnect_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn connect_count(&self) -> usize {
+            self.connect_count.load(Ordering::SeqCst)
+        }
+
+        fn disconnect_count(&self) -> usize {
+            self.disconnect_count.load(Ordering::SeqCst)
+        }
+    }
+
     struct FailingConnectAndDisconnectDiscovery {
         connect_count: AtomicUsize,
         disconnect_count: AtomicUsize,
@@ -744,6 +792,30 @@ mod tests {
         }
     }
 
+    struct HangingDeregisterAfterSuccessDiscovery {
+        ps_addr: String,
+        disconnect_count: AtomicUsize,
+        deregister_count: AtomicUsize,
+    }
+
+    impl HangingDeregisterAfterSuccessDiscovery {
+        fn new(ps_addr: String) -> Self {
+            Self {
+                ps_addr,
+                disconnect_count: AtomicUsize::new(0),
+                deregister_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn disconnect_count(&self) -> usize {
+            self.disconnect_count.load(Ordering::SeqCst)
+        }
+
+        fn deregister_count(&self) -> usize {
+            self.deregister_count.load(Ordering::SeqCst)
+        }
+    }
+
     struct FailingDisconnectAfterSuccessDiscovery {
         ps_addr: String,
         disconnect_count: AtomicUsize,
@@ -751,6 +823,30 @@ mod tests {
     }
 
     impl FailingDisconnectAfterSuccessDiscovery {
+        fn new(ps_addr: String) -> Self {
+            Self {
+                ps_addr,
+                disconnect_count: AtomicUsize::new(0),
+                deregister_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn disconnect_count(&self) -> usize {
+            self.disconnect_count.load(Ordering::SeqCst)
+        }
+
+        fn deregister_count(&self) -> usize {
+            self.deregister_count.load(Ordering::SeqCst)
+        }
+    }
+
+    struct HangingDisconnectAfterSuccessDiscovery {
+        ps_addr: String,
+        disconnect_count: AtomicUsize,
+        deregister_count: AtomicUsize,
+    }
+
+    impl HangingDisconnectAfterSuccessDiscovery {
         fn new(ps_addr: String) -> Self {
             Self {
                 ps_addr,
@@ -841,6 +937,43 @@ mod tests {
 
         async fn disconnect(&self) -> DiscoveryResult<()> {
             self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            Ok(Vec::new())
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for FailingConnectWithHangingDisconnectDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            self.connect_count.fetch_add(1, Ordering::SeqCst);
+            Err(crate::discovery::DiscoveryError::ConnectionFailed(
+                "forced connect failure".to_string(),
+            ))
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+            std::future::pending::<()>().await;
+            #[allow(unreachable_code)]
             Ok(())
         }
 
@@ -957,6 +1090,60 @@ mod tests {
     }
 
     #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for HangingDeregisterAfterSuccessDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn discover_async(&self, service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            if service_type == "ps" {
+                let (host, port) = self
+                    .ps_addr
+                    .split_once(':')
+                    .ok_or_else(|| {
+                        crate::discovery::DiscoveryError::Internal("invalid ps addr".to_string())
+                    })?;
+                let port: u16 = port
+                    .parse()
+                    .map_err(|_| {
+                        crate::discovery::DiscoveryError::Internal(
+                            "invalid ps port".to_string(),
+                        )
+                    })?;
+                let mut ps = ServiceInfo::new("ps-0", "ps-0", "ps", host, port);
+                ps = ps.with_metadata("index", "0");
+                Ok(vec![ps])
+            } else {
+                Ok(Vec::new())
+            }
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            self.deregister_count.fetch_add(1, Ordering::SeqCst);
+            std::future::pending::<()>().await;
+            #[allow(unreachable_code)]
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
     impl ServiceDiscoveryAsync for FailingDisconnectAfterSuccessDiscovery {
         async fn connect(&self) -> DiscoveryResult<()> {
             Ok(())
@@ -967,6 +1154,60 @@ mod tests {
             Err(crate::discovery::DiscoveryError::Internal(
                 "forced disconnect failure".to_string(),
             ))
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn discover_async(&self, service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            if service_type == "ps" {
+                let (host, port) = self
+                    .ps_addr
+                    .split_once(':')
+                    .ok_or_else(|| {
+                        crate::discovery::DiscoveryError::Internal("invalid ps addr".to_string())
+                    })?;
+                let port: u16 = port
+                    .parse()
+                    .map_err(|_| {
+                        crate::discovery::DiscoveryError::Internal(
+                            "invalid ps port".to_string(),
+                        )
+                    })?;
+                let mut ps = ServiceInfo::new("ps-0", "ps-0", "ps", host, port);
+                ps = ps.with_metadata("index", "0");
+                Ok(vec![ps])
+            } else {
+                Ok(Vec::new())
+            }
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            self.deregister_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for HangingDisconnectAfterSuccessDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+            std::future::pending::<()>().await;
+            #[allow(unreachable_code)]
+            Ok(())
         }
 
         async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
@@ -2272,6 +2513,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_connect_failure_does_not_hang_when_disconnect_blocks() {
+        let discovery = Arc::new(FailingConnectWithHangingDisconnectDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(900),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when connect-failure cleanup disconnect blocks"
+        );
+        let err = res.unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("forced connect failure"), "unexpected error: {msg}");
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should still be attempted even if it blocks"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_returns_connect_error_when_connect_and_disconnect_fail() {
         let discovery = Arc::new(FailingConnectAndDisconnectDiscovery::new());
         let cfg = DistributedRunConfig {
@@ -2346,6 +2618,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_surfaces_deregister_timeout_after_success() {
+        let ps = PsServer::new(0, 8);
+        let (listener, actual_addr) = bind_ephemeral("127.0.0.1:0".parse().unwrap())
+            .await
+            .unwrap();
+        let ps_server = tokio::spawn(
+            tonic::transport::Server::builder()
+                .add_service(Arc::clone(&ps).into_service())
+                .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener)),
+        );
+
+        let discovery = Arc::new(HangingDeregisterAfterSuccessDiscovery::new(
+            actual_addr.to_string(),
+        ));
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            dim: 8,
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(res.is_err(), "expected deregister timeout after successful run");
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery cleanup: deregister worker-0"),
+            "unexpected error: {msg}"
+        );
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should still be attempted when deregister times out"
+        );
+
+        ps_server.abort();
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_surfaces_disconnect_failure_after_success() {
         let ps = PsServer::new(0, 8);
         let (listener, actual_addr) = bind_ephemeral("127.0.0.1:0".parse().unwrap())
@@ -2385,6 +2698,47 @@ mod tests {
             discovery.disconnect_count(),
             1,
             "disconnect should be attempted exactly once"
+        );
+
+        ps_server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_surfaces_disconnect_timeout_after_success() {
+        let ps = PsServer::new(0, 8);
+        let (listener, actual_addr) = bind_ephemeral("127.0.0.1:0".parse().unwrap())
+            .await
+            .unwrap();
+        let ps_server = tokio::spawn(
+            tonic::transport::Server::builder()
+                .add_service(Arc::clone(&ps).into_service())
+                .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener)),
+        );
+
+        let discovery = Arc::new(HangingDisconnectAfterSuccessDiscovery::new(
+            actual_addr.to_string(),
+        ));
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            dim: 8,
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(res.is_err(), "expected disconnect timeout after successful run");
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery cleanup: disconnect worker-0"),
+            "unexpected error: {msg}"
+        );
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should be attempted exactly once before timing out"
         );
 
         ps_server.abort();
