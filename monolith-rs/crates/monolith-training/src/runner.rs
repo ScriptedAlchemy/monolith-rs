@@ -963,4 +963,31 @@ mod tests {
             "deregister should still be attempted on worker registration failure"
         );
     }
+
+    #[tokio::test]
+    async fn test_run_distributed_disconnects_when_ps_registration_fails() {
+        let discovery = Arc::new(FailingRegisterDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(res.is_err(), "expected ps registration failure");
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should be called on ps registration failure"
+        );
+        assert_eq!(
+            discovery.deregister_count(),
+            1,
+            "deregister should still be attempted on ps registration failure"
+        );
+    }
 }
