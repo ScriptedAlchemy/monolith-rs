@@ -1139,6 +1139,16 @@
 - Added regression:
   - `test_worker_heartbeat_task_stops_after_worker_success`.
 
+### 106) Heartbeat shutdown robustness when heartbeat RPC blocks
+- Hardened `stop_heartbeat_task(...)` with bounded join timeout:
+  - sends stop signal first,
+  - waits up to 100ms for heartbeat task exit,
+  - logs timeout warning and avoids indefinite shutdown hang if heartbeat call
+    is stuck.
+- Added regression with a blocking heartbeat backend to verify worker shutdown
+  still returns promptly:
+  - `test_run_worker_role_does_not_hang_when_heartbeat_blocks`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1319,6 +1329,8 @@
 177. `cargo test --workspace -q` ✅ (post Consul clone close-state parity regression and full workspace regression rerun)
 178. `cargo test -p monolith-training -q` ✅ (post worker-success heartbeat lifecycle shutdown regression)
 179. `cargo test --workspace -q` ✅ (post worker-success heartbeat lifecycle shutdown regression and full workspace rerun)
+180. `cargo test -p monolith-training -q` ✅ (post heartbeat stop timeout guard for blocking heartbeat calls)
+181. `cargo test --workspace -q` ✅ (post heartbeat stop timeout guard for blocking heartbeat calls and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
