@@ -1733,6 +1733,30 @@
 - Updated existing cleanup-timeout assertions to require enriched default
   context (`from worker` / `via worker`) in post-success cleanup timeout paths.
 
+### 157) Non-empty discovery service-type validation across CLI and runtime configs
+- Added distributed config validation for non-empty discovery service-type
+  fields:
+  - `discovery_service_type_ps`
+  - `discovery_service_type_worker`
+- Added train CLI distributed-config builder validation for non-empty
+  service-type flags:
+  - `--discovery-service-type-ps`
+  - `--discovery-service-type-worker`
+- Added validation regressions:
+  - CLI:
+    - `test_build_distributed_run_config_rejects_empty_ps_service_type`
+    - `test_build_distributed_run_config_rejects_empty_worker_service_type`
+  - distributed config unit:
+    - `test_distributed_config_validate_rejects_empty_ps_service_type`
+    - `test_distributed_config_validate_rejects_empty_worker_service_type`
+  - run/runner config integration:
+    - `distributed_runner_from_run_config_rejects_empty_ps_service_type`
+    - `distributed_runner_from_run_config_rejects_empty_worker_service_type`
+    - `distributed_runner_from_runner_config_rejects_empty_ps_service_type`
+    - `distributed_runner_from_runner_config_rejects_empty_worker_service_type`
+- Ensures malformed empty discovery service-type configuration is rejected
+  consistently across CLI assembly and both runtime config entrypoint layers.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2022,6 +2046,9 @@
 286. `cargo test --workspace -q` ✅ (post connect-timeout diagnostic enrichment with service-type context full workspace rerun)
 287. `cargo test -p monolith-training -q` ✅ (post cleanup-timeout diagnostic enrichment with service-type context + custom cleanup regressions)
 288. `cargo test --workspace -q` ✅ (post cleanup-timeout diagnostic enrichment with service-type context full workspace rerun)
+289. `cargo test -p monolith-cli -q && cargo test -p monolith-training -q` ✅ (post non-empty discovery service-type validation across CLI and runtime configs)
+290. `cargo test --workspace -q` ⚠️ env-sensitive failure in `native_training::env_utils::tests::test_get_zk_auth_data_none` due inherited `ZK_AUTH`.
+291. `unset ZK_AUTH && cargo test --workspace -q` ✅ (post non-empty discovery service-type validation across CLI/runtime configs full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
