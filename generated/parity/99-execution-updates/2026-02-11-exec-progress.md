@@ -1000,6 +1000,7 @@
 127. `cargo test -p monolith-training -q` ✅ (post worker discovery timeout diagnostic retention hardening across retry attempts)
 128. `cargo test --workspace -q` ✅ (post worker discovery timeout diagnostic retention hardening and full workspace rerun)
 129. `cargo test -p monolith-training -q` ✅ (post PS registration-failure cleanup regression coverage)
+130. `cargo test --workspace -q` ✅ (post PS registration-failure cleanup regression coverage and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
