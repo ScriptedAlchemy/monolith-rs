@@ -405,6 +405,7 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     let mut ps_addrs: Vec<String> = Vec::new();
     let mut last_ordering_issue: Option<PsAddrOrderError> = None;
     let mut last_discovery_error: Option<String> = None;
+    let mut max_ps_observed: usize = 0;
     for attempt in 0..=cfg.connect_retries {
         let ps_services = match discovery.discover_async(&cfg.discovery_service_type_ps).await {
             Ok(services) => services,
@@ -418,6 +419,7 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
             Ok(addrs) => (addrs, None),
             Err(issue) => (Vec::new(), Some(issue)),
         };
+        max_ps_observed = max_ps_observed.max(addrs.len());
         if let Some(issue) = ordering_issue {
             last_ordering_issue = Some(issue);
         }
@@ -431,34 +433,38 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
             match (last_ordering_issue, last_discovery_error.as_deref()) {
                 (Some(issue), Some(discovery_error)) => {
                     anyhow::bail!(
-                        "Timed out waiting for PS discovery: got {} expected {} (last ordering issue: {:?}; last discovery error: {})",
+                        "Timed out waiting for PS discovery: got {} expected {} (max observed: {}; last ordering issue: {:?}; last discovery error: {})",
                         addrs.len(),
                         cfg.num_ps,
+                        max_ps_observed,
                         issue,
                         discovery_error
                     );
                 }
                 (Some(issue), None) => {
                     anyhow::bail!(
-                        "Timed out waiting for PS discovery: got {} expected {} (last ordering issue: {:?})",
+                        "Timed out waiting for PS discovery: got {} expected {} (max observed: {}; last ordering issue: {:?})",
                         addrs.len(),
                         cfg.num_ps,
+                        max_ps_observed,
                         issue
                     );
                 }
                 (None, Some(discovery_error)) => {
                     anyhow::bail!(
-                        "Timed out waiting for PS discovery: got {} expected {} (last discovery error: {})",
+                        "Timed out waiting for PS discovery: got {} expected {} (max observed: {}; last discovery error: {})",
                         addrs.len(),
                         cfg.num_ps,
+                        max_ps_observed,
                         discovery_error
                     );
                 }
                 (None, None) => {
                     anyhow::bail!(
-                        "Timed out waiting for PS discovery: got {} expected {}",
+                        "Timed out waiting for PS discovery: got {} expected {} (max observed: {})",
                         addrs.len(),
-                        cfg.num_ps
+                        cfg.num_ps,
+                        max_ps_observed
                     );
                 }
             }
@@ -809,6 +815,60 @@ mod tests {
         }
     }
 
+    struct SequencedPartialPsDiscovery {
+        calls: AtomicUsize,
+    }
+
+    impl SequencedPartialPsDiscovery {
+        fn new() -> Self {
+            Self {
+                calls: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for SequencedPartialPsDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            let n = self.calls.fetch_add(1, Ordering::SeqCst);
+            if n == 0 {
+                Ok(vec![ServiceInfo::new(
+                    "ps-0",
+                    "ps-0",
+                    "ps",
+                    "127.0.0.1",
+                    10001,
+                )])
+            } else {
+                Ok(Vec::new())
+            }
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            Ok(())
+        }
+    }
+
     #[async_trait::async_trait]
     impl ServiceDiscoveryAsync for SequencedDiscoverDiscovery {
         async fn connect(&self) -> DiscoveryResult<()> {
@@ -1078,6 +1138,28 @@ mod tests {
         assert!(
             msg.contains("forced discover failure"),
             "expected timeout to include discovery error, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_timeout_reports_max_observed_ps_count() {
+        let discovery = Arc::new(SequencedPartialPsDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 2,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 1,
+            retry_backoff_ms: 1,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg)
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("max observed: 1"),
+            "expected timeout to report max observed ps count, got: {msg}"
         );
     }
 
