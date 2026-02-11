@@ -903,6 +903,15 @@
   alive indefinitely.
 - Added regression `test_parameter_sync_replicator_task_drop_is_safe`.
 
+### 84) ParameterSync replicator handle ownership refinement
+- Refined `ParameterSyncReplicatorTask` internals to store join handle as
+  `Option<JoinHandle<()>>` and consume it exactly once.
+- `stop().await` now takes ownership of the handle and awaits completion without
+  leaving a stale handle to be aborted again in `Drop`.
+- `Drop` now aborts only when the handle was not already consumed by explicit
+  stop, making stop/drop interaction deterministic and avoiding redundant abort
+  calls.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1040,6 +1049,7 @@
 134. `cargo test --workspace -q` ✅ (post combined ordering+discovery timeout diagnostics regression coverage and full workspace rerun)
 135. `cargo test -p monolith-training -q` ✅ (post ParameterSync replicator drop-safety lifecycle guard and regression coverage)
 136. `cargo test --workspace -q` ✅ (post ParameterSync replicator drop-safety lifecycle guard and full workspace rerun)
+137. `cargo test -p monolith-training -q` ✅ (post one-shot join-handle ownership refinement for ParameterSync replicator task stop/drop lifecycle)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
