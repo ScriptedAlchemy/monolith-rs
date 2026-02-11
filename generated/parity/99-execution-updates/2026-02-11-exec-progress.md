@@ -282,6 +282,13 @@
   - local guard operation error semantics,
   - Primus query pass-through through guard-level API.
 
+### 24) Runner-utils integration test hardening
+- Expanded `tests/runner_utils_parity.rs` to cover newly added guard-level operations:
+  - `monolith_discovery(...).query("ps")` in Primus mode,
+  - local-mode register error path through guard API.
+- This ensures guard ergonomics are validated not only at unit level but also
+  at integration-test entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -312,6 +319,7 @@
 26. `cargo test -p monolith-training -q` ✅ (post native-training integration parity test expansion)
 27. `cargo test --workspace -q` ✅ (post latest estimator/runner parity and integration test additions)
 28. `cargo test -p monolith-training -q` ✅ (post MonolithDiscoveryGuard operational helper expansion)
+29. `cargo test -p monolith-training -q` ✅ (post runner_utils integration guard-operation tests)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
