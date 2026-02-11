@@ -1673,6 +1673,15 @@
 - Strengthens diagnostic parity by surfacing both caller identity and queried
   service class during discover timeout failures.
 
+### 152) Runner-level discover timeout service-type diagnostic regression
+- Added direct runner-level regression:
+  - `test_run_worker_role_discover_timeout_includes_service_type_context`
+- Verifies `run_worker_role` timeout diagnostics retain queried service-type
+  context (`discover worker-0 for <custom-type>`) even outside higher-level
+  run-config/runner-config entrypoint wrappers.
+- Complements integration coverage with a focused unit-level guard on worker
+  discover timeout message fidelity.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1952,6 +1961,8 @@
 276. `cargo test --workspace -q` ✅ (post register-timeout diagnostic enrichment with service-type context full workspace rerun)
 277. `cargo test -p monolith-training -q` ✅ (post discover-timeout diagnostic enrichment with queried service-type context + integration regressions)
 278. `cargo test --workspace -q` ✅ (post discover-timeout diagnostic enrichment with queried service-type context full workspace rerun)
+279. `cargo test -p monolith-training -q` ✅ (post runner-level discover timeout service-type diagnostic regression)
+280. `cargo test --workspace -q` ✅ (post runner-level discover timeout service-type diagnostic regression full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
