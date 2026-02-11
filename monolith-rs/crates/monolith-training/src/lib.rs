@@ -59,12 +59,19 @@ pub mod base_embedding_task;
 pub mod discovery;
 pub mod distributed;
 pub mod distributed_ps;
+pub mod distributed_serving_ops;
+pub mod entry;
 pub mod estimator;
+pub mod file_ops;
 pub mod hooks;
 pub mod metrics;
+pub mod native_task_context;
+pub mod native_training;
 pub mod parameter_sync_replicator;
+pub mod prefetch_queue;
 pub mod py_discovery;
 pub mod runner;
+pub mod runner_utils;
 
 // Re-export main types for convenience
 pub use barrier::{
@@ -88,18 +95,43 @@ pub use distributed_ps::{
     aggregate_gradients, dedup_ids, get_shard_for_id, route_to_shards, EmbeddingTable, PsClient,
     PsError, PsResult, PsServer, PsServerHandle,
 };
+pub use distributed_serving_ops::{refresh_sync_config, DistributedServingOpsError};
+pub use entry::{
+    combine_as_segment, AdadeltaOptimizer, AdagradOptimizer, AdamOptimizer, AmsgradOptimizer,
+    BatchSoftmaxInitializer, BatchSoftmaxOptimizer, ConstantsInitializer, CuckooHashTableConfig,
+    DynamicWdAdagradOptimizer, EntryError, FixedR8Compressor, Fp16Compressor, Fp32Compressor,
+    FtrlOptimizer, HashTableConfig, HashTableConfigInstance, Initializer, LearningRateFn,
+    MomentumOptimizer, MovingAverageOptimizer, OneBitCompressor, Optimizer,
+    RandomUniformInitializer, RmspropOptimizer, RmspropV2Optimizer, SgdOptimizer,
+    StochasticRoundingFloat16OptimizerWrapper, ZerosInitializer,
+};
 pub use estimator::{
     ConstantModelFn, Estimator, EstimatorConfig, EstimatorError, EstimatorMode, EstimatorResult,
     EvalResult, ModelFn, PredictResult, TrainResult,
 };
+pub use file_ops::{FileCloseHook, WritableFile};
 pub use hooks::{
     CheckpointHook, EarlyStoppingHook, Hook, HookAction, HookError, HookList, HookResult,
     LoggingHook,
 };
 pub use metrics::{Metrics, MetricsRecorder};
+pub use native_task_context::{
+    get as get_native_task_context, with_ctx as with_native_task_context,
+};
+pub use native_training::save_utils::{
+    get_monolith_checkpoint_state, write_monolith_checkpoint_state, SaveUtilsError,
+    MONOLITH_CKPT_STATE_FILE_NAME,
+};
 pub use parameter_sync_replicator::{DirtyTracker, ParameterSyncReplicator};
-pub use py_discovery::{MlpServiceDiscovery, PyServiceDiscovery, TfConfigServiceDiscovery};
+pub use prefetch_queue::{
+    enqueue_dicts_with_queue_return, AsyncFunctionMgr, Device, DevicePlacement, EnqueueResult,
+    FifoQueue, MultiFifoQueue, Nested, Placed,
+};
+pub use py_discovery::{
+    HostFileDiscovery, MlpServiceDiscovery, PyServiceDiscovery, TfConfigServiceDiscovery,
+};
 pub use runner::{run_distributed, DistributedRunConfig, Role};
+pub use runner_utils::{copy_checkpoint_from_restore_dir, CheckpointState, RunnerUtilsError};
 
 /// Training configuration combining estimator and distributed settings.
 ///

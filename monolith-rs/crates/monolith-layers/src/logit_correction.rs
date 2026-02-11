@@ -42,7 +42,11 @@ impl LogitCorrection {
         relu_logits.sub(logits).add(&log1p).scale(-1.0)
     }
 
-    fn get_sample_logits(logits: &Tensor, sample_rate: Option<&Tensor>, sample_bias: bool) -> Tensor {
+    fn get_sample_logits(
+        logits: &Tensor,
+        sample_rate: Option<&Tensor>,
+        sample_bias: bool,
+    ) -> Tensor {
         match (sample_rate, sample_bias) {
             (None, true) => Self::safe_log_sigmoid(logits),
             (Some(rate), false) => logits.sub(&rate.log()),

@@ -125,9 +125,7 @@ impl Layer for LayerNorm {
 
         let mean_b = mean.reshape(&mean_shape).broadcast_as(input.shape());
         let var_b = var.reshape(&var_shape).broadcast_as(input.shape());
-        let std = var_b
-            .add(&Tensor::from_data(&[1], vec![self.eps]))
-            .sqrt();
+        let std = var_b.add(&Tensor::from_data(&[1], vec![self.eps])).sqrt();
         let normalized = input.sub(&mean_b).div(&std);
 
         let mut gamma_shape = vec![1; input.ndim() - 1];
@@ -151,9 +149,7 @@ impl Layer for LayerNorm {
 
         let mean = input_2d.mean_axis(1);
         let var = input_2d.var_axis(1);
-        let std = var
-            .add(&Tensor::from_data(&[1], vec![self.eps]))
-            .sqrt();
+        let std = var.add(&Tensor::from_data(&[1], vec![self.eps])).sqrt();
 
         let mean_b = mean.reshape(&[outer, 1]).broadcast_as(&[outer, dim]);
         let std_b = std.reshape(&[outer, 1]).broadcast_as(&[outer, dim]);
@@ -330,8 +326,14 @@ impl BatchNorm {
         let output = x_hat.mul(&gamma_b).add(&beta_b);
 
         let momentum = self.momentum;
-        let mean_update = self.running_mean.scale(momentum).add(&mean.scale(1.0 - momentum));
-        let var_update = self.running_var.scale(momentum).add(&var.scale(1.0 - momentum));
+        let mean_update = self
+            .running_mean
+            .scale(momentum)
+            .add(&mean.scale(1.0 - momentum));
+        let var_update = self
+            .running_var
+            .scale(momentum)
+            .add(&var.scale(1.0 - momentum));
         self.running_mean = mean_update;
         self.running_var = var_update;
 
@@ -381,8 +383,14 @@ impl Layer for BatchNorm {
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
-        let input = self.cached_input.as_ref().ok_or(LayerError::NotInitialized)?;
-        let x_norm = self.cached_x_norm.as_ref().ok_or(LayerError::NotInitialized)?;
+        let input = self
+            .cached_input
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
+        let x_norm = self
+            .cached_x_norm
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
         let std = self.cached_std.as_ref().ok_or(LayerError::NotInitialized)?;
 
         let dim = *input.shape().last().unwrap();
@@ -414,7 +422,9 @@ impl Layer for BatchNorm {
         let sum_dxhat = dxhat.sum_axis(0);
         let sum_dxhat_xnorm = dxhat.mul(x_norm).sum_axis(0);
         let sum_dxhat_b = sum_dxhat.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
-        let sum_dxhat_xnorm_b = sum_dxhat_xnorm.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
+        let sum_dxhat_xnorm_b = sum_dxhat_xnorm
+            .reshape(&[1, dim])
+            .broadcast_as(&[outer, dim]);
 
         let std_b = std.reshape(&[1, dim]).broadcast_as(&[outer, dim]);
         let dx = dxhat
@@ -470,7 +480,13 @@ impl GradNorm {
     }
 
     /// Sets GradNorm hyperparameters.
-    pub fn with_params(mut self, scale: f32, loss_pow: f32, relative_diff: bool, epsilon: f32) -> Self {
+    pub fn with_params(
+        mut self,
+        scale: f32,
+        loss_pow: f32,
+        relative_diff: bool,
+        epsilon: f32,
+    ) -> Self {
         self.scale = scale;
         self.loss_pow = loss_pow;
         self.relative_diff = relative_diff;

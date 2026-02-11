@@ -263,7 +263,9 @@ impl LHUCTower {
             let activation = if activations[idx] == ActivationType::None {
                 None
             } else {
-                Some(ActivationLayer::from_activation_type(activations[idx].clone()))
+                Some(ActivationLayer::from_activation_type(
+                    activations[idx].clone(),
+                ))
             };
 
             layers.push(LHUCBlock {
@@ -356,7 +358,8 @@ impl LHUCTower {
                     inits.clone()
                 } else {
                     return Err(LayerError::ConfigError {
-                        message: "lhuc initializers length must be 1 or match lhuc dims".to_string(),
+                        message: "lhuc initializers length must be 1 or match lhuc dims"
+                            .to_string(),
                     });
                 }
             } else {

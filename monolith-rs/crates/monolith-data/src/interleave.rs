@@ -36,7 +36,12 @@ impl InterleavedDataset {
 
     /// Creates an interleaved dataset from an existing TFRecordDataset.
     pub fn from_tfrecord(dataset: TFRecordDataset, cycle_length: usize) -> Self {
-        Self::new(dataset.paths().to_vec(), cycle_length, true, dataset.compression())
+        Self::new(
+            dataset.paths().to_vec(),
+            cycle_length,
+            true,
+            dataset.compression(),
+        )
     }
 }
 
@@ -44,7 +49,12 @@ impl Dataset for InterleavedDataset {
     type Iter = InterleavedIterator;
 
     fn iter(self) -> Self::Iter {
-        InterleavedIterator::new(self.paths, self.cycle_length, self.verify_crc, self.compression)
+        InterleavedIterator::new(
+            self.paths,
+            self.cycle_length,
+            self.verify_crc,
+            self.compression,
+        )
     }
 }
 
@@ -65,11 +75,7 @@ impl InterleavedIterator {
     ) -> Self {
         let mut pending = VecDeque::new();
         for path in paths {
-            pending.push_back(TFRecordIterator::new(
-                vec![path],
-                verify_crc,
-                compression,
-            ));
+            pending.push_back(TFRecordIterator::new(vec![path], verify_crc, compression));
         }
 
         let mut active = Vec::new();

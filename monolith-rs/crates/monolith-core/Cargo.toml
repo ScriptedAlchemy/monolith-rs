@@ -10,3 +10,6 @@ thiserror = { workspace = true }
 serde = { workspace = true }
 regex = { workspace = true }
 once_cell = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

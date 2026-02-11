@@ -42,7 +42,7 @@ use tokio::sync::Barrier as TokioBarrier;
 use tonic::{Request, Response, Status};
 
 use crate::parameter_sync_replicator::DirtyTracker;
-use monolith_hash_table::{CuckooEmbeddingHashTable, EmbeddingHashTable};
+use monolith_hash_table::{CuckooEmbeddingHashTable, EmbeddingHashTable, ZerosInitializer};
 
 // Import generated proto types
 use monolith_proto::monolith::ps_training::{
@@ -106,7 +106,12 @@ impl EmbeddingTable {
     pub fn new(name: impl Into<String>, dim_size: usize) -> Self {
         // NOTE: capacity is a knob we will want to surface via config.
         let capacity = 1_000_000;
-        let ht = CuckooEmbeddingHashTable::new(capacity, dim_size);
+        // Python tests expect zero-initialized embeddings on first lookup.
+        let ht = CuckooEmbeddingHashTable::with_initializer(
+            capacity,
+            dim_size,
+            Arc::new(ZerosInitializer),
+        );
         Self {
             name: name.into(),
             dim_size,
@@ -799,7 +804,8 @@ pub fn dedup_ids(ids: &[i64]) -> (Vec<i64>, Vec<usize>) {
 pub fn route_to_shards(ids: &[i64], num_shards: usize) -> Vec<Vec<i64>> {
     let mut shards = vec![Vec::new(); num_shards];
     for &id in ids {
-        let shard = (id.abs() as usize) % num_shards;
+        // Python uses `tf.math.floormod`, which matches Rust's `rem_euclid`.
+        let shard = (id.rem_euclid(num_shards as i64)) as usize;
         shards[shard].push(id);
     }
     shards
@@ -842,7 +848,7 @@ pub fn get_shard_for_id(fid: i64, num_shards: usize) -> usize {
     if num_shards == 0 {
         return 0;
     }
-    (fid.abs() as usize) % num_shards
+    (fid.rem_euclid(num_shards as i64)) as usize
 }
 
 #[cfg(test)]
@@ -936,7 +942,7 @@ mod tests {
         assert_eq!(get_shard_for_id(1, 3), 1);
         assert_eq!(get_shard_for_id(2, 3), 2);
         assert_eq!(get_shard_for_id(3, 3), 0);
-        assert_eq!(get_shard_for_id(-1, 3), 1); // abs(-1) % 3 = 1
+        assert_eq!(get_shard_for_id(-1, 3), 2); // floormod(-1, 3) = 2
         assert_eq!(get_shard_for_id(100, 0), 0); // edge case
     }
 }

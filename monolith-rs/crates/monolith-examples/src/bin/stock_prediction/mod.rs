@@ -32,4 +32,3 @@ pub mod trainer;
 pub mod tests;
 
 pub use app::run;
-

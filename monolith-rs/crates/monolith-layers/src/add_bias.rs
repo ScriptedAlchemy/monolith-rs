@@ -71,7 +71,11 @@ impl AddBias {
         self.bias = Some(bias);
     }
 
-    fn reshape_bias_for_input(&self, input_shape: &[usize], data_format: DataFormat) -> Result<Tensor, LayerError> {
+    fn reshape_bias_for_input(
+        &self,
+        input_shape: &[usize],
+        data_format: DataFormat,
+    ) -> Result<Tensor, LayerError> {
         let bias = self.bias.as_ref().ok_or(LayerError::NotInitialized)?;
         let bias_shape = bias.shape().to_vec();
         let ndim = input_shape.len();
@@ -107,7 +111,13 @@ impl AddBias {
                     let shape = match ndim {
                         3 => vec![1, bias_shape[1], bias_shape[0]],
                         4 => vec![1, bias_shape[2], bias_shape[0], bias_shape[1]],
-                        5 => vec![1, bias_shape[3], bias_shape[0], bias_shape[1], bias_shape[2]],
+                        5 => vec![
+                            1,
+                            bias_shape[3],
+                            bias_shape[0],
+                            bias_shape[1],
+                            bias_shape[2],
+                        ],
                         _ => {
                             let mut s = Vec::with_capacity(ndim);
                             s.push(1);

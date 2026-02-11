@@ -159,6 +159,7 @@ pub struct ServiceStats {
 /// ```
 type EmbeddingCache = HashMap<i32, HashMap<i64, Vec<f32>>>;
 
+/// Main agent-service implementation for prediction requests.
 pub struct AgentServiceImpl {
     /// Model loader for accessing loaded models
     model_loader: Arc<ModelLoader>,

@@ -578,8 +578,7 @@ impl Layer for FFMLayer {
         for b in 0..batch_size {
             for f in 0..num_features {
                 indices_data[b * num_features + f] = input_data[b * features + f];
-                values_data[b * num_features + f] =
-                    input_data[b * features + num_features + f];
+                values_data[b * num_features + f] = input_data[b * features + num_features + f];
             }
         }
 

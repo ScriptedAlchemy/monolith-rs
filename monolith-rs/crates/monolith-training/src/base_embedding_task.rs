@@ -271,7 +271,8 @@ impl BaseEmbeddingTask {
 
     /// Creates vocab dict based on config.
     fn create_vocab_dict(config: &mut BaseEmbeddingTaskConfig) -> Result<HashMap<SlotId, usize>> {
-        if config.base.train.end_date.is_some() && config.base.train.vocab_file_folder_prefix.is_some()
+        if config.base.train.end_date.is_some()
+            && config.base.train.vocab_file_folder_prefix.is_some()
         {
             config.vocab_file_path = Self::download_vocab_size_file_from_hdfs(
                 config.base.train.vocab_file_folder_prefix.as_ref().unwrap(),
@@ -281,21 +282,27 @@ impl BaseEmbeddingTask {
             .or_else(|| config.vocab_file_path.clone());
         }
 
-        let vocab_path = config.vocab_file_path.clone().ok_or_else(|| {
-            MonolithError::ConfigError {
-                message: "Either vocab_file_path or vocab_file_folder_prefix + end_date required"
-                    .to_string(),
-            }
-        })?;
+        let vocab_path =
+            config
+                .vocab_file_path
+                .clone()
+                .ok_or_else(|| MonolithError::ConfigError {
+                    message:
+                        "Either vocab_file_path or vocab_file_folder_prefix + end_date required"
+                            .to_string(),
+                })?;
 
         let mut vocab_size_dict = HashMap::new();
-        let content = std::fs::read_to_string(&vocab_path).map_err(|e| MonolithError::InternalError {
-            message: e.to_string(),
-        })?;
+        let content =
+            std::fs::read_to_string(&vocab_path).map_err(|e| MonolithError::InternalError {
+                message: e.to_string(),
+            })?;
         for line in content.lines() {
             let fields: Vec<&str> = line.trim().split('\t').collect();
             if fields.len() != 2 {
-                continue;
+                return Err(MonolithError::ConfigError {
+                    message: format!("each line in {:?} must have 2 fields", vocab_path),
+                });
             }
             if !fields[0].chars().all(|c| c.is_ascii_digit()) {
                 continue;
@@ -306,25 +313,44 @@ impl BaseEmbeddingTask {
             let mut distinct = if let Some(v) = config.vocab_size_per_slot {
                 v
             } else {
-                fields[1].parse::<usize>().map_err(|_| MonolithError::ConfigError {
-                    message: format!("Invalid vocab size {}", fields[1]),
-                })?
+                fields[1]
+                    .parse::<usize>()
+                    .map_err(|_| MonolithError::ConfigError {
+                        message: format!("Invalid vocab size {}", fields[1]),
+                    })?
             };
-            if let Some(custom) = &config.custom_vocab_size_mapping {
-                if let Some(val) = custom.get(&slot_id) {
-                    distinct = *val;
+            // Python only applies `custom_vocab_size_mapping` when `vocab_size_per_slot` is not set.
+            if config.vocab_size_per_slot.is_none() {
+                if let Some(custom) = &config.custom_vocab_size_mapping {
+                    if let Some(val) = custom.get(&slot_id) {
+                        distinct = *val;
+                    }
                 }
             }
             if let Some(offset) = config.vocab_size_offset {
+                // Python applies the offset directly.
                 let updated = (distinct as isize) + offset;
-                if updated > 0 {
-                    distinct = updated as usize;
+                if updated <= 0 {
+                    return Err(MonolithError::ConfigError {
+                        message: format!(
+                            "vocab_size_offset results in non-positive vocab size for slot {}",
+                            slot_id
+                        ),
+                    });
                 }
+                distinct = updated as usize;
             }
             vocab_size_dict.insert(slot_id, distinct);
         }
 
         Ok(vocab_size_dict)
+    }
+
+    #[cfg(test)]
+    fn create_vocab_dict_for_test(
+        config: &mut BaseEmbeddingTaskConfig,
+    ) -> Result<HashMap<SlotId, usize>> {
+        Self::create_vocab_dict(config)
     }
 
     /// Downloads vocab size file from HDFS and returns local path.
@@ -340,7 +366,11 @@ impl BaseEmbeddingTask {
         })?;
 
         let hdfs_path = format!("{}/{}{}", prefix.display(), end_date, "/part*.csv");
-        let cmd = format!("hadoop fs -copyToLocal {} {}", hdfs_path, tmp_folder.display());
+        let cmd = format!(
+            "hadoop fs -copyToLocal {} {}",
+            hdfs_path,
+            tmp_folder.display()
+        );
         let status = Command::new("sh")
             .arg("-c")
             .arg(cmd)
@@ -368,42 +398,26 @@ impl BaseEmbeddingTask {
         if let Some(pattern) = &self.config.base.train.file_pattern {
             return expand_patterns(pattern);
         }
-        let folder = self
-            .config
-            .base
-            .train
-            .file_folder
-            .as_ref()
-            .ok_or_else(|| MonolithError::ConfigError {
+        let folder = self.config.base.train.file_folder.as_ref().ok_or_else(|| {
+            MonolithError::ConfigError {
                 message: "file_pattern or file_folder must be provided".to_string(),
-            })?;
-        let start = self
-            .config
-            .base
-            .train
-            .start_date
-            .as_ref()
-            .ok_or_else(|| MonolithError::ConfigError {
+            }
+        })?;
+        let start = self.config.base.train.start_date.as_ref().ok_or_else(|| {
+            MonolithError::ConfigError {
                 message: "start_date is required when using file_folder".to_string(),
-            })?;
-        let end = self
-            .config
-            .base
-            .train
-            .end_date
-            .as_ref()
-            .unwrap_or(start);
+            }
+        })?;
+        let end = self.config.base.train.end_date.as_ref().unwrap_or(start);
 
-        let start_date = NaiveDate::parse_from_str(start, "%Y%m%d").map_err(|e| {
-            MonolithError::ConfigError {
+        let start_date =
+            NaiveDate::parse_from_str(start, "%Y%m%d").map_err(|e| MonolithError::ConfigError {
                 message: format!("Invalid start_date {}: {}", start, e),
-            }
-        })?;
-        let end_date = NaiveDate::parse_from_str(end, "%Y%m%d").map_err(|e| {
-            MonolithError::ConfigError {
+            })?;
+        let end_date =
+            NaiveDate::parse_from_str(end, "%Y%m%d").map_err(|e| MonolithError::ConfigError {
                 message: format!("Invalid end_date {}: {}", end, e),
-            }
-        })?;
+            })?;
 
         let mut patterns = Vec::new();
         let mut date = start_date;
@@ -436,14 +450,17 @@ impl BaseEmbeddingTask {
     /// Creates a dataset for training.
     pub fn create_train_dataset(&self) -> Result<EmbeddingDataset> {
         let paths = self.resolve_training_files()?;
-        let dataset = TFRecordDataset::open_multiple(&paths).map_err(|e| MonolithError::InternalError {
-            message: e.to_string(),
-        })?;
+        let dataset =
+            TFRecordDataset::open_multiple(&paths).map_err(|e| MonolithError::InternalError {
+                message: e.to_string(),
+            })?;
         if self.config.files_interleave_cycle_length > 1 {
-            Ok(EmbeddingDataset::Interleaved(InterleavedDataset::from_tfrecord(
-                dataset,
-                self.config.files_interleave_cycle_length,
-            )))
+            Ok(EmbeddingDataset::Interleaved(
+                InterleavedDataset::from_tfrecord(
+                    dataset,
+                    self.config.files_interleave_cycle_length,
+                ),
+            ))
         } else {
             Ok(EmbeddingDataset::Tf(dataset))
         }
@@ -455,18 +472,8 @@ impl BaseEmbeddingTask {
         mode: TaskMode,
     ) -> Result<Box<dyn Iterator<Item = Vec<Example>> + Send>> {
         let batch_size = match mode {
-            TaskMode::Train => self
-                .config
-                .base
-                .train
-                .per_replica_batch_size
-                .unwrap_or(1),
-            TaskMode::Eval => self
-                .config
-                .base
-                .eval
-                .per_replica_batch_size
-                .unwrap_or(1),
+            TaskMode::Train => self.config.base.train.per_replica_batch_size.unwrap_or(1),
+            TaskMode::Eval => self.config.base.eval.per_replica_batch_size.unwrap_or(1),
             TaskMode::Predict => 1,
         };
 
@@ -512,4 +519,60 @@ fn expand_patterns(pattern: &str) -> Result<Vec<PathBuf>> {
     }
     paths.sort();
     Ok(paths)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn test_create_vocab_dict_parity_fixed_and_custom_and_offset() {
+        let mut f = NamedTempFile::new().unwrap();
+        // Include a non-digit header line which should be ignored (Python behavior).
+        std::io::Write::write_all(&mut f, b"slot\tvocab\n1\t10\n2\t20\n").unwrap();
+
+        let mut cfg = BaseEmbeddingTaskConfig::default();
+        cfg.vocab_file_path = Some(f.path().to_path_buf());
+
+        let mut custom = HashMap::new();
+        custom.insert(2, 99usize);
+        cfg.custom_vocab_size_mapping = Some(custom);
+        cfg.vocab_size_offset = Some(1);
+
+        let vocab = BaseEmbeddingTask::create_vocab_dict_for_test(&mut cfg).unwrap();
+        assert_eq!(vocab.get(&1).copied(), Some(11));
+        assert_eq!(vocab.get(&2).copied(), Some(100));
+    }
+
+    #[test]
+    fn test_create_vocab_dict_fixed_vocab_size_per_slot() {
+        let mut f = NamedTempFile::new().unwrap();
+        std::io::Write::write_all(&mut f, b"1\t10\n2\t20\n").unwrap();
+
+        let mut cfg = BaseEmbeddingTaskConfig::default();
+        cfg.vocab_file_path = Some(f.path().to_path_buf());
+        cfg.vocab_size_per_slot = Some(7);
+        // If `vocab_size_per_slot` is set, custom mapping should be ignored (Python behavior).
+        let mut custom = HashMap::new();
+        custom.insert(2, 99usize);
+        cfg.custom_vocab_size_mapping = Some(custom);
+
+        let vocab = BaseEmbeddingTask::create_vocab_dict_for_test(&mut cfg).unwrap();
+        assert_eq!(vocab.get(&1).copied(), Some(7));
+        assert_eq!(vocab.get(&2).copied(), Some(7));
+    }
+
+    #[test]
+    fn test_create_vocab_dict_invalid_line_errors() {
+        let mut f = NamedTempFile::new().unwrap();
+        std::io::Write::write_all(&mut f, b"1\t10\textra\n").unwrap();
+
+        let mut cfg = BaseEmbeddingTaskConfig::default();
+        cfg.vocab_file_path = Some(f.path().to_path_buf());
+
+        let err = BaseEmbeddingTask::create_vocab_dict_for_test(&mut cfg).unwrap_err();
+        assert!(err.to_string().contains("must have 2 fields"));
+    }
 }

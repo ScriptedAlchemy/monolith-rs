@@ -74,10 +74,13 @@ pub struct DMRU2I {
 }
 
 impl DMRU2I {
-    pub fn from_config(config: DMRU2IConfig, seq_len: usize, user_emb_dim: usize, item_emb_dim: usize) -> Self {
-        let pos_emb = config
-            .initializer
-            .initialize(&[seq_len, config.cmp_dim]);
+    pub fn from_config(
+        config: DMRU2IConfig,
+        seq_len: usize,
+        user_emb_dim: usize,
+        item_emb_dim: usize,
+    ) -> Self {
+        let pos_emb = config.initializer.initialize(&[seq_len, config.cmp_dim]);
         let emb_weight = config
             .initializer
             .initialize(&[user_emb_dim, config.cmp_dim]);
@@ -113,18 +116,25 @@ impl DMRU2I {
         }
     }
 
-    pub fn forward_train(&mut self, items: &Tensor, user_seq: &Tensor) -> Result<Tensor, LayerError> {
-        let (b, seq_len, _ue_size) =
-            (user_seq.shape()[0], user_seq.shape()[1], user_seq.shape()[2]);
+    pub fn forward_train(
+        &mut self,
+        items: &Tensor,
+        user_seq: &Tensor,
+    ) -> Result<Tensor, LayerError> {
+        let (b, seq_len, _ue_size) = (
+            user_seq.shape()[0],
+            user_seq.shape()[1],
+            user_seq.shape()[2],
+        );
         let emb_cmp = user_seq.matmul(&self.emb_weight);
         let pos = self
             .pos_emb
             .reshape(&[1, seq_len, self.cmp_dim])
             .broadcast_as(&[b, seq_len, self.cmp_dim]);
-        let bias_b = self
-            .bias
-            .reshape(&[1, 1, self.cmp_dim])
-            .broadcast_as(&[b, seq_len, self.cmp_dim]);
+        let bias_b =
+            self.bias
+                .reshape(&[1, 1, self.cmp_dim])
+                .broadcast_as(&[b, seq_len, self.cmp_dim]);
         let comped = emb_cmp.add(&pos).add(&bias_b);
         let alpha = comped.matmul(&self.z_weight).softmax(1);
 
@@ -144,19 +154,37 @@ impl DMRU2I {
     }
 
     pub fn backward(&mut self, grad: &Tensor) -> Result<(Tensor, Tensor), LayerError> {
-        let items = self.cached_items.as_ref().ok_or(LayerError::NotInitialized)?;
-        let user_seq = self.cached_user_seq.as_ref().ok_or(LayerError::NotInitialized)?;
-        let alpha = self.cached_alpha.as_ref().ok_or(LayerError::NotInitialized)?;
-        let comped = self.cached_comped.as_ref().ok_or(LayerError::NotInitialized)?;
-        let linear_out = self.cached_linear_out.as_ref().ok_or(LayerError::NotInitialized)?;
+        let items = self
+            .cached_items
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
+        let user_seq = self
+            .cached_user_seq
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
+        let alpha = self
+            .cached_alpha
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
+        let comped = self
+            .cached_comped
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
+        let linear_out = self
+            .cached_linear_out
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
 
         let grad_items = grad.mul(&self.activation.forward(linear_out)?);
         let grad_act = grad.mul(items);
         let grad_linear = self.activation.backward(&grad_act)?;
         let grad_user_seq_merged = self.linear.backward(&grad_linear)?;
 
-        let (b, _seq_len, ue_size) =
-            (user_seq.shape()[0], user_seq.shape()[1], user_seq.shape()[2]);
+        let (b, _seq_len, ue_size) = (
+            user_seq.shape()[0],
+            user_seq.shape()[1],
+            user_seq.shape()[2],
+        );
         let grad_y = grad_user_seq_merged.reshape(&[b, ue_size, 1]);
         let grad_user_seq_trans = grad_y.matmul(&alpha.transpose_dims(1, 2));
         let grad_alpha = user_seq.transpose_dims(1, 2).matmul(&grad_y);
@@ -176,7 +204,9 @@ impl DMRU2I {
         let grad_emb_weight_batch = user_seq.transpose_dims(1, 2).matmul(&grad_emb_cmp);
         self.emb_weight_grad = Some(grad_emb_weight_batch.sum_axis(0));
 
-        let grad_user_seq = grad_user_seq_trans.transpose_dims(1, 2).add(&grad_user_seq_from_emb);
+        let grad_user_seq = grad_user_seq_trans
+            .transpose_dims(1, 2)
+            .add(&grad_user_seq_from_emb);
         Ok((grad_items, grad_user_seq))
     }
 

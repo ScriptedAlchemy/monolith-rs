@@ -38,36 +38,55 @@
 //! - [`params`]: Configuration and hyperparameter types.
 //! - [`error`]: Error types for the library.
 
+pub mod base_embedding_host_call;
+pub mod base_host_call;
+pub mod base_layer;
+pub mod base_model_params;
+pub mod base_task;
+pub mod dyn_value;
 pub mod env;
 pub mod error;
 pub mod feature;
 pub mod fid;
-pub mod dyn_value;
-pub mod base_layer;
-pub mod base_task;
-pub mod base_model_params;
 pub mod hyperparams;
+pub mod mem_profiling;
+pub mod model_imports;
 pub mod model_registry;
 pub mod nested_map;
+pub mod optimizers;
 pub mod params;
+pub mod path_utils;
+pub mod util;
+pub mod utils;
 
 // Re-export commonly used types at the crate root for convenience
+pub use base_host_call::{BaseHostCall, HostTensor, HostTensor1D, HostTensor2D};
+pub use base_layer::{add_layer_loss, get_layer_loss, get_uname, BaseLayerCore};
+pub use base_model_params::SingleTaskModelParams;
+pub use base_task::{base_task_params, Accelerator, BaseTask, TaskMode};
+pub use dyn_value::DynValue;
 pub use env::{Env, EnvBuilder};
 pub use error::{MonolithError, Result};
 pub use feature::{
-    DenseFeatureColumn, FeatureColumn, FeatureSlice, FeatureSlot, SparseFeatureColumn,
+    DenseFeatureColumn, EmbeddingTensor, FeatureColumn, FeatureColumnV1, FeatureSlice, FeatureSlot,
+    SailEnv, SailFeatureSlice, SailFeatureSlot, SparseFeatureColumn,
 };
 pub use fid::{extract_feature, extract_slot, make_fid, Fid, SlotId};
-pub use dyn_value::DynValue;
-pub use base_layer::{add_layer_loss, get_layer_loss, get_uname, BaseLayerCore};
-pub use base_task::{base_task_params, Accelerator, BaseTask, TaskMode};
-pub use base_model_params::SingleTaskModelParams;
 pub use hyperparams::{
     copy_params_to, update_params, InstantiableParams, ParamValue, Params as HyperParams,
 };
+pub use mem_profiling::{enable_tcmalloc, setup_heap_profile};
+pub use model_imports::{import_all_params, import_params};
 pub use model_registry::{get_all_registered, get_class, get_params, register_single_task_model};
 pub use nested_map::{NestedMap, NestedValue};
+pub use optimizers::OptimizerName;
 pub use params::{EmbeddingConfig, InitializerConfig, Params, TrainingParams};
+pub use path_utils::{find_main, get_libops_path};
+pub use util::{
+    calculate_shard_skip_file_number, get_bucket_name_and_relavite_path,
+    parse_example_number_meta_file, range_dateset,
+};
+pub use utils::{copy_file, copy_recursively, enable_monkey_patch, monkey_patch_enabled};
 
 #[cfg(test)]
 mod tests {

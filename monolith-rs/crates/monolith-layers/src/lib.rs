@@ -86,67 +86,69 @@ pub mod add_bias;
 pub mod agru;
 pub mod constraint;
 pub mod dcn;
-pub mod dmr;
 pub mod dense;
 pub mod dien;
 pub mod din;
-pub mod feature_trans;
+pub mod dmr;
 pub mod embedding;
 pub mod error;
-pub mod ffm;
 pub mod feature_cross;
+pub mod feature_trans;
+pub mod ffm;
 pub mod group_interaction;
 pub mod initializer;
-pub mod regularizer;
 pub mod layer;
 pub mod lhuc;
+pub mod logit_correction;
 pub mod merge;
+pub mod mixed_emb_op_comb_nws;
 pub mod mlp;
 pub mod mmoe;
 pub mod normalization;
 pub mod pooling;
-pub mod logit_correction;
-pub mod snr;
+pub mod regularizer;
 pub mod senet;
+pub mod snr;
 pub mod tensor;
 
 // Re-export main types at crate level
 pub use activation::{
-    ELU, Exponential, GELU, HardSigmoid, LeakyReLU, Linear, Mish, PReLU, ReLU, SELU, Sigmoid,
-    Sigmoid2, Softmax, Softplus, Softsign, Swish, Tanh, ThresholdedReLU,
+    Exponential, HardSigmoid, LeakyReLU, Linear, Mish, PReLU, ReLU, Sigmoid, Sigmoid2, Softmax,
+    Softplus, Softsign, Swish, Tanh, ThresholdedReLU, ELU, GELU, SELU,
 };
 pub use activation_layer::ActivationLayer;
 pub use add_bias::{AddBias, DataFormat};
 pub use agru::{AGRUConfig, AGRU};
 pub use constraint::Constraint;
 pub use dcn::{CrossLayer, CrossNetwork, DCNConfig, DCNMode};
-pub use dmr::{DMRU2I, DMRU2IConfig};
 pub use dense::Dense;
 pub use dien::{AUGRUCell, DIENConfig, DIENLayer, GRUCell, GRUType};
 pub use din::{DINAttention, DINConfig, DINOutputMode};
-pub use feature_trans::{AutoInt, AutoIntConfig, IRazor, IRazorConfig};
+pub use dmr::{DMRU2IConfig, DMRU2I};
 pub use embedding::{
     EmbeddingHashTable, EmbeddingLookup, PooledEmbeddingLookup, PoolingMode,
     SequenceEmbeddingLookup,
 };
 pub use error::{LayerError, LayerResult};
+pub use feature_cross::{AllInt, CDot, GroupInt, GroupIntType, CAN, CIN};
+pub use feature_trans::{AutoInt, AutoIntConfig, IRazor, IRazorConfig};
 pub use ffm::{FFMConfig, FFMLayer};
-pub use feature_cross::{AllInt, CDot, CAN, CIN, GroupInt, GroupIntType};
 pub use group_interaction::{
     GroupInteractionConfig, GroupInteractionLayer, GroupInteractionWithProjection, InteractionType,
 };
 pub use initializer::Initializer;
-pub use regularizer::Regularizer;
-pub use lhuc::{LHUCConfig, LHUCOutputDims, LHUCTower, LHUCOverrides};
 pub use layer::Layer;
+pub use lhuc::{LHUCConfig, LHUCOutputDims, LHUCOverrides, LHUCTower};
+pub use logit_correction::LogitCorrection;
 pub use merge::{merge_tensor_list, merge_tensor_list_tensor, MergeOutput, MergeType};
+pub use mixed_emb_op_comb_nws::MixedEmbedOpCombNws;
 pub use mlp::{ActivationType, MLPConfig, MLP};
 pub use mmoe::{Expert, Gate, GateType, MMoE, MMoEConfig};
 pub use normalization::{BatchNorm, GradNorm, LayerNorm};
 pub use pooling::{AvgPooling, MaxPooling, Pooling, SumPooling};
-pub use logit_correction::LogitCorrection;
-pub use snr::{SNRConfig, SNRType, SNR};
+pub use regularizer::Regularizer;
 pub use senet::{SENetConfig, SENetLayer};
+pub use snr::{SNRConfig, SNRType, SNR};
 pub use tensor::Tensor;
 
 /// Prelude module for convenient imports.
@@ -157,41 +159,42 @@ pub use tensor::Tensor;
 /// ```
 pub mod prelude {
     pub use crate::activation::{
-        ELU, Exponential, GELU, HardSigmoid, LeakyReLU, Linear, Mish, PReLU, ReLU, SELU, Sigmoid,
-        Sigmoid2, Softmax, Softplus, Softsign, Swish, Tanh, ThresholdedReLU,
+        Exponential, HardSigmoid, LeakyReLU, Linear, Mish, PReLU, ReLU, Sigmoid, Sigmoid2, Softmax,
+        Softplus, Softsign, Swish, Tanh, ThresholdedReLU, ELU, GELU, SELU,
     };
     pub use crate::activation_layer::ActivationLayer;
     pub use crate::add_bias::{AddBias, DataFormat};
     pub use crate::agru::{AGRUConfig, AGRU};
     pub use crate::constraint::Constraint;
     pub use crate::dcn::{CrossLayer, CrossNetwork, DCNConfig, DCNMode};
-    pub use crate::dmr::{DMRU2I, DMRU2IConfig};
     pub use crate::dense::Dense;
     pub use crate::dien::{AUGRUCell, DIENConfig, DIENLayer, GRUCell, GRUType};
     pub use crate::din::{DINAttention, DINConfig, DINOutputMode};
-    pub use crate::feature_trans::{AutoInt, AutoIntConfig, IRazor, IRazorConfig};
+    pub use crate::dmr::{DMRU2IConfig, DMRU2I};
     pub use crate::embedding::{
         EmbeddingHashTable, EmbeddingLookup, PooledEmbeddingLookup, PoolingMode,
     };
     pub use crate::error::{LayerError, LayerResult};
+    pub use crate::feature_cross::{AllInt, CDot, GroupInt, GroupIntType, CAN, CIN};
+    pub use crate::feature_trans::{AutoInt, AutoIntConfig, IRazor, IRazorConfig};
     pub use crate::ffm::{FFMConfig, FFMLayer};
-    pub use crate::feature_cross::{AllInt, CDot, CAN, CIN, GroupInt, GroupIntType};
     pub use crate::group_interaction::{
         GroupInteractionConfig, GroupInteractionLayer, GroupInteractionWithProjection,
         InteractionType,
     };
     pub use crate::initializer::Initializer;
-    pub use crate::regularizer::Regularizer;
-    pub use crate::lhuc::{LHUCConfig, LHUCOutputDims, LHUCTower, LHUCOverrides};
     pub use crate::layer::Layer;
+    pub use crate::lhuc::{LHUCConfig, LHUCOutputDims, LHUCOverrides, LHUCTower};
+    pub use crate::logit_correction::LogitCorrection;
     pub use crate::merge::{merge_tensor_list, merge_tensor_list_tensor, MergeOutput, MergeType};
+    pub use crate::mixed_emb_op_comb_nws::MixedEmbedOpCombNws;
     pub use crate::mlp::{ActivationType, MLPConfig, MLP};
     pub use crate::mmoe::{Expert, Gate, GateType, MMoE, MMoEConfig};
     pub use crate::normalization::{BatchNorm, GradNorm, LayerNorm};
     pub use crate::pooling::{AvgPooling, MaxPooling, Pooling, SumPooling};
-    pub use crate::logit_correction::LogitCorrection;
-    pub use crate::snr::{SNRConfig, SNRType, SNR};
+    pub use crate::regularizer::Regularizer;
     pub use crate::senet::{SENetConfig, SENetLayer};
+    pub use crate::snr::{SNRConfig, SNRType, SNR};
     pub use crate::tensor::Tensor;
 }
 

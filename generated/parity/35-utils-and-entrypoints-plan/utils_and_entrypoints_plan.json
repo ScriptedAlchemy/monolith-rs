@@ -1,0 +1,498 @@
+{
+  "version": "1",
+  "domain": "utils_and_entrypoints",
+  "pythonRoot": "monolith",
+  "scope": {
+    "pythonFiles": [
+      "monolith/base_runner.py",
+      "monolith/gpu_runner.py",
+      "monolith/path_utils.py",
+      "monolith/tpu_runner.py",
+      "monolith/utils.py"
+    ],
+    "workspaceFiles": [
+      "monolith/monolith_workspace.bzl",
+      "monolith/tf_serving_workspace.bzl"
+    ]
+  },
+  "rust": {
+    "defaultCrate": "monolith-cli",
+    "secondaryCrates": [
+      "monolith-config",
+      "monolith-core",
+      "monolith-serving",
+      "monolith-training"
+    ],
+    "crateRoots": {
+      "monolith-cli": "monolith-rs/crates/monolith-cli",
+      "monolith-core": "monolith-rs/crates/monolith-core",
+      "monolith-training": "monolith-rs/crates/monolith-training"
+    },
+    "proposedModuleLayout": [
+      {
+        "path": "monolith-rs/crates/monolith-core/src/path_utils.rs",
+        "purpose": "Repo/base path resolution parity for monolith/path_utils.py (find_main + get_libops_path) with strict and relaxed strategies."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-core/src/fs.rs",
+        "purpose": "Filesystem compatibility facade for local and (optionally) remote URIs used by tf.io.gfile (copy, exists, isdir, listdir, makedirs, rmtree)."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-core/src/tensorboard.rs",
+        "purpose": "Optional TensorBoard summary writing used by BaseRunner.write_summary; gated behind a feature if needed."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-cli/src/bin/monolith_gpu_runner.rs",
+        "purpose": "CLI entrypoint parity for monolith/gpu_runner.py (flags, logging, exit codes, orchestration). Phase 1 uses Python TF runtime via subprocess; phase 2 can replace internals."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-cli/src/bin/monolith_tpu_runner.rs",
+        "purpose": "CLI entrypoint parity for monolith/tpu_runner.py (flags, logging, exit codes, orchestration). Phase 1 uses Python TF runtime via subprocess; phase 2 can replace internals."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-cli/src/python_shim.rs",
+        "purpose": "Shared shim to execute Python entrypoints with forwarded argv/env, consistent error messages, and deterministic logging prefixes for parity tests."
+      }
+    ]
+  },
+  "inventory": {
+    "pythonFiles": [
+      {
+        "path": "monolith/base_runner.py",
+        "lines": 47,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/src/tensorboard.rs",
+          "monolith-rs/crates/monolith-training/src/runner/base_runner.rs"
+        ],
+        "naJustification": null,
+        "notes": "Defines BaseRunner contract and TF v1 Summary writing via tf.compat.v1.Summary + FileWriter. Full TF parity in Rust is blocked unless we either (a) write TensorBoard event files directly or (b) embed/call Python/TF for summaries."
+      },
+      {
+        "path": "monolith/gpu_runner.py",
+        "lines": 227,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-cli/src/bin/monolith_gpu_runner.rs",
+          "monolith-rs/crates/monolith-cli/src/python_shim.rs"
+        ],
+        "naJustification": null,
+        "notes": "TF Estimator + Horovod/MPI orchestration. Rust parity plan is phased: (1) Rust CLI wrapper with identical flags/defaults and subprocess delegation to Python TF runner; (2) optional native reimplementation if a Rust TF runtime strategy is chosen."
+      },
+      {
+        "path": "monolith/path_utils.py",
+        "lines": 48,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/src/path_utils.rs"
+        ],
+        "naJustification": null,
+        "notes": "Pure-stdlib path probing with strict error behavior. This is the best early Rust port candidate and unblocks other utilities that need repo root discovery."
+      },
+      {
+        "path": "monolith/tpu_runner.py",
+        "lines": 430,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-cli/src/bin/monolith_tpu_runner.rs",
+          "monolith-rs/crates/monolith-cli/src/python_shim.rs"
+        ],
+        "naJustification": null,
+        "notes": "TF v1 TPUEstimator + Cloud TPU client configuration + embedding config path. Rust parity plan is phased: (1) Rust CLI wrapper delegating to Python TF runner; (2) optional native reimplementation (requires TPU/TF runtime strategy)."
+      },
+      {
+        "path": "monolith/utils.py",
+        "lines": 82,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/src/fs.rs",
+          "monolith-rs/crates/monolith-core/src/path_utils.rs"
+        ],
+        "naJustification": null,
+        "notes": "Exports path_utils functions; defines TF monkey patch and tf.io.gfile-based copy helpers. Rust should port CopyFile/CopyRecursively semantics behind a filesystem facade. enable_monkey_patch remains Python-only (N/A for pure Rust builds) unless embedding Python."
+      }
+    ],
+    "workspaceFiles": [
+      {
+        "path": "monolith/monolith_workspace.bzl",
+        "lines": 33,
+        "status": "N/A",
+        "rustTargets": [],
+        "naJustification": "N/A: Bazel WORKSPACE repo rules; not directly portable to Rust crates. Keep as build/runtime context for parity and document any dependency pins that affect TF/Python behavior used by shims.",
+        "notes": "Pins msgpack, gperftools and Python pip deps via rules_python. Rust plan should not duplicate; only ensure Rust CLI wrappers can locate and invoke the intended Python environment when used."
+      },
+      {
+        "path": "monolith/tf_serving_workspace.bzl",
+        "lines": 127,
+        "status": "N/A",
+        "rustTargets": [],
+        "naJustification": "N/A: Bazel WORKSPACE glue for TensorFlow Serving. Relevant only to understanding dependency pins/patches that may affect Python TF runtime invoked by Rust shims.",
+        "notes": "Contains pinned/patch TF Serving deps (absl, icu, eigen, etc). If Rust wrappers run inside Bazel, ensure their runtime environment matches the expected TF Serving dependency graph when applicable."
+      }
+    ]
+  },
+  "interfaces": {
+    "pathResolution": {
+      "behavior": "monolith/path_utils.py derives a base directory from os.path.abspath(__file__). It scans for the first matching split marker in order: '/__main__/', '/site-packages/', '/monolith/'. If '/monolith/' is found, base is everything before that substring; otherwise base is join(prefix_before_marker, marker_without_slashes). It then validates that base contains a 'monolith' directory (base/monolith exists) and returns base; otherwise it raises ValueError with the full file path embedded. get_libops_path(lib_name) returns join(find_main(), lib_name).",
+      "compatibilityChecks": [
+        "Given a synthetic absolute path containing '/monolith/', Rust strict mode returns the same base substring as Python and performs the same base/monolith existence check.",
+        "Given a synthetic absolute path containing '/site-packages/' or '/__main__/', Rust strict mode matches Python's base derivation and error message category (ValueError-equivalent) when base/monolith is missing.",
+        "For real binaries, Rust relaxed mode first accepts current working directory if it contains 'monolith/', otherwise walks ancestors from current_exe() to find a directory containing 'monolith/'. Strict mode remains available for parity tests."
+      ]
+    },
+    "filesystem": {
+      "behavior": "monolith/utils.py implements CopyFile and CopyRecursively using tf.io.gfile for filesystem operations (supports local and remote schemes depending on TF build). CopyFile retries up to max_retries; on tf.errors.NotFoundError it either continues (skip_nonexist=True) or re-raises. CopyRecursively traverses a src tree: if src missing and skip_nonexist=True it returns silently else raises; if src is file it copies to dst; if src is directory it deletes dst if it exists (rmtree), creates dst, then recursively processes children. When max_workers>1 it accumulates file copy pairs and copies them concurrently after traversal.",
+      "compatibilityChecks": [
+        "Local filesystem parity: directory trees copied with identical file set and relative paths; existing dst directory is removed before copy.",
+        "Error parity: missing src returns success when skip_nonexist=true; missing src errors when skip_nonexist=false.",
+        "Retry parity: transient copy failures can be retried; final failure surfaces with a stable error message containing src and dst."
+      ]
+    },
+    "entrypoints": {
+      "base_runner": {
+        "behavior": "BaseRunner defines a minimal run() interface and write_summary(logs, summary_writer, current_step). write_summary builds tf.compat.v1.Summary.Value entries from logs (tag/value), wraps them in tf.compat.v1.Summary, and calls summary_writer.add_summary(tf_summary, current_step) within a fresh tf.compat.v1.Graph().",
+        "compatibilityChecks": [
+          "When given a deterministic logs map, summary output is stable (same set of tags and float values) for a fixed step.",
+          "Rust implementation either (a) produces a TensorBoard event file readable by tensorboard, or (b) delegates summary writing to Python/TF in shim mode; both options must be explicitly feature-gated."
+        ]
+      },
+      "gpu_runner": {
+        "behavior": "gpu_runner.py is an absl.app entrypoint with absl.flags: task (string), model_dir (string), save_checkpoints_steps (int), mode (enum: train_and_eval|train|eval, default train). It uses model_registry.GetParams(task) then instantiates the task, creates input_fns/model_fn, and builds a tf.compat.v1.estimator.Estimator. If task_param.accelerator == 'horovod' it initializes Horovod (hvd.init), pins visible GPU to local rank, sets RunConfig session_config for XLA JIT + allow_growth + visible_device_list, and sets save_checkpoints_steps to None on non-rank0. Train mode: est.train (with BroadcastGlobalVariablesHook for horovod). Eval mode: evaluates fixed number of steps from eval_examples/per_replica_batch_size, writes summaries under model_dir/eval. train_and_eval: loops training in chunks (steps_per_eval) and runs eval after each chunk; only rank0 evaluates; MPI barrier at end of each round for horovod.",
+        "compatibilityChecks": [
+          "Flag parsing parity: same defaults, same accepted enum values, unknown flags fail similarly (clap should reject unknown unless explicitly configured to pass-through).",
+          "Exit-code parity: non-zero on runner exceptions; in shim mode propagate Python process exit status.",
+          "Orchestration parity (shim mode): command-line and environment are forwarded verbatim; additional Rust-only flags (if any) must be namespaced and not collide with Python flags."
+        ]
+      },
+      "tpu_runner": {
+        "behavior": "tpu_runner.py is an absl.app entrypoint with flags: tf_version (string, default 'nightly' but not used in logic), tpu, gcp_project, tpu_zone, task, model_dir, mode enum (default train), save_checkpoints_steps, iterations_per_loop (default 10000), pipeline_execution (bool), enable_tpu_version_config (bool), host_call_every_n_steps (int), enable_stopping_signals (bool), cpu_test (bool), partition_strategy (string default 'mod'), overwrite_end_date (string default ''). In __init__, it may override save_checkpoints_steps from task_param.train.save_checkpoints_steps; it forces task_param.accelerator='tpu'; it may override task_param.train.end_date if overwrite_end_date is non-empty and the param exists. create_tpu_estimator optionally configures remote TPU version via cloud_tpu_client, computes total_replicas, chooses experimental_host_call_every_n_steps (100 if host_call_every_n_steps==0), selects experimental feed hook when enable_stopping_signals, builds TPUEstimator and optionally EmbeddingConfigSpec for BaseEmbeddingTask. run() supports train and eval; eval iterates over checkpoints_iterator(model_dir) and evaluates each checkpoint until reaching max_steps, writing summaries to model_dir/eval. train_and_eval explicitly not supported (TypeError).",
+        "compatibilityChecks": [
+          "Flag precedence parity: task_param overrides flags for save_checkpoints_steps; overwrite_end_date overrides task_param when present.",
+          "Mode support parity: train_and_eval errors; cpu_test only allowed with train mode (assertion).",
+          "Eval loop parity (shim mode): continues evaluating new checkpoints until max_steps checkpoint is reached or timeout stops iteration."
+        ]
+      }
+    },
+    "buildGlue": {
+      "behavior": "monolith_workspace.bzl and tf_serving_workspace.bzl pin/patch C++ and Python dependencies (TF Serving, absl, icu, eigen, gperftools) which can change TF runtime behavior and available filesystem schemes for tf.io.gfile. Rust wrappers that delegate to Python must run in an environment that matches these Bazel-managed deps when executed under Bazel.",
+      "compatibilityChecks": [
+        "Document and enforce (in parity harness) which Python interpreter/site-packages is used when invoking Python shims (e.g., from Bazel runfiles or venv).",
+        "If tf.io.gfile remote schemes are relied upon (gs://), parity tests must be skipped or feature-gated unless credentials and deps are present."
+      ]
+    }
+  },
+  "harness": {
+    "crossLangParity": {
+      "strategy": "Create deterministic fixtures and compare Python vs Rust behavior by invoking both CLIs with explicit argv and controlled env. For pure utilities (path resolution, filesystem copy), compare returned strings, file trees, and error categories/messages. For TF-dependent entrypoints, use shim parity: Rust parses flags and then execs the Python runner, asserting that argv forwarding, exit codes, and stderr/stdout prefixes are stable. Where exact TF outputs are non-deterministic, parity gates focus on orchestration decisions (which mode executed, paths created, and summary directory placement).",
+      "sharedFixturesRoot": "monolith-rs/fixtures/parity/utils_entrypoints",
+      "goldens": [
+        {
+          "id": "path_utils_find_main_monolith_split",
+          "description": "Strict-mode find_main base derivation when origin path contains '/monolith/' and base/monolith exists.",
+          "pythonInvocation": "python3 -c \"from monolith import path_utils; print(path_utils.find_main())\"",
+          "rustInvocation": "cargo run -p monolith-cli --bin monolith-path-utils -- find-main --mode strict --origin-path monolith-rs/fixtures/parity/utils_entrypoints/synthetic/monolith/path_utils.py",
+          "artifacts": [
+            "monolith-rs/fixtures/parity/utils_entrypoints/goldens/path_utils_find_main_monolith_split.stdout"
+          ]
+        },
+        {
+          "id": "path_utils_find_main_site_packages_split_error",
+          "description": "Strict-mode error when origin path contains '/site-packages/' but derived base does not contain base/monolith.",
+          "pythonInvocation": "python3 -c \"import os; from monolith import path_utils; import monolith.path_utils as pu; print(pu.find_main())\"",
+          "rustInvocation": "cargo run -p monolith-cli --bin monolith-path-utils -- find-main --mode strict --origin-path monolith-rs/fixtures/parity/utils_entrypoints/synthetic/site-packages/monolith/path_utils.py",
+          "artifacts": [
+            "monolith-rs/fixtures/parity/utils_entrypoints/goldens/path_utils_find_main_site_packages_split_error.stderr"
+          ]
+        },
+        {
+          "id": "utils_copy_recursively_local_tree",
+          "description": "CopyRecursively local tree copy parity: dst replaced, files copied, permissions ignored (best-effort).",
+          "pythonInvocation": "python3 -c \"from monolith import utils; utils.CopyRecursively('monolith-rs/fixtures/parity/utils_entrypoints/src_tree', 'monolith-rs/fixtures/parity/utils_entrypoints/out_py', max_workers=4, skip_nonexist=False)\"",
+          "rustInvocation": "cargo run -p monolith-cli --bin monolith-utils -- copy-recursively --src monolith-rs/fixtures/parity/utils_entrypoints/src_tree --dst monolith-rs/fixtures/parity/utils_entrypoints/out_rs --max-workers 4 --skip-nonexist false",
+          "artifacts": [
+            "monolith-rs/fixtures/parity/utils_entrypoints/goldens/utils_copy_recursively_local_tree.manifest.json"
+          ]
+        },
+        {
+          "id": "gpu_runner_shim_argv_forwarding",
+          "description": "Rust GPU runner shim forwards flags and exits with same code as Python when task is missing/invalid.",
+          "pythonInvocation": "python3 -m monolith.gpu_runner --task __does_not_exist__ --model_dir /tmp/monolith_test --mode train",
+          "rustInvocation": "cargo run -p monolith-cli --bin monolith_gpu_runner -- --task __does_not_exist__ --model_dir /tmp/monolith_test --mode train",
+          "artifacts": [
+            "monolith-rs/fixtures/parity/utils_entrypoints/goldens/gpu_runner_shim_argv_forwarding.exitcode"
+          ]
+        },
+        {
+          "id": "tpu_runner_shim_train_and_eval_unsupported",
+          "description": "tpu_runner rejects train_and_eval mode (TypeError in Python); shim preserves non-zero exit and message class.",
+          "pythonInvocation": "python3 -m monolith.tpu_runner --task __does_not_exist__ --model_dir /tmp/monolith_test --mode train_and_eval",
+          "rustInvocation": "cargo run -p monolith-cli --bin monolith_tpu_runner -- --task __does_not_exist__ --model_dir /tmp/monolith_test --mode train_and_eval",
+          "artifacts": [
+            "monolith-rs/fixtures/parity/utils_entrypoints/goldens/tpu_runner_shim_train_and_eval_unsupported.stderr"
+          ]
+        }
+      ]
+    }
+  },
+  "workstreams": [
+    {
+      "id": "ws1_path_utils",
+      "title": "Path resolution + repo root discovery",
+      "dependsOn": [],
+      "pythonFiles": [
+        "monolith/path_utils.py"
+      ],
+      "workspaceFiles": [],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-core/src/path_utils.rs"
+      ],
+      "deliverables": [
+        "Rust strict-mode implementation of Python split-marker algorithm and base/monolith validation with stable error messages.",
+        "Rust relaxed-mode implementation for real binaries (cwd and ancestor walking) without breaking strict-mode parity tests.",
+        "Public API: find_main() and get_libops_path(lib_name) with unit tests covering marker cases."
+      ],
+      "parityChecks": [
+        "Golden tests for strict-mode derived bases and error categories.",
+        "Property-style tests over synthetic paths to ensure deterministic behavior."
+      ],
+      "tests": [
+        "monolith-rs/crates/monolith-core/tests/path_utils_parity.rs",
+        "monolith-rs/fixtures/parity/utils_entrypoints/synthetic/**"
+      ],
+      "risks": [
+        "Python uses __file__ while Rust uses current_exe/cwd; strict-mode must accept injected origin_path for parity harness."
+      ]
+    },
+    {
+      "id": "ws2_fs_facade_and_copy",
+      "title": "Filesystem facade + CopyFile/CopyRecursively parity",
+      "dependsOn": [
+        "ws1_path_utils"
+      ],
+      "pythonFiles": [
+        "monolith/utils.py"
+      ],
+      "workspaceFiles": [],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-core/src/fs.rs",
+        "monolith-rs/crates/monolith-cli/src/bin/monolith-utils.rs"
+      ],
+      "deliverables": [
+        "Filesystem facade with local-path implementation mirroring tf.io.gfile behaviors used here (exists, isdir, listdir, makedirs, rmtree, copy).",
+        "CopyFile retry loop with skip_nonexist behavior, returning stable Rust error types.",
+        "CopyRecursively traversal semantics including dst replacement and optional thread pool copying for max_workers>1."
+      ],
+      "parityChecks": [
+        "Manifest-based tree comparison between Python output and Rust output for the same fixture input.",
+        "Error-case parity for missing src with skip_nonexist true/false."
+      ],
+      "tests": [
+        "monolith-rs/crates/monolith-core/tests/fs_copy_parity.rs",
+        "monolith-rs/fixtures/parity/utils_entrypoints/src_tree/**"
+      ],
+      "risks": [
+        "tf.io.gfile supports remote schemes; initial Rust implementation may be local-only and must fail clearly on non-file URIs or be feature-gated."
+      ]
+    },
+    {
+      "id": "ws3_tensorboard_summary_optional",
+      "title": "BaseRunner summary writing parity (optional TF-free path)",
+      "dependsOn": [
+        "ws2_fs_facade_and_copy"
+      ],
+      "pythonFiles": [
+        "monolith/base_runner.py"
+      ],
+      "workspaceFiles": [],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-core/src/tensorboard.rs"
+      ],
+      "deliverables": [
+        "Feature-gated TensorBoard event writer capable of writing scalar summaries at a given step.",
+        "API matching BaseRunner.write_summary(logs, output_dir, step) semantics for scalar values."
+      ],
+      "parityChecks": [
+        "Generate a small event file in Python and Rust and verify tensorboard inspection output contains the same tags/values for a single step."
+      ],
+      "tests": [
+        "monolith-rs/crates/monolith-core/tests/tensorboard_summary_parity.rs",
+        "monolith-rs/fixtures/parity/utils_entrypoints/goldens/tensorboard_inspect.txt"
+      ],
+      "risks": [
+        "TensorBoard event format details can be subtle; if blocked, fall back to shim-based summary writing via Python/TF."
+      ]
+    },
+    {
+      "id": "ws4_python_shim_runtime",
+      "title": "Python shim runtime for TF-dependent entrypoints",
+      "dependsOn": [
+        "ws1_path_utils"
+      ],
+      "pythonFiles": [
+        "monolith/gpu_runner.py",
+        "monolith/tpu_runner.py"
+      ],
+      "workspaceFiles": [
+        "monolith/monolith_workspace.bzl",
+        "monolith/tf_serving_workspace.bzl"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-cli/src/python_shim.rs"
+      ],
+      "deliverables": [
+        "Shim that locates a Python interpreter (configurable via env/flag) and executes a module (python -m monolith.gpu_runner / monolith.tpu_runner).",
+        "Deterministic argv/env forwarding and exit code propagation.",
+        "Optional runfiles/WORKSPACE-aware lookup strategy (documented; not required for non-Bazel runs)."
+      ],
+      "parityChecks": [
+        "Golden tests asserting Rust shim exit code equals Python exit code for known failure scenarios.",
+        "Forwarded flags appear in Python's FLAGS dump (tpu_runner logs FLAGS in main)."
+      ],
+      "tests": [
+        "monolith-rs/crates/monolith-cli/tests/python_shim_parity.rs"
+      ],
+      "risks": [
+        "Python environment discovery under Bazel can be brittle; provide explicit override flag/env in the shim."
+      ]
+    },
+    {
+      "id": "ws5_gpu_runner_cli_wrapper",
+      "title": "GPU runner CLI parity (phase 1 wrapper)",
+      "dependsOn": [
+        "ws4_python_shim_runtime"
+      ],
+      "pythonFiles": [
+        "monolith/gpu_runner.py"
+      ],
+      "workspaceFiles": [],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-cli/src/bin/monolith_gpu_runner.rs"
+      ],
+      "deliverables": [
+        "Rust CLI that exposes flags: --task, --model_dir, --save_checkpoints_steps, --mode with identical defaults and accepted values.",
+        "Logging verbosity analogous to absl.logging INFO by default.",
+        "Delegation to Python runner via shim; no TF logic in Rust for phase 1."
+      ],
+      "parityChecks": [
+        "Argument parsing golden tests (help output stable; enum validation).",
+        "Shim forwarding parity (argv, env, and exit status)."
+      ],
+      "tests": [
+        "monolith-rs/crates/monolith-cli/tests/gpu_runner_cli_parity.rs"
+      ],
+      "risks": [
+        "clap vs absl flag parsing differences (e.g., --flag=value vs --flag value); configure clap to accept both and keep behavior strict for unknown flags."
+      ]
+    },
+    {
+      "id": "ws6_tpu_runner_cli_wrapper",
+      "title": "TPU runner CLI parity (phase 1 wrapper)",
+      "dependsOn": [
+        "ws4_python_shim_runtime"
+      ],
+      "pythonFiles": [
+        "monolith/tpu_runner.py"
+      ],
+      "workspaceFiles": [],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-cli/src/bin/monolith_tpu_runner.rs"
+      ],
+      "deliverables": [
+        "Rust CLI that exposes TPU runner flags with matching defaults and accepted values (including booleans and mode enum).",
+        "Delegation to Python runner via shim; no TF logic in Rust for phase 1.",
+        "Explicit documentation of precedence rules that are enforced by Python (save_checkpoints_steps override, overwrite_end_date behavior)."
+      ],
+      "parityChecks": [
+        "Argument parsing golden tests (enum validation; boolean default parity).",
+        "Failure-mode parity: train_and_eval rejects with non-zero status."
+      ],
+      "tests": [
+        "monolith-rs/crates/monolith-cli/tests/tpu_runner_cli_parity.rs"
+      ],
+      "risks": [
+        "TPU credentials/network access can make real runs non-deterministic; parity gates should focus on CLI/shim behavior unless an integration environment is available."
+      ]
+    }
+  ],
+  "milestones": [
+    {
+      "id": "m1_path_utils_parity",
+      "definitionOfDone": [
+        "monolith-rs/crates/monolith-core/src/path_utils.rs implements strict-mode algorithm and passes golden tests.",
+        "Rust relaxed mode successfully finds repo root when run from repo checkout without requiring injected origin_path.",
+        "All path resolution parity goldens under monolith-rs/fixtures/parity/utils_entrypoints/goldens are green."
+      ],
+      "blockedBy": []
+    },
+    {
+      "id": "m2_fs_copy_parity",
+      "definitionOfDone": [
+        "monolith-rs/crates/monolith-core/src/fs.rs implements local CopyFile/CopyRecursively parity with deterministic manifests.",
+        "Rust copy utilities pass parity tests against Python outputs on the same fixtures."
+      ],
+      "blockedBy": [
+        "m1_path_utils_parity"
+      ]
+    },
+    {
+      "id": "m3_entrypoints_shim_parity",
+      "definitionOfDone": [
+        "monolith-rs/crates/monolith-cli/src/python_shim.rs executes python modules and forwards argv/env deterministically.",
+        "monolith-rs/crates/monolith-cli/src/bin/monolith_gpu_runner.rs and monolith-rs/crates/monolith-cli/src/bin/monolith_tpu_runner.rs match Python entrypoints for flag defaults/validation and propagate exit codes.",
+        "Golden tests for shim exit codes and stderr/stdout matching are green."
+      ],
+      "blockedBy": [
+        "m1_path_utils_parity"
+      ]
+    },
+    {
+      "id": "m4_base_runner_summary_strategy",
+      "definitionOfDone": [
+        "Either TF-free TensorBoard event writing is implemented and parity-verified, or summary writing is explicitly delegated to Python/TF with clear feature gating.",
+        "Decision is documented in code comments and in a short README under monolith-rs/fixtures/parity/utils_entrypoints."
+      ],
+      "blockedBy": [
+        "m2_fs_copy_parity"
+      ]
+    }
+  ],
+  "openGaps": [
+    {
+      "gap": "Normalized mapping file missing (generated/parity/11-normalize-mapping/normalized_mapping.json), so Rust target selection cannot leverage existing module-to-crate mapping conventions beyond best-effort crate naming.",
+      "severity": "medium",
+      "files": [
+        "monolith/base_runner.py",
+        "monolith/gpu_runner.py",
+        "monolith/path_utils.py",
+        "monolith/tpu_runner.py",
+        "monolith/utils.py"
+      ],
+      "mitigation": "Proceed with conservative crate placement (monolith-core for utilities, monolith-cli for entrypoints). Reconcile with normalized mapping once generated and update rustTargets accordingly."
+    },
+    {
+      "gap": "TF Estimator/Horovod/TPU runtime cannot be reimplemented in Rust without a major TF runtime strategy (embedding Python, using TF C API, or rewriting training stack).",
+      "severity": "high",
+      "files": [
+        "monolith/gpu_runner.py",
+        "monolith/tpu_runner.py"
+      ],
+      "mitigation": "Phase 1: Rust CLI wrappers delegate to Python TF runners with strict argv/env forwarding and parity tests. Phase 2: only attempt native port after choosing a supported TF runtime approach."
+    },
+    {
+      "gap": "tf.io.gfile remote filesystem semantics (gs:// and other schemes) are not guaranteed in Rust implementation.",
+      "severity": "medium",
+      "files": [
+        "monolith/utils.py"
+      ],
+      "mitigation": "Implement local filesystem parity first; add optional feature-backed remote backends (e.g., object_store + GCS) and gate parity tests on credentials/availability."
+    },
+    {
+      "gap": "enable_monkey_patch mutates TensorFlow internal module state to change preemption error handling; no direct Rust equivalent.",
+      "severity": "low",
+      "files": [
+        "monolith/utils.py"
+      ],
+      "mitigation": "Keep Python-only; if shim mode is used for training, call enable_monkey_patch from Python runner startup as needed. For pure Rust paths, document as unsupported."
+    }
+  ]
+}

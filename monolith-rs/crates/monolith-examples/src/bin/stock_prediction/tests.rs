@@ -13,7 +13,11 @@ fn create_test_bars(ticker_id: i64, num_bars: usize) -> Vec<StockBar> {
     for i in 0..num_bars {
         let change = ((i % 7) as f32 - 3.0) * 0.01;
         price *= 1.0 + change;
-        let returns = if i == 0 { 0.0 } else { (price - prev_close) / prev_close };
+        let returns = if i == 0 {
+            0.0
+        } else {
+            (price - prev_close) / prev_close
+        };
         prev_close = price;
 
         bars.push(StockBar {

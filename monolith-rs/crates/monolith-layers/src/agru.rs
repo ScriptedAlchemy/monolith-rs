@@ -256,7 +256,9 @@ impl AGRU {
     ) -> Result<Tensor, LayerError> {
         let batch_size = h.shape()[0];
         let hidden_dim = h.shape()[1];
-        let att = a.reshape(&[batch_size, 1]).broadcast_as(&[batch_size, hidden_dim]);
+        let att = a
+            .reshape(&[batch_size, 1])
+            .broadcast_as(&[batch_size, hidden_dim]);
         let z_att = z.mul(&att);
         let one = Tensor::ones(&[batch_size, hidden_dim]);
         let h_new = one.sub(&z_att).mul(h).add(&z_att.mul(h_tilde));

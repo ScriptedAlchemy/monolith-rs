@@ -163,7 +163,11 @@ impl Trainer {
 
             self.global_step += 1;
 
-            if self.config.verbose && self.global_step.is_multiple_of(self.config.log_every_n_steps) {
+            if self.config.verbose
+                && self
+                    .global_step
+                    .is_multiple_of(self.config.log_every_n_steps)
+            {
                 println!(
                     "  [Step {}] Loss: {:.4} | Dir: {:.4} | Mag: {:.4} | Prof: {:.4}",
                     self.global_step, total_loss, direction_loss, magnitude_loss, profitable_loss
@@ -207,7 +211,8 @@ impl Trainer {
         self.model.backward(&loss_grads, cache);
 
         // Apply gradients using SGD with gradient clipping
-        self.model.apply_gradients(self.learning_rate, self.grad_clip);
+        self.model
+            .apply_gradients(self.learning_rate, self.grad_clip);
     }
 
     pub fn evaluate(

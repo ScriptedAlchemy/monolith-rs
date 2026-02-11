@@ -17,7 +17,9 @@ use monolith_proto::tensorflow_serving::config as tfserving_config;
 use prost::Message as ProstMessage;
 use prost_reflect::prost::Message as ReflectMessage;
 use prost_reflect::{DescriptorPool, DynamicMessage};
+use std::time::Duration;
 use tonic::transport::{Channel, Endpoint};
+use tonic::Request;
 
 /// A TF Serving client (tonic).
 #[derive(Clone)]
@@ -29,7 +31,12 @@ pub struct TfServingClient {
 impl TfServingClient {
     /// Connect to a TF Serving gRPC endpoint (e.g. `http://127.0.0.1:8500`).
     pub async fn connect(endpoint: &str) -> ServingResult<Self> {
-        let ep = Endpoint::from_shared(endpoint.to_string()).map_err(|e| {
+        let endpoint = if endpoint.starts_with("http://") || endpoint.starts_with("https://") {
+            endpoint.to_string()
+        } else {
+            format!("http://{endpoint}")
+        };
+        let ep = Endpoint::from_shared(endpoint.clone()).map_err(|e| {
             ServingError::ConfigError(format!("Invalid TF Serving endpoint {endpoint:?}: {e}"))
         })?;
         let ch = ep.connect().await.map_err(|e| {
@@ -47,6 +54,17 @@ impl TfServingClient {
         model_name: &str,
         signature_name: Option<&str>,
     ) -> ServingResult<tfserving_apis::GetModelStatusResponse> {
+        self.get_model_status_with_timeout(model_name, signature_name, None)
+            .await
+    }
+
+    /// Call `ModelService/GetModelStatus` with an optional per-request timeout.
+    pub async fn get_model_status_with_timeout(
+        &mut self,
+        model_name: &str,
+        signature_name: Option<&str>,
+        timeout: Option<Duration>,
+    ) -> ServingResult<tfserving_apis::GetModelStatusResponse> {
         let spec = tfserving_apis::ModelSpec {
             name: model_name.to_string(),
             version_choice: None,
@@ -57,9 +75,14 @@ impl TfServingClient {
             model_spec: Some(spec),
         };
 
+        let mut req = Request::new(request);
+        if let Some(t) = timeout {
+            req.set_timeout(t);
+        }
+
         let resp: tonic::Response<tfserving_apis::GetModelStatusResponse> = self
             .model
-            .get_model_status(request)
+            .get_model_status(req)
             .await
             .map_err(|e| ServingError::GrpcError(format!("GetModelStatus failed: {e}")))?;
         Ok(resp.into_inner())
@@ -70,9 +93,22 @@ impl TfServingClient {
         &mut self,
         request: tfserving_apis::PredictRequest,
     ) -> ServingResult<tfserving_apis::PredictResponse> {
+        self.predict_with_timeout(request, None).await
+    }
+
+    /// Call `PredictionService/Predict` with an optional per-request timeout.
+    pub async fn predict_with_timeout(
+        &mut self,
+        request: tfserving_apis::PredictRequest,
+        timeout: Option<Duration>,
+    ) -> ServingResult<tfserving_apis::PredictResponse> {
+        let mut req = Request::new(request);
+        if let Some(t) = timeout {
+            req.set_timeout(t);
+        }
         let resp: tonic::Response<tfserving_apis::PredictResponse> = self
             .predict
-            .predict(request)
+            .predict(req)
             .await
             .map_err(|e| ServingError::GrpcError(format!("Predict failed: {e}")))?;
         Ok(resp.into_inner())
@@ -83,13 +119,26 @@ impl TfServingClient {
         &mut self,
         config: tfserving_config::ModelServerConfig,
     ) -> ServingResult<tfserving_apis::ReloadConfigResponse> {
+        self.reload_config_with_timeout(config, None).await
+    }
+
+    /// Call `ModelService/HandleReloadConfigRequest` with an optional per-request timeout.
+    pub async fn reload_config_with_timeout(
+        &mut self,
+        config: tfserving_config::ModelServerConfig,
+        timeout: Option<Duration>,
+    ) -> ServingResult<tfserving_apis::ReloadConfigResponse> {
         let request = tfserving_apis::ReloadConfigRequest {
             config: Some(config),
             metric_names: vec![],
         };
+        let mut req = Request::new(request);
+        if let Some(t) = timeout {
+            req.set_timeout(t);
+        }
         let resp: tonic::Response<tfserving_apis::ReloadConfigResponse> = self
             .model
-            .handle_reload_config_request(request)
+            .handle_reload_config_request(req)
             .await
             .map_err(|e| {
                 ServingError::GrpcError(format!("HandleReloadConfigRequest failed: {e}"))

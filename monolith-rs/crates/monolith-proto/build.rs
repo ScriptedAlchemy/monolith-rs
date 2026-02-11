@@ -6,6 +6,11 @@
 use std::path::PathBuf;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Use a vendored protoc so the workspace builds in environments without a system `protoc`.
+    // This mirrors typical Rust CI practice and avoids requiring brew/apt installs.
+    let protoc = protoc_bin_vendored::protoc_bin_path()?;
+    std::env::set_var("PROTOC", protoc);
+
     // Re-run if any proto changes
     println!("cargo:rerun-if-changed=../../proto");
     println!("cargo:rerun-if-changed=../../proto/tensorflow_serving");
@@ -70,6 +75,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         proto_root.join("tensorflow_serving/apis/prediction_service.proto"),
         proto_root.join("tensorflow_serving/apis/model_management.proto"),
         proto_root.join("tensorflow_serving/config/model_server_config.proto"),
+        // TensorBoard event protos (for summary writing parity with Python runners).
+        proto_root.join("tensorflow/core/framework/summary.proto"),
+        proto_root.join("tensorflow/core/util/event.proto"),
     ];
 
     // Make sure changes to indirectly imported protos trigger rebuilds too.

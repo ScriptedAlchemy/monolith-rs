@@ -42,14 +42,14 @@
 //! }
 //! ```
 
+use crate::dataset::Dataset;
 use bytes::{Buf, Bytes};
+use glob::glob;
 use monolith_proto::Example;
 use prost::Message;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::path::{Path, PathBuf};
-use glob::glob;
-use crate::dataset::Dataset;
 use thiserror::Error;
 
 use crate::compression::{self, CompressionType};

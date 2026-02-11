@@ -40,16 +40,16 @@
 //! & Data Mining (pp. 1930-1939).
 
 use crate::activation::{
-    ELU, Exponential, GELU, HardSigmoid, LeakyReLU, Linear, Mish, PReLU, ReLU, SELU, Sigmoid,
-    Sigmoid2, Softmax, Softplus, Softsign, Swish, Tanh, ThresholdedReLU,
+    Exponential, HardSigmoid, LeakyReLU, Linear, Mish, PReLU, ReLU, Sigmoid, Sigmoid2, Softmax,
+    Softplus, Softsign, Swish, Tanh, ThresholdedReLU, ELU, GELU, SELU,
 };
+use crate::constraint::Constraint;
 use crate::dense::Dense;
 use crate::error::LayerError;
 use crate::initializer::Initializer;
 use crate::layer::Layer;
 use crate::mlp::ActivationType;
 use crate::normalization::BatchNorm;
-use crate::constraint::Constraint;
 use crate::regularizer::Regularizer;
 use crate::tensor::Tensor;
 use serde::{Deserialize, Serialize};
@@ -125,11 +125,7 @@ impl ActivationWrapper {
                 max_value,
                 negative_slope,
                 threshold,
-            } => ActivationWrapper::ReLU(ReLU::with_params(
-                max_value,
-                negative_slope,
-                threshold,
-            )),
+            } => ActivationWrapper::ReLU(ReLU::with_params(max_value, negative_slope, threshold)),
             ActivationType::Sigmoid => ActivationWrapper::Sigmoid(Sigmoid::new()),
             ActivationType::Sigmoid2 => ActivationWrapper::Sigmoid2(Sigmoid2::new()),
             ActivationType::Tanh => ActivationWrapper::Tanh(Tanh::new()),
@@ -604,10 +600,7 @@ impl Gate {
     ///
     /// let gate = Gate::new(128, 8);  // 128-dim input, 8 experts
     /// ```
-    pub fn new(
-        input_dim: usize,
-        num_experts: usize,
-    ) -> Self {
+    pub fn new(input_dim: usize, num_experts: usize) -> Self {
         Self::new_with_gate(input_dim, num_experts, GateType::Softmax, 1)
     }
 
@@ -1365,7 +1358,10 @@ impl MMoE {
         }
         if gate_input.ndim() != 2 {
             return Err(LayerError::ForwardError {
-                message: format!("MMoE gate input expects 2D input, got {}D", gate_input.ndim()),
+                message: format!(
+                    "MMoE gate input expects 2D input, got {}D",
+                    gate_input.ndim()
+                ),
             });
         }
         if gate_input.shape()[1] != self.gate_input_dim {
@@ -1555,10 +1551,7 @@ impl MMoE {
             .cached_input
             .as_ref()
             .ok_or(LayerError::NotInitialized)?;
-        let _gate_input = self
-            .cached_gate_input
-            .as_ref()
-            .unwrap_or(expert_input);
+        let _gate_input = self.cached_gate_input.as_ref().unwrap_or(expert_input);
 
         let batch_size = expert_input.shape()[0];
 
@@ -1867,10 +1860,13 @@ mod tests {
         let mmoe = MMoE::new(64, 4, 2, &[32], ActivationType::relu()).unwrap();
         let params = mmoe.parameters();
 
-        // 4 experts: each has 2 dense layers (64->32, 32->32), each with weights+bias = 4*4 = 16
-        // 2 gates: each has 1 dense layer (64->4) with weights+bias = 2*2 = 4
-        // Total: 16 + 4 = 20 parameters
-        assert_eq!(params.len(), 20);
+        // Dense defaults include a trainable kernel-norm scale; each dense has:
+        // weights, bias, kernel_norm => 3 tensors.
+        //
+        // 4 experts: each has 2 dense layers => 8 dense => 8 * 3 = 24
+        // 2 gates: each has 1 dense layer => 2 dense => 2 * 3 = 6
+        // Total: 24 + 6 = 30
+        assert_eq!(params.len(), 30);
     }
 
     #[test]

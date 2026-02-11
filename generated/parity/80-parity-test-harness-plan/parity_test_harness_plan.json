@@ -1,0 +1,481 @@
+{
+  "inputs": {
+    "mappingConventionsPath": "generated/parity/11-normalize-mapping/mapping_conventions.md",
+    "normalizedMappingPath": "generated/parity/11-normalize-mapping/normalized_mapping.json",
+    "pythonFixtureGlobs": [
+      "monolith/**/testdata/**",
+      "monolith/**/fixtures/**",
+      "monolith/**/golden/**"
+    ],
+    "pythonTestGlobs": [
+      "monolith/**/*_test.py",
+      "monolith/**/test_*.py",
+      "monolith/**/tests/**/*.py"
+    ],
+    "rustCratesTomlGlob": "monolith-rs/crates/*/Cargo.toml",
+    "rustTestGlob": "monolith-rs/crates/*/tests/**/*.rs"
+  },
+  "recommendedRepoLayout": {
+    "paths": {
+      "fixturesCheckedInRoot": "parity_fixtures",
+      "fixturesRoot": "generated/parity/fixtures",
+      "parityRoot": "generated/parity",
+      "protoGoldensRoot": "generated/parity/proto-goldens",
+      "reportsRoot": "generated/parity/reports"
+    },
+    "rule": "Keep parity fixtures canonical and shareable: Python generates/normalizes fixtures, Rust consumes them. Store fixtures under generated/ for reproducible runs, and allow checked-in minimal fixtures under a stable directory for CI."
+  },
+  "repoScan": {
+    "pythonFixtures": {
+      "sample": [
+        "monolith/native_training/model_export/testdata/BUILD",
+        "monolith/native_training/model_export/testdata/saved_model/entry/1622716114/variables/variables.data-00000-of-00001",
+        "monolith/native_training/model_export/testdata/saved_model/entry/1622716114/variables/variables.index",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_0-00000-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_0-00001-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_0-00002-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_0-00003-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_1-00000-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_1-00001-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_1-00002-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_1-00003-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_2-00000-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_2-00001-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_2-00002-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_2-00003-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_3-00000-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_3-00001-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_3-00002-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_3-00003-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_4-00000-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_4-00001-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_4-00002-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_0b9721ec6fc5396c38499b5be394b722_4-00003-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_3fc25c64637605aa3983374cc61db982_0-00000-of-00004",
+        "monolith/native_training/model_export/testdata/saved_model/ps_0/1622716114/assets/MonolithHashTable_3fc25c64637605aa3983374cc61db982_0-00001-of-00004"
+      ],
+      "total": 413
+    },
+    "pythonTests": {
+      "byTopDir": {
+        "monolith/agent_service": 14,
+        "monolith/core": 7,
+        "monolith/native_training": 116,
+        "monolith/utils_test.py": 1
+      },
+      "sample": [
+        "monolith/agent_service/agent_controller_test.py",
+        "monolith/agent_service/agent_service_test.py",
+        "monolith/agent_service/agent_v3_test.py",
+        "monolith/agent_service/backends_test.py",
+        "monolith/agent_service/data_def_test.py",
+        "monolith/agent_service/mocked_tfserving_test.py",
+        "monolith/agent_service/mocked_zkclient_test.py",
+        "monolith/agent_service/model_manager_test.py",
+        "monolith/agent_service/replica_manager_test.py",
+        "monolith/agent_service/resource_utils_test.py",
+        "monolith/agent_service/tfs_client_test.py",
+        "monolith/agent_service/tfs_monitor_test.py",
+        "monolith/agent_service/utils_test.py",
+        "monolith/agent_service/zk_mirror_test.py",
+        "monolith/core/base_embedding_host_call_test.py",
+        "monolith/core/base_layer_test.py",
+        "monolith/core/base_tpu_test.py",
+        "monolith/core/dense_test.py",
+        "monolith/core/feature_test.py",
+        "monolith/core/hyperparams_test.py",
+        "monolith/core/util_test.py",
+        "monolith/native_training/alert/alert_manager_test.py",
+        "monolith/native_training/barrier_ops_test.py",
+        "monolith/native_training/basic_restore_hook_test.py",
+        "monolith/native_training/clip_ops_test.py"
+      ],
+      "total": 138
+    },
+    "rustCrates": {
+      "crates": [
+        "monolith-checkpoint",
+        "monolith-cli",
+        "monolith-core",
+        "monolith-data",
+        "monolith-examples",
+        "monolith-hash-table",
+        "monolith-layers",
+        "monolith-optimizer",
+        "monolith-proto",
+        "monolith-serving",
+        "monolith-tensor",
+        "monolith-training"
+      ],
+      "total": 12
+    },
+    "rustTests": {
+      "sample": [
+        "monolith-rs/crates/monolith-data/tests/proto_parity.rs",
+        "monolith-rs/crates/monolith-data/tests/python_golden.rs",
+        "monolith-rs/crates/monolith-serving/tests/agent_service_tonic.rs",
+        "monolith-rs/crates/monolith-serving/tests/parameter_sync_rpc.rs",
+        "monolith-rs/crates/monolith-serving/tests/tfserving_predict.rs"
+      ],
+      "total": 5
+    }
+  },
+  "requiredHarnesses": [
+    {
+      "comparisons": {
+        "nonDeterminismNotes": [
+          "TF runtime kernels and multithread scheduling can change floating point reduction order.",
+          "Random seeding differs across frameworks; require explicit seed inputs in fixtures."
+        ],
+        "rule": "Prefer exact equality for shapes/dtypes/IDs; allow numeric tolerances for floats. Document any non-deterministic fields and normalize them.",
+        "tolerances": [
+          "Float comparisons: abs<=1e-6 OR rel<=1e-5 unless otherwise specified per test",
+          "Timestamps/UUIDs: normalize to sentinel values before comparing"
+        ]
+      },
+      "description": "Golden fixtures for deterministic, TF-optional core behaviors (serialization, feature transformations, config parsing, deterministic math). Python produces canonical outputs; Rust must match byte-for-byte or with explicit tolerances.",
+      "fixtures": {
+        "examples": [
+          "parity_fixtures/core/hparams/v1/case_001.json",
+          "parity_fixtures/native_training/batch_norm/v1/case_003.json"
+        ],
+        "recommendedRoots": [
+          "parity_fixtures",
+          "generated/parity/fixtures"
+        ],
+        "rule": "Fixtures must be small, stable, and versioned. Prefer JSON (or msgpack) for structured tensors + metadata; store any large binary blobs behind a separate opt-in."
+      },
+      "gating": {
+        "candleDefault": true,
+        "requiredByDefault": true,
+        "requiresNetwork": false,
+        "tfRuntimeOptional": true
+      },
+      "id": "harness_golden_fixtures_core",
+      "kind": "golden_fixture",
+      "ownerDomain": "global",
+      "risks": [
+        "Overfitting to fixtures can miss behavior outside curated cases; pair with differential testing.",
+        "Fixture drift if schema isn't versioned; require per-group schema versioning."
+      ],
+      "scope": "component",
+      "steps": [
+        {
+          "commandExamples": [
+            "python -m monolith.tools.parity.generate_fixtures --out parity_fixtures",
+            "pytest -q monolith/... -k parity_fixture -- --update-fixtures"
+          ],
+          "id": "python_generate",
+          "inputs": [
+            "Python reference code",
+            "Seeds + input cases"
+          ],
+          "notes": [
+            "All fixture generation must be deterministic (seeded) and stable across machines.",
+            "Store a manifest per fixture group (schema version, normalization rules)."
+          ],
+          "outputs": [
+            "Fixture JSON files",
+            "Optional binary blobs"
+          ],
+          "purpose": "Generate or refresh golden fixtures from Python reference implementation."
+        },
+        {
+          "commandExamples": [
+            "cargo test -p monolith-parity -- test_golden --nocapture",
+            "cargo test --workspace --features parity_fixtures"
+          ],
+          "id": "rust_validate",
+          "inputs": [
+            "Fixture files",
+            "Rust implementation"
+          ],
+          "notes": [
+            "Emit rich diffs (first mismatch path, numeric deltas, shape/dtype changes).",
+            "Keep fixture parsing separate from model/runtime code to reduce coupling."
+          ],
+          "outputs": [
+            "Test pass/fail",
+            "Diff reports under generated/parity/reports"
+          ],
+          "purpose": "Run Rust-side readers/implementations against the fixtures and compare to expectations."
+        }
+      ]
+    },
+    {
+      "comparisons": {
+        "nonDeterminismNotes": [
+          "Require deterministic seeds; record and replay seeds in fixture metadata."
+        ],
+        "rule": "Run Python and Rust side-by-side under a small runner contract; compare structured outputs using a stable normalization function.",
+        "tolerances": [
+          "Float comparisons: configurable per op; default abs<=1e-6 rel<=1e-5"
+        ]
+      },
+      "description": "Differential tests that run the same operation (or small pipeline) in Python and Rust and compare outputs. Used for behaviors that are hard to represent as static goldens or evolve quickly.",
+      "fixtures": {
+        "examples": [
+          "generated/parity/fixtures/native_training/*"
+        ],
+        "recommendedRoots": [
+          "generated/parity/fixtures"
+        ],
+        "rule": "Use generated fixtures as the shared input corpus; differential runs consume the same inputs and compare results."
+      },
+      "gating": {
+        "candleDefault": true,
+        "requiredByDefault": false,
+        "requiresNetwork": false,
+        "tfRuntimeOptional": true
+      },
+      "id": "harness_differential_python_vs_rust",
+      "kind": "differential",
+      "ownerDomain": "global",
+      "risks": [
+        "Differential tests can be slow; use sharding and allow a small curated CI set.",
+        "Python environment setup can be complex; keep a hermetic runner wrapper and document it."
+      ],
+      "scope": "component",
+      "steps": [
+        {
+          "commandExamples": [
+            "python -m monolith.tools.parity.run_case --case case_001.json",
+            "cargo run -p monolith-parity -- run-case --case case_001.json"
+          ],
+          "id": "runner_contract",
+          "inputs": [
+            "Case JSON",
+            "Runner binaries/modules"
+          ],
+          "notes": [
+            "Prefer local process invocation; avoid network unless needed for service-level parity.",
+            "Keep the protocol stable and versioned to prevent churn."
+          ],
+          "outputs": [
+            "Normalized output JSON",
+            "Diff JSON"
+          ],
+          "purpose": "Define a minimal runner protocol (stdin/stdout JSON) to invoke Python and Rust implementations for the same case."
+        }
+      ]
+    },
+    {
+      "comparisons": {
+        "nonDeterminismNotes": [
+          "Some protobuf runtimes do not guarantee deterministic map ordering unless configured; require deterministic modes."
+        ],
+        "rule": "Roundtrip in both languages: bytes->message->bytes stability, and message field parity using deterministic JSON rendering.",
+        "tolerances": [
+          "Bytes: exact match when using deterministic serialization settings"
+        ]
+      },
+      "description": "gRPC/proto compatibility tests: ensure Python and Rust agree on serialized messages, service definitions, and any TFServing-related protos used by agent_service or runtime integration.",
+      "fixtures": {
+        "examples": [
+          "generated/parity/proto-goldens/tf_serving/predict_request/v1/case_001.bin"
+        ],
+        "recommendedRoots": [
+          "generated/parity/proto-goldens"
+        ],
+        "rule": "Generate canonical 'wire' fixtures: encoded proto bytes + decoded JSON view (for debugging)."
+      },
+      "gating": {
+        "candleDefault": true,
+        "requiredByDefault": true,
+        "requiresNetwork": false,
+        "tfRuntimeOptional": true
+      },
+      "id": "harness_grpc_proto_compat",
+      "kind": "grpc_proto_compat",
+      "ownerDomain": "third_party",
+      "risks": [
+        "Proto generation flags can differ between toolchains; pin them and test in CI."
+      ],
+      "scope": "workspace",
+      "steps": [
+        {
+          "commandExamples": [
+            "bazel build //...:all_protos",
+            "cargo test -p monolith-proto -- proto_compile_smoke"
+          ],
+          "id": "compile_protos",
+          "inputs": [
+            "Proto sources",
+            "Build/toolchain configuration"
+          ],
+          "notes": [
+            "Treat proto package names as API; changes require explicit mapping and compatibility notes."
+          ],
+          "outputs": [
+            "Generated code",
+            "Compile/test report"
+          ],
+          "purpose": "Compile protos and ensure the generated code matches expected package/service names on both sides."
+        },
+        {
+          "commandExamples": [
+            "python -m monolith.tools.parity.proto_roundtrip --in generated/parity/proto-goldens",
+            "cargo test -p monolith-proto -- proto_roundtrip --nocapture"
+          ],
+          "id": "wire_fixture_roundtrip",
+          "inputs": [
+            "Golden proto bytes fixtures"
+          ],
+          "notes": [
+            "Always include a human-friendly decoded view for debugging mismatches."
+          ],
+          "outputs": [
+            "Pass/fail + mismatch diffs"
+          ],
+          "purpose": "Roundtrip and cross-validate golden wire fixtures."
+        }
+      ]
+    },
+    {
+      "comparisons": {
+        "nonDeterminismNotes": [
+          "When backends are faked, enforce deterministic ordering and timeouts."
+        ],
+        "rule": "Compare gRPC status codes, error details, and normalized response payloads. Permit ordering-insensitive comparisons where appropriate.",
+        "tolerances": [
+          "Float comparisons: abs<=1e-6 rel<=1e-5 in model outputs"
+        ]
+      },
+      "description": "Service-level parity harness for monolith/agent_service/**: run Rust service with fake ZK and fake TFServing (or a local stub) and validate request/response semantics against Python reference behaviors where applicable.",
+      "fixtures": {
+        "examples": [
+          "parity_fixtures/agent_service/rpc/v1/predict_case_001.json"
+        ],
+        "recommendedRoots": [
+          "parity_fixtures"
+        ],
+        "rule": "Use recorded RPC interactions (requests + expected responses) and deterministic fake backends."
+      },
+      "gating": {
+        "candleDefault": true,
+        "requiredByDefault": false,
+        "requiresNetwork": true,
+        "tfRuntimeOptional": true
+      },
+      "id": "harness_service_integration_agent_service",
+      "kind": "integration",
+      "ownerDomain": "agent_service",
+      "risks": [
+        "Networked tests are flaky; keep a hermetic, single-process fake by default."
+      ],
+      "scope": "service",
+      "steps": [
+        {
+          "commandExamples": [
+            "cargo test -p monolith-serving --features fake_zk,fake_tfserving -- agent_service_smoke"
+          ],
+          "id": "stand_up_fakes",
+          "inputs": [
+            "Fake backend configs",
+            "Recorded interactions fixtures"
+          ],
+          "notes": [
+            "Use explicit timeouts; record and surface retry behavior and backoff policy."
+          ],
+          "outputs": [
+            "RPC transcript logs",
+            "Test report"
+          ],
+          "purpose": "Start fake ZK and fake TFServing (or stub) and run smoke tests for agent_service RPCs."
+        }
+      ]
+    },
+    {
+      "comparisons": {
+        "nonDeterminismNotes": [
+          "TF runtime availability differs per machine; suite must skip gracefully when missing."
+        ],
+        "rule": "On Candle: validate functional behavior against goldens. On TF runtime: validate the same set plus TF-specific cases; record known gaps explicitly.",
+        "tolerances": [
+          "SavedModel outputs: apply numeric tolerances and stable normalization of output maps"
+        ]
+      },
+      "description": "TF-runtime-optional conformance suite: tests that validate behavior with Candle default, and additionally (best-effort) validate TF runtime integration when available (dynamic libtensorflow + custom op loading).",
+      "fixtures": {
+        "examples": [
+          "parity_fixtures/tf_runtime/saved_model_signatures/v1/case_002.json"
+        ],
+        "recommendedRoots": [
+          "parity_fixtures",
+          "generated/parity/fixtures"
+        ],
+        "rule": "Reuse fixture corpus; tag cases requiring TF runtime (SavedModel signatures, custom ops) separately."
+      },
+      "gating": {
+        "candleDefault": true,
+        "requiredByDefault": false,
+        "requiresNetwork": false,
+        "tfRuntimeOptional": true
+      },
+      "id": "harness_tf_optional_conformance",
+      "kind": "conformance",
+      "ownerDomain": "tf_runtime",
+      "risks": [
+        "TF runtime tests can be non-hermetic and platform-dependent; keep them opt-in and well-instrumented."
+      ],
+      "scope": "component",
+      "steps": [
+        {
+          "commandExamples": [
+            "cargo test --workspace --features candle_default -- conformance"
+          ],
+          "id": "candle_default",
+          "inputs": [
+            "Fixtures",
+            "Rust implementation"
+          ],
+          "notes": [
+            "CI should always run this lane; keep it fast and deterministic."
+          ],
+          "outputs": [
+            "Pass/fail",
+            "Diff reports"
+          ],
+          "purpose": "Run the default (TF-free) conformance set in CI."
+        },
+        {
+          "commandExamples": [
+            "cargo test -p monolith-tf-runtime --features tf_runtime -- conformance_tf"
+          ],
+          "id": "tf_best_effort",
+          "inputs": [
+            "libtensorflow",
+            "custom ops",
+            "Fixtures"
+          ],
+          "notes": [
+            "Always record skip reasons and missing symbols to aid setup/debugging."
+          ],
+          "outputs": [
+            "Pass/fail + explicit skip reasons"
+          ],
+          "purpose": "Run TF runtime lane when libtensorflow is available and custom ops are loadable."
+        }
+      ]
+    }
+  ],
+  "signals": [
+    {
+      "description": "Normalized mapping includes suggested Rust test locations for Python test modules; use this to drive harness placement and missing-test detection.",
+      "evidence": [
+        "generated/parity/11-normalize-mapping/normalized_mapping.json",
+        "normalized_mapping.records[].suggestedRustTestLocation"
+      ],
+      "id": "signal_mapping_suggested_rust_test_locations"
+    },
+    {
+      "description": "Conventions doc records proto/op boundaries; use this to prioritize proto compatibility harnesses and TF runtime opt-in tests.",
+      "evidence": [
+        "generated/parity/11-normalize-mapping/mapping_conventions.md"
+      ],
+      "id": "signal_proto_boundary"
+    }
+  ],
+  "version": "1",
+  "warnings": []
+}

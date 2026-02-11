@@ -85,6 +85,14 @@ pub mod parser {
     }
 }
 
+/// Protos in `package monolith;` (e.g. hash table TF-ops wrapper protos).
+///
+/// These are kept in a dedicated module to avoid colliding with the existing
+/// `pub mod monolith { ... }` namespace used by `package monolith.*;` protos.
+pub mod monolith_ops {
+    tonic::include_proto!("monolith");
+}
+
 #[allow(clippy::doc_lazy_continuation, clippy::doc_overindented_list_items)]
 pub mod tensorflow {
     pub mod monolith_tf {
@@ -93,6 +101,7 @@ pub mod tensorflow {
 }
 
 pub mod descriptor_pool;
+pub mod text_format;
 
 // TensorFlow core protos + error codes (needed by TF Serving protos).
 pub mod tensorflow_core {

@@ -1,0 +1,866 @@
+{
+  "version": "1",
+  "domain": "agent_service",
+  "pythonRoot": "monolith/agent_service",
+  "rust": {
+    "defaultCrate": "monolith-serving",
+    "crateRoot": "monolith-rs/crates/monolith-serving",
+    "proposedModuleLayout": [
+      {
+        "path": "monolith-rs/crates/monolith-serving/src/agent_service/mod.rs",
+        "purpose": "Agent-service parity module root (ports monolith/agent_service runtime logic; re-exports key types and helpers)."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-serving/src/agent_service/proto.rs",
+        "purpose": "Proto boundary helpers: re-export monolith-proto AgentService types and provide small adapters where needed (avoid duplicating proto structs)."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-serving/src/agent_service/config.rs",
+        "purpose": "AgentConfig parsing and environment/flag normalization (ports monolith/agent_service/utils.py config pieces used by runtime)."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-serving/src/agent_service/service.rs",
+        "purpose": "AgentService server implementation glue: versioned behavior (v1 watcher, v2 zk_mirror, v3 data_provider) + resource reporting."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-serving/src/agent_service/backends.rs",
+        "purpose": "Backend abstractions and ZK-backed implementation (ports monolith/agent_service/backends.py)."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-serving/src/agent_service/zk_mirror.rs",
+        "purpose": "ZKMirror logic: in-memory view + watches + leader election hooks; production client uses real ZK, tests use fake ZK (ports monolith/agent_service/zk_mirror.py)."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-serving/src/agent_service/replica_manager.rs",
+        "purpose": "ReplicaWatcher/ReplicaUpdater/ReplicaManager (ports monolith/agent_service/replica_manager.py; uses tfs_monitor + zk client)."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-serving/src/agent_service/tfs_monitor.rs",
+        "purpose": "TFServing monitor client: GetModelStatus + HandleReloadConfigRequest plumbing (ports monolith/agent_service/tfs_monitor.py)."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-serving/src/agent_service/model_manager.rs",
+        "purpose": "ModelManager: file-based model copy + lockfile semantics + version retention (ports monolith/agent_service/model_manager.py)."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-serving/src/agent_service/resource_utils.rs",
+        "purpose": "Local resource introspection helpers (ports monolith/agent_service/resource_utils.py)."
+      }
+    ]
+  },
+  "inventory": {
+    "pythonFiles": [
+      {
+        "path": "monolith/agent_service/__init__.py",
+        "lines": 0,
+        "status": "N/A",
+        "rustTargets": [],
+        "naJustification": "N/A: Empty package marker; no runtime behavior.",
+        "notes": ""
+      },
+      {
+        "path": "monolith/agent_service/agent.py",
+        "lines": 101,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/src/grpc_agent.rs",
+          "monolith-rs/crates/monolith-serving/src/agent_service/service.rs"
+        ],
+        "naJustification": null,
+        "notes": "Port the agent main wiring (config + backend selection + server start)."
+      },
+      {
+        "path": "monolith/agent_service/agent_base.py",
+        "lines": 89,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/src/agent_service/mod.rs"
+        ],
+        "naJustification": null,
+        "notes": "Port base abstractions used by agent variants (keep minimal, avoid over-generalization)."
+      },
+      {
+        "path": "monolith/agent_service/agent_client.py",
+        "lines": 217,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-cli/src/commands/agent_client.rs"
+        ],
+        "naJustification": null,
+        "notes": "CLI client to talk to AgentService gRPC (use monolith-proto AgentService client)."
+      },
+      {
+        "path": "monolith/agent_service/agent_controller.py",
+        "lines": 146,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-cli/src/commands/agent_controller.rs"
+        ],
+        "naJustification": null,
+        "notes": "Controller CLI for manipulating layouts / saved_models via backend (initially ZKBackend only)."
+      },
+      {
+        "path": "monolith/agent_service/agent_controller_test.py",
+        "lines": 96,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-cli/tests/parity/agent_service/agent_controller_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Port intent of Python tests; run against Rust fake ZK + controller command logic."
+      },
+      {
+        "path": "monolith/agent_service/agent_service.py",
+        "lines": 156,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/src/grpc_agent.rs",
+          "monolith-rs/crates/monolith-serving/src/agent_service/service.rs"
+        ],
+        "naJustification": null,
+        "notes": "Implement versioned GetReplicas/HeartBeat/GetResource semantics and server wrapper equivalents."
+      },
+      {
+        "path": "monolith/agent_service/agent_service_test.py",
+        "lines": 108,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/tests/parity/agent_service/agent_service_test.rs",
+          "monolith-rs/crates/monolith-serving/tests/agent_service_tonic.rs"
+        ],
+        "naJustification": null,
+        "notes": "Prefer tonic roundtrip tests and parity fixture-driven cases for v1/v2/v3 behaviors."
+      },
+      {
+        "path": "monolith/agent_service/agent_v1.py",
+        "lines": 391,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/src/agent_service/service.rs",
+          "monolith-rs/crates/monolith-serving/src/agent_service/replica_manager.rs"
+        ],
+        "naJustification": null,
+        "notes": "Agent v1 is watcher-based; port ReplicaWatcher/ReplicaManager + GetReplicas/HeartBeat behavior."
+      },
+      {
+        "path": "monolith/agent_service/agent_v3.py",
+        "lines": 211,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/src/agent_service/service.rs"
+        ],
+        "naJustification": null,
+        "notes": "Agent v3 uses a data provider callback; port as an injectable trait (in-memory provider for tests)."
+      },
+      {
+        "path": "monolith/agent_service/agent_v3_test.py",
+        "lines": 114,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/tests/parity/agent_service/agent_v3_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Test v3 path: HeartBeat should reflect provider callback map with deterministic key handling."
+      },
+      {
+        "path": "monolith/agent_service/backends.py",
+        "lines": 519,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/src/agent_service/backends.rs"
+        ],
+        "naJustification": null,
+        "notes": "Port ZKBackend core: layout watcher, service info map, publish/decl semantics; tests use fake ZK."
+      },
+      {
+        "path": "monolith/agent_service/backends_test.py",
+        "lines": 135,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/tests/parity/agent_service/backends_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Use fake ZK to validate watcher callbacks and service map updates deterministically."
+      },
+      {
+        "path": "monolith/agent_service/client.py",
+        "lines": 127,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-cli/src/commands/agent_client.rs"
+        ],
+        "naJustification": null,
+        "notes": "Port flag/config parsing needed by agent_client/tfs_client; keep CLI behavior compatible where feasible."
+      },
+      {
+        "path": "monolith/agent_service/constants.py",
+        "lines": 16,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/src/agent_service/constants.rs"
+        ],
+        "naJustification": null,
+        "notes": "Lift small shared constants into Rust module."
+      },
+      {
+        "path": "monolith/agent_service/data_def.py",
+        "lines": 172,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/src/agent_service/mod.rs"
+        ],
+        "naJustification": null,
+        "notes": "Port data types (ReplicaMeta, PublishMeta, ResourceSpec, etc.) as Rust structs; serialization compatibility gates."
+      },
+      {
+        "path": "monolith/agent_service/data_def_test.py",
+        "lines": 53,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/tests/parity/agent_service/data_def_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Test JSON/bytes roundtrips for data_def types (match Python dataclasses_json behavior)."
+      },
+      {
+        "path": "monolith/agent_service/mocked_tfserving.py",
+        "lines": 400,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/tests/support/fake_tfserving.rs"
+        ],
+        "naJustification": null,
+        "notes": "Implement deterministic fake TF Serving gRPC services for tests (ModelService + PredictionService)."
+      },
+      {
+        "path": "monolith/agent_service/mocked_tfserving_test.py",
+        "lines": 93,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/tests/parity/agent_service/mocked_tfserving_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Port tests to validate status transitions and reload behavior via fake TF Serving."
+      },
+      {
+        "path": "monolith/agent_service/mocked_zkclient.py",
+        "lines": 378,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/tests/support/fake_zk.rs"
+        ],
+        "naJustification": null,
+        "notes": "Implement fake ZK client with DataWatch/ChildrenWatch semantics for deterministic tests."
+      },
+      {
+        "path": "monolith/agent_service/mocked_zkclient_test.py",
+        "lines": 131,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/tests/parity/agent_service/mocked_zkclient_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Port watcher semantics tests; ensure event ordering and initial-callback behavior matches Python."
+      },
+      {
+        "path": "monolith/agent_service/model_manager.py",
+        "lines": 372,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/src/agent_service/model_manager.rs"
+        ],
+        "naJustification": null,
+        "notes": "Implement model copy loop, lockfiles, retention; keep behavior deterministic for tests using temp dirs."
+      },
+      {
+        "path": "monolith/agent_service/model_manager_test.py",
+        "lines": 114,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/tests/parity/agent_service/model_manager_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Test lockfile + version selection semantics; add fixtures for directory layouts as needed."
+      },
+      {
+        "path": "monolith/agent_service/replica_manager.py",
+        "lines": 836,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/src/agent_service/replica_manager.rs",
+          "monolith-rs/crates/monolith-serving/src/agent_service/tfs_monitor.rs"
+        ],
+        "naJustification": null,
+        "notes": "Largest port: watcher+poller, updater, ZK listener; plan as incremental parity (fake ZK + fake TF Serving first)."
+      },
+      {
+        "path": "monolith/agent_service/replica_manager_test.py",
+        "lines": 127,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/tests/parity/agent_service/replica_manager_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Test replica add/remove, poll reconciliation, reregister on LOST, and address formatting."
+      },
+      {
+        "path": "monolith/agent_service/resource_utils.py",
+        "lines": 270,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/src/agent_service/resource_utils.rs"
+        ],
+        "naJustification": null,
+        "notes": "Port available memory calculation and any platform-specific heuristics behind a small abstraction."
+      },
+      {
+        "path": "monolith/agent_service/resource_utils_test.py",
+        "lines": 37,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/tests/parity/agent_service/resource_utils_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Keep tests deterministic by stubbing system readers (avoid relying on real /proc in CI where possible)."
+      },
+      {
+        "path": "monolith/agent_service/run.py",
+        "lines": 40,
+        "status": "N/A",
+        "rustTargets": [],
+        "naJustification": "N/A: Python-only multiplexer for multiple entrypoints; Rust uses monolith-cli subcommands instead.",
+        "notes": ""
+      },
+      {
+        "path": "monolith/agent_service/svr_client.py",
+        "lines": 71,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-cli/src/commands/agent_client.rs"
+        ],
+        "naJustification": null,
+        "notes": "Consolidate client logic into monolith-cli agent_client command."
+      },
+      {
+        "path": "monolith/agent_service/tfs_client.py",
+        "lines": 504,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-cli/src/commands/tfs_client.rs"
+        ],
+        "naJustification": null,
+        "notes": "Implement minimal compatible CLI: status/meta/load/predict/profile (profile may remain BLOCKED by environment)."
+      },
+      {
+        "path": "monolith/agent_service/tfs_client_test.py",
+        "lines": 51,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-cli/tests/parity/agent_service/tfs_client_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Use fake TF Serving for deterministic CLI behavior tests."
+      },
+      {
+        "path": "monolith/agent_service/tfs_monitor.py",
+        "lines": 304,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/src/tfserving.rs",
+          "monolith-rs/crates/monolith-serving/src/agent_service/tfs_monitor.rs"
+        ],
+        "naJustification": null,
+        "notes": "Prefer reusing monolith-serving tfserving client code; add only missing behavior for agent parity."
+      },
+      {
+        "path": "monolith/agent_service/tfs_monitor_test.py",
+        "lines": 183,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/tests/parity/agent_service/tfs_monitor_test.rs",
+          "monolith-rs/crates/monolith-serving/tests/tfserving_predict.rs"
+        ],
+        "naJustification": null,
+        "notes": "Test ModelService interactions (GetModelStatus, reload) against fake TF Serving."
+      },
+      {
+        "path": "monolith/agent_service/tfs_wrapper.py",
+        "lines": 203,
+        "status": "BLOCKED",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/tests/support/tfs_wrapper.rs"
+        ],
+        "naJustification": null,
+        "notes": "Blocked on having a TF Serving binary available in CI; keep as optional integration-test helper."
+      },
+      {
+        "path": "monolith/agent_service/utils.py",
+        "lines": 1168,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/src/config.rs",
+          "monolith-rs/crates/monolith-serving/src/agent_service/config.rs"
+        ],
+        "naJustification": null,
+        "notes": "Large util module: split into config parsing, proto helpers, address utilities, enums; keep public API minimal."
+      },
+      {
+        "path": "monolith/agent_service/utils_test.py",
+        "lines": 171,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/tests/parity/agent_service/utils_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Port tests to validate config parsing, path formatting, and utility helpers."
+      },
+      {
+        "path": "monolith/agent_service/zk_mirror.py",
+        "lines": 673,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/src/agent_service/zk_mirror.rs"
+        ],
+        "naJustification": null,
+        "notes": "ZKMirror is central for v2 behavior; implement with fake ZK first, then real ZK client integration."
+      },
+      {
+        "path": "monolith/agent_service/zk_mirror_test.py",
+        "lines": 230,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-serving/tests/parity/agent_service/zk_mirror_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Deterministic tests for publish/service/resource watching and election hooks using fake ZK."
+      }
+    ],
+    "protoFiles": [
+      "monolith/agent_service/agent_service.proto"
+    ],
+    "otherFiles": [
+      "monolith/agent_service/BUILD",
+      "monolith/agent_service/agent.conf",
+      "monolith/agent_service/example_batch.pbtxt",
+      "monolith/agent_service/profile.sh",
+      "monolith/agent_service/test_data/BUILD",
+      "monolith/agent_service/test_data/inst.dump",
+      "monolith/agent_service/test_data/inst.json",
+      "monolith/agent_service/test_data/inst.pbtext"
+    ]
+  },
+  "interfaces": {
+    "grpc": {
+      "proto": "monolith/agent_service/agent_service.proto",
+      "rustProtoCrate": "monolith-proto",
+      "compatibilityChecks": [
+        "Build-time: monolith-proto compiles agent_service.proto and exposes monolith::serving::agent_service::* types.",
+        "Runtime: Rust tonic server handles GetReplicas/HeartBeat/GetResource with the same method names and wire types.",
+        "Runtime: Roundtrip test using tonic client against Rust server validates address_list and addresses map semantics.",
+        "Schema: Enum values ServerType {PS=0, ENTRY=1, DENSE=2} match exactly; no renumbering."
+      ]
+    },
+    "cli": {
+      "pythonEntrypoints": [
+        "monolith/agent_service/run.py"
+      ],
+      "compatibilityChecks": [
+        "Rust monolith-cli provides equivalent subcommands for agent_client/agent_controller/tfs_client workflows (names may differ, but flags and output should be stable).",
+        "CLI outputs used by tests are deterministic and fixture-driven (avoid timestamps/random unless explicitly requested)."
+      ]
+    },
+    "configEnv": {
+      "files": [
+        "monolith/agent_service/agent.conf"
+      ],
+      "compatibilityChecks": [
+        "AgentConfig parsing: Rust reads the same config keys and provides equivalent defaults.",
+        "Env var handling: Rust respects key env overrides used by deployments (e.g. ports, host IP selection) where applicable."
+      ]
+    }
+  },
+  "harness": {
+    "fakeZk": {
+      "strategy": "Port mocked_zkclient.py semantics into a pure-Rust in-memory tree with DataWatch/ChildrenWatch callbacks; ensure initial-callback behavior (event=None) and CREATED/CHANGED/DELETED/CHILD event ordering are consistent for parity tests. Use this fake for backends/zk_mirror/replica_manager unit tests before integrating any real ZK client.",
+      "rustLocation": "monolith-rs/crates/monolith-serving/tests/support/fake_zk.rs",
+      "pythonReference": "monolith/agent_service/mocked_zkclient.py"
+    },
+    "fakeTfServing": {
+      "strategy": "Implement a deterministic fake TF Serving gRPC server (ModelService + PredictionService) using monolith-proto tensorflow_serving APIs; model manager supports reload (HandleReloadConfigRequest) and status polling (GetModelStatus) with scripted state transitions. Keep Predict minimal (can be stubbed) unless needed by agent parity tests.",
+      "rustLocation": "monolith-rs/crates/monolith-serving/tests/support/fake_tfserving.rs",
+      "pythonReference": "monolith/agent_service/mocked_tfserving.py"
+    },
+    "crossLangParity": {
+      "strategy": "Use fixture-driven cases where both Python and Rust implementations consume the same inputs (pbtxt/json) and produce comparable outputs. Prefer gRPC contract parity (wire compatibility) and deterministic state-machine traces for ZK + TF Serving behaviors. When direct Python execution is unavailable in CI, keep fixtures and expected outputs stable so a later cross-language runner can be added without changing the cases.",
+      "sharedFixturesRoot": "monolith-rs/fixtures/parity/agent_service",
+      "cases": [
+        {
+          "id": "grpc_agent_service_tonic_roundtrip",
+          "description": "Rust tonic server/client roundtrip for AgentService GetReplicas + HeartBeat; verifies proto compatibility.",
+          "inputs": [
+            "monolith/agent_service/agent_service.proto"
+          ],
+          "expected": [
+            "GetReplicasResponse.address_list.address contains registered addresses in stable order.",
+            "HeartBeatResponse.addresses has keys matching enum names (PS/ENTRY/DENSE) where registered."
+          ]
+        },
+        {
+          "id": "fake_zk_watch_semantics",
+          "description": "Fake ZK emits watch callbacks with initial event=None and then CREATED/CHANGED/DELETED/CHILD in deterministic order.",
+          "inputs": [
+            "monolith/agent_service/mocked_zkclient.py"
+          ],
+          "expected": [
+            "ChildrenWatch receives initial children list and subsequent updates when nodes are created/removed.",
+            "DataWatch receives initial data and subsequent updates on set/delete."
+          ]
+        },
+        {
+          "id": "fake_tfserving_reload_and_status",
+          "description": "Fake TF Serving supports reload and model status polling consistent with mocked_tfserving.py expectations.",
+          "inputs": [
+            "monolith/agent_service/example_batch.pbtxt"
+          ],
+          "expected": [
+            "HandleReloadConfigRequest returns OK status.",
+            "GetModelStatus returns non-empty model_version_status for configured models and NOT_FOUND for unknown models."
+          ]
+        },
+        {
+          "id": "zk_mirror_expected_loading_and_replicas",
+          "description": "ZKMirror builds expected-loading view and replica maps from publish/service paths using fake ZK.",
+          "inputs": [
+            "monolith/agent_service/agent.conf"
+          ],
+          "expected": [
+            "expected_loading selects per-model PublishMeta after all publishes arrive.",
+            "get_task_replicas returns AVAILABLE ReplicaMeta addresses only."
+          ]
+        },
+        {
+          "id": "tfs_monitor_handles_errors",
+          "description": "TFS monitor maps gRPC errors to UNKNOWN state deterministically and does not panic on transient failures.",
+          "inputs": [
+            "monolith/agent_service/agent.conf"
+          ],
+          "expected": [
+            "Grpc error results in ModelVersionStatus(state=UNKNOWN) with error details recorded.",
+            "Successful calls return latest/available version selection rules matching Python."
+          ]
+        }
+      ]
+    }
+  },
+  "workstreams": [
+    {
+      "id": "ws1_grpc_contract",
+      "title": "gRPC Contract + Tonic Server Compatibility",
+      "dependsOn": [],
+      "pythonFiles": [
+        "monolith/agent_service/agent_service.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-proto/src/lib.rs",
+        "monolith-rs/crates/monolith-serving/src/grpc_agent.rs",
+        "monolith-rs/crates/monolith-serving/tests/agent_service_tonic.rs"
+      ],
+      "deliverables": [
+        "Rust tonic AgentService server exposes GetReplicas/GetResource/HeartBeat using monolith-proto types.",
+        "Deterministic roundtrip tests validate message shapes and key behaviors."
+      ],
+      "parityChecks": [
+        "Enum values and field names match proto; no manual redefinitions for wire types.",
+        "HeartBeatResponse.addresses keying policy is stable and documented."
+      ],
+      "tests": [
+        "monolith-rs/crates/monolith-serving/tests/agent_service_tonic.rs"
+      ],
+      "risks": [
+        "Python uses grpcio-generated server base; Rust uses tonic; ensure method names match (HeartBeat vs heart_beat)."
+      ]
+    },
+    {
+      "id": "ws2_test_harness_fakes",
+      "title": "Rust Test Harness: Fake ZK + Fake TF Serving",
+      "dependsOn": [
+        "ws1_grpc_contract"
+      ],
+      "pythonFiles": [
+        "monolith/agent_service/mocked_tfserving.py",
+        "monolith/agent_service/mocked_zkclient.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-serving/tests/support/fake_tfserving.rs",
+        "monolith-rs/crates/monolith-serving/tests/support/fake_zk.rs"
+      ],
+      "deliverables": [
+        "In-memory fake ZK with DataWatch/ChildrenWatch that is deterministic and matches Python semantics.",
+        "Fake TF Serving gRPC server for ModelService + PredictionService with scripted status transitions."
+      ],
+      "parityChecks": [
+        "Fake ZK watcher ordering and initial-callback behavior matches mocked_zkclient.py.",
+        "Fake TF Serving reload/status behavior matches mocked_tfserving.py for supported operations."
+      ],
+      "tests": [
+        "monolith-rs/crates/monolith-serving/tests/parity/agent_service/mocked_zkclient_test.rs",
+        "monolith-rs/crates/monolith-serving/tests/parity/agent_service/mocked_tfserving_test.rs"
+      ],
+      "risks": [
+        "Watch semantics can be subtle (event=None vs CREATED); require explicit tests and stable traces."
+      ]
+    },
+    {
+      "id": "ws3_data_types_and_config",
+      "title": "Data Types + Config Parsing (AgentConfig, ReplicaMeta, PublishMeta)",
+      "dependsOn": [
+        "ws2_test_harness_fakes"
+      ],
+      "pythonFiles": [
+        "monolith/agent_service/constants.py",
+        "monolith/agent_service/data_def.py",
+        "monolith/agent_service/utils.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-serving/src/agent_service/config.rs",
+        "monolith-rs/crates/monolith-serving/src/agent_service/constants.rs",
+        "monolith-rs/crates/monolith-serving/src/agent_service/mod.rs"
+      ],
+      "deliverables": [
+        "Rust AgentConfig parser supports agent.conf fields used by runtime and tests with stable defaults.",
+        "Rust struct serialization matches Python dataclasses_json where required (json field names, bytes encoding)."
+      ],
+      "parityChecks": [
+        "Roundtrip fixtures for serialized ReplicaMeta/PublishMeta match Python outputs.",
+        "Config parsing produces identical derived paths (e.g. ZK path_prefix) for given inputs."
+      ],
+      "tests": [
+        "monolith-rs/crates/monolith-serving/tests/parity/agent_service/data_def_test.rs",
+        "monolith-rs/crates/monolith-serving/tests/parity/agent_service/utils_test.rs"
+      ],
+      "risks": [
+        "Python code relies on implicit defaults and dynamic typing; Rust must codify defaults carefully to avoid behavior drift."
+      ]
+    },
+    {
+      "id": "ws4_zk_mirror_and_backends",
+      "title": "ZKMirror + ZKBackend (Layout/Binding/Service Map)",
+      "dependsOn": [
+        "ws3_data_types_and_config"
+      ],
+      "pythonFiles": [
+        "monolith/agent_service/backends.py",
+        "monolith/agent_service/zk_mirror.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-serving/src/agent_service/backends.rs",
+        "monolith-rs/crates/monolith-serving/src/agent_service/zk_mirror.rs"
+      ],
+      "deliverables": [
+        "ZKMirror core works against fake ZK (publish/service/resource watches).",
+        "ZKBackend supports layout callbacks and service map reporting against fake ZK."
+      ],
+      "parityChecks": [
+        "Layout updates trigger callbacks with equivalent saved_model parsing and deploy config deserialization.",
+        "Service map structure matches Python: model_name -> sub_graph -> [service_info]."
+      ],
+      "tests": [
+        "monolith-rs/crates/monolith-serving/tests/parity/agent_service/backends_test.rs",
+        "monolith-rs/crates/monolith-serving/tests/parity/agent_service/zk_mirror_test.rs"
+      ],
+      "risks": [
+        "Real ZK integration crate choice may block production parity; keep fake-based tests as primary gate."
+      ]
+    },
+    {
+      "id": "ws5_tfserving_monitor_and_wrapper",
+      "title": "TF Serving Monitor + Optional Process Wrapper",
+      "dependsOn": [
+        "ws2_test_harness_fakes"
+      ],
+      "pythonFiles": [
+        "monolith/agent_service/tfs_monitor.py",
+        "monolith/agent_service/tfs_wrapper.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-serving/src/agent_service/tfs_monitor.rs",
+        "monolith-rs/crates/monolith-serving/src/tfserving.rs",
+        "monolith-rs/crates/monolith-serving/tests/support/tfs_wrapper.rs"
+      ],
+      "deliverables": [
+        "TFS monitor client can query model status and reload configs using monolith-proto TF Serving APIs.",
+        "Optional process wrapper exists as test helper (may remain BLOCKED by environment)."
+      ],
+      "parityChecks": [
+        "Error handling maps to UNKNOWN state and preserves status messages deterministically.",
+        "Reload config request keeps default model present when required (match Python guardrails)."
+      ],
+      "tests": [
+        "monolith-rs/crates/monolith-serving/tests/parity/agent_service/tfs_monitor_test.rs",
+        "monolith-rs/crates/monolith-serving/tests/tfserving_predict.rs"
+      ],
+      "risks": [
+        "Running real TF Serving in CI may be infeasible; rely on fake TF Serving for most tests."
+      ]
+    },
+    {
+      "id": "ws6_replica_manager_v1_v2_v3",
+      "title": "Replica Manager + Versioned Agent Service Semantics",
+      "dependsOn": [
+        "ws3_data_types_and_config",
+        "ws4_zk_mirror_and_backends",
+        "ws5_tfserving_monitor_and_wrapper"
+      ],
+      "pythonFiles": [
+        "monolith/agent_service/agent_service.py",
+        "monolith/agent_service/agent_v1.py",
+        "monolith/agent_service/agent_v3.py",
+        "monolith/agent_service/replica_manager.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-serving/src/agent_service/service.rs",
+        "monolith-rs/crates/monolith-serving/src/agent_service/replica_manager.rs",
+        "monolith-rs/crates/monolith-serving/src/grpc_agent.rs"
+      ],
+      "deliverables": [
+        "AgentServiceImpl supports v1/v2/v3 behaviors gated by config (watcher, zk_mirror, data_provider).",
+        "ReplicaWatcher/Updater provide deterministic behaviors under fake ZK + fake TF Serving tests."
+      ],
+      "parityChecks": [
+        "GetReplicas and HeartBeat behaviors match Python branches for agent_version {1,2,3}.",
+        "GetResource matches Python: v1 returns empty, v2+ returns local ip/ports and resource metrics."
+      ],
+      "tests": [
+        "monolith-rs/crates/monolith-serving/tests/parity/agent_service/agent_service_test.rs",
+        "monolith-rs/crates/monolith-serving/tests/parity/agent_service/agent_v3_test.rs",
+        "monolith-rs/crates/monolith-serving/tests/parity/agent_service/replica_manager_test.rs"
+      ],
+      "risks": [
+        "Replica manager integrates many external concerns (ZK, TF Serving, env vars); minimize surface area and test via fakes first."
+      ]
+    },
+    {
+      "id": "ws7_cli_tools",
+      "title": "Rust CLI Parity: agent_client / agent_controller / tfs_client",
+      "dependsOn": [
+        "ws1_grpc_contract",
+        "ws2_test_harness_fakes"
+      ],
+      "pythonFiles": [
+        "monolith/agent_service/agent_client.py",
+        "monolith/agent_service/agent_controller.py",
+        "monolith/agent_service/client.py",
+        "monolith/agent_service/svr_client.py",
+        "monolith/agent_service/tfs_client.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-cli/src/commands/agent_client.rs",
+        "monolith-rs/crates/monolith-cli/src/commands/agent_controller.rs",
+        "monolith-rs/crates/monolith-cli/src/commands/tfs_client.rs",
+        "monolith-rs/crates/monolith-cli/src/commands/mod.rs",
+        "monolith-rs/crates/monolith-cli/src/main.rs"
+      ],
+      "deliverables": [
+        "monolith-cli exposes commands that cover core workflows for agent discovery and model serving inspection.",
+        "CLI tests use fake TF Serving and Rust AgentService tonic server for deterministic results."
+      ],
+      "parityChecks": [
+        "Status/meta/load commands produce outputs consistent in structure (json/text) with fixture-driven expectations.",
+        "AgentService client operations use monolith-proto stubs and validate response fields."
+      ],
+      "tests": [
+        "monolith-rs/crates/monolith-cli/tests/parity/agent_service/agent_controller_test.rs",
+        "monolith-rs/crates/monolith-cli/tests/parity/agent_service/tfs_client_test.rs"
+      ],
+      "risks": [
+        "Python CLIs depend on many TF/IDL protos and feature list utils; keep Rust CLI scope minimal and incremental."
+      ]
+    }
+  ],
+  "milestones": [
+    {
+      "id": "m1_smoke",
+      "definitionOfDone": [
+        "AgentService tonic roundtrip test passes (GetReplicas + HeartBeat).",
+        "monolith-proto includes agent_service proto modules and compiles cleanly."
+      ],
+      "blockedBy": []
+    },
+    {
+      "id": "m2_fakes",
+      "definitionOfDone": [
+        "Fake ZK watcher semantics tests pass deterministically.",
+        "Fake TF Serving reload/status tests pass deterministically."
+      ],
+      "blockedBy": [
+        "m1_smoke"
+      ]
+    },
+    {
+      "id": "m3_agent_v1_v2_v3_parity",
+      "definitionOfDone": [
+        "AgentServiceImpl supports v1/v2/v3 branches with passing parity tests against fakes.",
+        "Replica manager tests cover add/remove, LOST reconnect flow, and address formatting."
+      ],
+      "blockedBy": [
+        "m2_fakes"
+      ]
+    },
+    {
+      "id": "m4_cli_minimal_parity",
+      "definitionOfDone": [
+        "monolith-cli provides agent_client and tfs_client minimal commands with deterministic tests.",
+        "No reliance on external TF Serving binary in CI for core coverage (fakes suffice)."
+      ],
+      "blockedBy": [
+        "m1_smoke",
+        "m2_fakes"
+      ]
+    }
+  ],
+  "openGaps": [
+    {
+      "gap": "Pipeline path mismatch: upstream steps refer to generated/parity/... but outputs currently live under ../generated/parity/....",
+      "severity": "high",
+      "files": [
+        "monolith/agent_service/__init__.py"
+      ],
+      "mitigation": "Align pipeline to a single generated root (prefer monolith-rs/fixtures and a repo-local generated/ directory) or add a stable symlink so normalize/planning steps can find upstream artifacts."
+    },
+    {
+      "gap": "Missing crate references: upstream mapping shows targets under monolith-rs/crates/monolith-tf, but that crate does not exist in monolith-rs/crates/.",
+      "severity": "high",
+      "files": [
+        "monolith/agent_service/tfs_monitor.py",
+        "monolith/agent_service/tfs_wrapper.py"
+      ],
+      "mitigation": "Decide whether TF-specific logic belongs in monolith-serving + monolith-proto TF Serving APIs or introduce a dedicated monolith-tf/ops crate per conventions."
+    },
+    {
+      "gap": "Real ZooKeeper client integration is unspecified (crate choice, async model, watcher semantics).",
+      "severity": "medium",
+      "files": [
+        "monolith/agent_service/backends.py",
+        "monolith/agent_service/zk_mirror.py",
+        "monolith/agent_service/replica_manager.py"
+      ],
+      "mitigation": "Keep production ZK integration behind a trait; land fake-based parity first; evaluate zookeeper crates only after semantics are pinned by tests."
+    },
+    {
+      "gap": "tfs_wrapper parity depends on having a TF Serving binary and environment-specific flags.",
+      "severity": "medium",
+      "files": [
+        "monolith/agent_service/tfs_wrapper.py"
+      ],
+      "mitigation": "Treat as optional integration test helper; primary parity uses fake TF Serving; gate real binary usage behind feature flags."
+    },
+    {
+      "gap": "Python CLIs import external IDL protos and feature list utilities that may not be available in the Rust environment.",
+      "severity": "low",
+      "files": [
+        "monolith/agent_service/tfs_client.py"
+      ],
+      "mitigation": "Scope Rust CLI to core gRPC operations first (status/meta/reload); add profile/predict fixture flows incrementally."
+    }
+  ]
+}

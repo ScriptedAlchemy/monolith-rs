@@ -281,7 +281,11 @@ pub fn parse_args() -> StockPredictorConfig {
     });
     config.lookbacks.sort_unstable();
     config.lookbacks.dedup();
-    config.lookback_window = *config.lookbacks.last().unwrap_or(&config.lookback_window).max(&1);
+    config.lookback_window = *config
+        .lookbacks
+        .last()
+        .unwrap_or(&config.lookback_window)
+        .max(&1);
 
     if config.num_workers == 0 {
         config.num_workers = num_cpus::get();
@@ -294,7 +298,9 @@ pub fn parse_args() -> StockPredictorConfig {
 
     if config.gpu_mode && !cfg!(any(feature = "metal", feature = "cuda")) {
         eprintln!("Warning: --gpu requested but metal/cuda features are not enabled.");
-        eprintln!("         Rebuild with: --features metal (macOS) or --features cuda (Linux/Windows)");
+        eprintln!(
+            "         Rebuild with: --features metal (macOS) or --features cuda (Linux/Windows)"
+        );
         config.gpu_mode = false;
     }
 

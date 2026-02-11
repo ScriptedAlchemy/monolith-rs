@@ -8,6 +8,8 @@
 //! - [`Sgd`] - Stochastic Gradient Descent
 //! - [`Adagrad`] - Adaptive Gradient Algorithm
 //! - [`Adam`] - Adaptive Moment Estimation
+//! - [`Adamom`] - Adamom optimizer (Monolith custom)
+//! - [`MonolithRmsprop`] - RMSprop variant used by Monolith custom TF op
 //! - [`Ftrl`] - Follow The Regularized Leader
 //! - [`Rmsprop`] - Root Mean Square Propagation
 //! - [`Adadelta`] - Adadelta optimizer
@@ -34,18 +36,22 @@ use thiserror::Error;
 mod adadelta;
 mod adagrad;
 mod adam;
+mod adamom;
 mod amsgrad;
 mod ftrl;
 mod momentum;
+mod monolith_rmsprop;
 mod rmsprop;
 mod sgd;
 
 pub use adadelta::Adadelta;
 pub use adagrad::Adagrad;
 pub use adam::Adam;
+pub use adamom::{Adamom, AdamomConfig};
 pub use amsgrad::Amsgrad;
 pub use ftrl::Ftrl;
 pub use momentum::Momentum;
+pub use monolith_rmsprop::MonolithRmsprop;
 pub use rmsprop::Rmsprop;
 pub use sgd::Sgd;
 
@@ -93,6 +99,36 @@ pub enum OptimizerConfig {
         beta2: f32,
         /// Small constant for numerical stability.
         epsilon: f32,
+    },
+
+    /// Adamom configuration.
+    Adamom {
+        /// Learning rate for gradient updates.
+        learning_rate: f32,
+        /// Decay for second moment (variance) estimate.
+        ada_decay: f32,
+        /// Decay for first moment (momentum) estimate.
+        mom_decay: f32,
+        /// Small constant for numerical stability.
+        epsilon: f32,
+        /// Weight decay (L2 regularization) coefficient.
+        weight_decay: f32,
+    },
+
+    /// Monolith RMSprop configuration (custom TF op parity).
+    MonolithRmsprop {
+        /// Learning rate for gradient updates.
+        learning_rate: f32,
+        /// Momentum decay.
+        beta1: f32,
+        /// Variance decay.
+        beta2: f32,
+        /// Small constant for numerical stability.
+        epsilon: f32,
+        /// Weight decay (L2 regularization) coefficient.
+        weight_decay: f32,
+        /// Whether to use v2 update rule.
+        use_v2: bool,
     },
 
     /// FTRL configuration.
@@ -163,6 +199,8 @@ impl OptimizerConfig {
             OptimizerConfig::Sgd { .. } => "Sgd",
             OptimizerConfig::Adagrad { .. } => "Adagrad",
             OptimizerConfig::Adam { .. } => "Adam",
+            OptimizerConfig::Adamom { .. } => "Adamom",
+            OptimizerConfig::MonolithRmsprop { .. } => "MonolithRmsprop",
             OptimizerConfig::Ftrl { .. } => "Ftrl",
             OptimizerConfig::Rmsprop { .. } => "Rmsprop",
             OptimizerConfig::Adadelta { .. } => "Adadelta",
@@ -179,6 +217,8 @@ impl OptimizerConfig {
             OptimizerConfig::Sgd { learning_rate } => *learning_rate,
             OptimizerConfig::Adagrad { learning_rate, .. } => *learning_rate,
             OptimizerConfig::Adam { learning_rate, .. } => *learning_rate,
+            OptimizerConfig::Adamom { learning_rate, .. } => *learning_rate,
+            OptimizerConfig::MonolithRmsprop { learning_rate, .. } => *learning_rate,
             OptimizerConfig::Ftrl { learning_rate, .. } => *learning_rate,
             OptimizerConfig::Rmsprop { learning_rate, .. } => *learning_rate,
             OptimizerConfig::Adadelta { .. } => 1.0, // Adadelta doesn't use a traditional learning rate
@@ -250,6 +290,8 @@ pub fn create_optimizer(config: OptimizerConfig) -> Box<dyn OptimizerDyn> {
         OptimizerConfig::Sgd { .. } => Box::new(Sgd::new(config).unwrap()),
         OptimizerConfig::Adagrad { .. } => Box::new(Adagrad::new(config).unwrap()),
         OptimizerConfig::Adam { .. } => Box::new(Adam::new(config).unwrap()),
+        OptimizerConfig::Adamom { .. } => Box::new(Adamom::new(config).unwrap()),
+        OptimizerConfig::MonolithRmsprop { .. } => Box::new(MonolithRmsprop::new(config).unwrap()),
         OptimizerConfig::Ftrl { .. } => Box::new(Ftrl::new(config).unwrap()),
         OptimizerConfig::Rmsprop { .. } => Box::new(Rmsprop::new(config).unwrap()),
         OptimizerConfig::Adadelta { .. } => Box::new(Adadelta::new(config).unwrap()),
@@ -347,6 +389,21 @@ mod tests {
                 beta1: 0.9,
                 beta2: 0.999,
                 epsilon: 1e-8,
+            },
+            OptimizerConfig::Adamom {
+                learning_rate: 0.1,
+                ada_decay: 0.99,
+                mom_decay: 0.9,
+                epsilon: 1e-6,
+                weight_decay: 0.01,
+            },
+            OptimizerConfig::MonolithRmsprop {
+                learning_rate: 0.1,
+                beta1: 0.9,
+                beta2: 0.9,
+                epsilon: 0.1,
+                weight_decay: 1.0,
+                use_v2: false,
             },
             OptimizerConfig::Ftrl {
                 learning_rate: 0.1,

@@ -11,20 +11,18 @@ use crate::nested_map::{NestedMap, NestedValue};
 
 static NAME_IN_USE: Lazy<RwLock<BTreeMap<String, usize>>> =
     Lazy::new(|| RwLock::new(BTreeMap::new()));
-static LAYER_LOSS: Lazy<RwLock<BTreeMap<String, f32>>> =
-    Lazy::new(|| RwLock::new(BTreeMap::new()));
+static LAYER_LOSS: Lazy<RwLock<BTreeMap<String, f32>>> = Lazy::new(|| RwLock::new(BTreeMap::new()));
 
 /// Returns a unique name by appending an index if necessary.
 pub fn get_uname(name: &str) -> String {
     let mut map = NAME_IN_USE.write().unwrap_or_else(|e| e.into_inner());
-    let entry = map.entry(name.to_string()).or_insert(0);
-    if *entry == 0 {
-        *entry = 1;
-        name.to_string()
-    } else {
-        let idx = *entry;
+    // Mirror Python `monolith/core/base_layer.py::get_uname`:
+    // it only appends an index if the name is already present in the counter map.
+    if let Some(entry) = map.get_mut(name) {
         *entry += 1;
-        format!("{}_{}", name, idx)
+        format!("{}_{}", name, *entry)
+    } else {
+        name.to_string()
     }
 }
 
@@ -37,10 +35,7 @@ pub fn add_layer_loss(name: &str, loss: f32) {
 
 /// Returns a snapshot of all recorded layer losses.
 pub fn get_layer_loss() -> BTreeMap<String, f32> {
-    LAYER_LOSS
-        .read()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
+    LAYER_LOSS.read().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
 /// Core container for managing child layers.
@@ -98,5 +93,68 @@ impl BaseLayerCore {
                 message: format!("Failed to create children {}: {}", name, e),
             })?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod python_parity_tests {
+    use super::*;
+    use crate::dyn_value::DynValue;
+    use crate::hyperparams::Params;
+    use crate::hyperparams::ParamsFactory;
+    use std::sync::Arc;
+
+    #[derive(Debug)]
+    struct DummyLayer;
+
+    struct DummyLayerFactory;
+
+    impl ParamsFactory for DummyLayerFactory {
+        fn type_name(&self) -> &'static str {
+            "DummyLayer"
+        }
+
+        fn create(&self, _params: &Params) -> Result<Arc<dyn DynValue>> {
+            Ok(Arc::new(DummyLayer))
+        }
+    }
+
+    // Mirrors monolith/core/base_layer_test.py::BaseLayerTest::test_create_child
+    #[test]
+    fn test_create_child() {
+        let mut core = BaseLayerCore::new("BaseLayer");
+        let factory = Arc::new(DummyLayerFactory);
+        let p = InstantiableParams::new(Some(factory));
+        core.create_child("a", &p).unwrap();
+        assert!(core.children().get("a").is_some());
+    }
+
+    // Mirrors monolith/core/base_layer_test.py::BaseLayerTest::test_create_children
+    #[test]
+    fn test_create_children() {
+        let mut core = BaseLayerCore::new("BaseLayer");
+        let factory = Arc::new(DummyLayerFactory);
+        let p = InstantiableParams::new(Some(factory));
+        core.create_children("a", &[p.clone(), p]).unwrap();
+
+        match core.children().get("a").unwrap() {
+            NestedValue::List(list) => assert_eq!(list.len(), 2),
+            _ => panic!("expected list for children key 'a'"),
+        }
+    }
+
+    #[test]
+    fn test_get_uname_parity() {
+        // Mirrors current Python implementation in `monolith/core/base_layer.py`:
+        // it only appends an index if the name is already present in the counter map.
+        assert_eq!(get_uname("X"), "X");
+        assert_eq!(get_uname("X"), "X");
+
+        // If the name is pre-populated, `get_uname` increments and appends.
+        {
+            let mut m = super::NAME_IN_USE.write().unwrap_or_else(|e| e.into_inner());
+            m.insert("X".to_string(), 0);
+        }
+        assert_eq!(get_uname("X"), "X_1");
     }
 }

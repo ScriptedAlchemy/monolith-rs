@@ -68,7 +68,8 @@ impl Layer for ReLU {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
         let threshold = Tensor::from_data(&[1], vec![self.threshold]);
         let shifted = input.sub(&threshold);
-        let pos_mask = input.ge_scalar(self.threshold);
+        // Keras ReLU uses x > threshold for the positive branch (x == threshold is zeroed).
+        let pos_mask = input.gt_scalar(self.threshold);
         let ones = Tensor::ones(input.shape());
         let neg_mask = ones.sub(&pos_mask);
         let pos_out = input.clone();
@@ -88,7 +89,8 @@ impl Layer for ReLU {
             .as_ref()
             .ok_or(LayerError::NotInitialized)?;
 
-        let pos_mask = input.ge_scalar(self.threshold);
+        // Match forward predicate (`>`), so threshold values have zero gradient.
+        let pos_mask = input.gt_scalar(self.threshold);
         let ones = Tensor::ones(input.shape());
         let neg_mask = ones.sub(&pos_mask);
         let mut grad_multiplier = pos_mask.add(&neg_mask.scale(self.negative_slope));
@@ -190,7 +192,9 @@ pub struct Sigmoid2 {
 
 impl Sigmoid2 {
     pub fn new() -> Self {
-        Self { cached_output: None }
+        Self {
+            cached_output: None,
+        }
     }
 
     pub fn forward_train(&mut self, input: &Tensor) -> Result<Tensor, LayerError> {
@@ -393,7 +397,9 @@ pub struct Exponential {
 
 impl Exponential {
     pub fn new() -> Self {
-        Self { cached_output: None }
+        Self {
+            cached_output: None,
+        }
     }
 
     pub fn forward_train(&mut self, input: &Tensor) -> Result<Tensor, LayerError> {
@@ -518,7 +524,6 @@ impl GELU {
         self.cached_input = Some(input.clone());
         self.forward(input)
     }
-
 }
 
 impl Layer for GELU {
@@ -536,11 +541,7 @@ impl Layer for GELU {
         // Phi(x) = gelu(x) / x (limit 0.5 at x=0)
         // phi(x) = exp(-x^2/2) / sqrt(2*pi)
         let gelu_out = input.gelu();
-        let phi = input
-            .sqr()
-            .scale(-0.5)
-            .exp()
-            .scale(0.3989422804014327_f32); // 1/sqrt(2π)
+        let phi = input.sqr().scale(-0.5).exp().scale(0.3989422804014327_f32); // 1/sqrt(2π)
 
         let abs = input.abs();
         let small = abs.lt_scalar(1e-6);
@@ -1043,7 +1044,6 @@ impl Swish {
         self.cached_input = Some(input.clone());
         self.forward(input)
     }
-
 }
 
 impl Layer for Swish {
@@ -1187,7 +1187,7 @@ impl Layer for Softplus {
 /// let hard_sigmoid = HardSigmoid::new();
 /// let input = Tensor::zeros(&[2, 2]);
 /// let output = hard_sigmoid.forward(&input).unwrap();
-    /// // hard_sigmoid(0) = 0.2 * 0 + 0.5 = 0.5
+/// // hard_sigmoid(0) = 0.2 * 0 + 0.5 = 0.5
 /// assert!((output.data()[0] - 0.5).abs() < 1e-6);
 /// ```
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

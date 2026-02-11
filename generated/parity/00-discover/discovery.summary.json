@@ -1,0 +1,32 @@
+{
+  "counts": {
+    "parityChecklistFiles": 0,
+    "pythonFiles": 334
+  },
+  "existence": {
+    "parityChecklistDir": false,
+    "parityIndex": false
+  },
+  "inputs": {
+    "monolithInitPath": "monolith/__init__.py",
+    "monolithRsCargoTomlPath": "monolith-rs/Cargo.toml",
+    "parityChecklistGlob": "monolith-rs/parity/**/*.md",
+    "parityIndexPath": "monolith-rs/PYTHON_PARITY_INDEX.md",
+    "pythonFilesGlob": "monolith/**/*.py"
+  },
+  "notes": [
+    "Missing monolith-rs/PYTHON_PARITY_INDEX.md.",
+    "No parity checklist files found under monolith-rs/parity/."
+  ],
+  "parityIndex": {},
+  "repo": {
+    "expectedRoots": {
+      "monolith": true,
+      "monolithRs": true
+    },
+    "workingDir": "/Users/bytedance/monolith"
+  },
+  "samples": {
+    "pythonFile": "monolith/__init__.py"
+  }
+}

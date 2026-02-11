@@ -29,6 +29,7 @@ pub enum ModelSpec {
     Mmoe(MmoeSpec),
 }
 
+/// MLP model specification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MlpSpec {
     /// Input feature dimension (flattened embedding concat).
@@ -42,6 +43,7 @@ pub struct MlpSpec {
     pub activation: Activation,
 }
 
+/// Deep & Cross Network model specification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DcnSpec {
     /// Input feature dimension.
@@ -58,6 +60,7 @@ pub struct DcnSpec {
     pub activation: Activation,
 }
 
+/// Multi-gate Mixture-of-Experts model specification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MmoeSpec {
     /// Input feature dimension.
@@ -77,13 +80,18 @@ pub struct MmoeSpec {
     pub activation: Activation,
 }
 
+/// MLP activation function identifier.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Activation {
     #[default]
+    /// Rectified linear unit.
     Relu,
+    /// Hyperbolic tangent.
     Tanh,
+    /// Logistic sigmoid.
     Sigmoid,
+    /// No activation.
     None,
 }
 
@@ -100,7 +108,9 @@ impl Activation {
 
 /// Inference model interface (single-example inferences for now).
 pub trait InferenceModel: Send + Sync {
+    /// Expected flattened input dimension.
     fn input_dim(&self) -> usize;
+    /// Run inference for a batch of inputs and return output tensor.
     fn predict(&self, input: &Tensor) -> ServingResult<Tensor>;
 }
 

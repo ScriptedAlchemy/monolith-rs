@@ -9,15 +9,16 @@ use std::sync::{Arc, RwLock};
 use once_cell::sync::Lazy;
 
 const BOOL_FLAGS: [&str; 5] = ["true", "yes", "t", "y", "1"];
-const FID_MASK: u64 = (1_u64 << 64) - 1;
+// Mask used in Python to keep fids within 64 bits. `(1_u64 << 64)` overflows in Rust,
+// so use the full-width value directly.
+const FID_MASK: u64 = u64::MAX;
 
 static FEATURE_LIST_CACHE: Lazy<RwLock<HashMap<String, Arc<FeatureList>>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 static VALID_FEATURES: Lazy<RwLock<HashSet<String>>> = Lazy::new(|| RwLock::new(HashSet::new()));
 static USED_FEATURE_NAMES: Lazy<RwLock<HashMap<String, i32>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
-static NAME_TO_SLOT: Lazy<RwLock<HashMap<String, i32>>> =
-    Lazy::new(|| RwLock::new(HashMap::new()));
+static NAME_TO_SLOT: Lazy<RwLock<HashMap<String, i32>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 static TOB_ENV: Lazy<RwLock<bool>> = Lazy::new(|| RwLock::new(false));
 static DATA_TYPE: Lazy<RwLock<Option<String>>> = Lazy::new(|| RwLock::new(None));
 static FEATURE_LIST_PATH: Lazy<RwLock<Option<String>>> = Lazy::new(|| RwLock::new(None));
@@ -34,9 +35,7 @@ pub fn set_data_type(value: impl Into<String>) {
 
 /// Sets the default feature list path used by `FeatureList::parse_default`.
 pub fn set_feature_list_path(path: impl Into<String>) {
-    *FEATURE_LIST_PATH
-        .write()
-        .unwrap_or_else(|e| e.into_inner()) = Some(path.into());
+    *FEATURE_LIST_PATH.write().unwrap_or_else(|e| e.into_inner()) = Some(path.into());
 }
 
 fn get_feature_list_path() -> Option<String> {
@@ -74,7 +73,9 @@ pub fn get_slot_from_feature_name(feature_name: &str) -> Option<i32> {
     }
 
     drop(name_to_slot);
-    let mut used = USED_FEATURE_NAMES.write().unwrap_or_else(|e| e.into_inner());
+    let mut used = USED_FEATURE_NAMES
+        .write()
+        .unwrap_or_else(|e| e.into_inner());
     if let Some(slot) = used.get(feature_name) {
         return Some(*slot);
     }
@@ -124,10 +125,14 @@ pub fn register_slots<T: RegisterSlotsInput>(sparse_features: T) {
     sparse_features.register();
 }
 
+/// Feed metadata as parsed from a feature list file.
 #[derive(Debug, Clone, Default)]
 pub struct Feed {
+    /// Feed name (from `feed_name` or `feed`).
     pub feed_name: Option<String>,
+    /// Whether the feed is shared.
     pub shared: bool,
+    /// Optional numeric ID for the feed.
     pub feature_id: Option<i64>,
 }
 
@@ -147,18 +152,26 @@ impl Feed {
         feed
     }
 
+    /// Return the feed name, if present.
     pub fn name(&self) -> Option<&str> {
         self.feed_name.as_deref()
     }
 }
 
+/// Cache metadata as parsed from a feature list file.
 #[derive(Debug, Clone, Default)]
 pub struct Cache {
+    /// Cache column name (if configured).
     pub cache_column: Option<String>,
+    /// Cache name (if configured).
     pub cache_name: Option<String>,
+    /// Cache capacity (implementation-defined units).
     pub capacity: Option<i64>,
+    /// Cache timeout (seconds).
     pub timeout: Option<i64>,
+    /// Cache type string.
     pub cache_type: Option<String>,
+    /// Cache key class (used as a cache name fallback).
     pub cache_key_class: Option<String>,
 }
 
@@ -174,6 +187,7 @@ impl Cache {
         }
     }
 
+    /// Return a canonical cache name (or an error when none can be derived).
     pub fn name(&self) -> Result<String, String> {
         if let Some(name) = &self.cache_name {
             Ok(name.clone())
@@ -187,19 +201,32 @@ impl Cache {
     }
 }
 
+/// Feature metadata as parsed from a feature list file.
 #[derive(Debug, Clone, Default)]
 pub struct Feature {
+    /// Feature name (from `feature_name` or `feature`).
     pub feature_name: Option<String>,
+    /// Dependencies by name.
     pub depend: Vec<String>,
+    /// Feature method name.
     pub method: Option<String>,
+    /// Slot ID (if specified).
     pub slot: Option<i32>,
+    /// Method args.
     pub args: Vec<String>,
+    /// Feature version (if present).
     pub feature_version: Option<i32>,
+    /// Whether the feature is shared.
     pub shared: bool,
+    /// Cache keys used by the feature.
     pub cache_keys: Vec<String>,
+    /// Whether raw input is required.
     pub need_raw: bool,
+    /// Optional numeric feature ID.
     pub feature_id: Option<i64>,
+    /// Per-input optional flags.
     pub input_optional: Vec<bool>,
+    /// Grouping tags.
     pub feature_group: Vec<String>,
 }
 
@@ -243,6 +270,7 @@ impl Feature {
         feature
     }
 
+    /// Return a normalized feature name used by downstream lookup.
     pub fn name(&self) -> Option<String> {
         let feature_name = self.feature_name.as_ref()?;
         let mut term_list = Vec::new();
@@ -258,6 +286,7 @@ impl Feature {
         Some(term_list.join("-").to_lowercase())
     }
 
+    /// Return dependencies with `fc_`/`f_` prefixes removed (Python parity helper).
     pub fn depend_strip_prefix(&self) -> Vec<String> {
         let mut out = Vec::new();
         for dep in &self.depend {
@@ -335,11 +364,16 @@ fn split_list(value: &str) -> Vec<String> {
         .collect()
 }
 
+/// Parsed feature list with fast lookups by name and by slot.
 #[derive(Debug, Clone)]
 pub struct FeatureList {
+    /// Optional set of column names referenced by the list.
     pub column_name: Option<HashSet<String>>,
+    /// Feed definitions keyed by name.
     pub feeds: HashMap<String, Feed>,
+    /// Cache definitions keyed by name.
     pub caches: HashMap<String, Cache>,
+    /// Feature definitions keyed by name.
     pub features: HashMap<String, Feature>,
     slots: HashMap<i32, Vec<Feature>>,
 }
@@ -354,7 +388,10 @@ impl FeatureList {
         let mut slots = HashMap::new();
         for feature in features.values() {
             if let Some(slot) = feature.slot {
-                slots.entry(slot).or_insert_with(Vec::new).push(feature.clone());
+                slots
+                    .entry(slot)
+                    .or_insert_with(Vec::new)
+                    .push(feature.clone());
             }
         }
         FeatureList {
@@ -366,23 +403,30 @@ impl FeatureList {
         }
     }
 
+    /// Get a feature by key (name or alias).
     pub fn get(&self, key: &str) -> Option<&Feature> {
         self.get_internal(key)
     }
 
+    /// Return all features for a given slot (cloned).
     pub fn get_with_slot(&self, slot: i32) -> Vec<Feature> {
         self.slots.get(&slot).cloned().unwrap_or_default()
     }
 
+    /// Return the number of features.
     pub fn len(&self) -> usize {
         self.features.len()
     }
 
+    /// Return true if a feature with the given key exists (supports aliases and slot IDs).
     pub fn contains(&self, key: &str) -> bool {
         self.features.contains_key(key)
             || self.features.contains_key(&format!("f_{}", key))
             || self.features.contains_key(&format!("fc_{}", key))
-            || key.parse::<i32>().map(|slot| self.slots.contains_key(&slot)).unwrap_or(false)
+            || key
+                .parse::<i32>()
+                .map(|slot| self.slots.contains_key(&slot))
+                .unwrap_or(false)
     }
 
     fn get_internal(&self, item: &str) -> Option<&Feature> {
@@ -422,6 +466,7 @@ impl FeatureList {
         None
     }
 
+    /// Iterate over all features.
     pub fn iter(&self) -> impl Iterator<Item = &Feature> {
         self.features.values()
     }
@@ -463,11 +508,7 @@ impl FeatureList {
                 continue;
             }
             if line.starts_with("column_name") {
-                let cols_part = line
-                    .split_once(':')
-                    .map(|(_, v)| v)
-                    .unwrap_or("")
-                    .trim();
+                let cols_part = line.split_once(':').map(|(_, v)| v).unwrap_or("").trim();
                 let cols = cols_part
                     .split(',')
                     .map(|v| v.trim().to_string())
@@ -515,7 +556,9 @@ impl FeatureList {
         }
 
         let list = Arc::new(FeatureList::new(column_name, feeds, caches, features));
-        let mut cache = FEATURE_LIST_CACHE.write().unwrap_or_else(|e| e.into_inner());
+        let mut cache = FEATURE_LIST_CACHE
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         cache.insert(fname, Arc::clone(&list));
         Ok(list)
     }
@@ -531,18 +574,13 @@ fn parse_params(line: &str) -> Result<HashMap<String, String>, String> {
         let key = if i == 0 {
             items[i].trim().to_string()
         } else {
-            let start = items[i]
-                .rfind(' ')
-                .map(|idx| idx + 1)
-                .unwrap_or(0);
+            let start = items[i].rfind(' ').map(|idx| idx + 1).unwrap_or(0);
             items[i][start..].trim().to_string()
         };
         let value = if i == items.len() - 2 {
             items[i + 1].to_string()
         } else {
-            let end = items[i + 1]
-                .rfind(' ')
-                .unwrap_or(items[i + 1].len());
+            let end = items[i + 1].rfind(' ').unwrap_or(items[i + 1].len());
             items[i + 1][0..end].to_string()
         };
         let value = value
@@ -677,7 +715,10 @@ pub fn add_feature<T: AddFeatureInput>(feature: T) {
 }
 
 /// Adds features by fid list, using a feature list if available.
-pub fn add_feature_by_fids(fids: &[u64], feature_list: Option<Arc<FeatureList>>) -> Result<(), String> {
+pub fn add_feature_by_fids(
+    fids: &[u64],
+    feature_list: Option<Arc<FeatureList>>,
+) -> Result<(), String> {
     if !is_example_batch() {
         return Ok(());
     }

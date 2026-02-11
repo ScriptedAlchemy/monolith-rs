@@ -51,13 +51,13 @@
 //!
 //! - Zhou, G., et al. "Deep Interest Evolution Network for Click-Through Rate Prediction." AAAI 2019.
 
-use crate::error::LayerError;
-use crate::layer::Layer;
 use crate::activation::{
-    ELU, Exponential, HardSigmoid, LeakyReLU, Linear, Mish, PReLU, ReLU, SELU, Sigmoid2, Softmax,
-    Softplus, Softsign, Swish, ThresholdedReLU,
+    Exponential, HardSigmoid, LeakyReLU, Linear, Mish, PReLU, ReLU, Sigmoid2, Softmax, Softplus,
+    Softsign, Swish, ThresholdedReLU, ELU, SELU,
 };
+use crate::error::LayerError;
 use crate::initializer::Initializer;
+use crate::layer::Layer;
 use crate::mlp::ActivationType;
 use crate::regularizer::Regularizer;
 use crate::tensor::Tensor;
@@ -239,14 +239,8 @@ impl DIENConfig {
                 message: "Hidden size must be positive".to_string(),
             });
         }
-        if self.embedding_dim != self.hidden_size {
-            return Err(LayerError::ConfigError {
-                message: format!(
-                    "DIEN expects target/query dim == hidden size (python behavior). Got embedding_dim={} hidden_size={}",
-                    self.embedding_dim, self.hidden_size
-                ),
-            });
-        }
+        // Python DIEN allows embedding_dim != hidden_size (interest extractor GRU maps
+        // embedding_dim -> hidden_size). The attention module operates in hidden_size space.
         for (i, &dim) in self.attention_hidden_units.iter().enumerate() {
             if dim == 0 {
                 return Err(LayerError::ConfigError {
@@ -395,7 +389,9 @@ impl AUGRUCell {
 
         // AUGRU: u = (1 - a) * z
         // New hidden: h_new = u * h + (1 - u) * h_tilde
-        let att = attention.reshape(&[batch_size, 1]).broadcast_as(&[batch_size, hidden_dim]);
+        let att = attention
+            .reshape(&[batch_size, 1])
+            .broadcast_as(&[batch_size, hidden_dim]);
         let one = Tensor::ones(&[batch_size, hidden_dim]);
         let z_att = one.sub(&att).mul(&z);
         let h_new = z_att.mul(h).add(&one.sub(&z_att).mul(&h_tilde));
@@ -419,7 +415,9 @@ impl AUGRUCell {
         let h_tilde = self.compute_candidate(x, h, &r)?;
 
         // AGRU: new_h = (1 - a) * h + a * h_tilde
-        let att = attention.reshape(&[batch_size, 1]).broadcast_as(&[batch_size, hidden_dim]);
+        let att = attention
+            .reshape(&[batch_size, 1])
+            .broadcast_as(&[batch_size, hidden_dim]);
         let one = Tensor::ones(&[batch_size, hidden_dim]);
         let h_new = one.sub(&att).mul(h).add(&att.mul(&h_tilde));
         Ok(h_new)
@@ -672,12 +670,9 @@ impl AttentionModule {
         let query_weight = target.matmul(&weight_t);
 
         // logits = sum(hidden_states * query_weight, dim=H) -> [B, T]
-        let query_broadcast =
-            query_weight.reshape(&[batch_size, 1, hidden_dim]).broadcast_as(&[
-                batch_size,
-                seq_len,
-                hidden_dim,
-            ]);
+        let query_broadcast = query_weight
+            .reshape(&[batch_size, 1, hidden_dim])
+            .broadcast_as(&[batch_size, seq_len, hidden_dim]);
         let mut logits = hidden_states.mul(&query_broadcast).sum_axis(2);
 
         // Apply mask by subtracting a large value where mask == 0
@@ -738,6 +733,8 @@ pub struct DIENLayer {
     evolution_standard_gru: GRUCell,
     /// Attention module
     attention: AttentionModule,
+    /// Optional linear projection from embedding_dim -> hidden_size for the target/query.
+    target_projector: Option<crate::dense::Dense>,
     /// Whether in training mode
     training: bool,
     /// Cached values for backward pass
@@ -812,12 +809,20 @@ impl DIENLayer {
         // Attention module
         let attention = AttentionModule::new(hidden_size, config.use_softmax, config.initializer);
 
+        // If embedding_dim != hidden_size, project the target/query into hidden space.
+        let target_projector = if embedding_dim != hidden_size {
+            Some(crate::dense::Dense::new(embedding_dim, hidden_size))
+        } else {
+            None
+        };
+
         Ok(Self {
             config,
             interest_extractor,
             evolution_gru,
             evolution_standard_gru,
             attention,
+            target_projector,
             training: true,
             cache: None,
         })
@@ -967,10 +972,20 @@ impl DIENLayer {
             });
         }
 
-        if target_item.shape()[1] != hidden_size {
+        // Target can be in embedding space (embedding_dim) or hidden space (hidden_size).
+        // If a projector is configured, accept embedding_dim and project internally.
+        let target_dim = target_item.shape()[1];
+        if self.target_projector.is_some() {
+            if target_dim != embedding_dim {
+                return Err(LayerError::InvalidInputDimension {
+                    expected: embedding_dim,
+                    actual: target_dim,
+                });
+            }
+        } else if target_dim != hidden_size {
             return Err(LayerError::InvalidInputDimension {
                 expected: hidden_size,
-                actual: target_item.shape()[1],
+                actual: target_dim,
             });
         }
 
@@ -1022,7 +1037,11 @@ impl DIENLayer {
 
     /// Projects target item to hidden dimension.
     fn project_target(&self, target_item: &Tensor) -> Result<Tensor, LayerError> {
-        Ok(target_item.clone())
+        if let Some(proj) = &self.target_projector {
+            proj.forward(target_item)
+        } else {
+            Ok(target_item.clone())
+        }
     }
 
     /// Runs the interest evolution layer.
@@ -1278,6 +1297,11 @@ impl Layer for DIENLayer {
         // Interest extractor parameters
         params.extend(self.interest_extractor.parameters());
 
+        // Optional target projector parameters
+        if let Some(p) = &self.target_projector {
+            params.extend(p.parameters());
+        }
+
         // Evolution GRU parameters
         params.extend(self.evolution_gru.parameters());
         params.extend(self.evolution_standard_gru.parameters());
@@ -1293,6 +1317,11 @@ impl Layer for DIENLayer {
 
         // Interest extractor parameters
         params.extend(self.interest_extractor.parameters_mut());
+
+        // Optional target projector parameters
+        if let Some(p) = &mut self.target_projector {
+            params.extend(p.parameters_mut());
+        }
 
         // Evolution GRU parameters
         params.extend(self.evolution_gru.parameters_mut());
@@ -1385,9 +1414,9 @@ mod tests {
         let config = DIENConfig::new(32, 0);
         assert!(config.validate().is_err());
 
-        // Invalid: embedding dim != hidden size
+        // Valid: embedding dim can differ from hidden size (extractor projects to hidden)
         let config = DIENConfig::new(32, 64);
-        assert!(config.validate().is_err());
+        assert!(config.validate().is_ok());
     }
 
     #[test]
@@ -1506,10 +1535,11 @@ mod tests {
         let params = dien.parameters();
 
         // Interest extractor: 9 params
-        // Evolution GRU: 9 params
+        // Evolution AUGRU: 9 params
+        // Evolution standard GRU: 9 params (allocated for GRUType::Standard)
         // Attention: 1 param (weight)
-        // Total: 19 params
-        assert_eq!(params.len(), 19);
+        // Total: 28 params
+        assert_eq!(params.len(), 28);
     }
 
     #[test]

@@ -1,0 +1,4407 @@
+{
+  "counts": {
+    "naFiles": 53,
+    "pythonFiles": 334,
+    "rustTargetsHeuristic": 0,
+    "rustTargetsSeeded": 281,
+    "rustTargetsSeededFromChecklists": 0,
+    "unknownMappings": 0
+  },
+  "crates": [
+    "monolith-checkpoint",
+    "monolith-cli",
+    "monolith-core",
+    "monolith-data",
+    "monolith-examples",
+    "monolith-hash-table",
+    "monolith-layers",
+    "monolith-optimizer",
+    "monolith-proto",
+    "monolith-serving",
+    "monolith-tensor",
+    "monolith-training"
+  ],
+  "inputs": {
+    "masterPlanPath": "monolith-rs/PYTHON_PARITY_MASTER_PLAN.md",
+    "parityChecklistGlob": "monolith-rs/parity/**/*.md",
+    "pythonFilesGlob": "monolith/**/*.py",
+    "rustCratesGlob": "monolith-rs/crates/*/src/**/*.rs"
+  },
+  "records": [
+    {
+      "notes": "",
+      "pythonLines": 56,
+      "pythonPath": "monolith/__init__.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "raw": "monolith-rs/crates/monolith-core"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 0,
+      "pythonPath": "monolith/agent_service/__init__.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-serving/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 89,
+      "pythonPath": "monolith/agent_service/agent_base.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-serving/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 217,
+      "pythonPath": "monolith/agent_service/agent_client.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-cli",
+          "path": "src/bin/agent_client.rs",
+          "raw": "monolith-rs/crates/monolith-cli/src/bin/agent_client.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 96,
+      "pythonPath": "monolith/agent_service/agent_controller_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-cli",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-cli/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 146,
+      "pythonPath": "monolith/agent_service/agent_controller.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-cli",
+          "path": "src/bin/agent_controller.rs",
+          "raw": "monolith-rs/crates/monolith-cli/src/bin/agent_controller.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 108,
+      "pythonPath": "monolith/agent_service/agent_service_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-serving/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 156,
+      "pythonPath": "monolith/agent_service/agent_service.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-serving/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 391,
+      "pythonPath": "monolith/agent_service/agent_v1.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-serving/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 114,
+      "pythonPath": "monolith/agent_service/agent_v3_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-serving/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 211,
+      "pythonPath": "monolith/agent_service/agent_v3.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-serving/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 101,
+      "pythonPath": "monolith/agent_service/agent.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-cli",
+          "raw": "monolith-rs/crates/monolith-cli"
+        },
+        {
+          "crate": "monolith-serving",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-serving/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 135,
+      "pythonPath": "monolith/agent_service/backends_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-serving/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 519,
+      "pythonPath": "monolith/agent_service/backends.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-serving/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 127,
+      "pythonPath": "monolith/agent_service/client.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-cli",
+          "path": "src/bin/serving_client.rs",
+          "raw": "monolith-rs/crates/monolith-cli/src/bin/serving_client.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 16,
+      "pythonPath": "monolith/agent_service/constants.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-serving/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 53,
+      "pythonPath": "monolith/agent_service/data_def_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-serving/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 172,
+      "pythonPath": "monolith/agent_service/data_def.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-serving/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 93,
+      "pythonPath": "monolith/agent_service/mocked_tfserving_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-serving/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 400,
+      "pythonPath": "monolith/agent_service/mocked_tfserving.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "tests/support",
+          "raw": "monolith-rs/crates/monolith-serving/tests/support"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 131,
+      "pythonPath": "monolith/agent_service/mocked_zkclient_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-serving/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 378,
+      "pythonPath": "monolith/agent_service/mocked_zkclient.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "tests/support",
+          "raw": "monolith-rs/crates/monolith-serving/tests/support"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 114,
+      "pythonPath": "monolith/agent_service/model_manager_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-serving/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 372,
+      "pythonPath": "monolith/agent_service/model_manager.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-serving/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 127,
+      "pythonPath": "monolith/agent_service/replica_manager_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-serving/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 836,
+      "pythonPath": "monolith/agent_service/replica_manager.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-serving/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 37,
+      "pythonPath": "monolith/agent_service/resource_utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-serving/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 270,
+      "pythonPath": "monolith/agent_service/resource_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-serving/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 40,
+      "pythonPath": "monolith/agent_service/run.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-cli",
+          "path": "src/bin",
+          "raw": "monolith-rs/crates/monolith-cli/src/bin"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 71,
+      "pythonPath": "monolith/agent_service/svr_client.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-cli",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-cli/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 51,
+      "pythonPath": "monolith/agent_service/tfs_client_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-cli",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-cli/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 504,
+      "pythonPath": "monolith/agent_service/tfs_client.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-cli",
+          "path": "src/bin/tfs_client.rs",
+          "raw": "monolith-rs/crates/monolith-cli/src/bin/tfs_client.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 183,
+      "pythonPath": "monolith/agent_service/tfs_monitor_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-serving/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 304,
+      "pythonPath": "monolith/agent_service/tfs_monitor.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-serving/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 203,
+      "pythonPath": "monolith/agent_service/tfs_wrapper.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-serving/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 171,
+      "pythonPath": "monolith/agent_service/utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-serving/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 1168,
+      "pythonPath": "monolith/agent_service/utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-serving/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 230,
+      "pythonPath": "monolith/agent_service/zk_mirror_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-serving/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 673,
+      "pythonPath": "monolith/agent_service/zk_mirror.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-serving",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-serving/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 47,
+      "pythonPath": "monolith/base_runner.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 52,
+      "pythonPath": "monolith/common/python/mem_profiling.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 0,
+      "pythonPath": "monolith/core/__init__.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 377,
+      "pythonPath": "monolith/core/auto_checkpoint_feed_hook.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tf/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 78,
+      "pythonPath": "monolith/core/base_embedding_host_call_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-core/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 644,
+      "pythonPath": "monolith/core/base_embedding_host_call.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 612,
+      "pythonPath": "monolith/core/base_embedding_task.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 146,
+      "pythonPath": "monolith/core/base_host_call.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 42,
+      "pythonPath": "monolith/core/base_layer_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-core/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 162,
+      "pythonPath": "monolith/core/base_layer.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 26,
+      "pythonPath": "monolith/core/base_model_params.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 96,
+      "pythonPath": "monolith/core/base_task.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 74,
+      "pythonPath": "monolith/core/base_tpu_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 36,
+      "pythonPath": "monolith/core/core_test_suite.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-core/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 109,
+      "pythonPath": "monolith/core/dense_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-layers/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 180,
+      "pythonPath": "monolith/core/dense.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-layers/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 179,
+      "pythonPath": "monolith/core/feature_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-core/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 612,
+      "pythonPath": "monolith/core/feature.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src/feature.rs",
+          "raw": "monolith-rs/crates/monolith-core/src/feature.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 249,
+      "pythonPath": "monolith/core/host_call.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 278,
+      "pythonPath": "monolith/core/hyperparams_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-core/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 440,
+      "pythonPath": "monolith/core/hyperparams.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src/hyperparams.rs",
+          "raw": "monolith-rs/crates/monolith-core/src/hyperparams.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 422,
+      "pythonPath": "monolith/core/mixed_emb_op_comb_nws.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-layers/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 105,
+      "pythonPath": "monolith/core/model_imports.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 175,
+      "pythonPath": "monolith/core/model_registry.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 321,
+      "pythonPath": "monolith/core/model.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 26,
+      "pythonPath": "monolith/core/optimizers.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-optimizer",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-optimizer/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 314,
+      "pythonPath": "monolith/core/py_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 204,
+      "pythonPath": "monolith/core/testing_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-core/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 215,
+      "pythonPath": "monolith/core/tpu_variable.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tf/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 150,
+      "pythonPath": "monolith/core/util_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-core/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 270,
+      "pythonPath": "monolith/core/util.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 189,
+      "pythonPath": "monolith/core/variance_scaling.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 227,
+      "pythonPath": "monolith/gpu_runner.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 33,
+      "pythonPath": "monolith/native_training/alert/alert_manager_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 32,
+      "pythonPath": "monolith/native_training/alert/alert_manager.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 105,
+      "pythonPath": "monolith/native_training/barrier_ops_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 159,
+      "pythonPath": "monolith/native_training/barrier_ops.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/barrier.rs",
+          "raw": "monolith-rs/crates/monolith-training/src/barrier.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 138,
+      "pythonPath": "monolith/native_training/basic_restore_hook_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 73,
+      "pythonPath": "monolith/native_training/basic_restore_hook.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 93,
+      "pythonPath": "monolith/native_training/clip_ops_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-optimizer",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-optimizer/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 81,
+      "pythonPath": "monolith/native_training/clip_ops.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-optimizer",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-optimizer/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 36,
+      "pythonPath": "monolith/native_training/cluster_manager_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 185,
+      "pythonPath": "monolith/native_training/cluster_manager.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/distributed.rs",
+          "raw": "monolith-rs/crates/monolith-training/src/distributed.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 60,
+      "pythonPath": "monolith/native_training/consul_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 150,
+      "pythonPath": "monolith/native_training/consul.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/discovery.rs",
+          "raw": "monolith-rs/crates/monolith-training/src/discovery.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 361,
+      "pythonPath": "monolith/native_training/cpu_sync_training_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 227,
+      "pythonPath": "monolith/native_training/cpu_training_distributed_test_binary.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 598,
+      "pythonPath": "monolith/native_training/cpu_training_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 2450,
+      "pythonPath": "monolith/native_training/cpu_training.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/cpu_training.rs",
+          "raw": "monolith-rs/crates/monolith-training/src/cpu_training.rs (new)"
+        },
+        {
+          "crate": "monolith-training",
+          "path": "src/distributed.rs",
+          "raw": "monolith-rs/crates/monolith-training/src/distributed.rs (new)"
+        },
+        {
+          "crate": "monolith-training",
+          "path": "src/local.rs",
+          "raw": "monolith-rs/crates/monolith-training/src/local.rs (new)"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 21,
+      "pythonPath": "monolith/native_training/data/__init__.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-data/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 503,
+      "pythonPath": "monolith/native_training/data/data_ops_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 146,
+      "pythonPath": "monolith/native_training/data/data_service_parquet_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 99,
+      "pythonPath": "monolith/native_training/data/data_service_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 1643,
+      "pythonPath": "monolith/native_training/data/datasets.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-data/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 187,
+      "pythonPath": "monolith/native_training/data/eager_mode_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 31,
+      "pythonPath": "monolith/native_training/data/extract_fid_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 0,
+      "pythonPath": "monolith/native_training/data/feature_list_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 410,
+      "pythonPath": "monolith/native_training/data/feature_list.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "src/feature_list.rs",
+          "raw": "monolith-rs/crates/monolith-data/src/feature_list.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 1415,
+      "pythonPath": "monolith/native_training/data/feature_utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 1071,
+      "pythonPath": "monolith/native_training/data/feature_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-data/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 110,
+      "pythonPath": "monolith/native_training/data/item_pool_hook.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-data/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 59,
+      "pythonPath": "monolith/native_training/data/item_pool_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 240,
+      "pythonPath": "monolith/native_training/data/kafka_dataset_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 126,
+      "pythonPath": "monolith/native_training/data/multi_flow_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 254,
+      "pythonPath": "monolith/native_training/data/negative_gen_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 1834,
+      "pythonPath": "monolith/native_training/data/parse_sparse_feature_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 783,
+      "pythonPath": "monolith/native_training/data/parsers.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-data/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 184,
+      "pythonPath": "monolith/native_training/data/tf_example_to_example_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 59,
+      "pythonPath": "monolith/native_training/data/training_instance/python/instance_dataset_op_test_stdin.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 167,
+      "pythonPath": "monolith/native_training/data/training_instance/python/instance_dataset_op.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-data/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 284,
+      "pythonPath": "monolith/native_training/data/training_instance/python/instance_negative_gen_dataset_op_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 186,
+      "pythonPath": "monolith/native_training/data/training_instance/python/parse_instance_ops_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 246,
+      "pythonPath": "monolith/native_training/data/training_instance/python/parse_instance_ops.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-data/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 86,
+      "pythonPath": "monolith/native_training/data/training_instance/python/parser_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-data/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 49,
+      "pythonPath": "monolith/native_training/data/training_instance/python/pb_datasource_ops.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-data/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "N/A: Unspecified justification.",
+      "pythonLines": 16,
+      "pythonPath": "monolith/native_training/data/training_instance/python/test_data_utils.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "",
+      "pythonLines": 169,
+      "pythonPath": "monolith/native_training/data/transform_dataset_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 71,
+      "pythonPath": "monolith/native_training/data/transform/transforms_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 251,
+      "pythonPath": "monolith/native_training/data/transform/transforms.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-data/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 56,
+      "pythonPath": "monolith/native_training/data/utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-data/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 99,
+      "pythonPath": "monolith/native_training/debugging/debugging_client.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/debugging",
+          "raw": "monolith-rs/crates/monolith-training/src/debugging"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 218,
+      "pythonPath": "monolith/native_training/debugging/debugging_server.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/debugging",
+          "raw": "monolith-rs/crates/monolith-training/src/debugging"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 58,
+      "pythonPath": "monolith/native_training/demo.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "examples",
+          "raw": "monolith-rs/crates/monolith-training/examples"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 193,
+      "pythonPath": "monolith/native_training/dense_reload_utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 458,
+      "pythonPath": "monolith/native_training/dense_reload_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/checkpoint",
+          "raw": "monolith-rs/crates/monolith-training/src/checkpoint"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 105,
+      "pythonPath": "monolith/native_training/device_utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 232,
+      "pythonPath": "monolith/native_training/device_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/device",
+          "raw": "monolith-rs/crates/monolith-training/src/device"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 125,
+      "pythonPath": "monolith/native_training/distribute/distributed_dataset_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 82,
+      "pythonPath": "monolith/native_training/distribute/distributed_dataset.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-data/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 68,
+      "pythonPath": "monolith/native_training/distribute/str_queue_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-data/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 115,
+      "pythonPath": "monolith/native_training/distribute/str_queue.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-data/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 169,
+      "pythonPath": "monolith/native_training/distributed_ps_benchmark.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "benches",
+          "raw": "monolith-rs/crates/monolith-training/benches"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 88,
+      "pythonPath": "monolith/native_training/distributed_ps_factory_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 263,
+      "pythonPath": "monolith/native_training/distributed_ps_factory.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/ps",
+          "raw": "monolith-rs/crates/monolith-training/src/ps"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 110,
+      "pythonPath": "monolith/native_training/distributed_ps_sync_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 532,
+      "pythonPath": "monolith/native_training/distributed_ps_sync.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/ps",
+          "raw": "monolith-rs/crates/monolith-training/src/ps"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 980,
+      "pythonPath": "monolith/native_training/distributed_ps_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 2109,
+      "pythonPath": "monolith/native_training/distributed_ps.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/ps",
+          "raw": "monolith-rs/crates/monolith-training/src/ps"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 143,
+      "pythonPath": "monolith/native_training/distributed_serving_ops_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 161,
+      "pythonPath": "monolith/native_training/distributed_serving_ops.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/serving",
+          "raw": "monolith-rs/crates/monolith-training/src/serving"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 119,
+      "pythonPath": "monolith/native_training/distribution_ops_benchmark.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "benches",
+          "raw": "monolith-rs/crates/monolith-training/benches"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 62,
+      "pythonPath": "monolith/native_training/distribution_ops_fused_benchmark.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "benches",
+          "raw": "monolith-rs/crates/monolith-training/benches"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 149,
+      "pythonPath": "monolith/native_training/distribution_ops_fused_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 537,
+      "pythonPath": "monolith/native_training/distribution_ops_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-tf/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 890,
+      "pythonPath": "monolith/native_training/distribution_ops.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/ops",
+          "raw": "monolith-rs/crates/monolith-training/src/ops"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 444,
+      "pythonPath": "monolith/native_training/distribution_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 48,
+      "pythonPath": "monolith/native_training/embedding_combiners_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-layers/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 103,
+      "pythonPath": "monolith/native_training/embedding_combiners.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-layers/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 85,
+      "pythonPath": "monolith/native_training/entry_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-hash-table",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-hash-table/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 631,
+      "pythonPath": "monolith/native_training/entry.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-hash-table",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-hash-table/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 24,
+      "pythonPath": "monolith/native_training/env_utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 33,
+      "pythonPath": "monolith/native_training/env_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 167,
+      "pythonPath": "monolith/native_training/estimator_dist_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 418,
+      "pythonPath": "monolith/native_training/estimator_mode_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 113,
+      "pythonPath": "monolith/native_training/estimator_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 668,
+      "pythonPath": "monolith/native_training/estimator.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/estimator.rs",
+          "raw": "monolith-rs/crates/monolith-training/src/estimator.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 267,
+      "pythonPath": "monolith/native_training/feature_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-core/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 145,
+      "pythonPath": "monolith/native_training/feature_utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 420,
+      "pythonPath": "monolith/native_training/feature_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 664,
+      "pythonPath": "monolith/native_training/feature.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src/feature.rs",
+          "raw": "monolith-rs/crates/monolith-core/src/feature.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 57,
+      "pythonPath": "monolith/native_training/file_ops_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests/file_ops.rs",
+          "raw": "monolith-rs/crates/monolith-training/tests/file_ops.rs (new)"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 52,
+      "pythonPath": "monolith/native_training/file_ops.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/file_ops.rs",
+          "raw": "monolith-rs/crates/monolith-training/src/file_ops.rs (new)"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 1334,
+      "pythonPath": "monolith/native_training/fused_embedding_to_layout_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests/fused_embedding_to_layout.rs",
+          "raw": "monolith-rs/crates/monolith-training/tests/fused_embedding_to_layout.rs (new)"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 43,
+      "pythonPath": "monolith/native_training/gen_seq_mask_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-tf/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 27,
+      "pythonPath": "monolith/native_training/gen_seq_mask.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tf/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 218,
+      "pythonPath": "monolith/native_training/gflags_utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-cli",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-cli/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 283,
+      "pythonPath": "monolith/native_training/gflags_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-cli",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-cli/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 31,
+      "pythonPath": "monolith/native_training/graph_meta.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tf/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 27,
+      "pythonPath": "monolith/native_training/graph_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tf/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 229,
+      "pythonPath": "monolith/native_training/hash_filter_ops_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-tf/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 327,
+      "pythonPath": "monolith/native_training/hash_filter_ops.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tf/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 149,
+      "pythonPath": "monolith/native_training/hash_table_ops_benchmark.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-examples",
+          "path": "src/bin/hash_table_ops_benchmark.rs",
+          "raw": "monolith-rs/crates/monolith-examples/src/bin/hash_table_ops_benchmark.rs (new)"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 1201,
+      "pythonPath": "monolith/native_training/hash_table_ops_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-tf/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 739,
+      "pythonPath": "monolith/native_training/hash_table_ops.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tf/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 46,
+      "pythonPath": "monolith/native_training/hash_table_utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-hash-table",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-hash-table/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 51,
+      "pythonPath": "monolith/native_training/hash_table_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-hash-table",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-hash-table/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 182,
+      "pythonPath": "monolith/native_training/hooks/ckpt_hooks_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 194,
+      "pythonPath": "monolith/native_training/hooks/ckpt_hooks.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/hooks",
+          "raw": "monolith-rs/crates/monolith-training/src/hooks"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 46,
+      "pythonPath": "monolith/native_training/hooks/ckpt_info_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 99,
+      "pythonPath": "monolith/native_training/hooks/ckpt_info.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/hooks",
+          "raw": "monolith-rs/crates/monolith-training/src/hooks"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 83,
+      "pythonPath": "monolith/native_training/hooks/controller_hooks_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 171,
+      "pythonPath": "monolith/native_training/hooks/controller_hooks.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/hooks",
+          "raw": "monolith-rs/crates/monolith-training/src/hooks"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 100,
+      "pythonPath": "monolith/native_training/hooks/feature_engineering_hooks.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/hooks",
+          "raw": "monolith-rs/crates/monolith-training/src/hooks"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 36,
+      "pythonPath": "monolith/native_training/hooks/hook_utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 42,
+      "pythonPath": "monolith/native_training/hooks/hook_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/hooks",
+          "raw": "monolith-rs/crates/monolith-training/src/hooks"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 113,
+      "pythonPath": "monolith/native_training/hooks/ps_check_hooks_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 98,
+      "pythonPath": "monolith/native_training/hooks/ps_check_hooks.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/hooks",
+          "raw": "monolith-rs/crates/monolith-training/src/hooks"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 31,
+      "pythonPath": "monolith/native_training/hooks/server/client_lib.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/hooks/server",
+          "raw": "monolith-rs/crates/monolith-training/src/hooks/server"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 15,
+      "pythonPath": "monolith/native_training/hooks/server/constants.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/hooks/server",
+          "raw": "monolith-rs/crates/monolith-training/src/hooks/server"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 55,
+      "pythonPath": "monolith/native_training/hooks/server/server_lib_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 96,
+      "pythonPath": "monolith/native_training/hooks/server/server_lib.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/hooks/server",
+          "raw": "monolith-rs/crates/monolith-training/src/hooks/server"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 34,
+      "pythonPath": "monolith/native_training/hooks/session_hooks_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-training/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 45,
+      "pythonPath": "monolith/native_training/hooks/session_hooks.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/hooks",
+          "raw": "monolith-rs/crates/monolith-training/src/hooks"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 66,
+      "pythonPath": "monolith/native_training/hvd_lib.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 46,
+      "pythonPath": "monolith/native_training/input.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-data",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-data/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 47,
+      "pythonPath": "monolith/native_training/layers/__init__.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-layers/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 66,
+      "pythonPath": "monolith/native_training/layers/add_bias_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "tests/add_bias_test.rs",
+          "raw": "monolith-rs/crates/monolith-layers/tests/add_bias_test.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 111,
+      "pythonPath": "monolith/native_training/layers/add_bias.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src/add_bias.rs",
+          "raw": "monolith-rs/crates/monolith-layers/src/add_bias.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 85,
+      "pythonPath": "monolith/native_training/layers/advanced_activations_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "tests/advanced_activations_test.rs",
+          "raw": "monolith-rs/crates/monolith-layers/tests/advanced_activations_test.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 218,
+      "pythonPath": "monolith/native_training/layers/advanced_activations.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src/activation.rs",
+          "raw": "monolith-rs/crates/monolith-layers/src/activation.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 113,
+      "pythonPath": "monolith/native_training/layers/agru_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "tests/agru_test.rs",
+          "raw": "monolith-rs/crates/monolith-layers/tests/agru_test.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 296,
+      "pythonPath": "monolith/native_training/layers/agru.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src/agru.rs",
+          "raw": "monolith-rs/crates/monolith-layers/src/agru.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 148,
+      "pythonPath": "monolith/native_training/layers/dense_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "tests/dense_test.rs",
+          "raw": "monolith-rs/crates/monolith-layers/tests/dense_test.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 308,
+      "pythonPath": "monolith/native_training/layers/dense.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src/dense.rs",
+          "raw": "monolith-rs/crates/monolith-layers/src/dense.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 287,
+      "pythonPath": "monolith/native_training/layers/feature_cross_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "tests/feature_cross_test.rs",
+          "raw": "monolith-rs/crates/monolith-layers/tests/feature_cross_test.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 806,
+      "pythonPath": "monolith/native_training/layers/feature_cross.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src/feature_cross.rs",
+          "raw": "monolith-rs/crates/monolith-layers/src/feature_cross.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 127,
+      "pythonPath": "monolith/native_training/layers/feature_seq_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "tests/feature_seq_test.rs",
+          "raw": "monolith-rs/crates/monolith-layers/tests/feature_seq_test.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 362,
+      "pythonPath": "monolith/native_training/layers/feature_seq.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-layers/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 141,
+      "pythonPath": "monolith/native_training/layers/feature_trans_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "tests/feature_trans_test.rs",
+          "raw": "monolith-rs/crates/monolith-layers/tests/feature_trans_test.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 341,
+      "pythonPath": "monolith/native_training/layers/feature_trans.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src/feature_trans.rs",
+          "raw": "monolith-rs/crates/monolith-layers/src/feature_trans.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 233,
+      "pythonPath": "monolith/native_training/layers/layer_ops_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "tests/layer_ops_test.rs",
+          "raw": "monolith-rs/crates/monolith-layers/tests/layer_ops_test.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 132,
+      "pythonPath": "monolith/native_training/layers/layer_ops.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-layers/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 74,
+      "pythonPath": "monolith/native_training/layers/lhuc_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "tests/lhuc_test.rs",
+          "raw": "monolith-rs/crates/monolith-layers/tests/lhuc_test.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 297,
+      "pythonPath": "monolith/native_training/layers/lhuc.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src/lhuc.rs",
+          "raw": "monolith-rs/crates/monolith-layers/src/lhuc.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 66,
+      "pythonPath": "monolith/native_training/layers/logit_correction_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "tests/logit_correction_test.rs",
+          "raw": "monolith-rs/crates/monolith-layers/tests/logit_correction_test.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 89,
+      "pythonPath": "monolith/native_training/layers/logit_correction.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src/logit_correction.rs",
+          "raw": "monolith-rs/crates/monolith-layers/src/logit_correction.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 79,
+      "pythonPath": "monolith/native_training/layers/mlp_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "tests/mlp_test.rs",
+          "raw": "monolith-rs/crates/monolith-layers/tests/mlp_test.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 212,
+      "pythonPath": "monolith/native_training/layers/mlp.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src/mlp.rs",
+          "raw": "monolith-rs/crates/monolith-layers/src/mlp.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 129,
+      "pythonPath": "monolith/native_training/layers/multi_task_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "tests/multi_task_test.rs",
+          "raw": "monolith-rs/crates/monolith-layers/tests/multi_task_test.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 449,
+      "pythonPath": "monolith/native_training/layers/multi_task.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-layers/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 85,
+      "pythonPath": "monolith/native_training/layers/norms_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "tests/norms_test.rs",
+          "raw": "monolith-rs/crates/monolith-layers/tests/norms_test.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 344,
+      "pythonPath": "monolith/native_training/layers/norms.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src/normalization.rs",
+          "raw": "monolith-rs/crates/monolith-layers/src/normalization.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 142,
+      "pythonPath": "monolith/native_training/layers/pooling_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "tests/pooling_test.rs",
+          "raw": "monolith-rs/crates/monolith-layers/tests/pooling_test.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 102,
+      "pythonPath": "monolith/native_training/layers/pooling.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src/pooling.rs",
+          "raw": "monolith-rs/crates/monolith-layers/src/pooling.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "N/A: empty test",
+      "pythonLines": 24,
+      "pythonPath": "monolith/native_training/layers/sparse_nas_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: stub",
+      "pythonLines": 32,
+      "pythonPath": "monolith/native_training/layers/sparse_nas.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "",
+      "pythonLines": 160,
+      "pythonPath": "monolith/native_training/layers/utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-layers",
+          "path": "src/merge.rs",
+          "raw": "monolith-rs/crates/monolith-layers/src/merge.rs"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "N/A: no Rust schedule yet",
+      "pythonLines": 77,
+      "pythonPath": "monolith/native_training/learning_rate_functions_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: no Rust schedule yet",
+      "pythonLines": 113,
+      "pythonPath": "monolith/native_training/learning_rate_functions.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF custom ops",
+      "pythonLines": 58,
+      "pythonPath": "monolith/native_training/logging_ops_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF custom ops",
+      "pythonLines": 57,
+      "pythonPath": "monolith/native_training/logging_ops.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: no Rust loss yet",
+      "pythonLines": 36,
+      "pythonPath": "monolith/native_training/losses/batch_softmax_loss_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: no Rust loss yet",
+      "pythonLines": 58,
+      "pythonPath": "monolith/native_training/losses/batch_softmax_loss.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF custom op",
+      "pythonLines": 72,
+      "pythonPath": "monolith/native_training/losses/inbatch_auc_loss_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF custom op",
+      "pythonLines": 42,
+      "pythonPath": "monolith/native_training/losses/inbatch_auc_loss.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: no Rust ranking losses yet",
+      "pythonLines": 1234,
+      "pythonPath": "monolith/native_training/losses/ltr_losses.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: stub",
+      "pythonLines": 29,
+      "pythonPath": "monolith/native_training/metric/cli.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: empty test",
+      "pythonLines": 33,
+      "pythonPath": "monolith/native_training/metric/deep_insight_ops_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF custom ops",
+      "pythonLines": 135,
+      "pythonPath": "monolith/native_training/metric/deep_insight_ops.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: no Rust hook",
+      "pythonLines": 49,
+      "pythonPath": "monolith/native_training/metric/exit_hook.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: no Rust Kafka wrapper",
+      "pythonLines": 120,
+      "pythonPath": "monolith/native_training/metric/kafka_utils.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF hooks",
+      "pythonLines": 190,
+      "pythonPath": "monolith/native_training/metric/metric_hook_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF hooks + Kafka",
+      "pythonLines": 564,
+      "pythonPath": "monolith/native_training/metric/metric_hook.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF custom ops",
+      "pythonLines": 51,
+      "pythonPath": "monolith/native_training/metric/utils_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF custom ops",
+      "pythonLines": 105,
+      "pythonPath": "monolith/native_training/metric/utils.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF distributed runtime",
+      "pythonLines": 445,
+      "pythonPath": "monolith/native_training/mlp_utils.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF/Horovod test",
+      "pythonLines": 184,
+      "pythonPath": "monolith/native_training/model_comp_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF model dump",
+      "pythonLines": 758,
+      "pythonPath": "monolith/native_training/model_dump/dump_utils.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF graph utils",
+      "pythonLines": 87,
+      "pythonPath": "monolith/native_training/model_dump/graph_utils_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF graph utils",
+      "pythonLines": 846,
+      "pythonPath": "monolith/native_training/model_dump/graph_utils.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: module alias",
+      "pythonLines": 23,
+      "pythonPath": "monolith/native_training/model_export/__init__.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: no tests",
+      "pythonLines": 0,
+      "pythonPath": "monolith/native_training/model_export/data_gen_utils_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: data generator",
+      "pythonLines": 733,
+      "pythonPath": "monolith/native_training/model_export/data_gen_utils.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF export test",
+      "pythonLines": 49,
+      "pythonPath": "monolith/native_training/model_export/demo_export_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: demo exporter",
+      "pythonLines": 101,
+      "pythonPath": "monolith/native_training/model_export/demo_export.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: demo gRPC client",
+      "pythonLines": 94,
+      "pythonPath": "monolith/native_training/model_export/demo_predictor_client.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: demo predictor",
+      "pythonLines": 111,
+      "pythonPath": "monolith/native_training/model_export/demo_predictor.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: export context",
+      "pythonLines": 142,
+      "pythonPath": "monolith/native_training/model_export/export_context.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: export hook test",
+      "pythonLines": 142,
+      "pythonPath": "monolith/native_training/model_export/export_hooks_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF export hook",
+      "pythonLines": 138,
+      "pythonPath": "monolith/native_training/model_export/export_hooks.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: export state test",
+      "pythonLines": 37,
+      "pythonPath": "monolith/native_training/model_export/export_state_utils_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: export state",
+      "pythonLines": 47,
+      "pythonPath": "monolith/native_training/model_export/export_state_utils.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: remote predict test",
+      "pythonLines": 44,
+      "pythonPath": "monolith/native_training/model_export/export_utils_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: remote predict helper",
+      "pythonLines": 99,
+      "pythonPath": "monolith/native_training/model_export/export_utils.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: exporter tests",
+      "pythonLines": 154,
+      "pythonPath": "monolith/native_training/model_export/saved_model_exporters_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: SavedModel exporters",
+      "pythonLines": 740,
+      "pythonPath": "monolith/native_training/model_export/saved_model_exporters.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: tensorboard visualizer",
+      "pythonLines": 90,
+      "pythonPath": "monolith/native_training/model_export/saved_model_visulizer.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: warmup decoder",
+      "pythonLines": 56,
+      "pythonPath": "monolith/native_training/model_export/warmup_data_decoder.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: warmup generator",
+      "pythonLines": 254,
+      "pythonPath": "monolith/native_training/model_export/warmup_data_gen.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: warmup example batch",
+      "pythonLines": 57,
+      "pythonPath": "monolith/native_training/model_export/warmup_example_batch.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: test model",
+      "pythonLines": 183,
+      "pythonPath": "monolith/native_training/model.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: decorator",
+      "pythonLines": 19,
+      "pythonPath": "monolith/native_training/monolith_export.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF custom ops",
+      "pythonLines": 250,
+      "pythonPath": "monolith/native_training/multi_hash_table_ops_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: TF custom ops",
+      "pythonLines": 696,
+      "pythonPath": "monolith/native_training/multi_hash_table_ops.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: hash table tests",
+      "pythonLines": 327,
+      "pythonPath": "monolith/native_training/multi_type_hash_table_test.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "N/A: hash table wrapper",
+      "pythonLines": 436,
+      "pythonPath": "monolith/native_training/multi_type_hash_table.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "",
+      "pythonLines": 1110,
+      "pythonPath": "monolith/native_training/native_model.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 59,
+      "pythonPath": "monolith/native_training/native_task_context.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 214,
+      "pythonPath": "monolith/native_training/native_task.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 58,
+      "pythonPath": "monolith/native_training/nested_tensors_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tensor",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tensor/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 110,
+      "pythonPath": "monolith/native_training/nested_tensors.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tensor",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tensor/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 95,
+      "pythonPath": "monolith/native_training/net_utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 134,
+      "pythonPath": "monolith/native_training/net_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 57,
+      "pythonPath": "monolith/native_training/optimizers/adamom_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-optimizer",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-optimizer/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 69,
+      "pythonPath": "monolith/native_training/optimizers/adamom.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-optimizer",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-optimizer/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 78,
+      "pythonPath": "monolith/native_training/optimizers/rmsprop_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-optimizer",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-optimizer/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 103,
+      "pythonPath": "monolith/native_training/optimizers/rmsprop.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-optimizer",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-optimizer/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 113,
+      "pythonPath": "monolith/native_training/optimizers/rmspropv2_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-optimizer",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-optimizer/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 208,
+      "pythonPath": "monolith/native_training/optimizers/shampoo.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-optimizer",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-optimizer/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 306,
+      "pythonPath": "monolith/native_training/prefetch_queue_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 380,
+      "pythonPath": "monolith/native_training/prefetch_queue.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 58,
+      "pythonPath": "monolith/native_training/ps_benchmark_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 274,
+      "pythonPath": "monolith/native_training/ps_benchmark.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 33,
+      "pythonPath": "monolith/native_training/ragged_utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tensor",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tensor/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 30,
+      "pythonPath": "monolith/native_training/ragged_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tensor",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tensor/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "N/A: empty stub",
+      "pythonLines": 0,
+      "pythonPath": "monolith/native_training/remote_predict_ops.py",
+      "rustTargets": [],
+      "source": "seed_master_plan",
+      "status": "N/A"
+    },
+    {
+      "notes": "",
+      "pythonLines": 241,
+      "pythonPath": "monolith/native_training/restore_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 109,
+      "pythonPath": "monolith/native_training/runner_utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 397,
+      "pythonPath": "monolith/native_training/runner_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 24,
+      "pythonPath": "monolith/native_training/runtime/ops/gen_monolith_ops.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tf/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 1741,
+      "pythonPath": "monolith/native_training/save_utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-checkpoint",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-checkpoint/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 1310,
+      "pythonPath": "monolith/native_training/save_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-checkpoint",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-checkpoint/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 408,
+      "pythonPath": "monolith/native_training/service_discovery_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 482,
+      "pythonPath": "monolith/native_training/service_discovery.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 232,
+      "pythonPath": "monolith/native_training/serving_ps_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 145,
+      "pythonPath": "monolith/native_training/session_run_hooks_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 172,
+      "pythonPath": "monolith/native_training/session_run_hooks.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 31,
+      "pythonPath": "monolith/native_training/signal_utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 38,
+      "pythonPath": "monolith/native_training/signal_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 80,
+      "pythonPath": "monolith/native_training/static_reshape_op_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tf/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 59,
+      "pythonPath": "monolith/native_training/static_reshape_op.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tf/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 123,
+      "pythonPath": "monolith/native_training/summary/summary_ops_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tf/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 79,
+      "pythonPath": "monolith/native_training/summary/summary_ops.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tf/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 44,
+      "pythonPath": "monolith/native_training/summary/utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tf/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 115,
+      "pythonPath": "monolith/native_training/summary/utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tf/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 120,
+      "pythonPath": "monolith/native_training/sync_hooks_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 177,
+      "pythonPath": "monolith/native_training/sync_hooks.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 93,
+      "pythonPath": "monolith/native_training/sync_training_hooks_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 356,
+      "pythonPath": "monolith/native_training/sync_training_hooks.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 176,
+      "pythonPath": "monolith/native_training/tensor_utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tensor",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tensor/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 163,
+      "pythonPath": "monolith/native_training/tensor_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tensor",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tensor/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 66,
+      "pythonPath": "monolith/native_training/test_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 52,
+      "pythonPath": "monolith/native_training/touched_key_set_ops_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-hash-table",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-hash-table/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 62,
+      "pythonPath": "monolith/native_training/touched_key_set_ops.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-hash-table",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-hash-table/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 71,
+      "pythonPath": "monolith/native_training/utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests/utils.rs",
+          "raw": "monolith-rs/crates/monolith-training/tests/utils.rs (new)"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 321,
+      "pythonPath": "monolith/native_training/utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/utils.rs",
+          "raw": "monolith-rs/crates/monolith-training/src/utils.rs (new)"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 90,
+      "pythonPath": "monolith/native_training/variables_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests/variables.rs",
+          "raw": "monolith-rs/crates/monolith-training/tests/variables.rs (new)"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 148,
+      "pythonPath": "monolith/native_training/variables.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/variables.rs",
+          "raw": "monolith-rs/crates/monolith-training/src/variables.rs (new)"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 134,
+      "pythonPath": "monolith/native_training/yarn_runtime_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "tests/yarn_runtime.rs",
+          "raw": "monolith-rs/crates/monolith-training/tests/yarn_runtime.rs (new)"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 128,
+      "pythonPath": "monolith/native_training/yarn_runtime.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/yarn_runtime.rs",
+          "raw": "monolith-rs/crates/monolith-training/src/yarn_runtime.rs (new)"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 97,
+      "pythonPath": "monolith/native_training/zk_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src/zk_utils.rs",
+          "raw": "monolith-rs/crates/monolith-training/src/zk_utils.rs (new)"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 48,
+      "pythonPath": "monolith/path_utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-core",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-core/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 430,
+      "pythonPath": "monolith/tpu_runner.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-training",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-training/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 66,
+      "pythonPath": "monolith/utils_test.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "tests",
+          "raw": "monolith-rs/crates/monolith-tf/tests"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    },
+    {
+      "notes": "",
+      "pythonLines": 82,
+      "pythonPath": "monolith/utils.py",
+      "rustTargets": [
+        {
+          "crate": "monolith-tf",
+          "path": "src",
+          "raw": "monolith-rs/crates/monolith-tf/src"
+        }
+      ],
+      "source": "seed_master_plan",
+      "status": "IN PROGRESS"
+    }
+  ],
+  "version": "1",
+  "warnings": [
+    "No parity checklists found under monolith-rs/parity/**/*.md."
+  ]
+}

@@ -41,10 +41,7 @@ impl Backtester {
         let mut ordered: Vec<&StockInstance> = instances.iter().collect();
         ordered.sort_by_key(|i| (i.t, i.ticker_idx));
 
-        let batches: Vec<Vec<&StockInstance>> = ordered
-            .chunks(32)
-            .map(|c| c.to_vec())
-            .collect();
+        let batches: Vec<Vec<&StockInstance>> = ordered.chunks(32).map(|c| c.to_vec()).collect();
 
         let mut capital = self.initial_capital;
         let mut peak_capital = capital;

@@ -1,0 +1,430 @@
+{
+  "version": "1",
+  "domain": "tf_runtime",
+  "goal": "Optional TensorFlow runtime integration for parity-critical flows (SavedModel IO + custom ops) without making the Rust stack depend on TF by default.",
+  "scope": {
+    "pythonHotspots": [
+      {
+        "path": "monolith/native_training/runtime/ops/gen_monolith_ops.py",
+        "why": "Canonical custom-op entrypoint; mirrors tf.load_library behavior and determines the minimum contract Rust must support for custom op loading.",
+        "signals": [
+          "import tensorflow as tf",
+          "tf.load_library",
+          "get_libops_path"
+        ]
+      },
+      {
+        "path": "monolith/path_utils.py",
+        "why": "Defines repo-root resolution used to locate custom op shared libraries via get_libops_path; Rust needs compatible path conventions for dev + Bazel layouts.",
+        "signals": [
+          "get_libops_path",
+          "bazel structure detection"
+        ]
+      },
+      {
+        "path": "monolith/utils.py",
+        "why": "Uses TF runtime gfile APIs (tf.io.gfile.*) for copying assets and filesystem operations; Rust must either emulate these or explicitly scope to local fs under feature gating.",
+        "signals": [
+          "import tensorflow as tf",
+          "tf.io.gfile"
+        ]
+      },
+      {
+        "path": "monolith/native_training/model_export/saved_model_exporters.py",
+        "why": "Defines SavedModel export semantics (tags, signature_defs, assets, and session restore/run) that Rust must be able to load and execute for parity-critical inference flows.",
+        "signals": [
+          "import tensorflow as tf",
+          "tf.compat.v1.saved_model.Builder",
+          "signature_def",
+          "parse_saved_model",
+          "tf.compat.v1.Session",
+          "tf.io.gfile"
+        ]
+      },
+      {
+        "path": "monolith/native_training/estimator.py",
+        "why": "Provides SavedModel import + signature selection and feed/fetch execution using tf.compat.v1.saved_model.load; establishes signature naming and tensor_info usage patterns.",
+        "signals": [
+          "import tensorflow as tf",
+          "tf.compat.v1.saved_model.load",
+          "signature_def",
+          "tf.compat.v1.Session"
+        ]
+      },
+      {
+        "path": "monolith/native_training/model_export/demo_predictor.py",
+        "why": "Reference implementation for signature discovery, input tensor_info-driven random data generation, and session execution; maps directly to the intended Rust harness.",
+        "signals": [
+          "import tensorflow as tf",
+          "tf.compat.v1.Session",
+          "tf.compat.v1.saved_model.load",
+          "signature"
+        ]
+      },
+      {
+        "path": "monolith/native_training/data/datasets.py",
+        "why": "Shows heavy usage of custom ops (variant datasets) and TF graph-mode execution; Rust should treat full tf.data parity as a non-goal but still support op library loading for runtime graphs that reference these ops.",
+        "signals": [
+          "import tensorflow as tf",
+          "tf.data",
+          "tf.load_library",
+          "variant"
+        ]
+      },
+      {
+        "path": "monolith/base_runner.py",
+        "why": "Touches TF compat.v1 summary protos; highlights minor runtime surfaces that can be emulated without full TF runtime integration if needed.",
+        "signals": [
+          "import tensorflow as tf",
+          "tf.compat.v1.Summary"
+        ]
+      }
+    ],
+    "nativeOpsRoot": "monolith/native_training/runtime/ops",
+    "notes": [
+      "The TF runtime plan is generated without normalized mapping context because generated/parity/11-normalize-mapping/normalized_mapping.json is missing in this environment.",
+      "Rust TF integration is scoped to inference-time needs (SavedModel load + signature execution + custom op registration) and is explicitly feature-gated so core crates remain TF-free by default.",
+      "The Python codebase relies on tf.compat.v1 graph/session APIs; Rust should target the TensorFlow C API (libtensorflow) for maximum compatibility with SavedModel execution."
+    ]
+  },
+  "rustDesign": {
+    "featureGates": {
+      "tf_runtime": {
+        "default": false,
+        "enables": [
+          "dynamic libtensorflow loading",
+          "SavedModel IO via TF APIs"
+        ]
+      },
+      "tf_custom_ops": {
+        "default": false,
+        "enables": [
+          "dlopen custom op .so and resolve op registrations"
+        ]
+      }
+    },
+    "proposedCrates": [
+      {
+        "crate": "monolith-tf-runtime",
+        "status": "proposed",
+        "root": "monolith-rs/crates/monolith-tf-runtime",
+        "responsibility": "Optional runtime wrapper over the TensorFlow C API loaded via dlopen: symbol resolution, status/error mapping, TF_Tensor ownership, Session/Graph wrappers, SavedModel load, and execution APIs. No link-time dependency on TensorFlow."
+      },
+      {
+        "crate": "monolith-tensor-ops",
+        "status": "proposed",
+        "root": "monolith-rs/crates/monolith-tensor-ops",
+        "responsibility": "Tensor conversion layer between TF tensors and monolith's backend-agnostic tensor abstractions (monolith-tensor). Provides owned value representations for TF dtypes not covered by monolith-tensor (e.g., string, bool) and deterministic feed/fetch ordering utilities."
+      }
+    ],
+    "publicApi": {
+      "dynamicLoading": [
+        {
+          "fn": "TfApi::load_from_paths",
+          "signature": "paths: [string], symbols: [string] -> Result<TfApi, TfError>",
+          "notes": "Prefer dlopen + explicit symbol resolution against libtensorflow (and optionally libtensorflow_framework). Fail fast with TfError::MissingSymbol for any required API. No link-time TF dependency."
+        }
+      ],
+      "customOpLoading": [
+        {
+          "fn": "TfCustomOps::load",
+          "signature": "paths: [string] -> Result<TfCustomOps, TfError>",
+          "notes": "Mirror tf.load_library behavior (dlopen) and rely on TF's static registration side effects. Provide a deterministic search order: explicit paths first, then env var, then repo-relative paths for dev."
+        }
+      ],
+      "savedModel": [
+        {
+          "fn": "SavedModel::load",
+          "signature": "dir: string, tags: [string] -> Result<SavedModel, TfError>",
+          "notes": "Use TF_LoadSessionFromSavedModel (C API). Parse saved_model.pb for signature_defs for deterministic metadata exposure, even if the runtime load succeeds."
+        },
+        {
+          "fn": "SavedModel::signature",
+          "signature": "name: string -> Result<Signature, TfError>",
+          "notes": "Expose signature discovery via protobuf-parsed SignatureDef. Surface inputs/outputs as TensorInfo-like metadata (name, dtype, shape, optional default)."
+        }
+      ],
+      "execution": [
+        {
+          "fn": "Session::run",
+          "signature": "feeds: Map<string, Tensor>, fetches: [string] -> Result<Map<string, Tensor>, TfError>",
+          "notes": "Implement via TF_SessionRun. Deterministic ordering: sort feed keys and fetch names before calling into TF; return results keyed by fetch name in the caller-provided order."
+        }
+      ],
+      "tensors": [
+        {
+          "type": "Tensor",
+          "notes": "Owned TF value representation for runtime boundaries: dtype, shape, and backing buffer. Support numeric (f32/f64/i32/i64), bool, and string (scalar or 1-D) initially; document string tensor encoding/decoding constraints and provide zero-copy for numeric buffers when layout matches."
+        }
+      ]
+    },
+    "errors": {
+      "mapping": [
+        {
+          "python": "tf.errors.NotFoundError",
+          "rust": "TfError::NotFound",
+          "parityExpectation": "Missing SavedModel files/dirs or missing dependent .so should surface as NotFound with a stable message prefix containing the missing path."
+        },
+        {
+          "python": "tf.errors.InvalidArgumentError",
+          "rust": "TfError::InvalidArgument",
+          "parityExpectation": "Shape/dtype mismatches for feeds should map to InvalidArgument; include tensor name and expected dtype/shape where available."
+        },
+        {
+          "python": "tf.errors.UnimplementedError",
+          "rust": "TfError::Unimplemented",
+          "parityExpectation": "Unsupported ops (e.g., missing custom op registration) should map to Unimplemented and mention the op type or node name."
+        },
+        {
+          "python": "tf.errors.AbortedError",
+          "rust": "TfError::Aborted",
+          "parityExpectation": "Used by monitored sessions for preemption handling; preserve abort semantics and allow callers to implement retry/backoff policies."
+        },
+        {
+          "python": "tf.errors.UnavailableError",
+          "rust": "TfError::Unavailable",
+          "parityExpectation": "Transient runtime issues (e.g., device initialization) map to Unavailable; callers may retry depending on context."
+        },
+        {
+          "python": "tf.errors.DeadlineExceededError",
+          "rust": "TfError::DeadlineExceeded",
+          "parityExpectation": "If supported via TF options/timeouts, surface as DeadlineExceeded; otherwise return Unimplemented for timeout configuration APIs."
+        }
+      ],
+      "notes": [
+        "Prefer explicit error kinds mapped from TF_StatusCode; preserve TF status message substrings where stable (node name, op type, missing file path).",
+        "When TF runtime is disabled (feature off), return TfError::RuntimeDisabled early with guidance on enabling the feature flag."
+      ]
+    }
+  },
+  "compatibility": {
+    "savedModel": {
+      "requirements": [
+        "Load SavedModel directories produced by monolith/native_training/model_export/*",
+        "Discover tags and signature_defs; select signature by name",
+        "Feed tensors using tensor_info names and enforce shape/dtype checks"
+      ],
+      "nonGoals": [
+        "Training graph construction parity",
+        "Full tf.data runtime parity"
+      ]
+    },
+    "customOps": {
+      "requirements": [
+        "Support loading libtfkernel_monolith_ops_for_load.so (and follow-on dependencies) from a resolved path set",
+        "Provide stable search path conventions (env var + relative to repo root for dev)",
+        "Provide a manifest format listing required .so files and versions"
+      ]
+    }
+  },
+  "parityGaps": [
+    {
+      "gap": "SavedModel IO and signature execution requires TF runtime",
+      "severity": "high",
+      "affectedPython": [
+        "monolith/native_training/estimator.py",
+        "monolith/native_training/model_export/demo_predictor.py",
+        "monolith/native_training/model_export/saved_model_exporters.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-tf-runtime/src/saved_model.rs"
+      ],
+      "workaroundIfNoTfRuntime": "Only allow metadata-only inspection (protobuf parse of saved_model.pb) and return RuntimeDisabled for execution; require a Candle-native model path for inference."
+    },
+    {
+      "gap": "Monolith custom ops (tf.load_library) require TF runtime + ABI-compatible op shared libraries",
+      "severity": "high",
+      "affectedPython": [
+        "monolith/native_training/runtime/ops/gen_monolith_ops.py",
+        "monolith/native_training/data/datasets.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-tf-runtime/src/custom_ops.rs"
+      ],
+      "workaroundIfNoTfRuntime": "Avoid executing graphs referencing these ops; use Rust-native input pipelines and inference implementations (monolith-rs) where available."
+    },
+    {
+      "gap": "TF string tensor inputs are required for common inference signatures (serialized Instance/Example inputs)",
+      "severity": "high",
+      "affectedPython": [
+        "monolith/native_training/model_export/demo_predictor.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-tensor-ops/src/tf_tensor.rs"
+      ],
+      "workaroundIfNoTfRuntime": "Candle-only inference requires a non-TF model format; otherwise execution cannot proceed because TF-compatible signature inputs are opaque serialized protos."
+    },
+    {
+      "gap": "tf.io.gfile filesystem behavior (HDFS/GCS semantics) is a TF runtime dependency in several utility paths",
+      "severity": "medium",
+      "affectedPython": [
+        "monolith/utils.py",
+        "monolith/native_training/model_export/saved_model_exporters.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-tf-runtime/src/io.rs"
+      ],
+      "workaroundIfNoTfRuntime": "Scope Rust parity harness to local filesystem fixtures; use std::fs for local paths and mark remote filesystems as unsupported unless an alternate FS layer is introduced."
+    },
+    {
+      "gap": "Large parts of training-time graph construction and tf.data pipelines are TF-only but are not required for Rust inference parity",
+      "severity": "low",
+      "affectedPython": [
+        "monolith/native_training/data/datasets.py",
+        "monolith/tpu_runner.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-data/src/lib.rs",
+        "monolith-rs/crates/monolith-tensor/src/lib.rs"
+      ],
+      "workaroundIfNoTfRuntime": "Treat as non-goals for TF runtime integration; prefer Candle-only (monolith-tensor) and Rust-native data readers (monolith-data) for training/inference pipelines where possible."
+    }
+  ],
+  "milestones": [
+    {
+      "id": "m1_dynamic_loading_skeleton",
+      "dependsOn": [],
+      "deliverables": [
+        "monolith-tf-runtime crate skeleton",
+        "dlopen + symbol checks",
+        "feature gate wiring"
+      ],
+      "verification": [
+        "Unit test: loads a fake dlopen library",
+        "Integration test: validates missing lib reports expected error kind"
+      ]
+    },
+    {
+      "id": "m2_tf_c_api_minimum_surface",
+      "dependsOn": [
+        "m1_dynamic_loading_skeleton"
+      ],
+      "deliverables": [
+        "Bind required TF C API symbols (TF_NewStatus, TF_GetCode, TF_Message, TF_DeleteStatus, TF_NewGraph, TF_DeleteGraph, TF_NewSessionOptions, TF_DeleteSessionOptions, TF_DeleteSession, TF_CloseSession)",
+        "TfStatus and TfError mapping from TF_StatusCode",
+        "Deterministic ordering utilities for feeds/fetches"
+      ],
+      "verification": [
+        "Unit test: error mapping table covers all TF_StatusCode values used",
+        "Unit test: deterministic sort of feeds/fetches matches documented behavior"
+      ]
+    },
+    {
+      "id": "m3_tensor_representation_and_conversions",
+      "dependsOn": [
+        "m2_tf_c_api_minimum_surface"
+      ],
+      "deliverables": [
+        "Owned Tensor type for tf_runtime boundary (dtype, shape, buffer)",
+        "Numeric tensor conversions (f32/f64/i32/i64) including zero-copy where possible",
+        "String tensor encoding/decoding for scalar and 1-D inputs"
+      ],
+      "verification": [
+        "Unit test: roundtrip numeric tensors via TF_Tensor allocation and readback",
+        "Unit test: roundtrip string tensors matches TF encoding semantics"
+      ]
+    },
+    {
+      "id": "m4_custom_op_loader_with_manifest",
+      "dependsOn": [
+        "m2_tf_c_api_minimum_surface"
+      ],
+      "deliverables": [
+        "TfCustomOps::load implementing dlopen search order",
+        "Manifest format (json) listing required .so files and optional sha256",
+        "Repo-relative resolution compatible with monolith/path_utils.py behavior"
+      ],
+      "verification": [
+        "Integration test: missing custom op .so returns NotFound with library name",
+        "Integration test: loading a trivial test-op .so registers an op and allows graph import (if fixture provided)"
+      ]
+    },
+    {
+      "id": "m5_saved_model_metadata_and_session_load",
+      "dependsOn": [
+        "m3_tensor_representation_and_conversions",
+        "m4_custom_op_loader_with_manifest"
+      ],
+      "deliverables": [
+        "SavedModel directory loader using TF_LoadSessionFromSavedModel",
+        "saved_model.pb protobuf parsing for signature_defs and TensorInfo metadata (using monolith-proto tensorflow_* modules)",
+        "Signature selection API with deterministic input/output ordering"
+      ],
+      "verification": [
+        "Integration test: loads a small SavedModel fixture and lists available signatures",
+        "Integration test: selecting a missing signature returns NotFound or InvalidArgument (documented)"
+      ]
+    },
+    {
+      "id": "m6_session_run_feeds_fetches",
+      "dependsOn": [
+        "m5_saved_model_metadata_and_session_load"
+      ],
+      "deliverables": [
+        "Session::run that accepts name-keyed feeds and returns name-keyed fetches",
+        "Shape/dtype checks against signature TensorInfo",
+        "Stable mapping between fetch names and returned tensors"
+      ],
+      "verification": [
+        "Integration test: execute serving_default (or specified) signature on fixture and validate deterministic shapes/dtypes",
+        "Integration test: invalid feed dtype/shape returns InvalidArgument with tensor name"
+      ]
+    },
+    {
+      "id": "m7_parity_harness_and_docs",
+      "dependsOn": [
+        "m6_session_run_feeds_fetches"
+      ],
+      "deliverables": [
+        "monolith-rs/fixtures/parity/tf_runtime savedmodel fixtures and manifests",
+        "Rust CLI or test harness mirroring monolith/native_training/model_export/demo_predictor.py behavior",
+        "Documentation: enabling features, specifying libtensorflow paths, custom op manifest usage"
+      ],
+      "verification": [
+        "End-to-end test: harness runs on CI with TF runtime disabled (metadata-only) and enabled (execution) profiles",
+        "End-to-end test: deterministic output schema for the smoke fixture across runs"
+      ]
+    }
+  ],
+  "verificationHarness": {
+    "sharedFixturesRoot": "monolith-rs/fixtures/parity/tf_runtime",
+    "cases": [
+      {
+        "id": "saved_model_signature_smoke",
+        "pythonReference": "monolith/native_training/model_export/demo_predictor.py",
+        "inputs": [
+          "a small SavedModel fixture directory",
+          "signature name"
+        ],
+        "expected": [
+          "signature discovery",
+          "feeds/fetches execute and produce deterministic shapes/dtypes"
+        ]
+      },
+      {
+        "id": "custom_op_load_error_surface",
+        "pythonReference": "monolith/native_training/runtime/ops/gen_monolith_ops.py",
+        "inputs": [
+          "manifest listing one missing .so",
+          "custom op search paths"
+        ],
+        "expected": [
+          "TfError::NotFound",
+          "error message contains missing library basename"
+        ]
+      },
+      {
+        "id": "string_tensor_feed_contract",
+        "pythonReference": "monolith/native_training/model_export/demo_predictor.py",
+        "inputs": [
+          "serialized Instance bytes inputs (string tensor)",
+          "signature name"
+        ],
+        "expected": [
+          "string tensor encoding matches TF",
+          "runtime rejects invalid string tensor shapes with InvalidArgument"
+        ]
+      }
+    ]
+  }
+}

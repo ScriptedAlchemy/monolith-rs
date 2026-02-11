@@ -116,7 +116,11 @@ mod talib {
     }
 
     pub fn aroon_14(high: &[f64], low: &[f64], out_up: &mut [f64], out_down: &mut [f64]) {
-        let len = high.len().min(low.len()).min(out_up.len()).min(out_down.len());
+        let len = high
+            .len()
+            .min(low.len())
+            .min(out_up.len())
+            .min(out_down.len());
         if len == 0 {
             return;
         }
@@ -183,29 +187,29 @@ pub struct TechnicalIndicators {
     pub ema_26: f32,
     pub sma_ratio_20_50: f32, // SMA 20/50 ratio
     pub ema_ratio_12_26: f32, // EMA 12/26 ratio
-    
+
     // Momentum Indicators
     pub rsi_14: f32,
-    pub rsi_7: f32,   // Faster RSI
-    pub rsi_21: f32,  // Slower RSI
+    pub rsi_7: f32,  // Faster RSI
+    pub rsi_21: f32, // Slower RSI
     pub macd: f32,
     pub macd_signal: f32,
     pub macd_histogram: f32,
     pub roc_10: f32,
     pub roc_20: f32,
     pub mfi_14: f32,
-    pub cci_20: f32,  // Commodity Channel Index
-    
+    pub cci_20: f32, // Commodity Channel Index
+
     // Volatility Indicators
     pub bollinger_upper: f32,
     pub bollinger_lower: f32,
     pub bollinger_width: f32,
     pub bollinger_position: f32, // Position within Bollinger Bands
     pub atr_14: f32,
-    pub atr_7: f32,   // Shorter ATR
+    pub atr_7: f32, // Shorter ATR
     pub stddev_20: f32,
     pub stddev_10: f32, // Shorter standard deviation
-    
+
     // Volume Indicators
     pub volume_sma_20: f32,
     pub volume_sma_5: f32,
@@ -214,7 +218,7 @@ pub struct TechnicalIndicators {
     pub obv: f32,
     pub obv_slope: f32, // OBV trend
     pub volume_weighted_price: f32,
-    
+
     // Price Action
     pub stoch_k: f32,
     pub stoch_d: f32,
@@ -222,7 +226,7 @@ pub struct TechnicalIndicators {
     pub max_14: f32,
     pub min_14: f32,
     pub price_vs_range: f32,
-    
+
     // Pattern Recognition
     pub price_vs_sma20: f32,
     pub price_vs_sma50: f32,
@@ -232,15 +236,15 @@ pub struct TechnicalIndicators {
     pub upper_shadow: f32,
     pub lower_shadow: f32,
     pub doji_score: f32, // Doji pattern strength
-    
+
     // Market Microstructure
-    pub vwap: f32, // Volume Weighted Average Price
+    pub vwap: f32,           // Volume Weighted Average Price
     pub vwap_deviation: f32, // Deviation from VWAP
     pub pivot_support: f32,
     pub pivot_resistance: f32,
     pub pivot_point: f32,
     pub pivot_range: f32, // (resistance - support) relative to price
-    
+
     // Advanced Features
     pub trend_strength: f32,
     pub volatility_regime: f32,
@@ -260,38 +264,69 @@ impl TechnicalIndicators {
     pub fn to_vec(&self) -> Vec<f32> {
         vec![
             // Trend Indicators (7)
-            self.sma_5, self.sma_20, self.sma_50, self.ema_12, self.ema_26,
-            self.sma_ratio_20_50, self.ema_ratio_12_26,
-
+            self.sma_5,
+            self.sma_20,
+            self.sma_50,
+            self.ema_12,
+            self.ema_26,
+            self.sma_ratio_20_50,
+            self.ema_ratio_12_26,
             // Momentum Indicators (10)
-            self.rsi_14, self.rsi_7, self.rsi_21, self.macd, self.macd_signal,
-            self.macd_histogram, self.roc_10, self.roc_20, self.mfi_14, self.cci_20,
-            
+            self.rsi_14,
+            self.rsi_7,
+            self.rsi_21,
+            self.macd,
+            self.macd_signal,
+            self.macd_histogram,
+            self.roc_10,
+            self.roc_20,
+            self.mfi_14,
+            self.cci_20,
             // Volatility Indicators (7)
-            self.bollinger_upper, self.bollinger_lower, self.bollinger_width,
-            self.bollinger_position, self.atr_14, self.atr_7, self.stddev_20,
+            self.bollinger_upper,
+            self.bollinger_lower,
+            self.bollinger_width,
+            self.bollinger_position,
+            self.atr_14,
+            self.atr_7,
+            self.stddev_20,
             self.stddev_10,
-            
             // Volume Indicators (7)
-            self.volume_sma_20, self.volume_sma_5, self.volume_ratio, self.volume_roc,
-            self.obv, self.obv_slope, self.volume_weighted_price,
-            
+            self.volume_sma_20,
+            self.volume_sma_5,
+            self.volume_ratio,
+            self.volume_roc,
+            self.obv,
+            self.obv_slope,
+            self.volume_weighted_price,
             // Price Action (8)
-            self.stoch_k, self.stoch_d, self.stoch_rsi, self.max_14, self.min_14,
-            self.price_vs_range, self.price_vs_sma20, self.price_vs_sma50,
-            
+            self.stoch_k,
+            self.stoch_d,
+            self.stoch_rsi,
+            self.max_14,
+            self.min_14,
+            self.price_vs_range,
+            self.price_vs_sma20,
+            self.price_vs_sma50,
             // Pattern Recognition (6)
-            self.price_vs_bollinger, self.high_low_range, self.body_ratio,
-            self.upper_shadow, self.lower_shadow, self.doji_score,
-            
+            self.price_vs_bollinger,
+            self.high_low_range,
+            self.body_ratio,
+            self.upper_shadow,
+            self.lower_shadow,
+            self.doji_score,
             // Market Microstructure (6)
-            self.vwap, self.vwap_deviation, self.pivot_support, self.pivot_resistance,
-            self.pivot_point, self.pivot_range,
-            
+            self.vwap,
+            self.vwap_deviation,
+            self.pivot_support,
+            self.pivot_resistance,
+            self.pivot_point,
+            self.pivot_range,
             // Advanced Features (4)
-            self.trend_strength, self.volatility_regime, self.volume_profile_high,
+            self.trend_strength,
+            self.volatility_regime,
+            self.volume_profile_high,
             self.volume_profile_low,
-
             // TA-Lib extras (6)
             self.talib_adx_14,
             self.talib_plus_di_14,
@@ -532,15 +567,15 @@ impl IndicatorCalculator {
             };
 
             // Volume rate of change (10-period)
-            let volume_roc = if i >= 10 && vol_sma_20_vals[i-10] > 0.0 {
-                (vol_sma_20_vals[i] / vol_sma_20_vals[i-10] - 1.0) as f32
+            let volume_roc = if i >= 10 && vol_sma_20_vals[i - 10] > 0.0 {
+                (vol_sma_20_vals[i] / vol_sma_20_vals[i - 10] - 1.0) as f32
             } else {
                 0.0
             };
 
             // OBV slope (trend)
-            let obv_slope = if i >= 5 && obv_vals[i-5] != 0.0 {
-                ((obv_vals[i] - obv_vals[i-5]) / obv_vals[i-5].abs()) as f32
+            let obv_slope = if i >= 5 && obv_vals[i - 5] != 0.0 {
+                ((obv_vals[i] - obv_vals[i - 5]) / obv_vals[i - 5].abs()) as f32
             } else {
                 0.0
             };
@@ -562,8 +597,12 @@ impl IndicatorCalculator {
             // VWAP approximation (cumulative)
             let vwap = if i > 0 {
                 let cum_vol: f64 = bars[..=i].iter().map(|b| b.volume).sum();
-                let cum_price_vol: f64 = bars[..=i].iter().enumerate()
-                    .map(|(j, b)| (bars[j].high + bars[j].low + bars[j].close) as f64 / 3.0 * b.volume)
+                let cum_price_vol: f64 = bars[..=i]
+                    .iter()
+                    .enumerate()
+                    .map(|(j, b)| {
+                        (bars[j].high + bars[j].low + bars[j].close) as f64 / 3.0 * b.volume
+                    })
                     .sum();
                 if cum_vol > 0.0 {
                     (cum_price_vol / cum_vol / close - 1.0) as f32
@@ -578,7 +617,7 @@ impl IndicatorCalculator {
             let pivot_point = if i >= 14 {
                 let prev_high = max_14_vals[i - 1];
                 let prev_low = min_14_vals[i - 1];
-                let prev_close = bars[i-1].close as f64;
+                let prev_close = bars[i - 1].close as f64;
                 ((prev_high + prev_low + prev_close) / 3.0 / close - 1.0) as f32
             } else {
                 0.0

@@ -11,11 +11,20 @@
 
 use crate::barrier::{PsBarrier, SharedBarrier};
 use crate::discovery::{ServiceDiscoveryAsync, ServiceInfo};
-use crate::distributed_ps::{serve_ps, PsClient, PsServer};
+use crate::distributed_ps::{PsClient, PsServer};
 use crate::parameter_sync_replicator::{DirtyTracker, ParameterSyncReplicator};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
+
+/// Helper for tests: bind to `127.0.0.1:0` and return the chosen address.
+async fn bind_ephemeral(
+    addr: SocketAddr,
+) -> std::io::Result<(tokio::net::TcpListener, SocketAddr)> {
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    let local = listener.local_addr()?;
+    Ok((listener, local))
+}
 
 #[derive(Debug, Clone)]
 pub enum Role {
@@ -74,7 +83,6 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
 ) -> anyhow::Result<()> {
     discovery.connect().await?;
 
-    // Register self.
     let (service_type, service_id) = match cfg.role {
         Role::Ps => (
             cfg.discovery_service_type_ps.clone(),
@@ -86,20 +94,22 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         ),
     };
 
-    let mut service = ServiceInfo::new(
-        service_id.clone(),
-        service_id.clone(),
-        service_type.clone(),
-        cfg.bind_addr.ip().to_string(),
-        cfg.bind_addr.port(),
-    );
-    service = service.with_metadata("addr", cfg.bind_addr.to_string());
-
-    discovery.register_async(service).await?;
-
     match cfg.role {
-        Role::Ps => run_ps_role(Arc::clone(&discovery), &service_id, cfg).await?,
-        Role::Worker => run_worker_role(Arc::clone(&discovery), &service_id, cfg).await?,
+        Role::Ps => run_ps_role(Arc::clone(&discovery), &service_id, service_type, cfg).await?,
+        Role::Worker => {
+            // Register worker address for parity (some backends rely on it for cluster formation).
+            let mut service = ServiceInfo::new(
+                service_id.clone(),
+                service_id.clone(),
+                service_type.clone(),
+                cfg.bind_addr.ip().to_string(),
+                cfg.bind_addr.port(),
+            );
+            service = service.with_metadata("addr", cfg.bind_addr.to_string());
+            service = service.with_metadata("index", cfg.index.to_string());
+            let _ = discovery.register_async(service).await;
+            run_worker_role(Arc::clone(&discovery), &service_id, cfg).await?
+        }
     }
 
     discovery.disconnect().await?;
@@ -109,10 +119,11 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
 async fn run_ps_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     discovery: Arc<D>,
     service_id: &str,
+    service_type: String,
     cfg: DistributedRunConfig,
 ) -> anyhow::Result<()> {
     // PS: start serving and optionally heartbeat in discovery (backend-specific).
-    let ps = Arc::new(PsServer::new(cfg.index as i32, cfg.dim));
+    let ps = PsServer::new(cfg.index as i32, cfg.dim);
 
     // If parameter sync replication is enabled, wire dirty tracking into the PS RPC path
     // and spawn a background replicator.
@@ -132,9 +143,29 @@ async fn run_ps_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         .spawn(cfg.parameter_sync_interval);
     }
 
-    // Block forever serving; shutdown is external (signal handling is up to the binary).
-    let addr = cfg.bind_addr;
-    tracing::info!(role = "ps", index = cfg.index, addr = %addr, "Starting PS gRPC server");
+    // Bind early so we can register the real (possibly ephemeral) port. Python tests always pass
+    // explicit ports; in Rust we also want to support `:0` for local tests.
+    let (listener, actual_addr) = bind_ephemeral(cfg.bind_addr).await?;
+
+    // Register with the real (possibly ephemeral) address.
+    let mut service = ServiceInfo::new(
+        service_id.to_string(),
+        service_id.to_string(),
+        service_type,
+        actual_addr.ip().to_string(),
+        actual_addr.port(),
+    );
+    service = service.with_metadata("addr", actual_addr.to_string());
+    service = service.with_metadata("index", cfg.index.to_string());
+    service = service.with_metadata("allow_update", "true");
+    let _ = discovery.register_async(service).await;
+
+    tracing::info!(
+        role = "ps",
+        index = cfg.index,
+        addr = %actual_addr,
+        "Starting PS gRPC server"
+    );
     if let Some(interval) = cfg.heartbeat_interval {
         let discovery = Arc::clone(&discovery);
         let service_id = service_id.to_string();
@@ -151,7 +182,10 @@ async fn run_ps_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
             }
         });
     }
-    serve_ps(Arc::clone(&ps), addr).await?;
+    tonic::transport::Server::builder()
+        .add_service(Arc::clone(&ps).into_service())
+        .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
+        .await?;
     Ok(())
 }
 

@@ -5,11 +5,11 @@
 
 use crate::activation_layer::ActivationLayer;
 use crate::constraint::Constraint;
-use crate::initializer::Initializer;
-use crate::normalization::BatchNorm;
 use crate::dense::Dense;
 use crate::error::LayerError;
+use crate::initializer::Initializer;
 use crate::layer::Layer;
+use crate::normalization::BatchNorm;
 use crate::regularizer::Regularizer;
 use crate::tensor::Tensor;
 use serde::{Deserialize, Serialize};
@@ -45,13 +45,9 @@ pub enum ActivationType {
     /// Hard sigmoid activation
     HardSigmoid,
     /// Leaky ReLU activation
-    LeakyReLU {
-        alpha: f32,
-    },
+    LeakyReLU { alpha: f32 },
     /// ELU activation
-    ELU {
-        alpha: f32,
-    },
+    ELU { alpha: f32 },
     /// PReLU activation
     PReLU {
         alpha: f32,
@@ -65,13 +61,9 @@ pub enum ActivationType {
         constraint: Option<crate::constraint::Constraint>,
     },
     /// Thresholded ReLU activation
-    ThresholdedReLU {
-        theta: f32,
-    },
+    ThresholdedReLU { theta: f32 },
     /// Softmax activation (axis defaults to -1 if negative)
-    Softmax {
-        axis: isize,
-    },
+    Softmax { axis: isize },
     /// Linear activation (identity)
     Linear,
     /// Exponential activation
@@ -188,6 +180,8 @@ impl MLPConfig {
             bias_regularizer: Regularizer::None,
             kernel_constraint: Constraint::None,
             bias_constraint: Constraint::None,
+            // Mirror Python Dense defaults: allow_kernel_norm=True and kernel_norm_trainable=True.
+            // This is still configurable to allow disabling weight-norm at the MLP level.
             use_weight_norm: true,
             use_learnable_weight_norm: true,
             enable_batch_normalization: false,
@@ -240,7 +234,11 @@ impl MLPConfig {
     }
 
     /// Sets kernel and bias constraints.
-    pub fn with_constraints(mut self, kernel_constraint: Constraint, bias_constraint: Constraint) -> Self {
+    pub fn with_constraints(
+        mut self,
+        kernel_constraint: Constraint,
+        bias_constraint: Constraint,
+    ) -> Self {
         self.kernel_constraint = kernel_constraint;
         self.bias_constraint = bias_constraint;
         self
@@ -350,8 +348,7 @@ impl MLPConfig {
                 acts
             } else {
                 return Err(LayerError::ConfigError {
-                    message: "activations length must be 1 or match output_dims length"
-                        .to_string(),
+                    message: "activations length must be 1 or match output_dims length".to_string(),
                 });
             }
         } else {
@@ -482,7 +479,7 @@ impl MLP {
             let dense = if config.use_weight_norm {
                 dense.with_kernel_norm(config.use_learnable_weight_norm)
             } else {
-                dense
+                dense.with_allow_kernel_norm(false)
             }
             .with_kernel_regularizer(config.kernel_regularizer.clone())
             .with_bias_regularizer(config.bias_regularizer.clone())
@@ -766,9 +763,10 @@ mod tests {
             .build()
             .unwrap();
 
-        // 2 layers with bias: 2 * 2 = 4 parameter tensors
+        // Dense defaults include a trainable kernel-norm scale; each dense has:
+        // weights, bias, kernel_norm => 3 tensors.
         let params = mlp.parameters();
-        assert_eq!(params.len(), 4);
+        assert_eq!(params.len(), 6);
     }
 
     #[test]

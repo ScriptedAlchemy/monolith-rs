@@ -5,11 +5,10 @@ use rayon::prelude::*;
 use super::backtest::Backtester;
 use super::cache::{load_cached_indicators, save_indicators_to_cache};
 use super::config::{parse_args, print_usage, Mode, StockPredictorConfig};
-use super::data::{
-    aggregate_bars, ensure_dataset_present, load_real_data_auto, StockBar,
-    TickerInfo,
-};
 use super::data::IntradayCsvLoader;
+use super::data::{
+    aggregate_bars, ensure_dataset_present, load_real_data_auto, StockBar, TickerInfo,
+};
 use super::indicators::{IndicatorCalculator, TechnicalIndicators};
 use super::instances::{
     create_batches, create_instances_parallel, train_eval_split_time_by_ticker, FeatureIndex,
@@ -62,39 +61,36 @@ pub fn run() {
 
     let start_time = Instant::now();
 
-    let (tickers, bars): (Vec<TickerInfo>, Vec<StockBar>) = if let Some(ref path) = config.intraday_file
-    {
-        println!("Section 1: Loading Intraday CSV");
-        let mut loader = IntradayCsvLoader::new();
-        let ticker_name = config
-            .intraday_ticker
-            .as_deref()
-            .unwrap_or("INTRADAY");
-        match loader.load_file(path, ticker_name, config.intraday_aggregate.max(1)) {
-            Ok(()) => (loader.tickers().to_vec(), loader.bars().to_vec()),
-            Err(e) => {
-                eprintln!("Error loading intraday file: {}", e);
-                std::process::exit(2);
+    let (tickers, bars): (Vec<TickerInfo>, Vec<StockBar>) =
+        if let Some(ref path) = config.intraday_file {
+            println!("Section 1: Loading Intraday CSV");
+            let mut loader = IntradayCsvLoader::new();
+            let ticker_name = config.intraday_ticker.as_deref().unwrap_or("INTRADAY");
+            match loader.load_file(path, ticker_name, config.intraday_aggregate.max(1)) {
+                Ok(()) => (loader.tickers().to_vec(), loader.bars().to_vec()),
+                Err(e) => {
+                    eprintln!("Error loading intraday file: {}", e);
+                    std::process::exit(2);
+                }
             }
-        }
-    } else if let Some(ref data_dir) = config.data_dir {
-        ensure_dataset_present(Some(data_dir));
-        println!("Section 1: Loading Real Stock Data from CSV");
-        match load_real_data_auto(data_dir, config.num_tickers, config.lookback_window) {
-            Ok((tickers, bars)) => (tickers, bars),
-            Err(e) => {
-                eprintln!("Error loading data: {}", e);
-                eprintln!();
-                super::data::IntradayDataSources::print_download_instructions();
-                std::process::exit(2);
+        } else if let Some(ref data_dir) = config.data_dir {
+            ensure_dataset_present(Some(data_dir));
+            println!("Section 1: Loading Real Stock Data from CSV");
+            match load_real_data_auto(data_dir, config.num_tickers, config.lookback_window) {
+                Ok((tickers, bars)) => (tickers, bars),
+                Err(e) => {
+                    eprintln!("Error loading data: {}", e);
+                    eprintln!();
+                    super::data::IntradayDataSources::print_download_instructions();
+                    std::process::exit(2);
+                }
             }
-        }
-    } else {
-        eprintln!("Error: Provide --data-dir or --intraday-file.");
-        eprintln!();
-        print_usage();
-        std::process::exit(2);
-    };
+        } else {
+            eprintln!("Error: Provide --data-dir or --intraday-file.");
+            eprintln!();
+            print_usage();
+            std::process::exit(2);
+        };
 
     let total_bars = bars.len();
     println!(
@@ -236,10 +232,7 @@ pub fn run() {
     println!("\nSection 4: Model Architecture");
     println!(
         "  Ticker embedding: {} x {} | DIEN hidden: {} | DCN: {} layers",
-        config.num_tickers,
-        config.ticker_embedding_dim,
-        dien_hidden,
-        config.dcn_cross_layers
+        config.num_tickers, config.ticker_embedding_dim, dien_hidden, config.dcn_cross_layers
     );
 
     match config.mode {

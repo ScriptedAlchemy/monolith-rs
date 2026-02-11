@@ -178,9 +178,7 @@ impl InstanceCreator {
 
             // Volatility-aware profitable threshold (ratio units)
             let atr_rel = indicators[i].atr_14.abs().clamp(0.0, 1.0);
-            let dyn_threshold = self
-                .profit_threshold
-                .max(self.profit_atr_mult * atr_rel);
+            let dyn_threshold = self.profit_threshold.max(self.profit_atr_mult * atr_rel);
 
             let profitable_label = if forward_return > dyn_threshold {
                 1.0

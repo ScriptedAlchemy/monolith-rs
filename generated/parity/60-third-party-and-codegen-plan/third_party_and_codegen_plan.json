@@ -1,0 +1,571 @@
+{
+  "codegenAndBuild": {
+    "bazelFiles": [
+      "WORKSPACE",
+      "monolith/monolith_workspace.bzl",
+      "monolith/tf_serving_workspace.bzl"
+    ],
+    "inferredCodegenSteps": [
+      {
+        "id": "protobuf_codegen_python_and_rust",
+        "inputs": [
+          "monolith/**/*.proto"
+        ],
+        "outputs": [
+          "python: generated .py modules (bazel rule outputs)",
+          "rust: monolith-rs/crates/monolith-proto (proposed) via build.rs or pre-generated sources"
+        ],
+        "owners": [
+          "monolith-rs",
+          "monolith-python"
+        ],
+        "parityNotes": [
+          "Pin protoc + prost/tonic versions in Rust; track descriptor-set / file options differences.",
+          "Golden gRPC compatibility tests should run without TensorFlow runtime."
+        ],
+        "purpose": "Generate protobuf bindings for Python (runtime + tests) and Rust (tonic/prost) while keeping wire compatibility stable."
+      },
+      {
+        "id": "tensorflow_custom_ops_build_and_load",
+        "inputs": [
+          "monolith/native_training/runtime/ops/**",
+          "third_party/org_tensorflow/tf.patch"
+        ],
+        "outputs": [
+          "shared objects: *.so for CPU/GPU ops (bazel outputs)",
+          "runtime loader contract: paths, symbols, and registration names"
+        ],
+        "owners": [
+          "monolith-native-training",
+          "monolith-rs"
+        ],
+        "parityNotes": [
+          "Rust default path remains TF-optional; when TF runtime is present, ensure custom op loading mirrors Python behavior.",
+          "Maintain feature flags: candle default; tf-runtime + custom-ops gated behind Linux x86_64 best-effort."
+        ],
+        "purpose": "Build TF custom ops (C++/CUDA) into shared libraries and load them from Python (tf.load_op_library / tf.load_library) and optionally from Rust TF runtime integration."
+      },
+      {
+        "id": "tensorflow_behavior_patch_dependencies",
+        "inputs": [
+          "third_party/org_tensorflow/**"
+        ],
+        "outputs": [
+          "documented runtime invariants for parity harnesses",
+          "explicit parity gaps in Rust (when TF runtime not used)"
+        ],
+        "owners": [
+          "monolith-native-training",
+          "monolith-rs"
+        ],
+        "parityNotes": [
+          "Some behaviors are not portable to Rust unless TF runtime is embedded; these must be tracked as explicit parity gaps."
+        ],
+        "purpose": "Track TF runtime semantics that depend on local TensorFlow patches (timeouts, HDFS read behavior, worker concurrency tuning)."
+      }
+    ]
+  },
+  "customOps": {
+    "buildFiles": [
+      "monolith/native_training/runtime/ops/BUILD"
+    ],
+    "rootGlob": "monolith/native_training/runtime/ops/**",
+    "sampleFiles": [
+      "monolith/native_training/runtime/ops/BUILD",
+      "monolith/native_training/runtime/ops/agent_heartbeat.cc",
+      "monolith/native_training/runtime/ops/agent_heartbeat.h",
+      "monolith/native_training/runtime/ops/agent_heartbeat_test.cc",
+      "monolith/native_training/runtime/ops/aligned_concat_split.cu.cc",
+      "monolith/native_training/runtime/ops/alloc_utils.h",
+      "monolith/native_training/runtime/ops/clip_by_global_norm.cu.cc",
+      "monolith/native_training/runtime/ops/clip_by_global_norm.h",
+      "monolith/native_training/runtime/ops/clip_by_global_norm_fused.cu.cc",
+      "monolith/native_training/runtime/ops/clip_by_global_norm_op.cc",
+      "monolith/native_training/runtime/ops/deep_insight_client_tf_bridge.h",
+      "monolith/native_training/runtime/ops/deep_insight_ops.cc",
+      "monolith/native_training/runtime/ops/embedding_hash_table_tf_bridge.cc",
+      "monolith/native_training/runtime/ops/embedding_hash_table_tf_bridge.h",
+      "monolith/native_training/runtime/ops/file_metric_writer.cc",
+      "monolith/native_training/runtime/ops/file_metric_writer.h",
+      "monolith/native_training/runtime/ops/file_metric_writer_test.cc",
+      "monolith/native_training/runtime/ops/file_ops.cc",
+      "monolith/native_training/runtime/ops/file_utils.cc",
+      "monolith/native_training/runtime/ops/file_utils.h",
+      "monolith/native_training/runtime/ops/file_utils_test.cc",
+      "monolith/native_training/runtime/ops/fused_embedding_to_layout.cc",
+      "monolith/native_training/runtime/ops/fused_embedding_to_layout.cu.cc",
+      "monolith/native_training/runtime/ops/fused_embedding_to_layout.h",
+      "monolith/native_training/runtime/ops/fused_reorder_by_indices.cc",
+      "monolith/native_training/runtime/ops/gen_monolith_ops.py",
+      "monolith/native_training/runtime/ops/gen_seq_mask.cc",
+      "monolith/native_training/runtime/ops/global_norm.cu.cc",
+      "monolith/native_training/runtime/ops/gpu_multi_hash_table.h",
+      "monolith/native_training/runtime/ops/hash_filter_intercept_gradient_op.cc",
+      "monolith/native_training/runtime/ops/hash_filter_op.cc",
+      "monolith/native_training/runtime/ops/hash_filter_restore_op.cc",
+      "monolith/native_training/runtime/ops/hash_filter_save_op.cc",
+      "monolith/native_training/runtime/ops/hash_filter_tf_bridge.cc",
+      "monolith/native_training/runtime/ops/hash_filter_tf_bridge.h",
+      "monolith/native_training/runtime/ops/hash_table/misc_ops.cc",
+      "monolith/native_training/runtime/ops/hash_table_lookup_op.cc",
+      "monolith/native_training/runtime/ops/hash_table_op.cc",
+      "monolith/native_training/runtime/ops/hash_table_restore_op.cc",
+      "monolith/native_training/runtime/ops/hash_table_save_op.cc",
+      "monolith/native_training/runtime/ops/hash_table_update_op.cc",
+      "monolith/native_training/runtime/ops/inbatch_auc_loss.cc",
+      "monolith/native_training/runtime/ops/logging_ops.cc",
+      "monolith/native_training/runtime/ops/logging_ops.proto",
+      "monolith/native_training/runtime/ops/map_id_to_embedding.cu.cc",
+      "monolith/native_training/runtime/ops/map_id_to_embedding_op.cc",
+      "monolith/native_training/runtime/ops/multi_hash_table.h",
+      "monolith/native_training/runtime/ops/multi_hash_table_lookup_op.cc",
+      "monolith/native_training/runtime/ops/multi_hash_table_op.cc",
+      "monolith/native_training/runtime/ops/multi_hash_table_save_restore_ops.cc"
+    ],
+    "sourceFiles": [
+      "monolith/native_training/runtime/ops/agent_heartbeat.cc",
+      "monolith/native_training/runtime/ops/agent_heartbeat.h",
+      "monolith/native_training/runtime/ops/agent_heartbeat_test.cc",
+      "monolith/native_training/runtime/ops/aligned_concat_split.cu.cc",
+      "monolith/native_training/runtime/ops/alloc_utils.h",
+      "monolith/native_training/runtime/ops/clip_by_global_norm.cu.cc",
+      "monolith/native_training/runtime/ops/clip_by_global_norm.h",
+      "monolith/native_training/runtime/ops/clip_by_global_norm_fused.cu.cc",
+      "monolith/native_training/runtime/ops/clip_by_global_norm_op.cc",
+      "monolith/native_training/runtime/ops/deep_insight_client_tf_bridge.h",
+      "monolith/native_training/runtime/ops/deep_insight_ops.cc",
+      "monolith/native_training/runtime/ops/embedding_hash_table_tf_bridge.cc",
+      "monolith/native_training/runtime/ops/embedding_hash_table_tf_bridge.h",
+      "monolith/native_training/runtime/ops/file_metric_writer.cc",
+      "monolith/native_training/runtime/ops/file_metric_writer.h",
+      "monolith/native_training/runtime/ops/file_metric_writer_test.cc",
+      "monolith/native_training/runtime/ops/file_ops.cc",
+      "monolith/native_training/runtime/ops/file_utils.cc",
+      "monolith/native_training/runtime/ops/file_utils.h",
+      "monolith/native_training/runtime/ops/file_utils_test.cc",
+      "monolith/native_training/runtime/ops/fused_embedding_to_layout.cc",
+      "monolith/native_training/runtime/ops/fused_embedding_to_layout.cu.cc",
+      "monolith/native_training/runtime/ops/fused_embedding_to_layout.h",
+      "monolith/native_training/runtime/ops/fused_reorder_by_indices.cc",
+      "monolith/native_training/runtime/ops/gen_monolith_ops.py",
+      "monolith/native_training/runtime/ops/gen_seq_mask.cc",
+      "monolith/native_training/runtime/ops/global_norm.cu.cc",
+      "monolith/native_training/runtime/ops/gpu_multi_hash_table.h",
+      "monolith/native_training/runtime/ops/hash_filter_intercept_gradient_op.cc",
+      "monolith/native_training/runtime/ops/hash_filter_op.cc",
+      "monolith/native_training/runtime/ops/hash_filter_restore_op.cc",
+      "monolith/native_training/runtime/ops/hash_filter_save_op.cc",
+      "monolith/native_training/runtime/ops/hash_filter_tf_bridge.cc",
+      "monolith/native_training/runtime/ops/hash_filter_tf_bridge.h",
+      "monolith/native_training/runtime/ops/hash_table/misc_ops.cc",
+      "monolith/native_training/runtime/ops/hash_table_lookup_op.cc",
+      "monolith/native_training/runtime/ops/hash_table_op.cc",
+      "monolith/native_training/runtime/ops/hash_table_restore_op.cc",
+      "monolith/native_training/runtime/ops/hash_table_save_op.cc",
+      "monolith/native_training/runtime/ops/hash_table_update_op.cc",
+      "monolith/native_training/runtime/ops/inbatch_auc_loss.cc",
+      "monolith/native_training/runtime/ops/logging_ops.cc",
+      "monolith/native_training/runtime/ops/logging_ops.proto",
+      "monolith/native_training/runtime/ops/map_id_to_embedding.cu.cc",
+      "monolith/native_training/runtime/ops/map_id_to_embedding_op.cc",
+      "monolith/native_training/runtime/ops/multi_hash_table.h",
+      "monolith/native_training/runtime/ops/multi_hash_table_lookup_op.cc",
+      "monolith/native_training/runtime/ops/multi_hash_table_op.cc",
+      "monolith/native_training/runtime/ops/multi_hash_table_save_restore_ops.cc",
+      "monolith/native_training/runtime/ops/multi_hash_table_update_op.cc",
+      "monolith/native_training/runtime/ops/net_utils.cc",
+      "monolith/native_training/runtime/ops/net_utils.h",
+      "monolith/native_training/runtime/ops/net_utils_test.cc",
+      "monolith/native_training/runtime/ops/normalize_merged_split_op.cc",
+      "monolith/native_training/runtime/ops/parameter_sync_ops.cc",
+      "monolith/native_training/runtime/ops/parameter_sync_tf_bridge.cc",
+      "monolith/native_training/runtime/ops/parameter_sync_tf_bridge.h",
+      "monolith/native_training/runtime/ops/prediction_service_grpc.cc",
+      "monolith/native_training/runtime/ops/prediction_service_grpc.h",
+      "monolith/native_training/runtime/ops/reduce_op.cc",
+      "monolith/native_training/runtime/ops/reduce_op.cu.cc",
+      "monolith/native_training/runtime/ops/remote_predict_op.h",
+      "monolith/native_training/runtime/ops/remote_predict_op_grpc.cc",
+      "monolith/native_training/runtime/ops/split_by_indices_op.cc",
+      "monolith/native_training/runtime/ops/static_reshape_op.cc",
+      "monolith/native_training/runtime/ops/touched_key_set_insert_op.cc",
+      "monolith/native_training/runtime/ops/touched_key_set_op.cc",
+      "monolith/native_training/runtime/ops/touched_key_set_steal_op.cc",
+      "monolith/native_training/runtime/ops/touched_key_set_tf_bridge.h",
+      "monolith/native_training/runtime/ops/unique_mapping_ops.cc"
+    ],
+    "totalFiles": 71
+  },
+  "inputs": {
+    "bazelWorkspaceFiles": [
+      "monolith/monolith_workspace.bzl",
+      "monolith/tf_serving_workspace.bzl",
+      "WORKSPACE",
+      "WORKSPACE.bzlmod",
+      "MODULE.bazel"
+    ],
+    "customOpGlob": "monolith/native_training/runtime/ops/**",
+    "normalizedMappingPath": "generated/parity/11-normalize-mapping/normalized_mapping.json",
+    "orgTensorflowGlob": "third_party/org_tensorflow/**",
+    "orgTensorflowPatchPath": "third_party/org_tensorflow/tf.patch",
+    "orgTensorflowReadmePath": "third_party/org_tensorflow/README.md",
+    "protobufGlob": "monolith/**/*.proto"
+  },
+  "orgTensorflow": {
+    "behaviorRelevantDiffs": [
+      {
+        "description": "TensorFlow BUILD visibility changes to support shared library usage (libtensorflow_framework.so).",
+        "id": "tf_shared_lib_visibility",
+        "signals": [
+          "tf_shared_lib",
+          "build_visibility"
+        ],
+        "touchedFiles": [
+          "tensorflow/BUILD"
+        ]
+      },
+      {
+        "description": "TF master/device discovery and RPC timeout behavior (prevents infinite waits; default RPC timeout).",
+        "id": "tf_master_rpc_timeout_and_device_failfast",
+        "signals": [
+          "distributed_runtime",
+          "rpc_timeout",
+          "failfast"
+        ],
+        "touchedFiles": [
+          "tensorflow/core/distributed_runtime/master.cc",
+          "tensorflow/core/distributed_runtime/rpc/grpc_channel.cc",
+          "tensorflow/core/distributed_runtime/rpc/grpc_state.h",
+          "tensorflow/core/distributed_runtime/rpc/grpc_worker_service.cc"
+        ]
+      },
+      {
+        "description": "Configurable GrpcWorkerService handler counts via env var multiplier.",
+        "id": "tf_grpc_worker_concurrency_tuning",
+        "signals": [
+          "env:MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER",
+          "grpc"
+        ],
+        "touchedFiles": [
+          "tensorflow/core/distributed_runtime/rpc/grpc_worker_service.cc"
+        ]
+      },
+      {
+        "description": "HDFSRandomAccessFile can switch from Pread to Read when HDFS_OPTIMIZE_READ=1 for performance and caching behavior.",
+        "id": "hdfs_read_path_optimization",
+        "signals": [
+          "env:HDFS_OPTIMIZE_READ",
+          "hdfs_read_semantics"
+        ],
+        "touchedFiles": [
+          "tensorflow/core/platform/hadoop/hadoop_file_system.cc"
+        ]
+      },
+      {
+        "description": "GPU kernel/build changes to support custom ops and GPU placements (gpu_device_array exposure; split/dynamic_partition int32 GPU paths).",
+        "id": "gpu_custom_op_support",
+        "signals": [
+          "cuda",
+          "custom_op",
+          "gpu_kernels"
+        ],
+        "touchedFiles": [
+          "tensorflow/core/kernels/BUILD",
+          "tensorflow/core/kernels/dynamic_partition_op_gpu.cu.cc",
+          "tensorflow/core/kernels/padding_fifo_queue_op.cc",
+          "tensorflow/core/kernels/split_lib_gpu.cu.cc",
+          "tensorflow/core/kernels/split_op.cc",
+          "tensorflow/core/kernels/split_v_op.cc"
+        ]
+      }
+    ],
+    "exists": true,
+    "patchStats": {
+      "addedLines": 167,
+      "files": [
+        {
+          "addedLines": 1,
+          "hunks": 1,
+          "path": "tensorflow/BUILD",
+          "removedLines": 1
+        },
+        {
+          "addedLines": 1,
+          "hunks": 1,
+          "path": "tensorflow/core/BUILD",
+          "removedLines": 1
+        },
+        {
+          "addedLines": 15,
+          "hunks": 3,
+          "path": "tensorflow/core/data/compression_utils.cc",
+          "removedLines": 5
+        },
+        {
+          "addedLines": 11,
+          "hunks": 2,
+          "path": "tensorflow/core/distributed_runtime/master.cc",
+          "removedLines": 0
+        },
+        {
+          "addedLines": 2,
+          "hunks": 2,
+          "path": "tensorflow/core/distributed_runtime/rpc/grpc_channel.cc",
+          "removedLines": 2
+        },
+        {
+          "addedLines": 1,
+          "hunks": 1,
+          "path": "tensorflow/core/distributed_runtime/rpc/grpc_state.h",
+          "removedLines": 1
+        },
+        {
+          "addedLines": 12,
+          "hunks": 3,
+          "path": "tensorflow/core/distributed_runtime/rpc/grpc_worker_service.cc",
+          "removedLines": 8
+        },
+        {
+          "addedLines": 12,
+          "hunks": 1,
+          "path": "tensorflow/core/kernels/BUILD",
+          "removedLines": 0
+        },
+        {
+          "addedLines": 2,
+          "hunks": 1,
+          "path": "tensorflow/core/kernels/dynamic_partition_op_gpu.cu.cc",
+          "removedLines": 0
+        },
+        {
+          "addedLines": 5,
+          "hunks": 1,
+          "path": "tensorflow/core/kernels/padding_fifo_queue_op.cc",
+          "removedLines": 0
+        },
+        {
+          "addedLines": 4,
+          "hunks": 4,
+          "path": "tensorflow/core/kernels/split_lib_gpu.cu.cc",
+          "removedLines": 0
+        },
+        {
+          "addedLines": 1,
+          "hunks": 1,
+          "path": "tensorflow/core/kernels/split_op.cc",
+          "removedLines": 0
+        },
+        {
+          "addedLines": 3,
+          "hunks": 1,
+          "path": "tensorflow/core/kernels/split_v_op.cc",
+          "removedLines": 18
+        },
+        {
+          "addedLines": 40,
+          "hunks": 9,
+          "path": "tensorflow/core/platform/hadoop/hadoop_file_system.cc",
+          "removedLines": 3
+        },
+        {
+          "addedLines": 37,
+          "hunks": 2,
+          "path": "tensorflow/tensorflow.bzl",
+          "removedLines": 0
+        },
+        {
+          "addedLines": 19,
+          "hunks": 1,
+          "path": "third_party/com_google_absl_fix_mac_and_nvcc_build.patch",
+          "removedLines": 0
+        },
+        {
+          "addedLines": 1,
+          "hunks": 1,
+          "path": "third_party/snappy.BUILD",
+          "removedLines": 0
+        }
+      ],
+      "filesTouched": 17,
+      "hunks": 35,
+      "removedLines": 39
+    },
+    "readmeSummary": "# Diff 1 Since we use shared library build version of TF, it is important to use libtensorflow_framework.so. However, by default it is not public, so we change the visibility here. # Diff 2 To do the failure handling, we will check fail when we can't find the remote device. # Diff 3 Since in our training, we create multiple masters, this log info is too messy. # Diff 4 Adds the ability to tune the default handler number. # Diff 5 Add a macro protected Read over Pread to the HDFS random file accessor. Read is preferred over Pread since it works better with caching and block reader. Read improves the read performance for about 30%. # Diff: GPU Support In `tensorflow/core/kernels/BUILD`: `gpu_device_array` is for array-of-tensors types used by our custom ops. This patch exports `gpu_device_array` libs as target in a lighter manner. However if we builds on this original `gpu_device_array`..."
+  },
+  "proto": {
+    "files": [
+      "monolith/agent_service/agent_service.proto",
+      "monolith/native_training/alert/alert.proto",
+      "monolith/native_training/data/data_op_config.proto",
+      "monolith/native_training/data/transform/transform_config.proto",
+      "monolith/native_training/hash_table_ops.proto",
+      "monolith/native_training/hooks/ckpt_hooks.proto",
+      "monolith/native_training/hooks/controller_hooks.proto",
+      "monolith/native_training/hooks/server/service.proto",
+      "monolith/native_training/model_dump/monolith_model.proto",
+      "monolith/native_training/model_export/export.proto",
+      "monolith/native_training/monolith_checkpoint_state.proto",
+      "monolith/native_training/multi_hash_table_ops.proto",
+      "monolith/native_training/proto/ckpt_info.proto",
+      "monolith/native_training/proto/debugging_info.proto",
+      "monolith/native_training/proto/primus_am_service.proto",
+      "monolith/native_training/runtime/hash_table/compressor/float_compressor.proto",
+      "monolith/native_training/runtime/hash_table/embedding_hash_table.proto",
+      "monolith/native_training/runtime/hash_table/initializer/initializer_config.proto",
+      "monolith/native_training/runtime/hash_table/optimizer/optimizer.proto",
+      "monolith/native_training/runtime/ops/logging_ops.proto",
+      "monolith/native_training/runtime/parameter_sync/parameter_sync.proto"
+    ],
+    "sampleFiles": [
+      "monolith/agent_service/agent_service.proto",
+      "monolith/native_training/alert/alert.proto",
+      "monolith/native_training/data/data_op_config.proto",
+      "monolith/native_training/data/transform/transform_config.proto",
+      "monolith/native_training/hash_table_ops.proto",
+      "monolith/native_training/hooks/ckpt_hooks.proto",
+      "monolith/native_training/hooks/controller_hooks.proto",
+      "monolith/native_training/hooks/server/service.proto",
+      "monolith/native_training/model_dump/monolith_model.proto",
+      "monolith/native_training/model_export/export.proto",
+      "monolith/native_training/monolith_checkpoint_state.proto",
+      "monolith/native_training/multi_hash_table_ops.proto",
+      "monolith/native_training/proto/ckpt_info.proto",
+      "monolith/native_training/proto/debugging_info.proto",
+      "monolith/native_training/proto/primus_am_service.proto",
+      "monolith/native_training/runtime/hash_table/compressor/float_compressor.proto",
+      "monolith/native_training/runtime/hash_table/embedding_hash_table.proto",
+      "monolith/native_training/runtime/hash_table/initializer/initializer_config.proto",
+      "monolith/native_training/runtime/hash_table/optimizer/optimizer.proto",
+      "monolith/native_training/runtime/ops/logging_ops.proto"
+    ],
+    "totalFiles": 21
+  },
+  "signals": {
+    "bazelWorkspaceFiles": [
+      "WORKSPACE",
+      "monolith/monolith_workspace.bzl",
+      "monolith/tf_serving_workspace.bzl"
+    ],
+    "customOpFiles": [
+      "monolith/native_training/runtime/ops/BUILD",
+      "monolith/native_training/runtime/ops/agent_heartbeat.cc",
+      "monolith/native_training/runtime/ops/agent_heartbeat.h",
+      "monolith/native_training/runtime/ops/agent_heartbeat_test.cc",
+      "monolith/native_training/runtime/ops/aligned_concat_split.cu.cc",
+      "monolith/native_training/runtime/ops/alloc_utils.h",
+      "monolith/native_training/runtime/ops/clip_by_global_norm.cu.cc",
+      "monolith/native_training/runtime/ops/clip_by_global_norm.h",
+      "monolith/native_training/runtime/ops/clip_by_global_norm_fused.cu.cc",
+      "monolith/native_training/runtime/ops/clip_by_global_norm_op.cc",
+      "monolith/native_training/runtime/ops/deep_insight_client_tf_bridge.h",
+      "monolith/native_training/runtime/ops/deep_insight_ops.cc",
+      "monolith/native_training/runtime/ops/embedding_hash_table_tf_bridge.cc",
+      "monolith/native_training/runtime/ops/embedding_hash_table_tf_bridge.h",
+      "monolith/native_training/runtime/ops/file_metric_writer.cc",
+      "monolith/native_training/runtime/ops/file_metric_writer.h",
+      "monolith/native_training/runtime/ops/file_metric_writer_test.cc",
+      "monolith/native_training/runtime/ops/file_ops.cc",
+      "monolith/native_training/runtime/ops/file_utils.cc",
+      "monolith/native_training/runtime/ops/file_utils.h",
+      "monolith/native_training/runtime/ops/file_utils_test.cc",
+      "monolith/native_training/runtime/ops/fused_embedding_to_layout.cc",
+      "monolith/native_training/runtime/ops/fused_embedding_to_layout.cu.cc",
+      "monolith/native_training/runtime/ops/fused_embedding_to_layout.h",
+      "monolith/native_training/runtime/ops/fused_reorder_by_indices.cc",
+      "monolith/native_training/runtime/ops/gen_monolith_ops.py",
+      "monolith/native_training/runtime/ops/gen_seq_mask.cc",
+      "monolith/native_training/runtime/ops/global_norm.cu.cc",
+      "monolith/native_training/runtime/ops/gpu_multi_hash_table.h",
+      "monolith/native_training/runtime/ops/hash_filter_intercept_gradient_op.cc",
+      "monolith/native_training/runtime/ops/hash_filter_op.cc",
+      "monolith/native_training/runtime/ops/hash_filter_restore_op.cc",
+      "monolith/native_training/runtime/ops/hash_filter_save_op.cc",
+      "monolith/native_training/runtime/ops/hash_filter_tf_bridge.cc",
+      "monolith/native_training/runtime/ops/hash_filter_tf_bridge.h",
+      "monolith/native_training/runtime/ops/hash_table/misc_ops.cc",
+      "monolith/native_training/runtime/ops/hash_table_lookup_op.cc",
+      "monolith/native_training/runtime/ops/hash_table_op.cc",
+      "monolith/native_training/runtime/ops/hash_table_restore_op.cc",
+      "monolith/native_training/runtime/ops/hash_table_save_op.cc",
+      "monolith/native_training/runtime/ops/hash_table_update_op.cc",
+      "monolith/native_training/runtime/ops/inbatch_auc_loss.cc",
+      "monolith/native_training/runtime/ops/logging_ops.cc",
+      "monolith/native_training/runtime/ops/logging_ops.proto",
+      "monolith/native_training/runtime/ops/map_id_to_embedding.cu.cc",
+      "monolith/native_training/runtime/ops/map_id_to_embedding_op.cc",
+      "monolith/native_training/runtime/ops/multi_hash_table.h",
+      "monolith/native_training/runtime/ops/multi_hash_table_lookup_op.cc",
+      "monolith/native_training/runtime/ops/multi_hash_table_op.cc",
+      "monolith/native_training/runtime/ops/multi_hash_table_save_restore_ops.cc",
+      "monolith/native_training/runtime/ops/multi_hash_table_update_op.cc",
+      "monolith/native_training/runtime/ops/net_utils.cc",
+      "monolith/native_training/runtime/ops/net_utils.h",
+      "monolith/native_training/runtime/ops/net_utils_test.cc",
+      "monolith/native_training/runtime/ops/normalize_merged_split_op.cc",
+      "monolith/native_training/runtime/ops/parameter_sync_ops.cc",
+      "monolith/native_training/runtime/ops/parameter_sync_tf_bridge.cc",
+      "monolith/native_training/runtime/ops/parameter_sync_tf_bridge.h",
+      "monolith/native_training/runtime/ops/prediction_service_grpc.cc",
+      "monolith/native_training/runtime/ops/prediction_service_grpc.h",
+      "monolith/native_training/runtime/ops/reduce_op.cc",
+      "monolith/native_training/runtime/ops/reduce_op.cu.cc",
+      "monolith/native_training/runtime/ops/remote_predict_op.h",
+      "monolith/native_training/runtime/ops/remote_predict_op_grpc.cc",
+      "monolith/native_training/runtime/ops/split_by_indices_op.cc",
+      "monolith/native_training/runtime/ops/static_reshape_op.cc",
+      "monolith/native_training/runtime/ops/touched_key_set_insert_op.cc",
+      "monolith/native_training/runtime/ops/touched_key_set_op.cc",
+      "monolith/native_training/runtime/ops/touched_key_set_steal_op.cc",
+      "monolith/native_training/runtime/ops/touched_key_set_tf_bridge.h",
+      "monolith/native_training/runtime/ops/unique_mapping_ops.cc"
+    ],
+    "envVars": [
+      "HDFS_OPTIMIZE_READ",
+      "MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER"
+    ],
+    "protobufFiles": [
+      "monolith/agent_service/agent_service.proto",
+      "monolith/native_training/alert/alert.proto",
+      "monolith/native_training/data/data_op_config.proto",
+      "monolith/native_training/data/transform/transform_config.proto",
+      "monolith/native_training/hash_table_ops.proto",
+      "monolith/native_training/hooks/ckpt_hooks.proto",
+      "monolith/native_training/hooks/controller_hooks.proto",
+      "monolith/native_training/hooks/server/service.proto",
+      "monolith/native_training/model_dump/monolith_model.proto",
+      "monolith/native_training/model_export/export.proto",
+      "monolith/native_training/monolith_checkpoint_state.proto",
+      "monolith/native_training/multi_hash_table_ops.proto",
+      "monolith/native_training/proto/ckpt_info.proto",
+      "monolith/native_training/proto/debugging_info.proto",
+      "monolith/native_training/proto/primus_am_service.proto",
+      "monolith/native_training/runtime/hash_table/compressor/float_compressor.proto",
+      "monolith/native_training/runtime/hash_table/embedding_hash_table.proto",
+      "monolith/native_training/runtime/hash_table/initializer/initializer_config.proto",
+      "monolith/native_training/runtime/hash_table/optimizer/optimizer.proto",
+      "monolith/native_training/runtime/ops/logging_ops.proto",
+      "monolith/native_training/runtime/parameter_sync/parameter_sync.proto"
+    ],
+    "tensorflowPatchTouchedFiles": [
+      "tensorflow/BUILD",
+      "tensorflow/core/BUILD",
+      "tensorflow/core/data/compression_utils.cc",
+      "tensorflow/core/distributed_runtime/master.cc",
+      "tensorflow/core/distributed_runtime/rpc/grpc_channel.cc",
+      "tensorflow/core/distributed_runtime/rpc/grpc_state.h",
+      "tensorflow/core/distributed_runtime/rpc/grpc_worker_service.cc",
+      "tensorflow/core/kernels/BUILD",
+      "tensorflow/core/kernels/dynamic_partition_op_gpu.cu.cc",
+      "tensorflow/core/kernels/padding_fifo_queue_op.cc",
+      "tensorflow/core/kernels/split_lib_gpu.cu.cc",
+      "tensorflow/core/kernels/split_op.cc",
+      "tensorflow/core/kernels/split_v_op.cc",
+      "tensorflow/core/platform/hadoop/hadoop_file_system.cc",
+      "tensorflow/tensorflow.bzl",
+      "third_party/com_google_absl_fix_mac_and_nvcc_build.patch",
+      "third_party/snappy.BUILD"
+    ]
+  },
+  "version": "1",
+  "warnings": []
+}

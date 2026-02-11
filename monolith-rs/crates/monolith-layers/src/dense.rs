@@ -3,10 +3,10 @@
 //! This module provides the [`Dense`] layer, which performs a linear transformation
 //! `y = xW + b` where W is the weight matrix and b is the bias vector.
 
+use crate::constraint::Constraint;
 use crate::error::LayerError;
 use crate::initializer::Initializer;
 use crate::layer::Layer;
-use crate::constraint::Constraint;
 use crate::regularizer::Regularizer;
 use crate::tensor::Tensor;
 use serde::{Deserialize, Serialize};
@@ -89,7 +89,13 @@ impl Dense {
         Self::new_with_initializer(
             in_features,
             out_features,
-            Initializer::GlorotUniform,
+            // Python Dense defaults to VarianceScaling(mode="fan_avg", distribution="uniform").
+            Initializer::VarianceScaling {
+                scale: 1.0,
+                mode: crate::initializer::VarianceScalingMode::FanAvg,
+                distribution: crate::initializer::VarianceScalingDistribution::Uniform,
+                seed: None,
+            },
             Initializer::Zeros,
             true,
         )
@@ -105,7 +111,12 @@ impl Dense {
         Self::new_with_initializer(
             in_features,
             out_features,
-            Initializer::GlorotUniform,
+            Initializer::VarianceScaling {
+                scale: 1.0,
+                mode: crate::initializer::VarianceScalingMode::FanAvg,
+                distribution: crate::initializer::VarianceScalingDistribution::Uniform,
+                seed: None,
+            },
             Initializer::Zeros,
             false,
         )
@@ -158,6 +169,9 @@ impl Dense {
         } else {
             Tensor::zeros(&[out_features])
         };
+        // Python `Dense` initializes a trainable per-output-column scale to `||W||_2`
+        // and multiplies it with an L2-normalized kernel. At init this reconstructs `W`.
+        let kernel_norm = weights.sqr().sum_axis(0).sqrt();
 
         Self {
             weights,
@@ -166,9 +180,10 @@ impl Dense {
             bias_regularizer,
             kernel_constraint,
             bias_constraint,
-            allow_kernel_norm: false,
-            kernel_norm_trainable: false,
-            kernel_norm: None,
+            // Match Python `monolith/core/dense.py` defaults.
+            allow_kernel_norm: true,
+            kernel_norm_trainable: true,
+            kernel_norm: Some(kernel_norm),
             kernel_norm_grad: None,
             weights_grad: None,
             bias_grad: None,
@@ -193,18 +208,29 @@ impl Dense {
         self.allow_kernel_norm = true;
         self.kernel_norm_trainable = trainable;
         if trainable {
-            let norm = self
-                .weights
-                .sqr()
-                .sum_axis(0)
-                .add(&Tensor::from_data(
-                    &[self.out_features],
-                    vec![1e-6; self.out_features],
-                ))
-                .sqrt();
-            self.kernel_norm = Some(norm);
+            self.kernel_norm = Some(self.weights.sqr().sum_axis(0).sqrt());
         } else {
             self.kernel_norm = None;
+        }
+    }
+
+    /// Enables or disables kernel norm (weight normalization).
+    ///
+    /// Disabling restores plain `y = xW + b` behavior (no normalization).
+    pub fn with_allow_kernel_norm(mut self, allow: bool) -> Self {
+        self.set_allow_kernel_norm(allow);
+        self
+    }
+
+    /// Enables or disables kernel norm (weight normalization) in-place.
+    pub fn set_allow_kernel_norm(&mut self, allow: bool) {
+        self.allow_kernel_norm = allow;
+        if !allow {
+            self.kernel_norm_trainable = false;
+            self.kernel_norm = None;
+            self.kernel_norm_grad = None;
+        } else if self.kernel_norm_trainable && self.kernel_norm.is_none() {
+            self.kernel_norm = Some(self.weights.sqr().sum_axis(0).sqrt());
         }
     }
 
@@ -238,6 +264,9 @@ impl Dense {
 
         let in_features = weights.shape()[0];
         let out_features = weights.shape()[1];
+        // Compute initial trainable kernel norm scale from the provided weights
+        // (matches Python: np.linalg.norm(init_kernel, axis=0)).
+        let kernel_norm = weights.sqr().sum_axis(0).sqrt();
 
         Ok(Self {
             weights,
@@ -246,9 +275,10 @@ impl Dense {
             bias_regularizer: Regularizer::None,
             kernel_constraint: Constraint::None,
             bias_constraint: Constraint::None,
-            allow_kernel_norm: false,
-            kernel_norm_trainable: false,
-            kernel_norm: None,
+            // Match Python defaults for newly constructed Dense.
+            allow_kernel_norm: true,
+            kernel_norm_trainable: true,
+            kernel_norm: Some(kernel_norm),
             kernel_norm_grad: None,
             weights_grad: None,
             bias_grad: None,
@@ -343,7 +373,9 @@ impl Dense {
 
     fn normalized_weights(&self) -> (Tensor, Tensor) {
         let eps = Tensor::from_data(&[self.out_features], vec![1e-6; self.out_features]);
-        let norm = self.weights.sqr().sum_axis(0).add(&eps).sqrt();
+        // Match TF `tf.nn.l2_normalize(..., epsilon=1e-6)` semantics:
+        // denom = sqrt(max(sum(x^2), epsilon)).
+        let norm = self.weights.sqr().sum_axis(0).maximum(&eps).sqrt();
         let norm_broadcast = norm
             .reshape(&[1, self.out_features])
             .broadcast_as(&[self.in_features, self.out_features]);
@@ -467,8 +499,9 @@ impl Layer for Dense {
             let dot_broadcast = dot
                 .reshape(&[1, self.out_features])
                 .broadcast_as(&[self.in_features, self.out_features]);
-            let mut weights_grad =
-                weights_grad_norm.sub(&w_norm.mul(&dot_broadcast)).div(&norm_broadcast);
+            let mut weights_grad = weights_grad_norm
+                .sub(&w_norm.mul(&dot_broadcast))
+                .div(&norm_broadcast);
             if let Some(reg_grad) = self.kernel_regularizer.grad(&self.weights) {
                 weights_grad = weights_grad.add(&reg_grad);
             }
@@ -578,6 +611,31 @@ mod tests {
     }
 
     #[test]
+    fn test_dense_forward_higher_rank() {
+        // Mirrors Python DenseTest using (batch, ..., input_dim).
+        let layer = Dense::new(2, 3);
+        let input = Tensor::ones(&[3, 4, 2]);
+        let output = layer.forward(&input).unwrap();
+        assert_eq!(output.shape(), &[3, 4, 3]);
+    }
+
+    #[test]
+    fn test_dense_default_kernel_norm_enabled() {
+        // Python Dense defaults allow_kernel_norm=True and kernel_norm_trainable=True.
+        let layer = Dense::new(10, 5);
+        assert!(layer.allow_kernel_norm);
+        assert!(layer.kernel_norm_trainable);
+        assert!(layer.kernel_norm.is_some());
+        assert_eq!(layer.kernel_norm.as_ref().unwrap().shape(), &[5]);
+    }
+
+    #[test]
+    fn test_dense_allow_kernel_norm_can_be_disabled() {
+        let layer = Dense::new(10, 5).with_allow_kernel_norm(false);
+        assert!(!layer.allow_kernel_norm);
+    }
+
+    #[test]
     fn test_dense_forward_invalid_input() {
         let layer = Dense::new(10, 5);
         let input = Tensor::ones(&[3, 20]); // wrong input dimension
@@ -607,14 +665,15 @@ mod tests {
     fn test_dense_parameters() {
         let layer = Dense::new(10, 5);
         let params = layer.parameters();
-        assert_eq!(params.len(), 2); // weights and bias
+        // Python Dense also has a trainable kernel-norm scale by default.
+        assert_eq!(params.len(), 3); // weights, bias, kernel_norm
     }
 
     #[test]
     fn test_dense_no_bias() {
         let layer = Dense::new_no_bias(10, 5);
         let params = layer.parameters();
-        assert_eq!(params.len(), 1); // only weights
+        assert_eq!(params.len(), 2); // weights + kernel_norm
     }
 
     #[test]

@@ -213,26 +213,67 @@
 #![warn(missing_docs)]
 #![warn(rustdoc::missing_crate_level_docs)]
 
+pub mod agent_controller;
 pub mod agent_service;
+#[cfg(feature = "grpc")]
+pub mod agent_service_discovery;
+#[cfg(feature = "grpc")]
+pub mod agent_v3;
+pub mod backends;
 pub mod config;
+pub mod constants;
+pub mod data_def;
 pub mod embedding_store;
 pub mod error;
 pub mod grpc;
 pub mod grpc_agent;
 pub mod inference;
+#[cfg(feature = "grpc")]
+pub mod mocked_tfserving;
 pub mod model_loader;
+pub mod model_manager;
 pub mod parameter_sync;
 pub mod parameter_sync_rpc;
 pub mod parameter_sync_sink;
+#[cfg(feature = "grpc")]
+pub mod replica_manager;
+pub mod resource_utils;
 pub mod server;
+pub mod tfs_client;
+#[cfg(feature = "grpc")]
+pub mod tfs_monitor;
+#[cfg(feature = "grpc")]
+pub mod tfs_wrapper;
 #[cfg(feature = "grpc")]
 pub mod tfserving;
 #[cfg(feature = "grpc")]
 pub mod tfserving_server;
+pub mod utils;
+pub mod zk_mirror;
 
 // Re-export main types at crate root for convenience
+pub use agent_controller::{
+    bzid_info as controller_bzid_info, declare_saved_model, find_model_name, map_model_to_layout,
+};
 pub use agent_service::{AgentServiceImpl, FeatureInput, PredictRequest, PredictResponse};
+#[cfg(feature = "grpc")]
+pub use agent_service_discovery::{
+    connect_agent_service_client, AgentDataProvider, AgentDiscoveryServer,
+    AgentServiceDiscoveryImpl,
+};
+#[cfg(feature = "grpc")]
+pub use agent_v3::{AgentV3, TfsWrapperApi};
+pub use backends::{
+    Container, ContainerServiceInfo, FakeKazooClient, SavedModel, SavedModelDeployConfig,
+    ZkBackend, ZkClient, ZkError,
+};
+pub use backends::{WatchEventType, WatchedEvent, ZnodeStat};
 pub use config::{ModelLoaderConfig, ParameterServerConfig, ServerConfig};
+pub use constants::HOST_SHARD_ENV;
+pub use data_def::{
+    empty_status, AddressFamily, Event, EventType, ModelMeta, ModelName, ModelState, PublishMeta,
+    PublishType, ReplicaMeta, ResourceSpec, SubModelName, SubModelSize, TfsModelName, VersionPath,
+};
 pub use embedding_store::EmbeddingStore;
 pub use error::{ServingError, ServingResult};
 pub use grpc::{
@@ -240,17 +281,42 @@ pub use grpc::{
     GrpcServiceStats, ServerType, ServingServer,
 };
 pub use inference::{Activation, ModelSpec};
+#[cfg(feature = "grpc")]
+pub use mocked_tfserving::{
+    find_free_port as find_free_port_async, find_free_port_blocking, FakeTfServing,
+};
 pub use model_loader::{LoadedModel, ModelLoader};
+pub use model_manager::ModelManager;
 pub use parameter_sync::{EmbeddingData, ParameterSyncClient, SyncRequest, SyncResponse};
 pub use parameter_sync_rpc::{ParameterSyncGrpcServer, ParameterSyncRpcClient};
 pub use parameter_sync_sink::EmbeddingStorePushSink;
+#[cfg(feature = "grpc")]
+pub use replica_manager::{
+    ReplicaManager, ReplicaUpdater, ReplicaWatcher, UpdaterConfig, WatcherConfig,
+    ZkConnectionState, ZkListener,
+};
+pub use resource_utils::{cal_available_memory_v2, cal_cpu_usage_v2, total_memory_v2};
 pub use server::{HealthStatus, Server, ServerState};
+pub use tfs_client::{
+    get_example_batch_to_instance, get_instance_proto, read_framed_example_batch_from_file,
+    FramedFileFlags,
+};
+#[cfg(feature = "grpc")]
+pub use tfs_monitor::{AgentConfig as TfsAgentConfig, DeployType as TfsDeployType, TfsMonitor};
+#[cfg(feature = "grpc")]
+pub use tfs_wrapper::{FakeTfsWrapper, TfsWrapper};
 #[cfg(feature = "grpc")]
 pub use tfserving::{parse_model_server_config_pbtxt, TfServingClient};
 #[cfg(feature = "grpc")]
 pub use tfserving_server::{
     TfServingPredictionServer, INPUT_EXAMPLE, INPUT_EXAMPLE_BATCH, OUTPUT_SCORES,
 };
+pub use utils::{
+    check_port_open, conf_parser, find_free_port, gen_model_config, gen_model_spec,
+    gen_model_version_status, gen_status_proto, get_local_ip, normalize_regex,
+    replica_id_from_pod_name, AgentConfig, DeployType, InstanceFormatter, TfsServerType, ZkPath,
+};
+pub use zk_mirror::{set_host_shard_env, ZkMirror};
 
 /// Crate version.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

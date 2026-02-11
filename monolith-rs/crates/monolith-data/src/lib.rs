@@ -86,6 +86,9 @@ pub mod batch;
 pub mod compression;
 pub mod dataset;
 pub mod example;
+pub mod feature_list;
+pub mod feature_utils;
+pub mod input;
 pub mod instance;
 pub mod interleave;
 pub mod kafka;
@@ -95,7 +98,6 @@ pub mod parquet;
 pub mod tfrecord;
 pub mod transform;
 pub mod utils;
-pub mod feature_list;
 
 // Re-export main types for convenience
 pub use batch::{Batch, BatchedDataset};
@@ -109,6 +111,8 @@ pub use example::{
     feature_names, get_feature, get_feature_data, get_feature_mut, has_feature, merge_examples,
     remove_feature, total_fid_count,
 };
+pub use feature_utils::extract_fid;
+pub use input::{generate_ffm_example, slot_to_key};
 pub use instance::{
     extract_feature, extract_slot, make_fid, DenseFeature, Instance, InstanceBatch, InstanceError,
     InstanceParser, LineIdInfo, SparseFeature, Tensor,

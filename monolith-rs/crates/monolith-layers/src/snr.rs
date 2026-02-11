@@ -139,7 +139,10 @@ impl SNR {
         let log_alpha = self.log_alpha.as_ref().ok_or(LayerError::NotInitialized)?;
         let s = if self.config.training {
             let u = Tensor::rand(log_alpha.shape());
-            let logit = u.log().sub(&Tensor::ones(u.shape()).sub(&u).log()).add(log_alpha);
+            let logit = u
+                .log()
+                .sub(&Tensor::ones(u.shape()).sub(&u).log())
+                .add(log_alpha);
             logit.scale(1.0 / self.config.beta).sigmoid()
         } else {
             log_alpha.sigmoid()
@@ -157,7 +160,10 @@ impl SNR {
     pub fn l0_loss(&self) -> Result<f32, LayerError> {
         let log_alpha = self.log_alpha.as_ref().ok_or(LayerError::NotInitialized)?;
         let factor = self.config.beta * (-self.config.gamma / self.config.zeta).ln();
-        let loss = log_alpha.sub(&Tensor::from_data(&[1], vec![factor])).sigmoid().sum();
+        let loss = log_alpha
+            .sub(&Tensor::from_data(&[1], vec![factor]))
+            .sigmoid()
+            .sum();
         Ok(loss)
     }
 
@@ -196,7 +202,10 @@ impl SNR {
 
     /// Backward with list gradients, returns list input gradients.
     pub fn backward_with_inputs(&mut self, grads: &[Tensor]) -> Result<Vec<Tensor>, LayerError> {
-        let input_concat = self.cached_inputs.as_ref().ok_or(LayerError::NotInitialized)?;
+        let input_concat = self
+            .cached_inputs
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
         let z = self.cached_z.as_ref().ok_or(LayerError::NotInitialized)?;
         let s = self.cached_s.as_ref().ok_or(LayerError::NotInitialized)?;
         let weight = self.weight.as_ref().ok_or(LayerError::NotInitialized)?;
@@ -207,7 +216,9 @@ impl SNR {
 
         let grad_concat = Tensor::cat(grads, 1);
 
-        let weight4 = weight.mul(&z.broadcast_as(weight.shape())).reshape(&[num_in, num_out, in_dim, out_dim]);
+        let weight4 = weight
+            .mul(&z.broadcast_as(weight.shape()))
+            .reshape(&[num_in, num_out, in_dim, out_dim]);
         let weight4 = weight4.permute(&[0, 2, 1, 3]);
         let weight_mat = weight4.reshape(&[num_in * in_dim, num_out * out_dim]);
 
@@ -217,7 +228,9 @@ impl SNR {
             .unstack(1);
 
         let grad_weight_mat = input_concat.transpose().matmul(&grad_concat);
-        let grad_weight4 = grad_weight_mat.reshape(&[num_in, in_dim, num_out, out_dim]).permute(&[0, 2, 1, 3]);
+        let grad_weight4 = grad_weight_mat
+            .reshape(&[num_in, in_dim, num_out, out_dim])
+            .permute(&[0, 2, 1, 3]);
         let grad_weight = grad_weight4.reshape(&[num_in * num_out, in_dim * out_dim]);
 
         if self.config.snr_type == SNRType::Trans {
@@ -235,7 +248,9 @@ impl SNR {
             }
             let dz_ds = self.config.zeta - self.config.gamma;
             grad_z = grad_z.scale(dz_ds);
-            let ds_dlog = s.mul(&Tensor::ones(s.shape()).sub(s)).scale(1.0 / self.config.beta);
+            let ds_dlog = s
+                .mul(&Tensor::ones(s.shape()).sub(s))
+                .scale(1.0 / self.config.beta);
             let grad_log_alpha = grad_z.mul(&ds_dlog);
             self.log_alpha_grad = Some(grad_log_alpha);
         }

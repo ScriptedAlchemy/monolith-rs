@@ -58,6 +58,22 @@ pub enum MonolithError {
         message: String,
     },
 
+    /// Error when a duplicate model is registered.
+    ///
+    /// Mirrors Python: `Duplicate model registered for key {key}: {module}.{class_name}`.
+    #[error("Duplicate model registered for key {key}: {module}.{class_name}")]
+    DuplicateModelRegistered {
+        key: String,
+        module: String,
+        class_name: String,
+    },
+
+    /// Error when a model is not found in the registry.
+    ///
+    /// Mirrors Python: `Model {key} not found from list of above known models.`
+    #[error("Model {key} not found from list of above known models.")]
+    ModelNotFound { key: String },
+
     /// Error when an initializer configuration is invalid.
     #[error("Invalid initializer configuration: {message}")]
     InvalidInitializer {
@@ -78,6 +94,39 @@ pub enum MonolithError {
         /// A description of the internal error.
         message: String,
     },
+
+    // --- Python parity helpers ------------------------------------------------
+    //
+    // Many Python utilities we port raise built-in exceptions like ValueError,
+    // AssertionError, KeyError, AttributeError with specific message strings.
+    // The variants below intentionally do NOT add extra prefixes so that
+    // `to_string()` can match Python test expectations exactly where needed.
+    /// Mirrors Python `ValueError(message)`.
+    #[error("{message}")]
+    PyValueError { message: String },
+
+    /// Mirrors Python `TypeError(message)`.
+    #[error("{message}")]
+    PyTypeError { message: String },
+
+    /// Mirrors Python `AssertionError(message)`.
+    #[error("{message}")]
+    PyAssertionError { message: String },
+
+    /// Mirrors Python `KeyError(message)` / dict lookup failures.
+    #[error("{message}")]
+    PyKeyError { message: String },
+
+    /// Mirrors Python `AttributeError(message)`.
+    #[error("{message}")]
+    PyAttributeError { message: String },
+
+    /// Mirrors Python `LookupError(message)`.
+    ///
+    /// Python code in `model_imports.py` raises LookupError with exact message
+    /// strings that downstream tests/log parsers may rely on.
+    #[error("{message}")]
+    PyLookupError { message: String },
 }
 
 /// A specialized Result type for monolith-core operations.

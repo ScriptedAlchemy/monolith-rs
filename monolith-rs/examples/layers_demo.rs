@@ -139,8 +139,8 @@ fn mlp_demo() {
 
     // Method 1: Using MLPConfig builder pattern
     let config = MLPConfig::new(128)
-        .add_layer(64, ActivationType::ReLU) // 128 -> 64 with ReLU
-        .add_layer(32, ActivationType::ReLU) // 64 -> 32 with ReLU
+        .add_layer(64, ActivationType::relu()) // 128 -> 64 with ReLU
+        .add_layer(32, ActivationType::relu()) // 64 -> 32 with ReLU
         .add_layer(10, ActivationType::None); // 32 -> 10 (no activation for output)
 
     let mlp1 = MLP::from_config(config).expect("MLP creation failed");
@@ -151,7 +151,7 @@ fn mlp_demo() {
 
     // Method 2: Using MLP::new with uniform hidden layers
     // Creates: input -> hidden1 -> hidden2 -> output
-    let mlp2 = MLP::new(128, &[64, 32], 10, ActivationType::ReLU).expect("MLP creation failed");
+    let mlp2 = MLP::new(128, &[64, 32], 10, ActivationType::relu()).expect("MLP creation failed");
     println!("\nCreated MLP via new():");
     println!("  Number of layers: {}", mlp2.num_layers());
 
@@ -167,7 +167,7 @@ fn mlp_demo() {
     );
 
     // Training with backward pass
-    let mut mlp_train = MLP::new(128, &[64], 10, ActivationType::ReLU).unwrap();
+    let mut mlp_train = MLP::new(128, &[64], 10, ActivationType::relu()).unwrap();
     let _ = mlp_train
         .forward_train(&input)
         .expect("Forward train failed");
@@ -184,7 +184,7 @@ fn mlp_demo() {
     // Different activation types
     println!("\nSupported activations:");
     for activation in [
-        ActivationType::ReLU,
+        ActivationType::relu(),
         ActivationType::Sigmoid,
         ActivationType::Tanh,
         ActivationType::GELU,
@@ -264,11 +264,10 @@ fn batch_norm_demo() {
     // Create BatchNorm for 64 features
     let mut batch_norm = BatchNorm::new(64);
     println!("Created BatchNorm:");
-    println!("  Num features: {}", batch_norm.num_features());
     println!("  Training mode: {}", batch_norm.is_training());
 
     // Custom momentum and epsilon
-    let batch_norm_custom = BatchNorm::with_params(64, 0.1, 1e-5);
+    let batch_norm_custom = BatchNorm::with_momentum(64, 0.1, 1e-5);
     let _ = batch_norm_custom; // suppress warning
 
     // Forward pass
@@ -482,7 +481,7 @@ fn mmoe_demo() {
     // Create MMoE: 4 experts, 2 tasks
     let config = MMoEConfig::new(64, 4, 2) // 64 input, 4 experts, 2 tasks
         .with_expert_hidden_units(vec![32, 32])
-        .with_expert_activation(ActivationType::ReLU);
+        .with_expert_activation(ActivationType::relu());
 
     let mmoe = MMoE::from_config(config).expect("MMoE creation failed");
     println!("Created MMoE:");
@@ -503,7 +502,7 @@ fn mmoe_demo() {
     }
 
     // Training with multi-task backward
-    let mut mmoe_train = MMoE::new(64, 3, 2, &[32], ActivationType::ReLU).unwrap();
+    let mut mmoe_train = MMoE::new(64, 3, 2, &[32], ActivationType::relu()).unwrap();
     let _ = mmoe_train
         .forward_multi_train(&input)
         .expect("Forward train failed");
@@ -997,7 +996,7 @@ fn complete_model_demo() {
 
     let mmoe_config = MMoEConfig::new(concat_dim, 3, 2) // 3 experts, 2 tasks
         .with_expert_hidden_units(vec![32])
-        .with_expert_activation(ActivationType::ReLU);
+        .with_expert_activation(ActivationType::relu());
     let mmoe = MMoE::from_config(mmoe_config).expect("MMoE creation failed");
 
     let task_outputs = mmoe

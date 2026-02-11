@@ -252,7 +252,7 @@ impl Tensor {
             shape,
             cpu_data: Arc::new(RwLock::new(CpuData {
                 data: vec![0.0; numel], // Placeholder, will be filled on demand
-                current: false,          // CPU data is NOT current
+                current: false,         // CPU data is NOT current
             })),
             gpu_data: Some(Arc::new(RwLock::new(GpuData { tensor: gpu_tensor }))),
         }
@@ -498,19 +498,16 @@ impl Tensor {
         if batch == 1 {
             let work = m.saturating_mul(n).saturating_mul(k);
             if work >= 32_768 && m > 1 {
-                result
-                    .par_chunks_mut(n)
-                    .enumerate()
-                    .for_each(|(i, row)| {
-                        let row_base = i * k;
-                        for j in 0..n {
-                            let mut sum = 0.0;
-                            for l in 0..k {
-                                sum += a_data[row_base + l] * b_data[l * n + j];
-                            }
-                            row[j] = sum;
+                result.par_chunks_mut(n).enumerate().for_each(|(i, row)| {
+                    let row_base = i * k;
+                    for j in 0..n {
+                        let mut sum = 0.0;
+                        for l in 0..k {
+                            sum += a_data[row_base + l] * b_data[l * n + j];
                         }
-                    });
+                        row[j] = sum;
+                    }
+                });
             } else {
                 for i in 0..m {
                     for j in 0..n {
@@ -547,7 +544,11 @@ impl Tensor {
                 let mut a_base = 0;
                 let mut b_base = 0;
                 for i in 0..dim - 2 {
-                    let stride = if batch_strides.is_empty() { 1 } else { batch_strides[i] };
+                    let stride = if batch_strides.is_empty() {
+                        1
+                    } else {
+                        batch_strides[i]
+                    };
                     let idx = if stride == 0 { 0 } else { rem / stride };
                     if stride != 0 {
                         rem %= stride;
@@ -697,7 +698,11 @@ impl Tensor {
 
             let a_data = self.data_ref();
             let b_data = other.data_ref();
-            let data: Vec<f32> = a_data.iter().zip(b_data.iter()).map(|(a, b)| a + b).collect();
+            let data: Vec<f32> = a_data
+                .iter()
+                .zip(b_data.iter())
+                .map(|(a, b)| a + b)
+                .collect();
             Tensor::from_data(&self.shape, data)
         } else if other.numel() == 1 {
             #[cfg(any(feature = "metal", feature = "cuda"))]
@@ -752,7 +757,11 @@ impl Tensor {
 
             let a_data = self.data_ref();
             let b_data = other.data_ref();
-            let data: Vec<f32> = a_data.iter().zip(b_data.iter()).map(|(a, b)| a * b).collect();
+            let data: Vec<f32> = a_data
+                .iter()
+                .zip(b_data.iter())
+                .map(|(a, b)| a * b)
+                .collect();
             Tensor::from_data(&self.shape, data)
         } else if other.numel() == 1 {
             #[cfg(any(feature = "metal", feature = "cuda"))]
@@ -788,7 +797,11 @@ impl Tensor {
 
             let a_data = self.data_ref();
             let b_data = other.data_ref();
-            let data: Vec<f32> = a_data.iter().zip(b_data.iter()).map(|(a, b)| a - b).collect();
+            let data: Vec<f32> = a_data
+                .iter()
+                .zip(b_data.iter())
+                .map(|(a, b)| a - b)
+                .collect();
             Tensor::from_data(&self.shape, data)
         } else if other.numel() == 1 {
             #[cfg(any(feature = "metal", feature = "cuda"))]
@@ -824,7 +837,11 @@ impl Tensor {
 
             let a_data = self.data_ref();
             let b_data = other.data_ref();
-            let data: Vec<f32> = a_data.iter().zip(b_data.iter()).map(|(a, b)| a / b).collect();
+            let data: Vec<f32> = a_data
+                .iter()
+                .zip(b_data.iter())
+                .map(|(a, b)| a / b)
+                .collect();
             Tensor::from_data(&self.shape, data)
         } else if other.numel() == 1 {
             #[cfg(any(feature = "metal", feature = "cuda"))]
@@ -1154,7 +1171,10 @@ impl Tensor {
             return Tensor::from_data(shape, out);
         }
 
-        panic!("broadcast_as not implemented for shapes {:?} -> {:?}", self.shape, shape);
+        panic!(
+            "broadcast_as not implemented for shapes {:?} -> {:?}",
+            self.shape, shape
+        );
     }
 
     /// Sigmoid activation.
@@ -1767,8 +1787,7 @@ impl Tensor {
                 for i in 0..m {
                     let src_off = i * n + start;
                     let dst_off = i * len;
-                    out[dst_off..dst_off + len]
-                        .copy_from_slice(&data[src_off..src_off + len]);
+                    out[dst_off..dst_off + len].copy_from_slice(&data[src_off..src_off + len]);
                 }
                 return Tensor::from_data(&[m, len], out);
             }
@@ -1859,7 +1878,11 @@ impl Tensor {
         }
 
         if rank == 3 {
-            let (b0, s0, d0) = (tensors[0].shape()[0], tensors[0].shape()[1], tensors[0].shape()[2]);
+            let (b0, s0, d0) = (
+                tensors[0].shape()[0],
+                tensors[0].shape()[1],
+                tensors[0].shape()[2],
+            );
             match dim {
                 0 => {
                     let total_b: usize = tensors.iter().map(|t| t.shape()[0]).sum();
@@ -2153,13 +2176,25 @@ mod gpu_tests {
     #[test]
     fn test_gpu_large_matmul() {
         set_gpu_enabled(false);
-        let a = Tensor::from_data(&[64, 128], (0..64 * 128).map(|i| (i as f32) * 0.001).collect());
-        let b = Tensor::from_data(&[128, 64], (0..128 * 64).map(|i| (i as f32) * 0.001).collect());
+        let a = Tensor::from_data(
+            &[64, 128],
+            (0..64 * 128).map(|i| (i as f32) * 0.001).collect(),
+        );
+        let b = Tensor::from_data(
+            &[128, 64],
+            (0..128 * 64).map(|i| (i as f32) * 0.001).collect(),
+        );
         let cpu_result = a.matmul(&b);
 
         set_gpu_enabled(true);
-        let a = Tensor::from_data(&[64, 128], (0..64 * 128).map(|i| (i as f32) * 0.001).collect());
-        let b = Tensor::from_data(&[128, 64], (0..128 * 64).map(|i| (i as f32) * 0.001).collect());
+        let a = Tensor::from_data(
+            &[64, 128],
+            (0..64 * 128).map(|i| (i as f32) * 0.001).collect(),
+        );
+        let b = Tensor::from_data(
+            &[128, 64],
+            (0..128 * 64).map(|i| (i as f32) * 0.001).collect(),
+        );
         let gpu_result = a.matmul(&b);
 
         assert_eq!(cpu_result.shape(), gpu_result.shape());
@@ -2199,10 +2234,10 @@ mod gpu_tests {
         // Test that chained GPU operations don't sync to CPU until data() is called
         set_gpu_enabled(true);
 
-        let x = Tensor::from_data(&[32, 64], (0..32*64).map(|i| (i as f32) * 0.01).collect());
-        let w1 = Tensor::from_data(&[64, 32], (0..64*32).map(|i| (i as f32) * 0.01).collect());
-        let w2 = Tensor::from_data(&[32, 16], (0..32*16).map(|i| (i as f32) * 0.01).collect());
-        let w3 = Tensor::from_data(&[16, 8], (0..16*8).map(|i| (i as f32) * 0.01).collect());
+        let x = Tensor::from_data(&[32, 64], (0..32 * 64).map(|i| (i as f32) * 0.01).collect());
+        let w1 = Tensor::from_data(&[64, 32], (0..64 * 32).map(|i| (i as f32) * 0.01).collect());
+        let w2 = Tensor::from_data(&[32, 16], (0..32 * 16).map(|i| (i as f32) * 0.01).collect());
+        let w3 = Tensor::from_data(&[16, 8], (0..16 * 8).map(|i| (i as f32) * 0.01).collect());
 
         // Chain of operations - should all stay on GPU
         let h1 = x.matmul(&w1);
@@ -2216,6 +2251,9 @@ mod gpu_tests {
 
         // Only now should it sync to CPU
         let _ = h3.data();
-        assert!(h3.is_cpu_current(), "h3 should have synced to CPU after data() call");
+        assert!(
+            h3.is_cpu_current(),
+            "h3 should have synced to CPU after data() call"
+        );
     }
 }

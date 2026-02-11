@@ -80,13 +80,7 @@ impl AutoInt {
 
     pub fn forward_with_merge(&mut self, input: &Tensor) -> Result<MergeOutput, LayerError> {
         let out = self.forward_internal(input, false)?;
-        let output = merge_tensor_list(
-            vec![out],
-            self.out_type,
-            None,
-            1,
-            self.keep_list,
-        );
+        let output = merge_tensor_list(vec![out], self.out_type, None, 1, self.keep_list);
         Ok(output)
     }
 
@@ -117,7 +111,9 @@ impl AutoInt {
     fn softmax_backward_3d_axis2(softmax: &Tensor, grad: &Tensor) -> Tensor {
         let dot = grad.mul(softmax).sum_axis(2);
         let (b, f, _) = (softmax.shape()[0], softmax.shape()[1], softmax.shape()[2]);
-        let dot_b = dot.reshape(&[b, f, 1]).broadcast_as(&[b, f, softmax.shape()[2]]);
+        let dot_b = dot
+            .reshape(&[b, f, 1])
+            .broadcast_as(&[b, f, softmax.shape()[2]]);
         softmax.mul(&grad.sub(&dot_b))
     }
 }
@@ -136,7 +132,12 @@ impl Layer for AutoInt {
             x = attn.matmul(&x);
         }
         match self.out_type {
-            MergeType::Concat => Ok(merge_tensor_list_tensor(vec![x], MergeType::Concat, None, 1)),
+            MergeType::Concat => Ok(merge_tensor_list_tensor(
+                vec![x],
+                MergeType::Concat,
+                None,
+                1,
+            )),
             MergeType::Stack => Ok(x),
             MergeType::None => Err(LayerError::ForwardError {
                 message: "AutoInt forward cannot return list when out_type is None".to_string(),
@@ -172,8 +173,9 @@ impl Layer for AutoInt {
             let grad_x_from_out = attn.transpose_dims(1, 2).matmul(&g);
 
             let grad_scores = Self::softmax_backward_3d_axis2(attn, &grad_attn);
-            let grad_x_from_scores =
-                grad_scores.matmul(x_prev).add(&grad_scores.transpose_dims(1, 2).matmul(x_prev));
+            let grad_x_from_scores = grad_scores
+                .matmul(x_prev)
+                .add(&grad_scores.transpose_dims(1, 2).matmul(x_prev));
 
             g = grad_x_from_out.add(&grad_x_from_scores);
         }
@@ -289,9 +291,9 @@ impl IRazor {
         }
         let rigid_masks = Tensor::from_data(&[nas_len, emb_size], masks);
 
-        let feature_weight = config.feature_weight.map(|fw| {
-            Tensor::from_data(&[1, fw.len()], fw)
-        });
+        let feature_weight = config
+            .feature_weight
+            .map(|fw| Tensor::from_data(&[1, fw.len()], fw));
 
         Self {
             num_feature: config.num_feature,
@@ -397,7 +399,10 @@ impl Layer for IRazor {
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
-        let input = self.cached_input.as_ref().ok_or(LayerError::NotInitialized)?;
+        let input = self
+            .cached_input
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
         let soft_masks = self
             .cached_soft_masks
             .as_ref()

@@ -590,11 +590,8 @@ impl Layer for CrossLayer {
                     };
 
                     let dot = weights_grad_norm.mul(&w_norm).sum_axis(0);
-                    let dot_b = dot
-                        .reshape(&[1, out_dim])
-                        .broadcast_as(self.weight.shape());
-                    let mut weight_grad =
-                        weights_grad_norm.sub(&w_norm.mul(&dot_b)).div(&norm_b);
+                    let dot_b = dot.reshape(&[1, out_dim]).broadcast_as(self.weight.shape());
+                    let mut weight_grad = weights_grad_norm.sub(&w_norm.mul(&dot_b)).div(&norm_b);
                     if let Some(reg_grad) = self.kernel_regularizer.grad(&self.weight) {
                         weight_grad = weight_grad.add(&reg_grad);
                     }
@@ -668,11 +665,8 @@ impl Layer for CrossLayer {
                     };
 
                     let dot = weights_grad_norm.mul(&w_norm).sum_axis(0);
-                    let dot_b = dot
-                        .reshape(&[1, out_dim])
-                        .broadcast_as(self.weight.shape());
-                    let mut weight_grad =
-                        weights_grad_norm.sub(&w_norm.mul(&dot_b)).div(&norm_b);
+                    let dot_b = dot.reshape(&[1, out_dim]).broadcast_as(self.weight.shape());
+                    let mut weight_grad = weights_grad_norm.sub(&w_norm.mul(&dot_b)).div(&norm_b);
                     if let Some(reg_grad) = self.kernel_regularizer.grad(&self.weight) {
                         weight_grad = weight_grad.add(&reg_grad);
                     }
@@ -1393,9 +1387,7 @@ impl MixedCrossLayer {
                 .sqrt();
             let norm_b = norm.reshape(&[1, out_dim]).broadcast_as(weight.shape());
             let w_norm = weight.div(&norm_b);
-            let scale_b = scale
-                .reshape(&[1, out_dim])
-                .broadcast_as(weight.shape());
+            let scale_b = scale.reshape(&[1, out_dim]).broadcast_as(weight.shape());
             w_norm.mul(&scale_b)
         } else {
             weight.clone()
@@ -1416,9 +1408,7 @@ impl MixedCrossLayer {
                 .sqrt();
             let norm_b = norm.reshape(&[1, out_dim]).broadcast_as(weight.shape());
             let w_norm = weight.div(&norm_b);
-            let scale_b = scale
-                .reshape(&[1, out_dim])
-                .broadcast_as(weight.shape());
+            let scale_b = scale.reshape(&[1, out_dim]).broadcast_as(weight.shape());
             let grad_norm = grad_eff.mul(&scale_b);
             let dot = grad_norm.mul(&w_norm).sum_axis(0);
             let dot_b = dot.reshape(&[1, out_dim]).broadcast_as(weight.shape());
@@ -1447,7 +1437,12 @@ impl MixedCrossLayer {
         loss
     }
 
-    fn forward_internal(&mut self, x0: &Tensor, xl: &Tensor, cache: bool) -> Result<Tensor, LayerError> {
+    fn forward_internal(
+        &mut self,
+        x0: &Tensor,
+        xl: &Tensor,
+        cache: bool,
+    ) -> Result<Tensor, LayerError> {
         let batch = x0.shape()[0];
         let bias_b = self
             .bias
@@ -1503,15 +1498,25 @@ impl MixedCrossLayer {
         self.forward_internal(x0, xl, false)
     }
 
-    pub fn forward_train_with_x0(&mut self, x0: &Tensor, xl: &Tensor) -> Result<Tensor, LayerError> {
+    pub fn forward_train_with_x0(
+        &mut self,
+        x0: &Tensor,
+        xl: &Tensor,
+    ) -> Result<Tensor, LayerError> {
         self.forward_internal(x0, xl, true)
     }
 
     pub fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
         let x0 = self.cached_x0.as_ref().ok_or(LayerError::NotInitialized)?;
         let xl = self.cached_xl.as_ref().ok_or(LayerError::NotInitialized)?;
-        let out_stack = self.cached_out_stack.as_ref().ok_or(LayerError::NotInitialized)?;
-        let weights = self.cached_weights.as_ref().ok_or(LayerError::NotInitialized)?;
+        let out_stack = self
+            .cached_out_stack
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
+        let weights = self
+            .cached_weights
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
 
         let batch = grad.shape()[0];
         let grad_y = grad.reshape(&[batch, self.input_dim, 1]);
@@ -1752,15 +1757,15 @@ impl DCNLayer {
         let mut layers = Vec::new();
         for _ in 0..config.layer_num {
             let layer = match config.dcn_type {
-                DCNMode::Vector | DCNMode::Matrix => DCNLayerKind::Basic(
-                    CrossLayer::new_with_options(
+                DCNMode::Vector | DCNMode::Matrix => {
+                    DCNLayerKind::Basic(CrossLayer::new_with_options(
                         config.input_dim,
                         config.dcn_type,
                         config.initializer,
                         config.regularizer.clone(),
                         config.allow_kernel_norm,
-                    ),
-                ),
+                    ))
+                }
                 DCNMode::Mixed => DCNLayerKind::Mixed(MixedCrossLayer::new(
                     config.input_dim,
                     config.num_experts,

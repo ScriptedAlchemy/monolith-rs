@@ -21,8 +21,7 @@ use tracing::{error, info, warn};
 
 #[cfg(feature = "grpc")]
 use monolith_proto::tensorflow_serving::apis::{
-    model_service_server::ModelServiceServer,
-    prediction_service_server::PredictionServiceServer,
+    model_service_server::ModelServiceServer, prediction_service_server::PredictionServiceServer,
 };
 
 /// Server state enumeration.

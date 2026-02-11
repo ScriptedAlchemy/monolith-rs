@@ -5,7 +5,7 @@ use crate::error::LayerError;
 use crate::initializer::Initializer;
 use crate::layer::Layer;
 use crate::merge::{merge_tensor_list, merge_tensor_list_tensor, MergeOutput, MergeType};
-use crate::mlp::{ActivationType, MLP, MLPConfig};
+use crate::mlp::{ActivationType, MLPConfig, MLP};
 use crate::regularizer::Regularizer;
 use crate::tensor::Tensor;
 
@@ -159,12 +159,15 @@ impl GroupInt {
 }
 
 impl GroupInt {
-    pub fn backward(
-        &mut self,
-        grad: &Tensor,
-    ) -> Result<(Tensor, Tensor), LayerError> {
-        let left = self.cached_left.as_ref().ok_or(LayerError::NotInitialized)?;
-        let right = self.cached_right.as_ref().ok_or(LayerError::NotInitialized)?;
+    pub fn backward(&mut self, grad: &Tensor) -> Result<(Tensor, Tensor), LayerError> {
+        let left = self
+            .cached_left
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
+        let right = self
+            .cached_right
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
 
         let (b, l, d) = (left.shape()[0], left.shape()[1], left.shape()[2]);
         let r = right.shape()[1];
@@ -180,12 +183,16 @@ impl GroupInt {
             let num_feature = l * r;
             let emb_dim = d;
             let grad_reshaped = grad.reshape(&[b, num_feature, emb_dim]);
-            let attention = self.cached_attention.as_ref().ok_or(LayerError::NotInitialized)?;
-            let grad_stacked = grad_reshaped.mul(
-                &attention
-                    .reshape(&[b, num_feature, 1])
-                    .broadcast_as(&[b, num_feature, emb_dim]),
-            );
+            let attention = self
+                .cached_attention
+                .as_ref()
+                .ok_or(LayerError::NotInitialized)?;
+            let grad_stacked =
+                grad_reshaped.mul(&attention.reshape(&[b, num_feature, 1]).broadcast_as(&[
+                    b,
+                    num_feature,
+                    emb_dim,
+                ]));
 
             let stacked = ffm_multiply(left, right)?;
             let grad_attention = grad_reshaped.mul(&stacked).sum_axis(2);
@@ -330,7 +337,11 @@ impl AllInt {
             initializer,
             regularizer: Regularizer::None,
             kernel: initializer.initialize(&[1, cmp_dim]),
-            bias: if use_bias { Some(Tensor::zeros(&[cmp_dim])) } else { None },
+            bias: if use_bias {
+                Some(Tensor::zeros(&[cmp_dim]))
+            } else {
+                None
+            },
             kernel_grad: None,
             bias_grad: None,
             out_type: MergeType::Concat,
@@ -372,7 +383,9 @@ impl AllInt {
         let transposed = input.transpose_dims(1, 2);
         let mut feature_comp = transposed.matmul(&kernel);
         if let Some(bias) = &self.bias {
-            let bias_b = bias.reshape(&[1, 1, self.cmp_dim]).broadcast_as(feature_comp.shape());
+            let bias_b = bias
+                .reshape(&[1, 1, self.cmp_dim])
+                .broadcast_as(feature_comp.shape());
             feature_comp = feature_comp.add(&bias_b);
         }
         let interaction = input.matmul(&feature_comp);
@@ -382,12 +395,23 @@ impl AllInt {
         if self.out_type == MergeType::None {
             return Ok(interaction);
         }
-        Ok(merge_tensor_list_tensor(vec![interaction], self.out_type, None, 1))
+        Ok(merge_tensor_list_tensor(
+            vec![interaction],
+            self.out_type,
+            None,
+            1,
+        ))
     }
 
     pub fn forward_with_merge(&mut self, input: &Tensor) -> Result<MergeOutput, LayerError> {
         let out = self.forward_train(input)?;
-        Ok(merge_tensor_list(vec![out], self.out_type, None, 1, self.keep_list))
+        Ok(merge_tensor_list(
+            vec![out],
+            self.out_type,
+            None,
+            1,
+            self.keep_list,
+        ))
     }
 }
 
@@ -398,7 +422,10 @@ impl Layer for AllInt {
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
-        let input = self.cached_input.as_ref().ok_or(LayerError::NotInitialized)?;
+        let input = self
+            .cached_input
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
         let feature_comp = self
             .cached_feature_comp
             .as_ref()
@@ -431,7 +458,9 @@ impl Layer for AllInt {
             let _ = bias;
         }
 
-        let grad_input_from_comp = grad_feature_comp.matmul(&self.kernel.transpose()).transpose_dims(1, 2);
+        let grad_input_from_comp = grad_feature_comp
+            .matmul(&self.kernel.transpose())
+            .transpose_dims(1, 2);
         Ok(grad_input_from_inter.add(&grad_input_from_comp))
     }
 
@@ -506,9 +535,11 @@ impl CDot {
         }
         let mut config = MLPConfig::new(input_dim);
         for &dim in self.compress_units.iter() {
-            config = config.add_layer_with_initializer(dim, self.activation.clone(), self.initializer);
+            config =
+                config.add_layer_with_initializer(dim, self.activation.clone(), self.initializer);
         }
-        config = config.add_layer_with_initializer(output_dim, ActivationType::None, self.initializer);
+        config =
+            config.add_layer_with_initializer(output_dim, ActivationType::None, self.initializer);
         config = config.with_regularizers(self.regularizer.clone(), Regularizer::None);
         self.compress_tower = Some(MLP::from_config(config)?);
         self.compress_input_dim = Some(input_dim);
@@ -554,7 +585,10 @@ impl Layer for CDot {
     }
 
     fn backward(&mut self, grad: &Tensor) -> Result<Tensor, LayerError> {
-        let input = self.cached_input.as_ref().ok_or(LayerError::NotInitialized)?;
+        let input = self
+            .cached_input
+            .as_ref()
+            .ok_or(LayerError::NotInitialized)?;
         let (b, num_feat, emb_size) = (input.shape()[0], input.shape()[1], input.shape()[2]);
 
         let crossed_size = num_feat * self.project_dim;
@@ -567,7 +601,8 @@ impl Layer for CDot {
         let grad_input_from_cross = grad_crossed.matmul(&reshaped.transpose_dims(1, 2));
         let grad_reshaped = input.transpose_dims(1, 2).matmul(&grad_crossed);
 
-        let grad_compressed_total = grad_compressed.add(&grad_reshaped.reshape(&[b, emb_size * self.project_dim]));
+        let grad_compressed_total =
+            grad_compressed.add(&grad_reshaped.reshape(&[b, emb_size * self.project_dim]));
         let grad_concated = self
             .compress_tower
             .as_mut()
@@ -637,7 +672,12 @@ pub struct CAN {
 }
 
 impl CAN {
-    pub fn new(layer_num: usize, activation: ActivationType, is_seq: bool, is_stacked: bool) -> Self {
+    pub fn new(
+        layer_num: usize,
+        activation: ActivationType,
+        is_seq: bool,
+        is_stacked: bool,
+    ) -> Self {
         Self {
             layer_num,
             activation: ActivationLayer::from_activation_type(activation),
@@ -652,7 +692,11 @@ impl CAN {
         }
     }
 
-    pub fn forward_with_inputs(&mut self, user_emb: &Tensor, item_emb: &Tensor) -> Result<Tensor, LayerError> {
+    pub fn forward_with_inputs(
+        &mut self,
+        user_emb: &Tensor,
+        item_emb: &Tensor,
+    ) -> Result<Tensor, LayerError> {
         let u_emb_size = *user_emb.shape().last().unwrap();
         let required = (u_emb_size * (u_emb_size + 1)) * self.layer_num;
         if item_emb.shape()[1] != required {
@@ -678,8 +722,18 @@ impl CAN {
         self.cached_activations.clear();
 
         for i in 0..self.layer_num {
-            let weight = params[2 * i].reshape(&weight_shape(user_emb, u_emb_size, self.is_seq, self.is_stacked));
-            let bias = params[2 * i + 1].reshape(&bias_shape(user_emb, u_emb_size, self.is_seq, self.is_stacked));
+            let weight = params[2 * i].reshape(&weight_shape(
+                user_emb,
+                u_emb_size,
+                self.is_seq,
+                self.is_stacked,
+            ));
+            let bias = params[2 * i + 1].reshape(&bias_shape(
+                user_emb,
+                u_emb_size,
+                self.is_seq,
+                self.is_stacked,
+            ));
             let mut out = user.matmul(&weight);
             let bias_b = bias.broadcast_as(out.shape());
             out = out.add(&bias_b);
@@ -715,9 +769,14 @@ impl CAN {
                 last_user.shape()[2],
                 last_user.shape()[3],
             );
-            grad.reshape(&[b, num_feat, 1, d]).broadcast_as(&[b, num_feat, seq_len, d])
+            grad.reshape(&[b, num_feat, 1, d])
+                .broadcast_as(&[b, num_feat, seq_len, d])
         } else if self.is_seq && !self.is_stacked {
-            let (b, seq_len, d) = (last_user.shape()[0], last_user.shape()[1], last_user.shape()[2]);
+            let (b, seq_len, d) = (
+                last_user.shape()[0],
+                last_user.shape()[1],
+                last_user.shape()[2],
+            );
             grad.reshape(&[b, 1, d]).broadcast_as(&[b, seq_len, d])
         } else if !self.is_seq && !self.is_stacked {
             let (b, d) = (grad.shape()[0], grad.shape()[1]);
@@ -741,7 +800,8 @@ impl CAN {
             let mut grad_weight = user_t.matmul(&grad_act);
             if weight.ndim() == 4 && weight.shape()[1] == 1 && grad_weight.shape()[1] > 1 {
                 grad_weight = grad_weight.sum_axis(1);
-                grad_weight = grad_weight.reshape(&[weight.shape()[0], weight.shape()[2], weight.shape()[3]]);
+                grad_weight =
+                    grad_weight.reshape(&[weight.shape()[0], weight.shape()[2], weight.shape()[3]]);
             }
 
             let grad_bias = match grad_act.ndim() {
@@ -752,9 +812,15 @@ impl CAN {
             };
 
             let grad_weight_flat = if grad_weight.ndim() == 4 {
-                grad_weight.squeeze(1).reshape(&[grad_weight.shape()[0], grad_weight.shape()[2] * grad_weight.shape()[3]])
+                grad_weight.squeeze(1).reshape(&[
+                    grad_weight.shape()[0],
+                    grad_weight.shape()[2] * grad_weight.shape()[3],
+                ])
             } else {
-                grad_weight.reshape(&[grad_weight.shape()[0], grad_weight.shape()[1] * grad_weight.shape()[2]])
+                grad_weight.reshape(&[
+                    grad_weight.shape()[0],
+                    grad_weight.shape()[1] * grad_weight.shape()[2],
+                ])
             };
             let grad_bias_flat = if grad_bias.ndim() == 2 {
                 grad_bias
@@ -864,9 +930,16 @@ impl CIN {
         self.cached_activations.clear();
 
         for (i, &units) in self.hidden_units.iter().enumerate() {
-            let last_hidden = if i == 0 { num_feat } else { self.hidden_units[i - 1] };
+            let last_hidden = if i == 0 {
+                num_feat
+            } else {
+                self.hidden_units[i - 1]
+            };
             if self.conv_weights.len() <= i {
-                self.conv_weights.push(self.initializer.initialize(&[last_hidden * num_feat, units]));
+                self.conv_weights.push(
+                    self.initializer
+                        .initialize(&[last_hidden * num_feat, units]),
+                );
                 self.conv_bias.push(Tensor::zeros(&[units]));
                 self.conv_weight_grads.push(None);
                 self.conv_bias_grads.push(None);
@@ -874,7 +947,11 @@ impl CIN {
 
             let zl = cin_outer(&xl, &x0)?;
             let zl2d = zl.reshape(&[b * emb_size, last_hidden * num_feat]);
-            let mut hl = zl2d.matmul(&self.conv_weights[i]).add(&self.conv_bias[i].reshape(&[1, units]).broadcast_as(&[b * emb_size, units]));
+            let mut hl = zl2d.matmul(&self.conv_weights[i]).add(
+                &self.conv_bias[i]
+                    .reshape(&[1, units])
+                    .broadcast_as(&[b * emb_size, units]),
+            );
             if let Some(act) = &self.activation {
                 if i + 1 == self.hidden_units.len() {
                     self.cached_activations.push(ActivationLayer::None);
@@ -940,7 +1017,11 @@ impl Layer for CIN {
             let grad_total_2d = grad_total.reshape(&[b * emb, units]);
             let grad_act = self.cached_activations[i].backward(&grad_total_2d)?;
 
-            let last_hidden = if i == 0 { num_feat } else { self.hidden_units[i - 1] };
+            let last_hidden = if i == 0 {
+                num_feat
+            } else {
+                self.hidden_units[i - 1]
+            };
             let zl = &self.cached_zl[i];
             let zl2d = zl.reshape(&[b * emb, last_hidden * num_feat]);
             let grad_w = zl2d.transpose().matmul(&grad_act);

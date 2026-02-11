@@ -41,6 +41,155 @@ fn parse_addr(addr: &str) -> Result<(String, u16)> {
 }
 
 // =============================================================================
+// Local host file discovery (used by Python cpu_training_distributed_test_binary)
+// =============================================================================
+
+/// A file-backed discovery backend mirroring `cpu_training_distributed_test_binary.HostServiceDiscovery`.
+///
+/// It stores registrations under:
+/// `base_path/<name>/<index>` (file contents: `<addr>`)
+#[derive(Debug, Clone)]
+pub struct HostFileDiscovery {
+    base_path: std::path::PathBuf,
+}
+
+impl HostFileDiscovery {
+    pub fn new(base_path: impl Into<std::path::PathBuf>) -> Self {
+        Self {
+            base_path: base_path.into(),
+        }
+    }
+
+    fn named_path(&self, name: &str) -> std::path::PathBuf {
+        self.base_path.join(name)
+    }
+}
+
+impl PyServiceDiscovery for HostFileDiscovery {
+    fn register(&self, name: &str, index: i32, addr: &str) -> Result<()> {
+        let dir = self.named_path(name);
+        std::fs::create_dir_all(&dir).map_err(|e| {
+            DiscoveryError::Internal(format!("Failed to create host discovery dir: {e}"))
+        })?;
+        std::fs::write(dir.join(index.to_string()), addr.as_bytes()).map_err(|e| {
+            DiscoveryError::Internal(format!("Failed to write host discovery file: {e}"))
+        })?;
+        Ok(())
+    }
+
+    fn deregister(&self, _name: &str, _index: i32, _addr: &str) -> Result<()> {
+        Ok(())
+    }
+
+    fn query(&self, name: &str) -> Result<HashMap<i32, String>> {
+        let dir = self.named_path(name);
+        if !dir.exists() {
+            return Ok(HashMap::new());
+        }
+        let mut out = HashMap::new();
+        for entry in std::fs::read_dir(&dir)
+            .map_err(|e| DiscoveryError::Internal(format!("Failed to read dir: {e}")))?
+        {
+            let entry = entry.map_err(|e| DiscoveryError::Internal(format!("read_dir: {e}")))?;
+            let file_name = entry.file_name().to_string_lossy().to_string();
+            let idx: i32 = match file_name.parse() {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            let addr = std::fs::read_to_string(entry.path())
+                .map_err(|e| DiscoveryError::Internal(format!("read_to_string: {e}")))?;
+            out.insert(idx, addr);
+        }
+        Ok(out)
+    }
+}
+
+impl ServiceDiscovery for HostFileDiscovery {
+    fn register(&self, service: ServiceInfo) -> crate::discovery::Result<()> {
+        // Store by service_type and an index derived from "index" metadata or trailing "-<n>".
+        let idx = service
+            .metadata
+            .get("index")
+            .and_then(|s| s.parse::<i32>().ok())
+            .or_else(|| {
+                service
+                    .id
+                    .rsplit_once('-')
+                    .and_then(|(_, i)| i.parse::<i32>().ok())
+            })
+            .unwrap_or(0);
+        let addr = service
+            .metadata
+            .get("addr")
+            .cloned()
+            .unwrap_or_else(|| service.address());
+        PyServiceDiscovery::register(self, &service.service_type, idx, &addr)
+    }
+
+    fn discover(&self, service_type: &str) -> crate::discovery::Result<Vec<ServiceInfo>> {
+        let index_to_addr = PyServiceDiscovery::query(self, service_type)?;
+        let mut out = Vec::with_capacity(index_to_addr.len());
+        for (idx, addr) in index_to_addr {
+            let (host, port) = parse_addr(&addr)?;
+            let id = format!("{}-{}", service_type, idx);
+            let mut svc = ServiceInfo::new(id.clone(), id.clone(), service_type, host, port);
+            svc.metadata.insert("index".to_string(), idx.to_string());
+            svc.metadata.insert("addr".to_string(), addr);
+            out.push(svc);
+        }
+        Ok(out)
+    }
+
+    fn watch(
+        &self,
+        _service_type: &str,
+    ) -> crate::discovery::Result<tokio::sync::broadcast::Receiver<crate::discovery::DiscoveryEvent>>
+    {
+        Err(DiscoveryError::ConfigError(
+            "HostFileDiscovery does not support watch()".to_string(),
+        ))
+    }
+
+    fn deregister(&self, _service_id: &str) -> crate::discovery::Result<()> {
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl ServiceDiscoveryAsync for HostFileDiscovery {
+    async fn connect(&self) -> crate::discovery::Result<()> {
+        Ok(())
+    }
+
+    async fn disconnect(&self) -> crate::discovery::Result<()> {
+        Ok(())
+    }
+
+    async fn register_async(&self, service: ServiceInfo) -> crate::discovery::Result<()> {
+        ServiceDiscovery::register(self, service)
+    }
+
+    async fn discover_async(
+        &self,
+        service_type: &str,
+    ) -> crate::discovery::Result<Vec<ServiceInfo>> {
+        self.discover(service_type)
+    }
+
+    async fn watch_async(
+        &self,
+        service_type: &str,
+    ) -> crate::discovery::Result<tokio::sync::broadcast::Receiver<crate::discovery::DiscoveryEvent>>
+    {
+        self.watch(service_type)
+    }
+
+    async fn deregister_async(&self, _service_id: &str) -> crate::discovery::Result<()> {
+        Ok(())
+    }
+}
+
+// =============================================================================
 // TF_CONFIG (Primus) discovery
 // =============================================================================
 

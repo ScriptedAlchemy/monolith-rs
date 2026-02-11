@@ -151,8 +151,7 @@ pub fn save_indicators_to_cache(
         indicators: indicators.to_vec(),
     };
 
-    let file = File::create(&path)
-        .map_err(|e| format!("Failed to create cache file: {}", e))?;
+    let file = File::create(&path).map_err(|e| format!("Failed to create cache file: {}", e))?;
     let writer = BufWriter::new(file);
 
     bincode::serialize_into(writer, &cached)

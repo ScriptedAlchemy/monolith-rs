@@ -20,10 +20,13 @@
 //! ```
 
 pub mod commands;
+pub mod gflags_utils;
 
 use clap::{Parser, Subcommand};
 
-pub use commands::{ExportCommand, ServeCommand, TrainCommand};
+pub use commands::{
+    AgentServiceCommand, ExportCommand, ServeCommand, TfRunnerCommand, TrainCommand,
+};
 
 /// Monolith - A high-performance recommendation system
 ///
@@ -50,6 +53,12 @@ pub enum Commands {
 
     /// Export a checkpoint for deployment
     Export(ExportCommand),
+
+    /// Agent-service utilities (controller, discovery client, and agent runner)
+    AgentService(AgentServiceCommand),
+
+    /// TensorFlow runner-style entrypoints (Python parity for gpu_runner/tpu_runner).
+    TfRunner(TfRunnerCommand),
 }
 
 /// Common configuration options shared across commands

@@ -546,7 +546,8 @@ impl SENetLayer {
             input3d.clone()
         };
 
-        let (attention, fc1_cache) = if let (Some(fc1), Some(fc2)) = (&mut self.fc1, &mut self.fc2) {
+        let (attention, fc1_cache) = if let (Some(fc1), Some(fc2)) = (&mut self.fc1, &mut self.fc2)
+        {
             let fc1_out = fc1.forward_train(&squeeze)?;
             let fc1_relu = Self::relu(&fc1_out);
             let fc2_out = fc2.forward_train(&fc1_relu)?;
@@ -569,11 +570,14 @@ impl SENetLayer {
 
         let merged = if used_3d {
             match self.out_type {
-                MergeType::Concat => merge_tensor_list_tensor(vec![output], MergeType::Concat, None, 1),
+                MergeType::Concat => {
+                    merge_tensor_list_tensor(vec![output], MergeType::Concat, None, 1)
+                }
                 MergeType::Stack => output,
                 MergeType::None => {
                     return Err(LayerError::ForwardError {
-                        message: "SENet forward cannot return list when out_type is None".to_string(),
+                        message: "SENet forward cannot return list when out_type is None"
+                            .to_string(),
                     })
                 }
             }
@@ -641,12 +645,16 @@ impl SENetLayer {
     }
 
     /// Forward pass for list inputs (each tensor must be 2D).
-    pub fn forward_train_with_list(&mut self, inputs: &[Tensor]) -> Result<MergeOutput, LayerError> {
+    pub fn forward_train_with_list(
+        &mut self,
+        inputs: &[Tensor],
+    ) -> Result<MergeOutput, LayerError> {
         let squeeze = Self::squeeze_list_inputs(inputs)?;
         self.cached_list_inputs = Some(inputs.to_vec());
         self.cached_list_squeeze = Some(squeeze.clone());
 
-        let (attention, fc1_cache) = if let (Some(fc1), Some(fc2)) = (&mut self.fc1, &mut self.fc2) {
+        let (attention, fc1_cache) = if let (Some(fc1), Some(fc2)) = (&mut self.fc1, &mut self.fc2)
+        {
             let fc1_out = fc1.forward_train(&squeeze)?;
             let fc1_relu = Self::relu(&fc1_out);
             let fc2_out = fc2.forward_train(&fc1_relu)?;
@@ -710,9 +718,11 @@ impl SENetLayer {
 
         let grad_attention = Tensor::cat(&grad_attention_parts, 1);
 
-        let grad_squeeze = if let (Some(fc1), Some(fc2), Some(fc1_output)) =
-            (&mut self.fc1, &mut self.fc2, self.cached_fc1_output.as_ref())
-        {
+        let grad_squeeze = if let (Some(fc1), Some(fc2), Some(fc1_output)) = (
+            &mut self.fc1,
+            &mut self.fc2,
+            self.cached_fc1_output.as_ref(),
+        ) {
             let attention_grad = Self::sigmoid_grad(attention);
             let grad_fc2 = grad_attention.mul(&attention_grad);
             let grad_fc1_relu = fc2.backward(&grad_fc2)?;
@@ -736,18 +746,44 @@ impl SENetLayer {
 
         Ok(input_grads)
     }
-
 }
 
 impl Layer for SENetLayer {
     fn forward(&self, input: &Tensor) -> Result<Tensor, LayerError> {
+        // Validate the expected input dimension early to mirror Python/Keras behavior
+        // and to avoid panicking in reshape when the dimensions don't match.
+        if input.ndim() == 2 && input.shape()[1] != self.input_dim {
+            return Err(LayerError::InvalidInputDimension {
+                expected: self.input_dim,
+                actual: input.shape()[1],
+            });
+        }
+        if input.ndim() == 3 && input.shape()[2] != self.input_dim {
+            return Err(LayerError::InvalidInputDimension {
+                expected: self.input_dim,
+                actual: input.shape()[2],
+            });
+        }
+
         let (input3d, used_3d) = if input.ndim() == 3 {
             (input.clone(), true)
         } else if input.ndim() == 2 {
             if let Some(num_feature) = self.num_feature {
                 if num_feature > 1 {
+                    if input.shape()[1] % num_feature != 0 {
+                        return Err(LayerError::ForwardError {
+                            message: format!(
+                                "Input dim {} not divisible by num_feature {}",
+                                input.shape()[1],
+                                num_feature
+                            ),
+                        });
+                    }
                     let emb_size = input.shape()[1] / num_feature;
-                    (input.reshape(&[input.shape()[0], num_feature, emb_size]), true)
+                    (
+                        input.reshape(&[input.shape()[0], num_feature, emb_size]),
+                        true,
+                    )
                 } else {
                     (input.clone(), false)
                 }
@@ -792,7 +828,12 @@ impl Layer for SENetLayer {
 
         if used_3d {
             match self.out_type {
-                MergeType::Concat => Ok(merge_tensor_list_tensor(vec![output], MergeType::Concat, None, 1)),
+                MergeType::Concat => Ok(merge_tensor_list_tensor(
+                    vec![output],
+                    MergeType::Concat,
+                    None,
+                    1,
+                )),
                 MergeType::Stack => Ok(output),
                 MergeType::None => Err(LayerError::ForwardError {
                     message: "SENet forward cannot return list when out_type is None".to_string(),
@@ -1061,8 +1102,9 @@ mod tests {
         let senet = SENetLayer::new(64, 4, true);
         let params = senet.parameters();
 
-        // FC1 has weights and bias, FC2 has weights and bias
-        assert_eq!(params.len(), 4);
+        // Dense defaults include a trainable kernel-norm scale; each dense has:
+        // weights, bias, kernel_norm => 3 tensors.
+        assert_eq!(params.len(), 6);
     }
 
     #[test]
@@ -1070,8 +1112,7 @@ mod tests {
         let senet = SENetLayer::new(64, 4, false);
         let params = senet.parameters();
 
-        // FC1 has only weights, FC2 has only weights
-        assert_eq!(params.len(), 2);
+        assert_eq!(params.len(), 4);
     }
 
     #[test]

@@ -18,8 +18,21 @@ static KEY_RE: Lazy<Regex> =
 
 static RESERVED_KEYS: Lazy<Vec<&'static str>> = Lazy::new(|| {
     vec![
-        "keys", "values", "items", "get", "insert", "remove", "clear", "len", "is_empty",
-        "contains_key", "flatten", "pack", "filter", "map", "debug_string",
+        "keys",
+        "values",
+        "items",
+        "get",
+        "insert",
+        "remove",
+        "clear",
+        "len",
+        "is_empty",
+        "contains_key",
+        "flatten",
+        "pack",
+        "filter",
+        "map",
+        "debug_string",
     ]
 });
 
@@ -70,13 +83,15 @@ impl NestedMap {
     /// Validates a key for NestedMap usage.
     pub fn check_key(key: &str) -> Result<()> {
         if !KEY_RE.is_match(key) {
-            return Err(MonolithError::ConfigError {
+            // Python: ValueError("Invalid NestedMap key '{}'".format(key))
+            return Err(MonolithError::PyValueError {
                 message: format!("Invalid NestedMap key '{}'", key),
             });
         }
         if RESERVED_KEYS.contains(&key) {
-            return Err(MonolithError::ConfigError {
-                message: format!("'{}' is a reserved key", key),
+            // Python: assert key not in dir(dict), "{} is a reserved key".format(key)
+            return Err(MonolithError::PyAssertionError {
+                message: format!("{} is a reserved key", key),
             });
         }
         Ok(())
@@ -129,16 +144,20 @@ impl NestedMap {
             match next {
                 NestedValue::Map(map) => current = map,
                 _ => {
-                    return Err(MonolithError::ConfigError {
-                        message: format!("Sub key '{}' is not a map", part),
-                    })
+                    // Python `GetItem` raises KeyError/TypeError when traversing into non-map/list.
+                    return Err(MonolithError::PyKeyError {
+                        message: format!("Key '{}' not found", part),
+                    });
                 }
             }
         }
         let last = parts.last().unwrap_or(&key);
-        current.map.get(*last).ok_or_else(|| MonolithError::ConfigError {
-            message: format!("Key '{}' not found", last),
-        })
+        current
+            .map
+            .get(*last)
+            .ok_or_else(|| MonolithError::PyKeyError {
+                message: format!("Key '{}' not found", last),
+            })
     }
 
     /// Gets the value for a nested key, returns None if missing.
@@ -161,12 +180,17 @@ impl NestedMap {
             match next {
                 NestedValue::Map(map) => current = map,
                 _ => {
-                    return Err(MonolithError::ConfigError {
+                    // Python:
+                    // ValueError('Error while setting key {}. Sub key "{}" is of type {} but must be a dict or NestedMap.'
+                    //           ''.format(key, k, type(current[k])))
+                    return Err(MonolithError::PyValueError {
                         message: format!(
-                            "Error while setting key {}. Sub key '{}' is not a map.",
-                            key, part
+                            "Error while setting key {}. Sub key \"{}\" is of type {} but must be a dict or NestedMap.",
+                            key,
+                            part,
+                            nested_value_type_name(next),
                         ),
-                    })
+                    });
                 }
             }
         }
@@ -178,10 +202,7 @@ impl NestedMap {
 
     /// Returns flattened values in traversal order (maps + lists).
     pub fn flatten(&self) -> Vec<NestedValue> {
-        self.flatten_items()
-            .into_iter()
-            .map(|(_, v)| v)
-            .collect()
+        self.flatten_items().into_iter().map(|(_, v)| v).collect()
     }
 
     /// Returns flattened (key, value) pairs.
@@ -220,6 +241,12 @@ impl NestedMap {
 
     /// Returns a copy with values replaced by `values`, in flatten order.
     pub fn pack(&self, values: Vec<NestedValue>) -> Result<NestedMap> {
+        let expected = self.flatten_items().len();
+        if expected != values.len() {
+            return Err(MonolithError::PyAssertionError {
+                message: String::new(),
+            });
+        }
         let mut iter = values.into_iter();
         Ok(self.recursive_pack(&mut iter))
     }
@@ -293,14 +320,15 @@ impl NestedMap {
     where
         F: FnMut(&str, &NestedValue) -> bool,
     {
-        self.recursive_filter("", &mut f)
+        self.recursive_filter("", &mut f).0
     }
 
-    fn recursive_filter<F>(&self, prefix: &str, f: &mut F) -> NestedMap
+    fn recursive_filter<F>(&self, prefix: &str, f: &mut F) -> (NestedMap, bool)
     where
         F: FnMut(&str, &NestedValue) -> bool,
     {
         let mut out = NestedMap::new();
+        let mut deleted_any = false;
         for (k, v) in &self.map {
             let key = if prefix.is_empty() {
                 k.clone()
@@ -309,8 +337,9 @@ impl NestedMap {
             };
             let keep = match v {
                 NestedValue::Map(map) => {
-                    let filtered = map.recursive_filter(&key, f);
-                    if filtered.map.is_empty() {
+                    let (filtered, deleted) = map.recursive_filter(&key, f);
+                    deleted_any |= deleted;
+                    if filtered.map.is_empty() && deleted {
                         None
                     } else {
                         Some(NestedValue::Map(filtered))
@@ -318,12 +347,16 @@ impl NestedMap {
                 }
                 NestedValue::List(list) => {
                     let mut filtered_list = Vec::new();
+                    let mut deleted = false;
                     for (idx, item) in list.iter().enumerate() {
                         let list_key = format!("{}[{}]", key, idx);
                         if f(&list_key, item) {
                             filtered_list.push(item.clone());
+                        } else {
+                            deleted = true;
                         }
                     }
+                    deleted_any |= deleted;
                     if filtered_list.is_empty() {
                         None
                     } else {
@@ -334,6 +367,7 @@ impl NestedMap {
                     if f(&key, v) {
                         Some(v.clone())
                     } else {
+                        deleted_any = true;
                         None
                     }
                 }
@@ -342,7 +376,7 @@ impl NestedMap {
                 let _ = out.insert(k, val);
             }
         }
-        out
+        (out, deleted_any)
     }
 
     /// Returns a debug string listing keys and values.
@@ -361,12 +395,49 @@ fn pack_value(template: &NestedValue, iter: &mut dyn Iterator<Item = NestedValue
     match template {
         NestedValue::Map(map) => NestedValue::Map(map.recursive_pack(iter)),
         NestedValue::List(list) => {
-            let packed = list
-                .iter()
-                .map(|item| pack_value(item, iter))
-                .collect();
+            let packed = list.iter().map(|item| pack_value(item, iter)).collect();
             NestedValue::List(packed)
         }
         _ => iter.next().unwrap_or_else(|| template.clone()),
+    }
+}
+
+fn nested_value_type_name(value: &NestedValue) -> &'static str {
+    match value {
+        NestedValue::Map(_) => "NestedMap",
+        NestedValue::List(_) => "list",
+        NestedValue::Value(_) => "object",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug)]
+    struct TestObj(i32);
+
+    #[test]
+    fn test_check_key_error_messages() {
+        let err = NestedMap::check_key("1bad").unwrap_err();
+        assert_eq!(err.to_string(), "Invalid NestedMap key '1bad'");
+
+        let err = NestedMap::check_key("get").unwrap_err();
+        assert_eq!(err.to_string(), "get is a reserved key");
+    }
+
+    #[test]
+    fn test_set_error_message_for_non_map_intermediate() {
+        let mut m = NestedMap::new();
+        m.insert("a", NestedValue::Value(std::sync::Arc::new(TestObj(1))))
+            .unwrap();
+
+        let err = m
+            .set("a.b", NestedValue::Value(std::sync::Arc::new(TestObj(2))))
+            .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Error while setting key a.b. Sub key \"a\" is of type object but must be a dict or NestedMap."
+        );
     }
 }

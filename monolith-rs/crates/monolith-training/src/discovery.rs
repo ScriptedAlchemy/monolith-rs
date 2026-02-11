@@ -377,7 +377,18 @@ impl ServiceDiscovery for InMemoryDiscovery {
     fn register(&self, service: ServiceInfo) -> Result<()> {
         let mut services = self.services.write().unwrap();
 
-        if services.contains_key(&service.id) {
+        let is_update = services.contains_key(&service.id);
+        // Default behavior: duplicate registration is an error. We only allow updates
+        // when the caller explicitly marks the registration as idempotent.
+        //
+        // This keeps existing semantics/tests intact while still enabling the runner
+        // to re-register after binding to an ephemeral port.
+        let allow_update = service
+            .metadata
+            .get("allow_update")
+            .map(|v| v == "true")
+            .unwrap_or(false);
+        if is_update && !allow_update {
             return Err(DiscoveryError::AlreadyRegistered(service.id.clone()));
         }
 
@@ -393,7 +404,11 @@ impl ServiceDiscovery for InMemoryDiscovery {
             "Registered service"
         );
 
-        self.notify_watchers(&service_type, DiscoveryEvent::ServiceAdded(service_clone));
+        if is_update {
+            self.notify_watchers(&service_type, DiscoveryEvent::ServiceUpdated(service_clone));
+        } else {
+            self.notify_watchers(&service_type, DiscoveryEvent::ServiceAdded(service_clone));
+        }
         Ok(())
     }
 

@@ -1,8 +1,8 @@
 //! Shared activation layer wrapper for reuse outside MLP.
 
 use crate::activation::{
-    ELU, Exponential, GELU, HardSigmoid, LeakyReLU, Linear, Mish, PReLU, ReLU, SELU, Sigmoid,
-    Sigmoid2, Softmax, Softplus, Softsign, Swish, Tanh, ThresholdedReLU,
+    Exponential, HardSigmoid, LeakyReLU, Linear, Mish, PReLU, ReLU, Sigmoid, Sigmoid2, Softmax,
+    Softplus, Softsign, Swish, Tanh, ThresholdedReLU, ELU, GELU, SELU,
 };
 use crate::error::LayerError;
 use crate::layer::Layer;
@@ -52,7 +52,9 @@ impl ActivationLayer {
             ActivationType::Swish => ActivationLayer::Swish(Swish::new()),
             ActivationType::Mish => ActivationLayer::Mish(Mish::new()),
             ActivationType::HardSigmoid => ActivationLayer::HardSigmoid(HardSigmoid::new()),
-            ActivationType::LeakyReLU { alpha } => ActivationLayer::LeakyReLU(LeakyReLU::new(alpha)),
+            ActivationType::LeakyReLU { alpha } => {
+                ActivationLayer::LeakyReLU(LeakyReLU::new(alpha))
+            }
             ActivationType::ELU { alpha } => ActivationLayer::ELU(ELU::new(alpha)),
             ActivationType::PReLU {
                 alpha,

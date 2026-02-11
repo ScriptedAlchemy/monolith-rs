@@ -176,10 +176,7 @@ impl CandleTensor {
 
     /// Permutes tensor dimensions.
     pub fn permute(&self, dims: &[usize]) -> Self {
-        let inner = self
-            .inner
-            .permute(dims)
-            .expect("Failed to permute dims");
+        let inner = self.inner.permute(dims).expect("Failed to permute dims");
         Self::from_candle(inner)
     }
 
@@ -299,46 +296,31 @@ impl CandleTensor {
 
     /// Clamps values to the range [min, max].
     pub fn clamp(&self, min: f32, max: f32) -> Self {
-        let inner = self
-            .inner
-            .clamp(min, max)
-            .expect("Failed to clamp tensor");
+        let inner = self.inner.clamp(min, max).expect("Failed to clamp tensor");
         Self::from_candle(inner)
     }
 
     /// Element-wise greater-than comparison with a scalar.
     pub fn gt_scalar(&self, value: f32) -> Self {
-        let inner = self
-            .inner
-            .gt(value)
-            .expect("Failed to compare tensor (gt)");
+        let inner = self.inner.gt(value).expect("Failed to compare tensor (gt)");
         Self::from_candle(inner)
     }
 
     /// Element-wise greater-than-or-equal comparison with a scalar.
     pub fn ge_scalar(&self, value: f32) -> Self {
-        let inner = self
-            .inner
-            .ge(value)
-            .expect("Failed to compare tensor (ge)");
+        let inner = self.inner.ge(value).expect("Failed to compare tensor (ge)");
         Self::from_candle(inner)
     }
 
     /// Element-wise less-than comparison with a scalar.
     pub fn lt_scalar(&self, value: f32) -> Self {
-        let inner = self
-            .inner
-            .lt(value)
-            .expect("Failed to compare tensor (lt)");
+        let inner = self.inner.lt(value).expect("Failed to compare tensor (lt)");
         Self::from_candle(inner)
     }
 
     /// Element-wise less-than-or-equal comparison with a scalar.
     pub fn le_scalar(&self, value: f32) -> Self {
-        let inner = self
-            .inner
-            .le(value)
-            .expect("Failed to compare tensor (le)");
+        let inner = self.inner.le(value).expect("Failed to compare tensor (le)");
         Self::from_candle(inner)
     }
 

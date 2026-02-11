@@ -1,0 +1,833 @@
+{
+  "version": "1",
+  "domain": "core",
+  "pythonRoot": "monolith/core",
+  "rust": {
+    "defaultCrate": "monolith-core",
+    "secondaryCrates": [
+      "monolith-layers",
+      "monolith-config",
+      "monolith-proto"
+    ],
+    "crateRoots": {
+      "monolith-core": "monolith-rs/crates/monolith-core",
+      "monolith-layers": "monolith-rs/crates/monolith-layers"
+    },
+    "proposedModuleLayout": [
+      {
+        "path": "monolith-rs/crates/monolith-core/src/hyperparams/mod.rs",
+        "purpose": "Hyperparams parsing, defaults, merge semantics, and stable repr/serialization parity."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-core/src/py_utils/nested_map.rs",
+        "purpose": "NestedMap and traversal helpers (Flatten/Pack/Filter) with deterministic key ordering and error messages matching Python."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-core/src/model/mod.rs",
+        "purpose": "Model params interfaces and registry (Rust-native replacement for Python importlib-based discovery)."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-core/src/util/mod.rs",
+        "purpose": "Non-ML runtime utilities (paths, GCS helpers, deterministic dataset range filtering when used outside TF)."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-layers/src/base_layer.rs",
+        "purpose": "Layer base abstraction and child construction semantics that mirror monolith.core.base_layer."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-layers/src/initializers/variance_scaling.rs",
+        "purpose": "VarianceScaling initializer implemented as pure math with byte-for-byte stable outputs for fixed seeds."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-layers/src/dense.rs",
+        "purpose": "Dense layer parity implementation targeting Candle (and optionally a TF-compat feature flag for graph-mode parity)."
+      },
+      {
+        "path": "monolith-rs/crates/monolith-layers/src/feature/mod.rs",
+        "purpose": "FeatureSlot/FeatureSlice/FeatureColumn + Env embedding lookup semantics (Candle-friendly; TF placeholders replaced by explicit inputs)."
+      }
+    ]
+  },
+  "inventory": {
+    "pythonFiles": [
+      {
+        "path": "monolith/core/__init__.py",
+        "lines": 0,
+        "status": "N/A",
+        "rustTargets": [],
+        "naJustification": "N/A: empty package marker; no runtime behavior to port.",
+        "notes": "Keep package boundary in Python; no Rust equivalent needed."
+      },
+      {
+        "path": "monolith/core/auto_checkpoint_feed_hook.py",
+        "lines": 377,
+        "status": "BLOCKED",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/src/tf_compat/auto_checkpoint_feed_hook.rs"
+        ],
+        "naJustification": null,
+        "notes": "TensorFlow TPUEstimator infeed/outfeed session hook; depends on TF graph runtime, TPU compilation, and env vars TPU_SPLIT_COMPILE_AND_EXECUTE / TF_TPU_WATCHDOG_TIMEOUT."
+      },
+      {
+        "path": "monolith/core/base_embedding_host_call.py",
+        "lines": 644,
+        "status": "BLOCKED",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/src/tf_compat/base_embedding_host_call.rs"
+        ],
+        "naJustification": null,
+        "notes": "TF TPU variables + host call caching path; deeply tied to tf.estimator/TPUContext and ReplicatedVariable."
+      },
+      {
+        "path": "monolith/core/base_embedding_host_call_test.py",
+        "lines": 78,
+        "status": "BLOCKED",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/tests/base_embedding_host_call_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Covers _compute_new_value shift/pad semantics; can be ported as pure tensor/array test once host-call module is implemented."
+      },
+      {
+        "path": "monolith/core/base_embedding_task.py",
+        "lines": 612,
+        "status": "BLOCKED",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/src/tf_compat/base_embedding_task.rs"
+        ],
+        "naJustification": null,
+        "notes": "End-to-end TF Estimator TPU embedding task; includes HDFS download, TFRecord parsing, dataset interleave/shard/skip, and TPU embedding config."
+      },
+      {
+        "path": "monolith/core/base_host_call.py",
+        "lines": 146,
+        "status": "BLOCKED",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/src/tf_compat/base_host_call.rs"
+        ],
+        "naJustification": null,
+        "notes": "Implements TF host call tensor compression/decompression; parity requires matching dtype grouping and split sizes."
+      },
+      {
+        "path": "monolith/core/base_layer.py",
+        "lines": 162,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-layers/src/base_layer.rs"
+        ],
+        "naJustification": null,
+        "notes": "Candle-friendly; implement child container and name uniqueness semantics; TF graph-dependent layer loss tracking should be feature-gated."
+      },
+      {
+        "path": "monolith/core/base_layer_test.py",
+        "lines": 42,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-layers/tests/base_layer_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Port create_child/create_children semantics; ensure deterministic naming via get_uname equivalent."
+      },
+      {
+        "path": "monolith/core/base_model_params.py",
+        "lines": 26,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/src/model/base_model_params.rs"
+        ],
+        "naJustification": null,
+        "notes": "Simple interface; in Rust becomes trait(s) returning task config structures."
+      },
+      {
+        "path": "monolith/core/base_task.py",
+        "lines": 96,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/src/task/base_task.rs"
+        ],
+        "naJustification": null,
+        "notes": "Defines training/eval parameter schema; in Rust keep config fields and defaults; execution runtime likely in other crate."
+      },
+      {
+        "path": "monolith/core/base_tpu_test.py",
+        "lines": 74,
+        "status": "N/A",
+        "rustTargets": [],
+        "naJustification": "N/A: depends on monolith.tpu_runner and TF TPU runtime; Rust port targets Candle-first and will have a different runner.",
+        "notes": "Replace with Rust integration tests once a Rust runner exists."
+      },
+      {
+        "path": "monolith/core/core_test_suite.py",
+        "lines": 36,
+        "status": "N/A",
+        "rustTargets": [],
+        "naJustification": "N/A: Python-only test suite aggregator; Rust uses cargo test.",
+        "notes": "Ensure equivalent coverage via Rust test modules."
+      },
+      {
+        "path": "monolith/core/dense.py",
+        "lines": 180,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-layers/src/dense.rs"
+        ],
+        "naJustification": null,
+        "notes": "Implement units/activation/use_bias/kernel_norm/kernel_norm_trainable behavior; TF variable partitioner is not directly available in Candle."
+      },
+      {
+        "path": "monolith/core/dense_test.py",
+        "lines": 109,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-layers/tests/dense_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Port shape and dtype tests; partitioner-specific assertions become feature-gated or adapted."
+      },
+      {
+        "path": "monolith/core/feature.py",
+        "lines": 612,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-layers/src/feature/mod.rs"
+        ],
+        "naJustification": null,
+        "notes": "Port FeatureSlot/FeatureSlice/FeatureColumn and Env merge/split logic; fix Python bug: Env.is_finalized() recursion should be clarified in Rust API."
+      },
+      {
+        "path": "monolith/core/feature_test.py",
+        "lines": 179,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-layers/tests/feature_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Port merge/split behavior using fixed small tensors; verify dimensions and key naming conventions."
+      },
+      {
+        "path": "monolith/core/host_call.py",
+        "lines": 249,
+        "status": "BLOCKED",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/src/tf_compat/host_call.rs"
+        ],
+        "naJustification": null,
+        "notes": "Depends on TF summary writer and tf.io.serialize_tensor; Rust parity requires defining an equivalent artifacts format for DeepInsight."
+      },
+      {
+        "path": "monolith/core/hyperparams.py",
+        "lines": 440,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/src/hyperparams/mod.rs"
+        ],
+        "naJustification": null,
+        "notes": "Core non-ML config semantics: define/set/get/delete/copy/freeze, sorted string repr, and InstantiableParams.instantiate behavior (Rust will use registry/constructors)."
+      },
+      {
+        "path": "monolith/core/hyperparams_test.py",
+        "lines": 278,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/tests/hyperparams_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Gold standard for Params behavior; port tests 1:1, including error message substrings and deterministic repr."
+      },
+      {
+        "path": "monolith/core/mixed_emb_op_comb_nws.py",
+        "lines": 422,
+        "status": "BLOCKED",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-layers/src/mixed_emb_op_comb_nws.rs"
+        ],
+        "naJustification": null,
+        "notes": "TF Keras layer with NAS/architecture weights; Candle parity requires selecting equivalent ops and keeping initialization ranges."
+      },
+      {
+        "path": "monolith/core/model.py",
+        "lines": 321,
+        "status": "N/A",
+        "rustTargets": [],
+        "naJustification": "N/A: file is explicitly marked deprecated in favor of monolith/core/base_embedding_task.py; Rust port will target the newer embedding task surface when/if TF-compat is needed.",
+        "notes": "If legacy consumers exist, revisit and map to monolith-core/src/tf_compat/model_legacy.rs."
+      },
+      {
+        "path": "monolith/core/model_imports.py",
+        "lines": 105,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/src/model/imports.rs"
+        ],
+        "naJustification": null,
+        "notes": "Python uses importlib and task_dirs; Rust replacement should support explicit registration and (optionally) feature-flag driven module inclusion."
+      },
+      {
+        "path": "monolith/core/model_registry.py",
+        "lines": 175,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/src/model/registry.rs"
+        ],
+        "naJustification": null,
+        "notes": "Replace dynamic class lookup with compile-time registry; preserve key formatting and error listing of known models."
+      },
+      {
+        "path": "monolith/core/optimizers.py",
+        "lines": 26,
+        "status": "BLOCKED",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-layers/src/optimizers/mod.rs"
+        ],
+        "naJustification": null,
+        "notes": "Python maps names to TF v1 optimizers; Candle parity requires defining matching update rules and hyperparameter defaults."
+      },
+      {
+        "path": "monolith/core/py_utils.py",
+        "lines": 314,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/src/py_utils/nested_map.rs"
+        ],
+        "naJustification": null,
+        "notes": "Primarily NestedMap; implement identifier validation, reserved keys checks, and deterministic traversal ordering."
+      },
+      {
+        "path": "monolith/core/testing_utils.py",
+        "lines": 204,
+        "status": "N/A",
+        "rustTargets": [],
+        "naJustification": "N/A: TensorFlow internal Keras testing harness; Rust tests should be written directly in cargo with Candle tensors.",
+        "notes": "Keep Python tests as parity oracle; do not port helper as-is."
+      },
+      {
+        "path": "monolith/core/tpu_variable.py",
+        "lines": 215,
+        "status": "BLOCKED",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/src/tf_compat/tpu_variable.rs"
+        ],
+        "naJustification": null,
+        "notes": "TF replicated variable semantics inside XLA control flow context; not applicable to Candle; only needed for TF-compat builds."
+      },
+      {
+        "path": "monolith/core/util.py",
+        "lines": 270,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/src/util/gcs.rs",
+          "monolith-rs/crates/monolith-core/src/util/dataset.rs"
+        ],
+        "naJustification": null,
+        "notes": "Contains GCS helpers and TF dataset range filter; Rust should provide GCS path parsing and a pure iterator filter equivalent to range_dateset."
+      },
+      {
+        "path": "monolith/core/util_test.py",
+        "lines": 150,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-core/tests/util_test.rs"
+        ],
+        "naJustification": null,
+        "notes": "Port range_dateset tests as pure string filtering tests; keep boundary behavior and inclusive comparisons."
+      },
+      {
+        "path": "monolith/core/variance_scaling.py",
+        "lines": 189,
+        "status": "TODO",
+        "rustTargets": [
+          "monolith-rs/crates/monolith-layers/src/initializers/variance_scaling.rs"
+        ],
+        "naJustification": null,
+        "notes": "Pure math; parity gate should compare numeric arrays for fixed seed and shapes."
+      }
+    ],
+    "otherFiles": [
+      "monolith/core/BUILD"
+    ]
+  },
+  "interfaces": {
+    "configEnv": {
+      "behavior": "Preserve env var semantics used by TF-dependent paths: TPU_SPLIT_COMPILE_AND_EXECUTE (string '1' enables split compile/execute) and TF_TPU_WATCHDOG_TIMEOUT (int seconds; 0 disables). For Candle-first paths, do not read these env vars, but ensure any Rust TF-compat feature flags honor them when enabled.",
+      "compatibilityChecks": [
+        "When TF-compat feature is enabled, setting TPU_SPLIT_COMPILE_AND_EXECUTE=1 changes hook behavior identically (no implicit truthy parsing; only exact '1').",
+        "TF_TPU_WATCHDOG_TIMEOUT parses as base-10 integer with default '0'; invalid values error out consistently."
+      ]
+    },
+    "serialization": {
+      "formats": [
+        "Hyperparams stable string repr used for logs/config debugging (sorted keys, 2-space indent, braces/newlines identical to Python).",
+        "DeepInsight host-call artifacts currently emitted via TensorFlow summary text using tf.io.serialize_tensor; Rust TF-compat path must either match this exact encoding or define a deterministic replacement plus a migration gate."
+      ],
+      "compatibilityChecks": [
+        "Params string repr for golden configs matches Python exactly (including key ordering and quoting rules for strings).",
+        "If implementing TF-compat host-call output, validate tensors serialize identically to tf.io.serialize_tensor for supported dtypes/shapes."
+      ]
+    }
+  },
+  "harness": {
+    "crossLangParity": {
+      "strategy": "Use a shared fixtures folder with (a) Python scripts that emit deterministic JSON/text artifacts for each unit, and (b) Rust tests/binaries that emit the same artifacts. Compare byte-for-byte in CI. For error behavior, capture exception type + message substring in Python and require Rust to match the chosen canonical error code/message.",
+      "sharedFixturesRoot": "monolith-rs/fixtures/parity/core",
+      "goldens": [
+        {
+          "id": "hyperparams_repr_v1",
+          "description": "Stable string repr for nested Params (sorted keys, list/dict/nested Params formatting).",
+          "pythonInvocation": "python -c \"import monolith.core.hyperparams as hp; import enum; class E(enum.Enum): A=1; B=2; p=hp.Params(); p.define('foo',1,''); inner=hp.Params(); inner.define('bar',2,''); p.define('inner',inner,''); p.define('list',[1,inner,2],''); p.define('dict',{'a':1,'b':inner},''); p.define('enum',E.B,''); print(str(p))\"",
+          "rustInvocation": "cargo run -p monolith-core --bin parity_hyperparams_repr",
+          "artifacts": [
+            "monolith-rs/fixtures/parity/core/hyperparams_repr_v1.txt"
+          ]
+        },
+        {
+          "id": "nested_map_flatten_pack_v1",
+          "description": "NestedMap Flatten/Pack/Filter ordering and key formatting (foo.bar[0].baz).",
+          "pythonInvocation": "python -c \"from monolith.core.py_utils import NestedMap; m=NestedMap({'a':1,'b':NestedMap({'c':[2,3]})}); print(m.FlattenItems()); print(m.Pack([10,20,30]))\"",
+          "rustInvocation": "cargo run -p monolith-core --bin parity_nested_map",
+          "artifacts": [
+            "monolith-rs/fixtures/parity/core/nested_map_flatten_pack_v1.json"
+          ]
+        },
+        {
+          "id": "variance_scaling_v1",
+          "description": "VarianceScaling initializer outputs for fixed seed, shapes, and distributions.",
+          "pythonInvocation": "python -c \"from monolith.core.variance_scaling import VarianceScaling; import numpy as np; init=VarianceScaling(mode='fan_avg',distribution='uniform',seed=123); a=init((4,3),np.float32); print(a.tolist())\"",
+          "rustInvocation": "cargo run -p monolith-layers --bin parity_variance_scaling",
+          "artifacts": [
+            "monolith-rs/fixtures/parity/core/variance_scaling_v1.json"
+          ]
+        },
+        {
+          "id": "util_range_dataset_v1",
+          "description": "range_dateset inclusive date filtering from gs:// paths (pure string filter equivalence).",
+          "pythonInvocation": "python -c \"import tensorflow.compat.v1 as tf; import monolith.core.util as util; tf.disable_eager_execution(); root='gs://x/'; ds=tf.data.Dataset.from_tensor_slices(['gs://x/20200501/a','gs://x/20200502/b','gs://x/20200503/c']); ds=util.range_dateset(ds,root,'20200502','20200503'); it=tf.compat.v1.data.make_one_shot_iterator(ds).get_next(); sess=tf.Session(); out=[];\\n\\ntry:\\n  \\n  while True: out.append(sess.run(it).decode())\\nexcept tf.errors.OutOfRangeError: pass\\nprint(out)\"",
+          "rustInvocation": "cargo run -p monolith-core --bin parity_util_range_dataset",
+          "artifacts": [
+            "monolith-rs/fixtures/parity/core/util_range_dataset_v1.json"
+          ]
+        }
+      ]
+    }
+  },
+  "workstreams": [
+    {
+      "id": "ws1_hyperparams",
+      "title": "Hyperparams + config semantics (Candle-friendly)",
+      "dependsOn": [],
+      "pythonFiles": [
+        "monolith/core/hyperparams.py",
+        "monolith/core/hyperparams_test.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-core/src/hyperparams/mod.rs",
+        "monolith-rs/crates/monolith-core/tests/hyperparams_test.rs",
+        "monolith-rs/crates/monolith-core/src/bin/parity_hyperparams_repr.rs"
+      ],
+      "deliverables": [
+        "Params value model supporting scalars, strings, lists, dicts, nested Params, and opaque values with identity-based equality",
+        "freeze() immutability semantics with TypeError-equivalent errors",
+        "set/get/delete with dotted paths and list indexing syntax foo[0] only for traversal, matching Python behavior",
+        "Stable repr that matches Python hyperparams_test.test_to_string output exactly"
+      ],
+      "parityChecks": [
+        "Port hyperparams_test.py test cases with equivalent assertions and error message substrings",
+        "Golden: hyperparams_repr_v1.txt matches byte-for-byte between Python and Rust"
+      ],
+      "tests": [
+        "cargo test -p monolith-core hyperparams",
+        "Python: monolith/core/hyperparams_test.py (oracle)"
+      ],
+      "risks": [
+        "Python uses TF tensor special-casing for deepcopy; Rust needs an explicit Opaque/Shared variant to preserve identity semantics",
+        "InstantiableParams.instantiate relies on Python reflection; Rust requires a different mechanism (see ws7_model_registry)"
+      ]
+    },
+    {
+      "id": "ws2_nested_map",
+      "title": "NestedMap (py_utils) parity (Candle-friendly)",
+      "dependsOn": [
+        "ws1_hyperparams"
+      ],
+      "pythonFiles": [
+        "monolith/core/py_utils.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-core/src/py_utils/nested_map.rs",
+        "monolith-rs/crates/monolith-core/src/bin/parity_nested_map.rs"
+      ],
+      "deliverables": [
+        "NestedMap with identifier key validation and reserved-key rejection",
+        "Flatten/FlattenItems/Pack/Transform/FilterKeyVal with deterministic traversal ordering (sorted keys)",
+        "Error behavior matching Python (AttributeError messages include available attributes)"
+      ],
+      "parityChecks": [
+        "Golden: nested_map_flatten_pack_v1.json matches between Python and Rust",
+        "Property-based test: Pack(Flatten()) roundtrips for random small structures (restricted to supported types)"
+      ],
+      "tests": [
+        "cargo test -p monolith-core nested_map"
+      ],
+      "risks": [
+        "Python treats dict vs NestedMap differently in traversal; Rust must preserve that distinction to avoid subtle ordering differences"
+      ]
+    },
+    {
+      "id": "ws3_variance_scaling",
+      "title": "VarianceScaling initializer (Candle-friendly)",
+      "dependsOn": [],
+      "pythonFiles": [
+        "monolith/core/variance_scaling.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-layers/src/initializers/variance_scaling.rs",
+        "monolith-rs/crates/monolith-layers/src/bin/parity_variance_scaling.rs"
+      ],
+      "deliverables": [
+        "fan_in/fan_out computation matching Python for shapes with rank 2/3/4/5 and fallback sqrt(prod) behavior",
+        "uniform/untruncated_normal distributions with seed behavior that yields deterministic outputs",
+        "truncated_normal distribution compatible with Python+scipy.stats.truncnorm behavior or a documented, gated deviation"
+      ],
+      "parityChecks": [
+        "Golden: variance_scaling_v1.json matches Python for uniform + untruncated_normal",
+        "If truncated_normal differs due to SciPy implementation details, add an explicit compatibility mode and goldens per mode"
+      ],
+      "tests": [
+        "cargo test -p monolith-layers variance_scaling"
+      ],
+      "risks": [
+        "Exact truncated normal sampling parity with SciPy may be hard; treat as high-risk and gate with explicit compatibility mode"
+      ]
+    },
+    {
+      "id": "ws4_base_layer",
+      "title": "BaseLayer child and naming semantics (Candle-friendly)",
+      "dependsOn": [
+        "ws1_hyperparams",
+        "ws2_nested_map"
+      ],
+      "pythonFiles": [
+        "monolith/core/base_layer.py",
+        "monolith/core/base_layer_test.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-layers/src/base_layer.rs",
+        "monolith-rs/crates/monolith-layers/tests/base_layer_test.rs"
+      ],
+      "deliverables": [
+        "Layer base struct/trait with child registry equivalent to NestedMap",
+        "get_uname behavior for per-type unique naming",
+        "create_child/create_children semantics (including defaulting child param name to parent name when unset)"
+      ],
+      "parityChecks": [
+        "Port base_layer_test.py assertions into Rust tests",
+        "Manual parity probe: build a small tree and compare child key ordering with Python"
+      ],
+      "tests": [
+        "cargo test -p monolith-layers base_layer"
+      ],
+      "risks": [
+        "Python relies on InstantiableParams.instantiate; Rust needs a safe constructor path for layer configs"
+      ]
+    },
+    {
+      "id": "ws5_dense_layer",
+      "title": "Dense layer parity on Candle (Candle-friendly core; TF-only options feature-gated)",
+      "dependsOn": [
+        "ws3_variance_scaling",
+        "ws4_base_layer"
+      ],
+      "pythonFiles": [
+        "monolith/core/dense.py",
+        "monolith/core/dense_test.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-layers/src/dense.rs",
+        "monolith-rs/crates/monolith-layers/tests/dense_test.rs"
+      ],
+      "deliverables": [
+        "Dense forward pass with activation, optional bias, and weight initialization parity (VarianceScaling)",
+        "allow_kernel_norm + kernel_norm_trainable semantics, including epsilon=1e-6 normalization behavior",
+        "Config surface matching Python params fields; unsupported TF-only fields (partitioner) must error clearly or be explicitly ignored behind a compat flag"
+      ],
+      "parityChecks": [
+        "Port dense_test.py shape/dtype expectations; add Rust-only tests for kernel_norm behavior",
+        "Golden numeric parity for a fixed seed + tiny input (within tolerance) for Candle path"
+      ],
+      "tests": [
+        "cargo test -p monolith-layers dense"
+      ],
+      "risks": [
+        "Exact TF variable semantics (get_variable, partitioner) cannot be replicated in Candle; choose strict-error vs best-effort behavior and gate it explicitly"
+      ]
+    },
+    {
+      "id": "ws6_feature_env",
+      "title": "FeatureSlot/Env embedding semantics (Candle-friendly)",
+      "dependsOn": [
+        "ws1_hyperparams"
+      ],
+      "pythonFiles": [
+        "monolith/core/feature.py",
+        "monolith/core/feature_test.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-layers/src/feature/mod.rs",
+        "monolith-rs/crates/monolith-layers/tests/feature_test.rs"
+      ],
+      "deliverables": [
+        "FeatureSlot/FeatureSlice modeling and deterministic key naming (fc_name + slice_index)",
+        "Env merge_vector_in_same_slot and split_merged_embedding behavior",
+        "QR multi hashing and OOV random init behavior expressed in Candle-friendly operations"
+      ],
+      "parityChecks": [
+        "Port feature_test.py merge/split cases to Rust tensors; ensure identical splits and keys",
+        "Add golden for merge/split of a small merged embedding input"
+      ],
+      "tests": [
+        "cargo test -p monolith-layers feature"
+      ],
+      "risks": [
+        "Python Env.is_finalized() is buggy (recursive); Rust must define correct API and ensure callers cannot observe inconsistent state",
+        "Embedding lookup semantics differ between TF placeholder mode and TPU features mode; Rust should model explicit inputs instead of placeholders"
+      ]
+    },
+    {
+      "id": "ws7_model_registry",
+      "title": "Model params interface + registry replacement (Candle-friendly surface, TF-compatible keys)",
+      "dependsOn": [
+        "ws1_hyperparams"
+      ],
+      "pythonFiles": [
+        "monolith/core/base_model_params.py",
+        "monolith/core/model_imports.py",
+        "monolith/core/model_registry.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-core/src/model/base_model_params.rs",
+        "monolith-rs/crates/monolith-core/src/model/imports.rs",
+        "monolith-rs/crates/monolith-core/src/model/registry.rs"
+      ],
+      "deliverables": [
+        "Compile-time registry mapping string keys to model param constructors (or typed task configs)",
+        "Key formatting identical to Python (module path + class name), including optional shortcut variant where applicable",
+        "Error behavior lists known models in sorted order when lookup fails"
+      ],
+      "parityChecks": [
+        "Golden: for a small mock registry, Rust prints known model keys in sorted order matching Python's logging order",
+        "Unit test: duplicate registration produces deterministic error"
+      ],
+      "tests": [
+        "cargo test -p monolith-core model_registry"
+      ],
+      "risks": [
+        "Python dynamically imports task modules; Rust must choose between explicit linking (feature flags) or plugin loading (higher complexity)"
+      ]
+    },
+    {
+      "id": "ws8_util",
+      "title": "GCS helpers + dataset range filtering (Candle-friendly subset)",
+      "dependsOn": [],
+      "pythonFiles": [
+        "monolith/core/util.py",
+        "monolith/core/util_test.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-core/src/util/gcs.rs",
+        "monolith-rs/crates/monolith-core/src/util/dataset.rs",
+        "monolith-rs/crates/monolith-core/tests/util_test.rs",
+        "monolith-rs/crates/monolith-core/src/bin/parity_util_range_dataset.rs"
+      ],
+      "deliverables": [
+        "GCS path parser equivalent to get_bucket_name_and_relavite_path (including assertion-like error on non-gs:// paths)",
+        "Pure string-based range_dateset equivalent (root_path prefix length + YYYYMMDD substring parsing + inclusive bounds)",
+        "Optionally: GCS download/list wrappers using Rust client libraries (feature-gated to avoid heavy deps in core builds)"
+      ],
+      "parityChecks": [
+        "Port util_test.py date-range cases to Rust as pure string filtering tests",
+        "Golden: util_range_dataset_v1.json matches between Python and Rust"
+      ],
+      "tests": [
+        "cargo test -p monolith-core util"
+      ],
+      "risks": [
+        "Python util.range_dateset uses TF ops and parses dates as tf.int32; Rust must match parsing and boundary behavior exactly, including default MIN/MAX date strings"
+      ]
+    },
+    {
+      "id": "ws9_host_call",
+      "title": "Host call compression + DeepInsight serialization (TensorFlow-dependent, blocked)",
+      "dependsOn": [
+        "ws1_hyperparams"
+      ],
+      "pythonFiles": [
+        "monolith/core/base_host_call.py",
+        "monolith/core/host_call.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-core/src/tf_compat/base_host_call.rs",
+        "monolith-rs/crates/monolith-core/src/tf_compat/host_call.rs"
+      ],
+      "deliverables": [
+        "Define a Rust artifact format for host-call outputs that is deterministic and comparable to TF summary outputs",
+        "If TF-compat is required: implement tensor concat/split grouping by dtype with per-tensor size tracking"
+      ],
+      "parityChecks": [
+        "Golden: given a fixed set of tensors, Rust compress/decompress reproduces original tensors exactly",
+        "If TF serialization parity is targeted, compare to tf.io.serialize_tensor for a matrix of dtypes/shapes"
+      ],
+      "tests": [
+        "cargo test -p monolith-core host_call (feature=tf-compat)"
+      ],
+      "risks": [
+        "Exact TF summary + serialize_tensor compatibility may require embedding TF or reimplementing TF tensor encoding"
+      ]
+    },
+    {
+      "id": "ws10_tpu_runtime",
+      "title": "TPU runtime shims (TensorFlow-dependent, blocked)",
+      "dependsOn": [
+        "ws9_host_call"
+      ],
+      "pythonFiles": [
+        "monolith/core/tpu_variable.py",
+        "monolith/core/auto_checkpoint_feed_hook.py",
+        "monolith/core/base_embedding_host_call.py",
+        "monolith/core/base_embedding_host_call_test.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-core/src/tf_compat/tpu_variable.rs",
+        "monolith-rs/crates/monolith-core/src/tf_compat/auto_checkpoint_feed_hook.rs",
+        "monolith-rs/crates/monolith-core/src/tf_compat/base_embedding_host_call.rs",
+        "monolith-rs/crates/monolith-core/tests/base_embedding_host_call_test.rs"
+      ],
+      "deliverables": [
+        "ReplicatedVariable equivalent only if embedding TF/XLA is part of scope; otherwise provide a stub with clear errors",
+        "Preserve env var and hook behavior in TF-compat build"
+      ],
+      "parityChecks": [
+        "Port base_embedding_host_call_test semantics to Rust arrays or TF-embedded tensors (depending on approach)"
+      ],
+      "tests": [
+        "cargo test -p monolith-core tf_compat (feature=tf-compat)"
+      ],
+      "risks": [
+        "High complexity; likely out-of-scope for Candle-first port unless a TF runtime binding strategy is committed"
+      ]
+    },
+    {
+      "id": "ws11_embedding_task",
+      "title": "BaseEmbeddingTask and related training loop (TensorFlow-dependent, blocked)",
+      "dependsOn": [
+        "ws10_tpu_runtime",
+        "ws6_feature_env"
+      ],
+      "pythonFiles": [
+        "monolith/core/base_task.py",
+        "monolith/core/base_embedding_task.py",
+        "monolith/core/optimizers.py",
+        "monolith/core/mixed_emb_op_comb_nws.py"
+      ],
+      "rustTargets": [
+        "monolith-rs/crates/monolith-core/src/tf_compat/base_embedding_task.rs",
+        "monolith-rs/crates/monolith-layers/src/optimizers/mod.rs",
+        "monolith-rs/crates/monolith-layers/src/mixed_emb_op_comb_nws.rs"
+      ],
+      "deliverables": [
+        "Decide runtime: (a) TF-compat training support, or (b) re-express training in Candle-first pipeline",
+        "If Candle-first: implement embedding training loop and optimizer mapping with explicit, testable semantics",
+        "If TF-compat: implement dataset ingestion, sharding/skip logic, and embedding config wiring"
+      ],
+      "parityChecks": [
+        "For Candle-first: numerical parity within tolerance on a tiny synthetic task with fixed seed",
+        "For TF-compat: behavior parity on dataset sharding/skip and checkpoint-resume logic using recorded fixtures"
+      ],
+      "tests": [
+        "Integration tests gated behind runtime choice"
+      ],
+      "risks": [
+        "Large scope and heavy infra dependencies (TPU, TF Estimator, GCS/HDFS tooling)"
+      ]
+    }
+  ],
+  "milestones": [
+    {
+      "id": "m1_hyperparams_parity",
+      "definitionOfDone": [
+        "Rust Params passes a port of monolith/core/hyperparams_test.py semantics",
+        "hyperparams_repr_v1.txt golden matches byte-for-byte",
+        "No unstable ordering in repr across runs"
+      ],
+      "blockedBy": [
+        "Missing normalized mapping file at generated/parity/11-normalize-mapping/normalized_mapping.json (non-blocking for this milestone)"
+      ]
+    },
+    {
+      "id": "m2_foundations_parity",
+      "definitionOfDone": [
+        "NestedMap parity goldens match",
+        "VarianceScaling parity goldens match for uniform + untruncated_normal",
+        "BaseLayer child/naming tests pass in Rust"
+      ],
+      "blockedBy": []
+    },
+    {
+      "id": "m3_layers_parity",
+      "definitionOfDone": [
+        "Dense layer passes Rust unit tests and a small cross-lang numeric golden (within tolerance) for Candle path",
+        "Feature merge/split tests pass in Rust and match Python behavior on identical synthetic inputs"
+      ],
+      "blockedBy": []
+    },
+    {
+      "id": "m4_tf_compat_gate",
+      "definitionOfDone": [
+        "A documented decision exists on whether TF-compat runtime is supported",
+        "If supported, host_call + tpu_variable modules have at least one passing parity golden"
+      ],
+      "blockedBy": [
+        "TF/XLA runtime strategy and dependency policy for monolith-rs"
+      ]
+    }
+  ],
+  "openGaps": [
+    {
+      "gap": "Missing normalized mapping context: generated/parity/11-normalize-mapping/normalized_mapping.json not found; plan may not align with global mapping conventions used elsewhere.",
+      "severity": "medium",
+      "files": [
+        "monolith/core/BUILD"
+      ],
+      "mitigation": "Regenerate normalized mapping and revise crate/module placement to match repo-wide canonical mapping."
+    },
+    {
+      "gap": "TensorFlow-dependent TPU runtime pieces (auto_checkpoint_feed_hook, host_call, tpu_variable, base_embedding_task) do not have a committed Rust runtime approach.",
+      "severity": "high",
+      "files": [
+        "monolith/core/auto_checkpoint_feed_hook.py",
+        "monolith/core/base_embedding_host_call.py",
+        "monolith/core/base_embedding_task.py",
+        "monolith/core/base_host_call.py",
+        "monolith/core/host_call.py",
+        "monolith/core/tpu_variable.py"
+      ],
+      "mitigation": "Make an explicit decision: (1) Candle-first only (mark TF-compat modules as unsupported with clear errors), or (2) TF-compat feature that embeds or binds to TF/XLA; then implement parity fixtures accordingly."
+    },
+    {
+      "gap": "InstantiableParams.instantiate relies on Python reflection; there is no 1:1 Rust equivalent without a registry of constructors.",
+      "severity": "medium",
+      "files": [
+        "monolith/core/hyperparams.py",
+        "monolith/core/base_layer.py"
+      ],
+      "mitigation": "Introduce Rust registry traits for constructible components; preserve allowed_kwargs behavior as an explicit allowlist on config structs."
+    },
+    {
+      "gap": "VarianceScaling truncated_normal parity depends on SciPy's truncnorm implementation; exact byte parity may be impractical.",
+      "severity": "low",
+      "files": [
+        "monolith/core/variance_scaling.py"
+      ],
+      "mitigation": "Provide a compatibility mode: strict (best-effort statistical match) vs exact (embed precomputed tables/goldens for small shapes)."
+    }
+  ]
+}
+

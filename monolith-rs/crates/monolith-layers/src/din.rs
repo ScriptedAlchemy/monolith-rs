@@ -588,17 +588,18 @@ impl DINAttention {
         let embedding_dim = self.config.embedding_dim;
 
         // [B, H] -> [B, 1, H] -> [B, T, H]
-        let query_expanded =
-            query
-                .reshape(&[batch_size, 1, embedding_dim])
-                .broadcast_as(&[batch_size, seq_len, embedding_dim]);
+        let query_expanded = query
+            .reshape(&[batch_size, 1, embedding_dim])
+            .broadcast_as(&[batch_size, seq_len, embedding_dim]);
         let query_minus_key = query_expanded.sub(keys);
         let query_mul_key = query_expanded.mul(keys);
 
         // Concatenate [q, k, q-k, q*k] along last dimension -> [B, T, 4H]
-        let attention_input =
-            Tensor::cat(&[query_expanded, keys.clone(), query_minus_key, query_mul_key], 2)
-                .reshape(&[batch_size * seq_len, 4 * embedding_dim]);
+        let attention_input = Tensor::cat(
+            &[query_expanded, keys.clone(), query_minus_key, query_mul_key],
+            2,
+        )
+        .reshape(&[batch_size * seq_len, 4 * embedding_dim]);
 
         // Pass through attention MLP
         let logits = self.attention_mlp.forward(&attention_input)?;
@@ -663,9 +664,11 @@ impl DINAttention {
         seq_len: usize,
         embedding_dim: usize,
     ) -> Result<Tensor, LayerError> {
-        let w = weights
-            .reshape(&[batch_size, seq_len, 1])
-            .broadcast_as(&[batch_size, seq_len, embedding_dim]);
+        let w = weights.reshape(&[batch_size, seq_len, 1]).broadcast_as(&[
+            batch_size,
+            seq_len,
+            embedding_dim,
+        ]);
         let weighted = values.mul(&w);
         match self.config.mode {
             DINOutputMode::Sum => Ok(weighted.sum_axis(1)),
@@ -1027,8 +1030,9 @@ mod tests {
         let din = DINAttention::new(8, &[16, 8]);
         let params = din.parameters();
 
-        // 3 dense layers (16, 8, 1) with bias each = 6 parameter tensors
-        assert_eq!(params.len(), 6);
+        // Dense defaults include a trainable kernel-norm scale; each dense has:
+        // weights, bias, kernel_norm => 3 tensors.
+        assert_eq!(params.len(), 9);
     }
 
     #[test]

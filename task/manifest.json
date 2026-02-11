@@ -1,109 +1,123 @@
 {
   "schemaVersion": "1.0",
-  "name": "monolith-python-to-rust-parity-orchestration",
-  "description": "Runnable Unpack task graph to drive exhaustive Python->Rust parity for monolith/: validate inventory+checklists, build/normalize a canonical mapping table, generate domain port plans (agent_service/core/native_training/TF runtime), and produce a parity dashboard for next actions.",
+  "name": "monolith-direct-porting",
+  "description": "Direct porting modules that edit Rust code immediately (no mapping tables or planning artifacts).",
   "entry": "task/index.ai.tsx",
   "modules": [
     {
-      "id": "discover-summary",
+      "id": "core-hyperparams-base-layer",
       "path": "task/00-discover-summary.ai.tsx",
-      "description": "Sanity-check required repo roots (monolith/, monolith-rs/) and load existing parity artifacts into a bounded discovery summary JSON."
+      "description": "Port monolith/core hyperparams + base layer/task params into monolith-core with parity tests."
     },
     {
-      "id": "discover-report",
+      "id": "core-feature-model-registry",
       "path": "task/00-discover-report.ai.tsx",
-      "description": "Write a brief discovery report derived from the discovery summary JSON.",
-      "dependsOn": ["discover-summary"]
+      "description": "Port monolith/core feature + model registry surface into monolith-core with parity tests."
     },
     {
-      "id": "validate-inventory",
+      "id": "core-embeddings-layers",
       "path": "task/01-validate-inventory.ai.tsx",
-      "description": "Validate that every monolith/**/*.py file is accounted for (expected 334): parity index row count matches checklist files; report missing/extra items and emit machine-readable counts/diffs.",
-      "dependsOn": ["discover-summary"]
+      "description": "Port core embedding/layer utilities into monolith-core/monolith-layers with parity tests."
     },
     {
-      "id": "generate-mapping-table",
+      "id": "agent-service-data-def",
       "path": "task/10-generate-mapping-table.ai.tsx",
-      "description": "Generate/refresh a canonical Python->Rust mapping table for every Python file (destination crate/module, status, notes, and explicit N/A justifications).",
-      "dependsOn": ["validate-inventory"]
+      "description": "Port monolith/agent_service data definitions and constants into monolith-serving with parity tests."
     },
     {
-      "id": "normalize-mapping",
+      "id": "agent-service-backends",
       "path": "task/11-normalize-mapping.ai.tsx",
-      "description": "Normalize mapping conventions (crate/module naming, tests/fixtures layout, proto/op boundaries, and required N/A justification schema) and emit conventions doc+JSON.",
-      "dependsOn": ["generate-mapping-table"]
+      "description": "Port monolith/agent_service backends/resource_utils into monolith-serving with parity tests."
     },
     {
-      "id": "agent-service-plan",
+      "id": "agent-service-zk-mirror",
+      "path": "task/12-agent-service-zk-mirror.ai.tsx",
+      "description": "Port zk_mirror + mocked_zkclient behavior into monolith-serving with parity tests."
+    },
+    {
+      "id": "agent-service-tfs-client",
+      "path": "task/13-agent-service-tfs-client.ai.tsx",
+      "description": "Port TFServing client/monitor/wrapper + mocks into monolith-serving with parity tests."
+    },
+    {
+      "id": "agent-service-replica-manager",
+      "path": "task/14-agent-service-replica-manager.ai.tsx",
+      "description": "Port replica/model manager logic into monolith-serving with parity tests."
+    },
+    {
+      "id": "agent-service-cli",
+      "path": "task/15-agent-service-cli.ai.tsx",
+      "description": "Port agent_service CLI/controller/service behavior into monolith-cli/monolith-serving with parity tests."
+    },
+    {
+      "id": "native-training-entrypoints",
       "path": "task/20-agent-service-plan.ai.tsx",
-      "description": "Create an implementation-ready plan for monolith/agent_service/** parity in monolith-rs (monolith-serving): file clustering, target modules, and test harness strategy (fake ZK + fake TFServing).",
-      "dependsOn": ["normalize-mapping"]
+      "description": "Port native_training entrypoints and training loops into monolith-training with parity tests."
     },
     {
-      "id": "agent-service-impl",
+      "id": "native-training-service-discovery",
       "path": "task/21-agent-service-impl.ai.tsx",
-      "description": "Optional execution placeholder for a first implementation slice of monolith/agent_service/** (e.g., data_def + mocked_zkclient + basic backends), or ticketization into implementation-ready work items.",
-      "dependsOn": ["agent-service-plan"]
+      "description": "Port native_training service discovery and env helpers into monolith-training with parity tests."
     },
     {
-      "id": "core-plan",
+      "id": "core-utils-optimizers",
       "path": "task/30-core-plan.ai.tsx",
-      "description": "Create a parity plan for monolith/core/** infra (hyperparams, base_layer/task, feature/model registry, hooks): identify high-risk semantics and required Rust test strategies.",
-      "dependsOn": ["normalize-mapping"]
+      "description": "Port core utilities, optimizers, and host-call helpers into monolith-core with parity tests."
     },
     {
-      "id": "utils-and-entrypoints-plan",
+      "id": "monolith-entrypoints-workspace",
       "path": "task/35-utils-and-entrypoints-plan.ai.tsx",
-      "description": "Plan parity for top-level monolith utilities and entrypoints (monolith/utils.py, path_utils.py, base_runner.py, gpu_runner.py, tpu_runner.py) plus workspace/config glue (monolith_workspace.bzl, tf_serving_workspace.bzl): map CLI/env/config semantics and Rust destinations.",
-      "dependsOn": ["normalize-mapping"]
+      "description": "Port top-level runners/utils and workspace config into monolith-cli/build tooling."
     },
     {
-      "id": "native-training-plan",
+      "id": "native-training-data-pipeline",
       "path": "task/40-native-training-plan.ai.tsx",
-      "description": "Segment monolith/native_training/** into subdomains, flag TF-dependent vs TF-optional paths, map to Rust crates/modules, and propose milestone ordering with parity checks.",
-      "dependsOn": ["normalize-mapping"]
+      "description": "Port native_training data pipeline into monolith-data with parity tests."
     },
     {
-      "id": "tf-runtime-plan",
+      "id": "native-training-distributed-runtime",
       "path": "task/50-tf-runtime-plan.ai.tsx",
-      "description": "Define optional TensorFlow runtime integration contract (dynamic libtensorflow loading, custom op loading, signatures, SavedModel IO), and enumerate parity gaps that require TF runtime.",
-      "dependsOn": ["normalize-mapping"]
+      "description": "Port native_training distributed runtime into monolith-training with parity tests."
     },
     {
-      "id": "third-party-and-codegen-plan",
+      "id": "native-training-export-checkpoint",
       "path": "task/60-third-party-and-codegen-plan.ai.tsx",
-      "description": "Account for non-monolith Python-adjacent behavior dependencies: third_party/org_tensorflow/** patches, custom op build/load surfaces, protobuf/codegen steps, and any Python-dependent tooling that affects runtime semantics; map to Rust build/features and track explicit parity gaps.",
-      "dependsOn": ["normalize-mapping"]
+      "description": "Port native_training export/checkpoint paths into monolith-checkpoint with parity tests."
     },
     {
-      "id": "parity-test-harness-plan",
+      "id": "native-training-layers-optimizers-hooks",
       "path": "task/80-parity-test-harness-plan.ai.tsx",
-      "description": "Define repeatable parity validation harnesses: golden fixtures, Python-vs-Rust differential tests, gRPC/proto compatibility tests, and TF-optional gating (Candle default, TF runtime best-effort).",
-      "dependsOn": ["normalize-mapping"]
+      "description": "Port native_training layers/optimizers/hooks/metrics into Rust crates with parity tests."
     },
     {
-      "id": "parity-dashboard",
+      "id": "native-training-feature-ops",
       "path": "task/90-parity-dashboard.ai.tsx",
-      "description": "Roll up inventory validation, mapping, conventions, and domain plans into a single parity dashboard: coverage status, open parity gaps, and prioritized next work queue.",
-      "dependsOn": [
-        "validate-inventory",
-        "generate-mapping-table",
-        "normalize-mapping",
-        "agent-service-plan",
-        "agent-service-impl",
-        "core-plan",
-        "utils-and-entrypoints-plan",
-        "native-training-plan",
-        "tf-runtime-plan",
-        "third-party-and-codegen-plan",
-        "parity-test-harness-plan"
-      ]
+      "description": "Port native_training feature/hash ops into monolith-training with parity tests."
     },
     {
       "id": "index",
       "path": "task/index.ai.tsx",
-      "description": "Entrypoint orchestrator: imports and sequences phases (discover/validate -> mapping -> domain plans -> dashboard) and emits final human-facing deliverable(s).",
-      "dependsOn": ["parity-dashboard"]
+      "description": "Entrypoint orchestrator for direct porting modules.",
+      "dependsOn": [
+        "core-hyperparams-base-layer",
+        "core-feature-model-registry",
+        "core-embeddings-layers",
+        "agent-service-data-def",
+        "agent-service-backends",
+        "agent-service-zk-mirror",
+        "agent-service-tfs-client",
+        "agent-service-replica-manager",
+        "agent-service-cli",
+        "native-training-entrypoints",
+        "native-training-service-discovery",
+        "core-utils-optimizers",
+        "monolith-entrypoints-workspace",
+        "native-training-data-pipeline",
+        "native-training-distributed-runtime",
+        "native-training-export-checkpoint",
+        "native-training-layers-optimizers-hooks",
+        "native-training-feature-ops"
+      ]
     }
   ]
 }

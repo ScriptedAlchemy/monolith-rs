@@ -28,6 +28,8 @@ async fn main() -> Result<()> {
         Commands::Train(cmd) => cmd.run().await?,
         Commands::Serve(cmd) => cmd.run().await?,
         Commands::Export(cmd) => cmd.run().await?,
+        Commands::AgentService(cmd) => cmd.run().await?,
+        Commands::TfRunner(cmd) => cmd.run().await?,
     }
 
     info!("Monolith CLI completed successfully");

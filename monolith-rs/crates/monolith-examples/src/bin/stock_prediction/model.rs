@@ -154,13 +154,13 @@ impl StockPredictionModel {
 
         // MMoE for multi-task learning
         let mmoe = MMoEConfig::new(combined_dim, 4, 3)
-            .with_expert_hidden_units(vec![128, 64, 32])  // Deeper experts
+            .with_expert_hidden_units(vec![128, 64, 32]) // Deeper experts
             .with_expert_activation(ActivationType::gelu())
-            .with_expert_output_dim(48)  // Larger output dimension
+            .with_expert_output_dim(48) // Larger output dimension
             .build()
             .unwrap();
 
-        let mmoe_output_dim = 48;  // Updated to match MMoE output
+        let mmoe_output_dim = 48; // Updated to match MMoE output
         let direction_head = MLPConfig::new(mmoe_output_dim)
             .add_layer(32, ActivationType::gelu())
             .add_layer(16, ActivationType::gelu())
@@ -363,9 +363,9 @@ impl StockPredictionModel {
             // Adaptive delta based on label magnitude
             let delta = (instance.magnitude_label.abs() * 0.5).max(0.01).min(2.0);
             if diff <= delta {
-                magnitude_loss += 0.5 * diff * diff / delta;  // Normalized L2
+                magnitude_loss += 0.5 * diff * diff / delta; // Normalized L2
             } else {
-                magnitude_loss += diff - 0.5 * delta;  // L1 for outliers
+                magnitude_loss += diff - 0.5 * delta; // L1 for outliers
             }
         }
         magnitude_loss /= batch_size;
@@ -391,9 +391,9 @@ impl StockPredictionModel {
         let magnitude_weight = 0.3;
         let profitable_weight = 0.2;
 
-        let mut total_loss = direction_weight * direction_loss +
-                        magnitude_weight * magnitude_loss +
-                        profitable_weight * profitable_loss;
+        let mut total_loss = direction_weight * direction_loss
+            + magnitude_weight * magnitude_loss
+            + profitable_weight * profitable_loss;
 
         // Add regularization losses (kernels, auxiliary losses like SNR/IRazor)
         total_loss += self.regularization_loss();
@@ -432,7 +432,11 @@ impl StockPredictionModel {
     }
 
     /// Forward pass that caches intermediate activations for backpropagation
-    pub fn forward_train(&mut self, batch: &[&StockInstance], features: &FeatureIndex) -> (ModelOutput, ForwardCache) {
+    pub fn forward_train(
+        &mut self,
+        batch: &[&StockInstance],
+        features: &FeatureIndex,
+    ) -> (ModelOutput, ForwardCache) {
         let batch_size = batch.len();
         let lookback = self.config.lookback_window;
         let seq_feature_dim = 4 + features.indicator_dim();
@@ -441,8 +445,10 @@ impl StockPredictionModel {
         let sector_ids: Vec<i64> = batch.iter().map(|i| i.sector_fid).collect();
 
         let (ticker_embs, sector_embs) = self.embeddings.lookup_batch(&ticker_ids, &sector_ids);
-        let ticker_tensor = Tensor::from_data(&[batch_size, self.embeddings.ticker_dim()], ticker_embs);
-        let sector_tensor = Tensor::from_data(&[batch_size, self.embeddings.sector_dim()], sector_embs);
+        let ticker_tensor =
+            Tensor::from_data(&[batch_size, self.embeddings.ticker_dim()], ticker_embs);
+        let sector_tensor =
+            Tensor::from_data(&[batch_size, self.embeddings.sector_dim()], sector_embs);
 
         let indicator_dim = features.indicator_dim();
         let mut indicator_data = vec![0.0; batch_size * indicator_dim];
@@ -503,8 +509,14 @@ impl StockPredictionModel {
         }
         let target_tensor = Tensor::from_data(&[batch_size, seq_feature_dim], target_data);
 
-        let dien_output = self.dien.forward_dien(&seq_tensor, &target_tensor, None).unwrap();
-        let din_output = self.din.forward_attention(&target_tensor, &seq_tensor, &seq_tensor, None).unwrap();
+        let dien_output = self
+            .dien
+            .forward_dien(&seq_tensor, &target_tensor, None)
+            .unwrap();
+        let din_output = self
+            .din
+            .forward_attention(&target_tensor, &seq_tensor, &seq_tensor, None)
+            .unwrap();
 
         let combined = self.concatenate_enhanced_features(
             &ticker_tensor,
@@ -523,7 +535,10 @@ impl StockPredictionModel {
 
         let direction_pred = self.direction_head.forward_train(&mmoe_outputs[0]).unwrap();
         let magnitude_pred = self.magnitude_head.forward_train(&mmoe_outputs[1]).unwrap();
-        let profitable_pred = self.profitable_head.forward_train(&mmoe_outputs[2]).unwrap();
+        let profitable_pred = self
+            .profitable_head
+            .forward_train(&mmoe_outputs[2])
+            .unwrap();
 
         let output = ModelOutput {
             direction: direction_pred.data(),
@@ -546,7 +561,11 @@ impl StockPredictionModel {
     }
 
     /// Compute gradients of loss w.r.t. model outputs
-    pub fn compute_loss_gradients(&self, output: &ModelOutput, batch: &[&StockInstance]) -> LossGradients {
+    pub fn compute_loss_gradients(
+        &self,
+        output: &ModelOutput,
+        batch: &[&StockInstance],
+    ) -> LossGradients {
         let batch_size = batch.len();
         let batch_size_f = batch_size as f32;
 
@@ -610,7 +629,10 @@ impl StockPredictionModel {
         let d_mmoe_2 = self.profitable_head.backward(&grads.d_profitable).unwrap();
 
         // Backward through MMoE
-        let d_normalized = self.mmoe.backward_multi(&[d_mmoe_0, d_mmoe_1, d_mmoe_2]).unwrap();
+        let d_normalized = self
+            .mmoe
+            .backward_multi(&[d_mmoe_0, d_mmoe_1, d_mmoe_2])
+            .unwrap();
 
         // Backward through layer norm
         let d_residual = self.layer_norm.backward(&d_normalized).unwrap();
@@ -687,7 +709,11 @@ fn apply_dense_gradients(layer: &mut monolith_layers::dense::Dense, lr: f32, gra
 }
 
 /// Apply gradients to a CrossLayer using SGD with gradient clipping
-fn apply_cross_layer_gradients(layer: &mut monolith_layers::dcn::CrossLayer, lr: f32, grad_clip: f32) {
+fn apply_cross_layer_gradients(
+    layer: &mut monolith_layers::dcn::CrossLayer,
+    lr: f32,
+    grad_clip: f32,
+) {
     // Clone gradients to avoid borrow conflicts
     let weight_grad_data: Option<Vec<f32>> = layer.weight_grad().map(|g| g.data());
     let bias_grad_data: Option<Vec<f32>> = layer.bias_grad().map(|g| g.data());
