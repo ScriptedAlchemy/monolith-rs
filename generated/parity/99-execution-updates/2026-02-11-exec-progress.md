@@ -1087,6 +1087,16 @@
 - Added regression:
   - `consul_query_all_rejects_malformed_entries`.
 
+### 100) ZK discovery closed-state operation guards
+- Hardened `native_training::service_discovery::ZkServiceDiscovery` lifecycle:
+  - added explicit closed-state tracking,
+  - `close()` now idempotently marks backend closed and exits early on repeated
+    calls,
+  - `register`, `query`, and `deregister` now return explicit errors when
+    invoked after close.
+- Added regression:
+  - `zk_operations_fail_after_close`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1255,6 +1265,8 @@
 165. `cargo test --workspace -q` ✅ (post MLP query_all configured-role filtering parity tightening and full workspace regression rerun)
 166. `cargo test -p monolith-training -q` ✅ (post strict Consul query_all malformed-entry validation and diagnostics hardening)
 167. `cargo test --workspace -q` ✅ (post strict Consul query_all malformed-entry validation and full workspace regression rerun)
+168. `cargo test -p monolith-training -q` ✅ (post ZK closed-state operation guards and after-close lifecycle regression)
+169. `cargo test --workspace -q` ✅ (post ZK closed-state operation guards and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
