@@ -165,6 +165,14 @@ pub struct TrainCommand {
     #[arg(long, default_value = "10")]
     pub heartbeat_interval_secs: u64,
 
+    /// Timeout for discovery setup/query operations in milliseconds.
+    #[arg(long, default_value = "5000")]
+    pub discovery_operation_timeout_ms: u64,
+
+    /// Timeout for discovery cleanup operations in milliseconds.
+    #[arg(long, default_value = "200")]
+    pub discovery_cleanup_timeout_ms: u64,
+
     /// ParameterSync gRPC targets ("host:port") for training PS to push embedding deltas to online.
     #[arg(long = "parameter-sync-target")]
     pub parameter_sync_targets: Vec<String>,
@@ -260,8 +268,12 @@ impl TrainCommand {
                 retry_backoff_ms: self.retry_backoff_ms,
                 barrier_timeout_ms: self.barrier_timeout_ms,
                 heartbeat_interval,
-                discovery_operation_timeout: std::time::Duration::from_secs(5),
-                discovery_cleanup_timeout: std::time::Duration::from_millis(200),
+                discovery_operation_timeout: std::time::Duration::from_millis(
+                    self.discovery_operation_timeout_ms,
+                ),
+                discovery_cleanup_timeout: std::time::Duration::from_millis(
+                    self.discovery_cleanup_timeout_ms,
+                ),
                 parameter_sync_targets: self.parameter_sync_targets.clone(),
                 parameter_sync_interval: std::time::Duration::from_millis(
                     self.parameter_sync_interval_ms,
@@ -534,6 +546,8 @@ mod tests {
             barrier_timeout_ms: 10_000,
             disable_heartbeat: false,
             heartbeat_interval_secs: 10,
+            discovery_operation_timeout_ms: 5000,
+            discovery_cleanup_timeout_ms: 200,
             parameter_sync_targets: Vec::new(),
             parameter_sync_interval_ms: 200,
             parameter_sync_model_name: "default".to_string(),
@@ -593,6 +607,8 @@ mod tests {
             barrier_timeout_ms: 10_000,
             disable_heartbeat: false,
             heartbeat_interval_secs: 10,
+            discovery_operation_timeout_ms: 5000,
+            discovery_cleanup_timeout_ms: 200,
             parameter_sync_targets: Vec::new(),
             parameter_sync_interval_ms: 200,
             parameter_sync_model_name: "default".to_string(),
