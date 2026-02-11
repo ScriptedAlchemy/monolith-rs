@@ -483,6 +483,13 @@ impl ParameterServerTraining for PsServerHandle {
         request: Request<BarrierRequest>,
     ) -> Result<Response<BarrierResponse>, Status> {
         let req = request.into_inner();
+        if req.num_workers <= 0 {
+            return Ok(Response::new(BarrierResponse {
+                status_code: 1,
+                error_message: "num_workers must be > 0".to_string(),
+                num_arrived: 0,
+            }));
+        }
 
         // Get or create barrier state
         let barrier_state = {
@@ -499,21 +506,44 @@ impl ParameterServerTraining for PsServerHandle {
                 .clone()
         };
 
+        if req.num_workers != barrier_state.num_workers {
+            return Ok(Response::new(BarrierResponse {
+                status_code: 1,
+                error_message: format!(
+                    "Barrier {} expects num_workers={}, got {}",
+                    req.barrier_id, barrier_state.num_workers, req.num_workers
+                ),
+                num_arrived: barrier_state.arrived.load(Ordering::SeqCst) as i32,
+            }));
+        }
+
         barrier_state.arrived.fetch_add(1, Ordering::SeqCst);
 
         // Wait at barrier with timeout
         let timeout = Duration::from_millis(req.timeout_ms as u64);
         match tokio::time::timeout(timeout, barrier_state.barrier.wait()).await {
-            Ok(_) => Ok(Response::new(BarrierResponse {
+            Ok(wait_result) => {
+                if wait_result.is_leader() {
+                    barrier_state.arrived.store(0, Ordering::SeqCst);
+                }
+                Ok(Response::new(BarrierResponse {
                 status_code: 0,
                 error_message: String::new(),
-                num_arrived: barrier_state.arrived.load(Ordering::SeqCst) as i32,
-            })),
-            Err(_) => Ok(Response::new(BarrierResponse {
-                status_code: 1,
-                error_message: "Barrier timeout".to_string(),
-                num_arrived: barrier_state.arrived.load(Ordering::SeqCst) as i32,
-            })),
+                    num_arrived: barrier_state.num_workers,
+                }))
+            }
+            Err(_) => {
+                let _ = barrier_state.arrived.fetch_update(
+                    Ordering::SeqCst,
+                    Ordering::SeqCst,
+                    |v| Some(v.saturating_sub(1)),
+                );
+                Ok(Response::new(BarrierResponse {
+                    status_code: 1,
+                    error_message: "Barrier timeout".to_string(),
+                    num_arrived: barrier_state.arrived.load(Ordering::SeqCst) as i32,
+                }))
+            }
         }
     }
 
@@ -1055,5 +1085,69 @@ mod tests {
             .into_inner();
         assert_eq!(stats.apply_gradients_count, 1);
         assert!(stats.avg_apply_latency_us >= 1);
+    }
+
+    #[tokio::test]
+    async fn test_ps_server_barrier_success_and_reset() {
+        let ps = PsServer::new(0, 2);
+        let handle = PsServerHandle(ps);
+
+        let req = BarrierRequest {
+            barrier_id: "b0".to_string(),
+            worker_id: 0,
+            num_workers: 2,
+            timeout_ms: 200,
+        };
+        let (r1, r2) = tokio::join!(
+            handle.barrier(Request::new(req.clone())),
+            handle.barrier(Request::new(req.clone()))
+        );
+        let r1 = r1.unwrap().into_inner();
+        let r2 = r2.unwrap().into_inner();
+        assert_eq!(r1.status_code, 0);
+        assert_eq!(r2.status_code, 0);
+        assert_eq!(r1.num_arrived, 2);
+        assert_eq!(r2.num_arrived, 2);
+
+        // Reuse same barrier id for next round; should still work.
+        let (r3, r4) = tokio::join!(
+            handle.barrier(Request::new(req.clone())),
+            handle.barrier(Request::new(req))
+        );
+        assert_eq!(r3.unwrap().into_inner().status_code, 0);
+        assert_eq!(r4.unwrap().into_inner().status_code, 0);
+    }
+
+    #[tokio::test]
+    async fn test_ps_server_barrier_num_workers_mismatch() {
+        let ps = PsServer::new(0, 2);
+        let handle = PsServerHandle(ps);
+
+        // Initialize barrier id with num_workers=1 (immediate success).
+        let ok = handle
+            .barrier(Request::new(BarrierRequest {
+                barrier_id: "bmismatch".to_string(),
+                worker_id: 0,
+                num_workers: 1,
+                timeout_ms: 50,
+            }))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(ok.status_code, 0);
+
+        // Mismatched participant count should return explicit error.
+        let bad = handle
+            .barrier(Request::new(BarrierRequest {
+                barrier_id: "bmismatch".to_string(),
+                worker_id: 1,
+                num_workers: 2,
+                timeout_ms: 50,
+            }))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(bad.status_code, 1);
+        assert!(bad.error_message.contains("expects num_workers=1"));
     }
 }
