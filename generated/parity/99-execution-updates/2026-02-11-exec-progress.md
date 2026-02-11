@@ -924,6 +924,7 @@
 115. `cargo test -p monolith-training -q` ✅ (post strict mixed/invalid PS index-metadata consistency gating in worker discovery ordering)
 116. `cargo test --workspace -q` ✅ (post strict mixed/invalid PS index-metadata consistency gating and full workspace regression rerun)
 117. `cargo test -p monolith-training -q` ✅ (post distributed runtime config preflight validation guard and invalid-config regression)
+118. `cargo test --workspace -q` ✅ (post distributed runtime preflight validation guard and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
