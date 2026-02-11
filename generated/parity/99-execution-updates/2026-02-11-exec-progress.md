@@ -1107,6 +1107,14 @@
 - Added per-test environment snapshot + mutex in `runner_utils` tests to
   guarantee deterministic env-var test isolation.
 
+### 102) Consul discovery closed-state lifecycle guards
+- Hardened `native_training::service_discovery::ConsulServiceDiscovery` with
+  explicit closed-state tracking:
+  - added idempotent `close()` implementation,
+  - `register`, `query`, and `deregister` now fail explicitly after close.
+- Added regression:
+  - `consul_close_is_idempotent_and_blocks_operations`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1279,6 +1287,8 @@
 169. `cargo test --workspace -q` ✅ (post ZK closed-state operation guards and full workspace regression rerun)
 170. `cargo test -p monolith-training -q` ✅ (post runner-utils MLP guard close-lifecycle regression addition)
 171. `cargo test --workspace -q` ✅ (post runner-utils MLP guard close-lifecycle regression addition and full workspace rerun)
+172. `cargo test -p monolith-training -q` ✅ (post Consul closed-state lifecycle guard hardening)
+173. `cargo test --workspace -q` ✅ (post Consul closed-state lifecycle guard hardening and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
