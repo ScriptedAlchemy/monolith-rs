@@ -1149,6 +1149,16 @@
   still returns promptly:
   - `test_run_worker_role_does_not_hang_when_heartbeat_blocks`.
 
+### 107) In-flight heartbeat cancellation via stop-aware select loop
+- Refactored heartbeat task loop to make in-flight heartbeat calls stop-aware:
+  - when interval fires, heartbeat RPC is now raced against stop-signal changes,
+    enabling cancellation even while heartbeat RPC is blocked.
+- Added regression for PS abort lifecycle:
+  - verifies aborting PS role cancels an in-flight blocking heartbeat call and
+    releases active-heartbeat state.
+- Added regression:
+  - `test_ps_abort_cancels_inflight_blocking_heartbeat`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1331,6 +1341,8 @@
 179. `cargo test --workspace -q` ✅ (post worker-success heartbeat lifecycle shutdown regression and full workspace rerun)
 180. `cargo test -p monolith-training -q` ✅ (post heartbeat stop timeout guard for blocking heartbeat calls)
 181. `cargo test --workspace -q` ✅ (post heartbeat stop timeout guard for blocking heartbeat calls and full workspace rerun)
+182. `cargo test -p monolith-training -q` ✅ (post stop-aware in-flight heartbeat cancellation refactor)
+183. `cargo test --workspace -q` ✅ (post stop-aware in-flight heartbeat cancellation refactor and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
