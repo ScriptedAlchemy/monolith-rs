@@ -255,6 +255,14 @@
   restore synchronization timings instead of hard-coded values.
 - Added regression tests for merge behavior and defaulted restore initialization.
 
+### 21) Estimator distributed runtime integration helper
+- Added `Estimator::run_distributed_runtime(...)` to bridge estimator flows into
+  distributed role orchestration using `RunnerConfig`.
+- The helper delegates to `run_distributed_from_runner_config` and maps runtime
+  failures into estimator-level error semantics (`EstimatorError::Distributed`).
+- Added async smoke coverage validating PS/worker distributed startup through the
+  estimator-facing runtime helper.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -281,6 +289,7 @@
 22. `cargo test -p monolith-training -q` ✅ (post `RunnerDiscovery` helper integration)
 23. `cargo test -p monolith-training -q` ✅ (post estimator constructors from run/runner config)
 24. `cargo test -p monolith-training -q` ✅ (post configurable restore sync timing integration)
+25. `cargo test -p monolith-training -q` ✅ (post estimator distributed runtime helper)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
