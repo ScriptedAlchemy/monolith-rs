@@ -77,14 +77,16 @@ pub struct ParameterSyncReplicator {
 /// Dropping this handle signals the task to stop on the next loop select-cycle.
 pub struct ParameterSyncReplicatorTask {
     stop_tx: watch::Sender<bool>,
-    join_handle: JoinHandle<()>,
+    join_handle: Option<JoinHandle<()>>,
 }
 
 impl ParameterSyncReplicatorTask {
     /// Signals the replication task to stop and waits for completion.
     pub async fn stop(mut self) {
         let _ = self.stop_tx.send(true);
-        let _ = (&mut self.join_handle).await;
+        if let Some(mut handle) = self.join_handle.take() {
+            let _ = (&mut handle).await;
+        }
     }
 }
 
@@ -93,7 +95,9 @@ impl Drop for ParameterSyncReplicatorTask {
         // Best-effort safety net for call sites that forget explicit `stop().await`.
         // We signal shutdown and abort the task to avoid lingering detached loops.
         let _ = self.stop_tx.send(true);
-        self.join_handle.abort();
+        if let Some(handle) = self.join_handle.take() {
+            handle.abort();
+        }
     }
 }
 
@@ -143,7 +147,7 @@ impl ParameterSyncReplicator {
         });
         ParameterSyncReplicatorTask {
             stop_tx,
-            join_handle,
+            join_handle: Some(join_handle),
         }
     }
 
