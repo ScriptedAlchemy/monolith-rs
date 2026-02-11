@@ -270,6 +270,18 @@
 - This complements unit-level tests by validating the newer estimator/runner/discovery
   APIs through integration-level entrypoints.
 
+### 23) `MonolithDiscoveryGuard` API ergonomics parity
+- Expanded discovery guard surface with direct operational helpers:
+  - `kind()`
+  - `register(name, index, addr)`
+  - `deregister(name, index, addr)`
+  - `query(name)`
+- Added explicit local-mode behavior (`LocalModeNoDiscovery`) for discovery operations
+  attempted without a backend.
+- Added tests covering:
+  - local guard operation error semantics,
+  - Primus query pass-through through guard-level API.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -299,6 +311,7 @@
 25. `cargo test -p monolith-training -q` ✅ (post estimator distributed runtime helper)
 26. `cargo test -p monolith-training -q` ✅ (post native-training integration parity test expansion)
 27. `cargo test --workspace -q` ✅ (post latest estimator/runner parity and integration test additions)
+28. `cargo test -p monolith-training -q` ✅ (post MonolithDiscoveryGuard operational helper expansion)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
