@@ -91,6 +91,18 @@
   - adds explicit `BarrierStatus::{Waiting, Released}` outcomes per barrier epoch,
   - adds barrier release regression coverage across epochs.
 
+### 7) Runner/discovery parity follow-up (ZK + path helper)
+- `runner_utils::get_discovery` now supports `ServiceDiscoveryType::Zk` selection directly
+  (returns a `RunnerDiscovery::Zk { deep_insight_name, zk_server }` backend descriptor)
+  instead of failing with unsupported-backend errors.
+- Added `RunnerDiscovery::zk_config()` helper for parity assertions and downstream wiring.
+- Added/extended ZK selection tests in:
+  - `monolith-training/src/runner_utils.rs` (`test_get_discovery_zk`)
+  - `monolith-training/tests/runner_utils_parity.rs` (`test_run_config_to_discovery_selection_zk`)
+- Added `runner_utils::isabs(...)` parity helper:
+  - treats `hdfs:/...` paths as absolute (matching Python monkey-patched behavior),
+  - retains native absolute-path checks for local filesystems.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -101,6 +113,7 @@
 6. `cargo test --workspace -q` ✅ (post-native-training parity update verification)
 7. `cargo test -p monolith-data -q` ✅ (post-pattern expansion regression run)
 8. `cargo test -p monolith-training -q` ✅ (post file_ops + prefetch + distributed barrier updates)
+9. `cargo test -p monolith-training -q` ✅ (post ZK discovery selection + `isabs` helper updates)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
