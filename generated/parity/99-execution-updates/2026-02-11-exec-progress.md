@@ -1095,6 +1095,7 @@
 143. `cargo test -p monolith-training -q` ✅ (post worker timeout diagnostics enhancement reporting retry attempt count)
 144. `cargo test --workspace -q` ✅ (post worker timeout diagnostics enhancement reporting retry attempt count and full workspace rerun)
 145. `cargo test -p monolith-training -q` ✅ (post stale discovery-error cleanup on successful rediscovery attempts in worker timeout diagnostics)
+146. `cargo test --workspace -q` ✅ (post stale discovery-error cleanup on successful rediscovery attempts and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
