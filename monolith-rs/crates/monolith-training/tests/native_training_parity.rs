@@ -2318,6 +2318,14 @@ async fn distributed_runner_from_run_config_preserves_connect_timeout_when_clean
         msg.contains("Timed out during discovery operation: connect worker-0 via worker after 20ms"),
         "connect timeout should remain primary over cleanup timeout when configured via RunConfig: {msg}"
     );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "connect-timeout diagnostics should include cleanup issue context via RunConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker"),
+        "connect-timeout cleanup context via RunConfig should include worker disconnect timeout diagnostics: {msg}"
+    );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
 }
@@ -2357,6 +2365,14 @@ async fn distributed_runner_from_run_config_propagates_worker_index_into_connect
     assert!(
         msg.contains("Timed out during discovery operation: connect worker-3 via worker after 20ms"),
         "worker index from RunConfig should propagate into timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "worker-index connect-timeout diagnostics should include cleanup issue context via RunConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-3 via worker"),
+        "worker-index connect-timeout cleanup context via RunConfig should include worker disconnect timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
@@ -2400,6 +2416,14 @@ async fn distributed_runner_from_run_config_propagates_worker_service_type_into_
         msg.contains("Timed out during discovery operation: connect worker-0 via trainer_custom after 20ms"),
         "worker service type from RunConfig should propagate into connect-timeout diagnostics: {msg}"
     );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "custom worker connect-timeout diagnostics should include cleanup issue context via RunConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via trainer_custom"),
+        "custom worker connect-timeout cleanup context via RunConfig should include worker disconnect timeout diagnostics: {msg}"
+    );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
 }
@@ -2438,6 +2462,14 @@ async fn distributed_runner_from_run_config_preserves_ps_connect_timeout_when_cl
     assert!(
         msg.contains("Timed out during discovery operation: connect ps-0 via ps after 20ms"),
         "ps connect timeout should remain primary over cleanup timeout when configured via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "ps connect-timeout diagnostics should include cleanup issue context via RunConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect ps-0 via ps"),
+        "ps connect-timeout cleanup context via RunConfig should include ps disconnect timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
@@ -2478,6 +2510,14 @@ async fn distributed_runner_from_run_config_propagates_ps_index_into_connect_tim
     assert!(
         msg.contains("Timed out during discovery operation: connect ps-2 via ps after 20ms"),
         "ps index from RunConfig should propagate into timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "ps-index connect-timeout diagnostics should include cleanup issue context via RunConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect ps-2 via ps"),
+        "ps-index connect-timeout cleanup context via RunConfig should include ps disconnect timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
@@ -2521,6 +2561,16 @@ async fn distributed_runner_from_run_config_propagates_ps_service_type_into_conn
         msg.contains("Timed out during discovery operation: connect ps-0 via parameter_server_custom after 20ms"),
         "ps service type from RunConfig should propagate into connect-timeout diagnostics: {msg}"
     );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "custom ps connect-timeout diagnostics should include cleanup issue context via RunConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: disconnect ps-0 via parameter_server_custom"
+        ),
+        "custom ps connect-timeout cleanup context via RunConfig should include ps disconnect timeout diagnostics: {msg}"
+    );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
 }
@@ -2562,6 +2612,14 @@ async fn distributed_runner_from_run_config_honors_cleanup_timeout_with_blocked_
     assert!(
         msg.contains("Timed out during discovery operation: connect worker-0 via worker after 10ms"),
         "operation timeout diagnostics should include configured operation timeout: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "cleanup-timeout bounded connect path should include cleanup issue context via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker after 10ms"),
+        "cleanup-timeout bounded connect path via RunConfig should include disconnect timeout diagnostics with configured cleanup timeout: {msg}"
     );
     assert!(
         elapsed < Duration::from_millis(150),
@@ -3329,6 +3387,14 @@ async fn distributed_runner_from_runner_config_preserves_connect_timeout_when_cl
         msg.contains("Timed out during discovery operation: connect worker-0 via worker after 20ms"),
         "connect timeout should remain primary over cleanup timeout when configured via RunnerConfig: {msg}"
     );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "connect-timeout diagnostics should include cleanup issue context via RunnerConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker"),
+        "connect-timeout cleanup context via RunnerConfig should include worker disconnect timeout diagnostics: {msg}"
+    );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
 }
@@ -3368,6 +3434,14 @@ async fn distributed_runner_from_runner_config_propagates_worker_index_into_conn
     assert!(
         msg.contains("Timed out during discovery operation: connect worker-4 via worker after 20ms"),
         "worker index from RunnerConfig should propagate into timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "worker-index connect-timeout diagnostics should include cleanup issue context via RunnerConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-4 via worker"),
+        "worker-index connect-timeout cleanup context via RunnerConfig should include worker disconnect timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
@@ -3409,6 +3483,14 @@ async fn distributed_runner_from_runner_config_propagates_worker_service_type_in
     assert!(
         msg.contains("Timed out during discovery operation: connect worker-0 via trainer_custom after 20ms"),
         "worker service type from RunnerConfig should propagate into connect-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "custom worker connect-timeout diagnostics should include cleanup issue context via RunnerConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via trainer_custom"),
+        "custom worker connect-timeout cleanup context via RunnerConfig should include worker disconnect timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
@@ -3511,6 +3593,14 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_timeout_when
         msg.contains("Timed out during discovery operation: connect ps-0 via ps after 20ms"),
         "ps connect timeout should remain primary over cleanup timeout when configured via RunnerConfig: {msg}"
     );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "ps connect-timeout diagnostics should include cleanup issue context via RunnerConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect ps-0 via ps"),
+        "ps connect-timeout cleanup context via RunnerConfig should include ps disconnect timeout diagnostics: {msg}"
+    );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
 }
@@ -3550,6 +3640,14 @@ async fn distributed_runner_from_runner_config_propagates_ps_index_into_connect_
     assert!(
         msg.contains("Timed out during discovery operation: connect ps-2 via ps after 20ms"),
         "ps index from RunnerConfig should propagate into timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "ps-index connect-timeout diagnostics should include cleanup issue context via RunnerConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect ps-2 via ps"),
+        "ps-index connect-timeout cleanup context via RunnerConfig should include ps disconnect timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
@@ -3592,6 +3690,16 @@ async fn distributed_runner_from_runner_config_propagates_ps_service_type_into_c
         msg.contains("Timed out during discovery operation: connect ps-0 via parameter_server_custom after 20ms"),
         "ps service type from RunnerConfig should propagate into connect-timeout diagnostics: {msg}"
     );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "custom ps connect-timeout diagnostics should include cleanup issue context via RunnerConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: disconnect ps-0 via parameter_server_custom"
+        ),
+        "custom ps connect-timeout cleanup context via RunnerConfig should include ps disconnect timeout diagnostics: {msg}"
+    );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
 }
@@ -3633,6 +3741,14 @@ async fn distributed_runner_from_runner_config_honors_cleanup_timeout_with_block
     assert!(
         msg.contains("Timed out during discovery operation: connect worker-0 via worker after 10ms"),
         "operation timeout diagnostics should include configured operation timeout: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "cleanup-timeout bounded connect path should include cleanup issue context via RunnerConfig: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker after 10ms"),
+        "cleanup-timeout bounded connect path via RunnerConfig should include disconnect timeout diagnostics with configured cleanup timeout: {msg}"
     );
     assert!(
         elapsed < Duration::from_millis(150),

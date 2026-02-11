@@ -587,6 +587,12 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
                 error = %disconnect_err,
                 "Failed to disconnect discovery after connect failure"
             );
+            return Err(anyhow::anyhow!(
+                "{} (discovery cleanup encountered issues after role error: {}: {})",
+                e,
+                disconnect_op,
+                disconnect_err
+            ));
         }
         return Err(anyhow::Error::from(e));
     }
@@ -3990,6 +3996,16 @@ mod tests {
             msg.contains("Timed out during discovery operation: connect worker-0 via worker after 20ms"),
             "connect timeout should remain primary even if cleanup disconnect also times out: {msg}"
         );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "connect-timeout failures should include cleanup issue context when disconnect cleanup times out: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: disconnect worker-0 via worker after 20ms"
+            ),
+            "connect-timeout cleanup issue context should include disconnect timeout diagnostics: {msg}"
+        );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(discovery.disconnect_count(), 1);
     }
@@ -4303,6 +4319,14 @@ mod tests {
         let err = res.unwrap().unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("forced connect failure"), "unexpected error: {msg}");
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "connect failures should include cleanup issue context when disconnect cleanup times out: {msg}"
+        );
+        assert!(
+            msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker"),
+            "connect-failure cleanup issue context should include disconnect timeout diagnostics: {msg}"
+        );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(
             discovery.disconnect_count(),
@@ -4328,6 +4352,15 @@ mod tests {
         assert!(
             msg.contains("forced connect failure"),
             "connect error should be returned even if disconnect also fails: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "connect failures should include cleanup issue context when disconnect cleanup fails: {msg}"
+        );
+        assert!(
+            msg.contains("disconnect worker-0 via worker")
+                && msg.contains("forced disconnect failure"),
+            "connect-failure cleanup issue context should include disconnect failure diagnostics with operation context: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(
