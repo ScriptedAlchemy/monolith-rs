@@ -2523,6 +2523,22 @@
 - Result: role-error cleanup diagnostics now have stronger parity for both
   timeout-based and immediate-failure cleanup outcomes in discover-error paths.
 
+### 203) Discover-error cleanup-failure parity extended for custom service-type + worker-index propagation
+- Added runner regression:
+  - `test_run_distributed_preserves_worker_discover_failure_with_custom_service_types_and_index_when_cleanup_steps_fail`
+- Added RunConfig + RunnerConfig integration regressions:
+  - `distributed_runner_from_run_config_preserves_last_discover_error_with_custom_service_types_and_index_when_cleanup_fails`
+  - `distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_types_and_index_when_cleanup_fails`
+- New assertions verify discover-error cleanup-failure diagnostics include:
+  - custom PS discover service type context (`parameter_server_custom`),
+  - propagated worker index in role-timeout diagnostics,
+  - custom worker service type in cleanup operation failures
+    (`deregister/disconnect worker-<idx> ... trainer_custom`),
+  - preserved last discovery error details and role-error cleanup issue context.
+- Result: discover-error cleanup-failure semantics now have consistent
+  custom-service/index parity across runner and config-driven distributed
+  entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2913,6 +2929,8 @@
 387. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post custom-service/index discover-error cleanup-timeout parity expansion full workspace rerun under ambient ZK auth env)
 388. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post discover-error failing-cleanup diagnostics parity expansion across runner + config entrypoints)
 389. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post discover-error failing-cleanup diagnostics parity expansion full workspace rerun under ambient ZK auth env)
+390. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post custom-service/index discover-error cleanup-failure diagnostics parity expansion across runner + config entrypoints)
+391. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post custom-service/index discover-error cleanup-failure diagnostics parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
