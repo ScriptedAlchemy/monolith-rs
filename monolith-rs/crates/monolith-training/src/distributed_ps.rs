@@ -1095,6 +1095,19 @@ impl PsClient {
         num_workers: i32,
         timeout_ms: i64,
     ) -> PsResult<()> {
+        self.barrier_on_shard(0, barrier_id, worker_id, num_workers, timeout_ms)
+            .await
+    }
+
+    /// Waits at a barrier using a specific PS shard as coordinator.
+    pub async fn barrier_on_shard(
+        &self,
+        shard_id: usize,
+        barrier_id: &str,
+        worker_id: i32,
+        num_workers: i32,
+        timeout_ms: i64,
+    ) -> PsResult<()> {
         if timeout_ms <= 0 {
             return Err(PsError::InvalidConfig(
                 "timeout_ms must be greater than zero".to_string(),
@@ -1114,7 +1127,12 @@ impl PsClient {
         if self.clients.is_empty() {
             return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
         }
-        // Use first PS for barrier coordination
+        let mut client = self
+            .clients
+            .get(shard_id)
+            .cloned()
+            .ok_or_else(|| PsError::InvalidConfig(format!("invalid shard index: {}", shard_id)))?;
+
         let request = BarrierRequest {
             barrier_id: barrier_id.to_string(),
             worker_id,
@@ -1122,7 +1140,6 @@ impl PsClient {
             timeout_ms,
         };
 
-        let mut client = self.clients[0].clone();
         let response = client
             .barrier(Request::new(request))
             .await?
@@ -1811,6 +1828,62 @@ mod tests {
         };
         let err = client.barrier("b", 0, 1, 0).await.unwrap_err();
         assert!(matches!(err, PsError::InvalidConfig(_)));
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_barrier_on_shard_rejects_invalid_index() {
+        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr]).await.unwrap();
+        let err = client
+            .barrier_on_shard(1, "bshard", 0, 1, 100)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, PsError::InvalidConfig(_)));
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_barrier_on_shard_routes_to_selected_coordinator() {
+        let bind0 = TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap();
+        let bind1 = TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap();
+
+        let ps0 = PsServer::new(0, 2);
+        let ps1 = PsServer::new(1, 2);
+        let h0 = tokio::spawn(async move {
+            let _ = serve_ps(ps0, bind0).await;
+        });
+        let h1 = tokio::spawn(async move {
+            let _ = serve_ps(ps1, bind1).await;
+        });
+        tokio::time::sleep(Duration::from_millis(80)).await;
+
+        let addr0 = bind0.to_string();
+        let addr1 = bind1.to_string();
+        let client = PsClient::connect(&[&addr0, &addr1]).await.unwrap();
+
+        // Use shard 1 as explicit barrier coordinator.
+        client
+            .barrier_on_shard(1, "explicit_shard", 0, 1, 200)
+            .await
+            .unwrap();
+        // Default barrier should still use shard 0 and succeed independently.
+        client.barrier("default_shard0", 0, 1, 200).await.unwrap();
+
+        h0.abort();
+        h1.abort();
     }
 
     #[tokio::test]
