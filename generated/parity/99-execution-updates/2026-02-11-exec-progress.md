@@ -483,6 +483,17 @@
     rather than aborting the whole batch.
 - Added async regression coverage for mixed-success batch lookup/apply behavior.
 
+### 45) Local cluster barrier timeout cleanup parity hardening
+- Hardened `LocalCluster::wait_for_barrier(...)` timeout semantics so a timed-out
+  worker is removed from the epoch waiter set before returning
+  `DistributedError::BarrierTimeout`.
+- Added internal helper `remove_barrier_waiter(epoch, worker_index)` to ensure
+  stale timeout participants do not poison follow-up synchronization attempts.
+- Added regression test `test_local_cluster_wait_for_barrier_timeout_cleanup_allows_retry`
+  to verify:
+  - a timed-out worker does not spuriously count as an arrived participant later,
+  - subsequent retry from both workers releases the barrier correctly.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -548,6 +559,7 @@
 61. `cargo test --workspace -q` ✅ (post PS client health/stats API additions and shard validation coverage)
 62. `cargo test -p monolith-training -q` ✅ (post PS client batch lookup/apply convenience API additions)
 63. `cargo test --workspace -q` ✅ (post PS client batch lookup/apply additions and regression coverage)
+64. `cargo test -p monolith-training -q` ✅ (post local-cluster barrier timeout cleanup + retry regression)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
