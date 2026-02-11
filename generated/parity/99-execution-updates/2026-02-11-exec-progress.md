@@ -1028,6 +1028,7 @@
 131. `cargo test -p monolith-training -q` ✅ (post worker timeout diagnostics enhancement retaining last discovery backend error across retries)
 132. `cargo test --workspace -q` ✅ (post worker timeout diagnostics enhancement retaining last discovery backend error and full workspace rerun)
 133. `cargo test -p monolith-training -q` ✅ (post combined ordering+discovery timeout diagnostics regression coverage)
+134. `cargo test --workspace -q` ✅ (post combined ordering+discovery timeout diagnostics regression coverage and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
