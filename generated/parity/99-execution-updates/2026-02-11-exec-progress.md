@@ -1437,6 +1437,18 @@
 - Extends run-config integration timeout-precedence coverage from connect and
   discover paths to worker register path.
 
+### 133) Runner-config worker register-timeout precedence integration coverage
+- Added runner-config entrypoint counterpart regression:
+  - `distributed_runner_from_runner_config_preserves_register_timeout_when_cleanup_blocks`
+- Uses backend with blocked worker `register_async` and blocked cleanup
+  (`deregister_async` + `disconnect`) to validate:
+  - non-hanging runtime behavior,
+  - worker register timeout remains the primary surfaced error (with configured
+    duration context),
+  - cleanup attempts are still executed.
+- Completes worker register timeout-precedence integration coverage across both
+  run-config and runner-config entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1678,6 +1690,8 @@
 238. `cargo test --workspace -q` ✅ (post runner-config connect-timeout precedence integration regression under blocked cleanup full workspace rerun)
 239. `cargo test -p monolith-training -q` ✅ (post run-config register-timeout precedence integration regression under blocked cleanup)
 240. `cargo test --workspace -q` ✅ (post run-config register-timeout precedence integration regression under blocked cleanup full workspace rerun)
+241. `cargo test -p monolith-training -q` ✅ (post runner-config register-timeout precedence integration regression under blocked cleanup)
+242. `cargo test --workspace -q` ✅ (post runner-config register-timeout precedence integration regression under blocked cleanup full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
