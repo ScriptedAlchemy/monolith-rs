@@ -1124,6 +1124,7 @@
 147. `cargo test -p monolith-training -q` ✅ (post stale ordering-issue cleanup on usable rediscovery attempts in worker timeout diagnostics)
 148. `cargo test --workspace -q` ✅ (post stale ordering-issue cleanup on usable rediscovery attempts and full workspace rerun)
 149. `cargo test -p monolith-training -q` ✅ (post worker heartbeat lifecycle cleanup + deterministic worker timeout heartbeat-task shutdown)
+150. `cargo test --workspace -q` ✅ (post worker heartbeat lifecycle cleanup and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
