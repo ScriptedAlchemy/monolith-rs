@@ -711,6 +711,7 @@
 82. `cargo test -p monolith-training -q` ✅ (post default health/stats client helpers + shard no-client guard parity)
 83. `cargo test --workspace -q` ✅ (post default health/stats helper APIs and latest distributed/runtime parity updates)
 84. `cargo test -p monolith-training -q` ✅ (post tuple-based lookup shard/local position mapping hardening)
+85. `cargo test --workspace -q` ✅ (post latest PS client barrier/health/stats and lookup index hardening updates)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
