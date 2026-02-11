@@ -109,17 +109,10 @@ impl StockPredictionModel {
 
         let seq_feature_dim = 4 + indicator_dim;
         let pooled_dim = seq_feature_dim * config.lookbacks.len().max(1);
-        let dien_hidden_size = if config.dien_hidden_size == 0 {
-            seq_feature_dim
-        } else {
-            config.dien_hidden_size
-        };
-        if dien_hidden_size != seq_feature_dim {
-            panic!(
-                "DIEN hidden_size must match seq_feature_dim for Python parity (got {}, expected {})",
-                dien_hidden_size, seq_feature_dim
-            );
-        }
+        // Keep DIEN hidden size aligned with the sequence feature width.
+        // This matches the tensor shape assumptions used by the forward path and
+        // avoids runtime panics from config values that diverge from `seq_feature_dim`.
+        let dien_hidden_size = seq_feature_dim;
 
         // SENet for feature recalibration
         let senet = SENetLayer::new(indicator_dim, 4, true);

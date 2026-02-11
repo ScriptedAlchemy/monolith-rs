@@ -1848,18 +1848,22 @@ impl Tensor {
         }
 
         if rank == 2 {
-            let rows: usize = tensors.iter().map(|t| t.shape()[0]).sum();
-            let cols = tensors[0].shape()[1];
-            for t in tensors.iter() {
-                assert_eq!(t.shape()[1], cols, "cat requires matching dims");
-            }
             if dim == 0 {
-                let mut out = Vec::with_capacity(rows * cols);
+                let total_rows: usize = tensors.iter().map(|t| t.shape()[0]).sum();
+                let cols = tensors[0].shape()[1];
+                for t in tensors.iter() {
+                    assert_eq!(t.shape()[1], cols, "cat requires matching dims");
+                }
+                let mut out = Vec::with_capacity(total_rows * cols);
                 for t in tensors.iter() {
                     out.extend_from_slice(&t.data_ref());
                 }
-                return Tensor::from_data(&[rows, cols], out);
+                return Tensor::from_data(&[total_rows, cols], out);
             } else if dim == 1 {
+                let rows = tensors[0].shape()[0];
+                for t in tensors.iter() {
+                    assert_eq!(t.shape()[0], rows, "cat requires matching dims");
+                }
                 let total_cols: usize = tensors.iter().map(|t| t.shape()[1]).sum();
                 let mut out = vec![0.0; rows * total_cols];
                 let mut col_offset = 0;
@@ -2086,6 +2090,24 @@ mod tests {
         let b = Tensor::from_data(&[2, 2], vec![2.0, 3.0, 4.0, 5.0]);
         let c = a.mul(&b);
         assert_eq!(&c.data()[..], &[2.0, 6.0, 12.0, 20.0]);
+    }
+
+    #[test]
+    fn test_cat_rank2_dim0() {
+        let a = Tensor::from_data(&[2, 2], vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Tensor::from_data(&[1, 2], vec![5.0, 6.0]);
+        let out = Tensor::cat(&[a, b], 0);
+        assert_eq!(out.shape(), &[3, 2]);
+        assert_eq!(out.data(), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    }
+
+    #[test]
+    fn test_cat_rank2_dim1() {
+        let a = Tensor::from_data(&[2, 2], vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Tensor::from_data(&[2, 1], vec![5.0, 6.0]);
+        let out = Tensor::cat(&[a, b], 1);
+        assert_eq!(out.shape(), &[2, 3]);
+        assert_eq!(out.data(), vec![1.0, 2.0, 5.0, 3.0, 4.0, 6.0]);
     }
 }
 
