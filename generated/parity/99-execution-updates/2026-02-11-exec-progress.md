@@ -1522,6 +1522,19 @@
 - Complements runtime propagation integrations by ensuring upstream config and
   CLI mapping surfaces preserve custom service-type inputs deterministically.
 
+### 140) PS connect-timeout precedence integration coverage across config entrypoints
+- Added PS-role connect-timeout precedence regressions:
+  - `distributed_runner_from_run_config_preserves_ps_connect_timeout_when_cleanup_blocks`
+  - `distributed_runner_from_runner_config_preserves_ps_connect_timeout_when_cleanup_blocks`
+- Uses backend with blocked `connect` and blocked cleanup `disconnect` to
+  validate for both config entrypoints that:
+  - runtime does not hang,
+  - PS connect timeout remains the primary surfaced error with configured
+    duration context,
+  - cleanup disconnect attempt still executes.
+- Completes connect-timeout precedence integration coverage for both worker and
+  PS roles across run-config and runner-config entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1777,6 +1790,8 @@
 252. `cargo test --workspace -q` ✅ (post custom discovery service-type propagation integration regressions across run/runner config entrypoints full workspace rerun)
 253. `cargo test -p monolith-cli -q && cargo test -p monolith-training -q` ✅ (post config-surface service-type mapping assertion hardening)
 254. `cargo test --workspace -q` ✅ (post config-surface service-type mapping assertion hardening full workspace rerun)
+255. `cargo test -p monolith-training -q` ✅ (post PS connect-timeout precedence integration regressions across run/runner config entrypoints)
+256. `cargo test --workspace -q` ✅ (post PS connect-timeout precedence integration regressions across run/runner config entrypoints full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
