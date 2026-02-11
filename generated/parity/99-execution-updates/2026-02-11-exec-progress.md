@@ -1599,6 +1599,18 @@
 - Confirms invalid barrier-timeout values are rejected consistently across both
   configuration assembly and distributed entrypoint runtime validation surfaces.
 
+### 146) Negative barrier-timeout validation coverage completion
+- Expanded barrier-timeout validation coverage to include negative values across
+  all surfaced configuration paths:
+  - CLI distributed-config builder rejects negative `--barrier-timeout-ms`
+    values (`test_build_distributed_run_config_rejects_negative_barrier_timeout`).
+  - run-config/runner-config entrypoint regressions assert negative
+    `barrier_timeout_ms` values are rejected by distributed config validation:
+    - `distributed_runner_from_run_config_rejects_negative_barrier_timeout`
+    - `distributed_runner_from_runner_config_rejects_negative_barrier_timeout`
+- Completes barrier-timeout input validation matrix for non-positive values
+  (zero + negative) across CLI, run-config, and runner-config paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1866,6 +1878,8 @@
 264. `cargo test --workspace -q` ✅ (post barrier-timeout propagation integration regressions across run/runner config entrypoints full workspace rerun)
 265. `cargo test -p monolith-cli -q && cargo test -p monolith-training -q` ✅ (post barrier-timeout input validation coverage across CLI and config entrypoints)
 266. `cargo test --workspace -q` ✅ (post barrier-timeout input validation coverage across CLI and config entrypoints full workspace rerun)
+267. `cargo test -p monolith-cli -q && cargo test -p monolith-training -q` ✅ (post negative barrier-timeout validation coverage across CLI and config entrypoints)
+268. `cargo test --workspace -q` ✅ (post negative barrier-timeout validation coverage across CLI and config entrypoints full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
