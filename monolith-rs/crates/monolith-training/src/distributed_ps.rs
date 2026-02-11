@@ -905,6 +905,11 @@ impl PsClient {
         num_workers: i32,
         timeout_ms: i64,
     ) -> PsResult<()> {
+        if timeout_ms <= 0 {
+            return Err(PsError::InvalidConfig(
+                "timeout_ms must be greater than zero".to_string(),
+            ));
+        }
         if num_workers <= 0 {
             return Err(PsError::InvalidConfig(
                 "num_workers must be greater than zero".to_string(),
@@ -932,12 +937,17 @@ impl PsClient {
             .await?
             .into_inner();
 
-        if response.status_code != 0 {
-            Err(PsError::RpcError(Status::deadline_exceeded(
-                response.error_message,
-            )))
-        } else {
-            Ok(())
+        match response.status_code {
+            0 => Ok(()),
+            1 => {
+                if response.error_message.to_lowercase().contains("timeout") {
+                    Err(PsError::Timeout(Duration::from_millis(timeout_ms as u64)))
+                } else {
+                    Err(PsError::InvalidConfig(response.error_message))
+                }
+            }
+            2 => Err(PsError::RpcError(Status::cancelled(response.error_message))),
+            _ => Err(PsError::RpcError(Status::internal(response.error_message))),
         }
     }
 
@@ -1467,5 +1477,50 @@ mod tests {
         client.num_shards = 1;
         let err = client.barrier("b", 2, 2, 100).await.unwrap_err();
         assert!(matches!(err, PsError::InvalidConfig(_)));
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_barrier_rejects_non_positive_timeout() {
+        let mut client = PsClient {
+            clients: Vec::new(),
+            num_shards: 0,
+        };
+        let err = client.barrier("b", 0, 1, 0).await.unwrap_err();
+        assert!(matches!(err, PsError::InvalidConfig(_)));
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_barrier_maps_timeout_error() {
+        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let mut client = PsClient::connect(&[&addr]).await.unwrap();
+        let err = client.barrier("bt", 0, 2, 20).await.unwrap_err();
+        assert!(matches!(err, PsError::Timeout(_)));
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_barrier_maps_mismatch_to_invalid_config() {
+        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let mut client = PsClient::connect(&[&addr]).await.unwrap();
+        // Initializes barrier "bm" with num_workers=1.
+        client.barrier("bm", 0, 1, 200).await.unwrap();
+        // Reusing same barrier id with incompatible num_workers should become InvalidConfig.
+        let err = client.barrier("bm", 0, 2, 200).await.unwrap_err();
+        assert!(matches!(err, PsError::InvalidConfig(_)));
+        server.abort();
     }
 }
