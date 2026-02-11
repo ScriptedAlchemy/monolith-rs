@@ -654,6 +654,13 @@
 - Removed duplicate `PsClient::connect(...)` call in worker role startup,
   reducing unnecessary connection establishment overhead.
 
+### 61) Configurable worker barrier timeout in distributed runner
+- Added `barrier_timeout_ms` to `DistributedRunConfig` with default `10_000`.
+- Worker runtime now passes `cfg.barrier_timeout_ms` into `PsBarrier` instead of
+  hardcoded timeout constants.
+- Extended runner config mapping test coverage to assert default barrier timeout
+  wiring (`distributed_config_from_runner`).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -745,6 +752,7 @@
 88. `cargo test -p monolith-training -q` ✅ (post PsBarrier direct-connect convenience API + connect guard regression)
 89. `cargo test --workspace -q` ✅ (post PsBarrier connect convenience API and latest barrier/distributed PS hardening)
 90. `cargo test -p monolith-training -q` ✅ (post worker runtime PS client connection reuse optimization)
+92. `cargo test -p monolith-training -q` ✅ (post configurable worker barrier timeout wiring in distributed runner)
 91. `cargo test --workspace -q` ✅ (post worker PS client reuse optimization and latest barrier/distributed/runtime updates)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
