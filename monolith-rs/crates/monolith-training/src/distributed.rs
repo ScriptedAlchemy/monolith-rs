@@ -466,6 +466,16 @@ impl LocalCluster {
 
     /// Starts all PS and worker roles.
     pub fn start(&mut self) -> DistributedResult<()> {
+        if self
+            .parameter_servers
+            .iter()
+            .any(ParameterServer::is_running)
+            || self.workers.iter().any(Worker::is_running)
+        {
+            return Err(DistributedError::InvalidConfiguration(
+                "local cluster is already running".to_string(),
+            ));
+        }
         for ps in &mut self.parameter_servers {
             ps.start()?;
         }
@@ -477,6 +487,16 @@ impl LocalCluster {
 
     /// Stops all roles.
     pub fn stop(&mut self) -> DistributedResult<()> {
+        if self
+            .parameter_servers
+            .iter()
+            .all(|ps| !ps.is_running())
+            && self.workers.iter().all(|w| !w.is_running())
+        {
+            return Err(DistributedError::InvalidConfiguration(
+                "local cluster is not running".to_string(),
+            ));
+        }
         for worker in &mut self.workers {
             worker.stop()?;
         }
@@ -996,5 +1016,33 @@ mod tests {
         cluster.train_step(1, &grads).unwrap();
         let _ = cluster.sync_barrier(0).unwrap(); // triggers prune pass
         assert!(!cluster.released_barriers.contains_key(&0));
+    }
+
+    #[test]
+    fn test_local_cluster_start_is_not_reentrant() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000)],
+            vec![make_addr(6000)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
+        cluster.start().unwrap();
+
+        let err = cluster.start().unwrap_err();
+        assert!(matches!(err, DistributedError::InvalidConfiguration(_)));
+    }
+
+    #[test]
+    fn test_local_cluster_stop_requires_running_cluster() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000)],
+            vec![make_addr(6000)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
+        let err = cluster.stop().unwrap_err();
+        assert!(matches!(err, DistributedError::InvalidConfiguration(_)));
     }
 }
