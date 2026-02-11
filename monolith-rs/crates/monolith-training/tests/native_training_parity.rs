@@ -1433,6 +1433,39 @@ async fn distributed_runner_from_run_config_rejects_parameter_sync_target_endpoi
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_rejects_parameter_sync_target_endpoint_with_unsupported_scheme(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["ftp://127.0.0.1:8500".to_string()],
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("endpoint scheme must be http or https"),
+        "run-config parameter-sync target with unsupported scheme should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_duplicate_parameter_sync_target_entry() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -4303,6 +4336,39 @@ async fn distributed_runner_from_runner_config_rejects_parameter_sync_target_end
     assert!(
         err.contains("endpoint must not include a URL path or query"),
         "runner-config parameter-sync target with URL path/query should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_parameter_sync_target_endpoint_with_unsupported_scheme(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["ftp://127.0.0.1:8500".to_string()],
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("endpoint scheme must be http or https"),
+        "runner-config parameter-sync target with unsupported scheme should be rejected by distributed config validation: {err}"
     );
 }
 

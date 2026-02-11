@@ -296,6 +296,12 @@ impl TrainCommand {
             let has_https_prefix = target
                 .get(..8)
                 .is_some_and(|prefix| prefix.eq_ignore_ascii_case("https://"));
+            if target.contains("://") && !(has_http_prefix || has_https_prefix) {
+                anyhow::bail!(
+                    "--parameter-sync-target contains invalid endpoint `{}`: endpoint scheme must be http or https",
+                    target
+                );
+            }
             let endpoint_target = if has_http_prefix || has_https_prefix {
                 target.clone()
             } else {
@@ -334,6 +340,12 @@ impl TrainCommand {
                 .scheme_str()
                 .unwrap_or("http")
                 .to_ascii_lowercase();
+            if scheme != "http" && scheme != "https" {
+                anyhow::bail!(
+                    "--parameter-sync-target contains invalid endpoint `{}`: endpoint scheme must be http or https",
+                    target
+                );
+            }
             let canonical_endpoint =
                 format!("{scheme}://{}", authority.as_str().to_ascii_lowercase());
             if !seen_parameter_sync_targets.insert(canonical_endpoint) {
@@ -1068,6 +1080,19 @@ mod tests {
         assert!(
             err.contains("endpoint must not include a URL path or query"),
             "unexpected parameter-sync target path/query validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_parameter_sync_target_endpoint_with_unsupported_scheme(
+    ) {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec!["ftp://127.0.0.1:8500".to_string()];
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("endpoint scheme must be http or https"),
+            "unexpected parameter-sync target scheme validation error: {err}"
         );
     }
 

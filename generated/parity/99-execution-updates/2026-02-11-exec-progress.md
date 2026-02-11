@@ -2163,6 +2163,19 @@
   - integration tests (RunConfig + RunnerConfig): reject path/query endpoints
     and trailing-slash-normalized duplicate targets.
 
+### 181) Parameter-sync endpoint schemes now explicitly constrained to HTTP(S)
+- Added explicit scheme guard to reject non-HTTP transports in
+  `parameter_sync_targets` before endpoint canonicalization:
+  - accepted: `http://...`, `https://...`, and bare `host:port` (auto-prefixed to http)
+  - rejected: e.g. `ftp://...`
+- Applied consistently across entrypoints:
+  - runtime distributed validation (`DistributedRunConfig::validate`)
+  - CLI distributed config builder (`TrainCommand::build_distributed_run_config`)
+- Expanded regression coverage at all layers:
+  - runner unit + CLI unit: unsupported-scheme rejection
+  - native-training integration (RunConfig + RunnerConfig): unsupported-scheme
+    rejection through distributed entrypoint paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2501,6 +2514,8 @@
 335. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post integration parity expansion for case-insensitive parameter-sync scheme acceptance full workspace rerun under ambient ZK auth env)
 336. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post authority-only parameter-sync endpoint validation + trailing-slash-normalized uniqueness hardening across CLI/runtime layers)
 337. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post authority-only parameter-sync endpoint validation + trailing-slash-normalized uniqueness full workspace rerun under ambient ZK auth env)
+338. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post explicit http/https-only parameter-sync scheme validation hardening across CLI/runtime layers)
+339. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post explicit http/https-only parameter-sync scheme validation full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
