@@ -1270,6 +1270,20 @@
 - Updated distributed train CLI wiring to populate new config field when
   constructing `DistributedRunConfig` for runtime execution.
 
+### 119) Configurable discovery cleanup timeout semantics + bounded-delay regression
+- Extended distributed runner config with
+  `discovery_cleanup_timeout: Duration`.
+- Updated cleanup wrapper call sites to consume per-run timeout for:
+  - `deregister`,
+  - `disconnect`,
+  across connect-failure and role-exit cleanup paths.
+- Added regression to validate configured timeout is honored:
+  - `test_run_distributed_honors_configured_cleanup_timeout`
+  - verifies reduced cleanup timeout bounds total cleanup delay while preserving
+    worker-role primary error precedence.
+- Updated train CLI distributed config wiring to include new cleanup timeout
+  field for end-to-end config completeness.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1479,6 +1493,9 @@
 206. `cargo test -p monolith-training -q` ✅ (post configurable discovery setup timeout field introduction and setup-timeout regression updates)
 207. `cargo test -p monolith-cli -q` ✅ (post train CLI wiring for configurable discovery setup timeout)
 208. `cargo test --workspace -q` ✅ (post configurable discovery setup timeout + CLI wiring updates full workspace rerun)
+209. `cargo test -p monolith-training -q` ✅ (post configurable discovery cleanup-timeout support and bounded-delay regression)
+210. `cargo test -p monolith-cli -q` ✅ (post CLI wiring for discovery cleanup-timeout field)
+211. `cargo test --workspace -q` ✅ (post configurable discovery cleanup-timeout support + CLI wiring full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
