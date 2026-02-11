@@ -1404,6 +1404,17 @@
   - run-config timeout fields (`operation` + `cleanup`) are honored end-to-end,
   - cleanup attempts still execute after timeout-driven worker failure.
 
+### 130) Run-config connect-timeout precedence coverage under blocked cleanup
+- Added integration-level regression for run-config connect path with blocked
+  cleanup:
+  - `distributed_runner_from_run_config_preserves_connect_timeout_when_cleanup_blocks`
+- Uses backend where `connect` and cleanup `disconnect` both block to validate:
+  - runtime does not hang,
+  - connect timeout remains primary error (with configured duration),
+  - cleanup attempt still occurs exactly once.
+- Complements worker-discover integration coverage to cover setup-timeout
+  precedence invariants through run-config entrypoint.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1639,6 +1650,8 @@
 232. `cargo test --workspace -q` ✅ (post CLI timeout input validation guardrails + builder regression expansion full workspace rerun)
 233. `cargo test -p monolith-training -q` ✅ (post run-config discover-timeout integration regression coverage)
 234. `cargo test --workspace -q` ✅ (post run-config discover-timeout integration regression coverage full workspace rerun)
+235. `cargo test -p monolith-training -q` ✅ (post run-config connect-timeout precedence integration regression under blocked cleanup)
+236. `cargo test --workspace -q` ✅ (post run-config connect-timeout precedence integration regression under blocked cleanup full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
