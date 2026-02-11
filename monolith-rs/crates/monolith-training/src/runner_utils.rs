@@ -158,17 +158,35 @@ pub fn get_checkpoint_state_with_restore_override(
                 .file_name()
                 .and_then(|s| s.to_str())
                 .unwrap_or(restore_ckpt);
-            let restore_path = Path::new(&state.model_checkpoint_path)
-                .parent()
-                .map(|p| p.join(restore_base))
-                .unwrap_or_else(|| PathBuf::from(restore_base));
-            let restore_path = restore_path.to_string_lossy().to_string();
-            let has_restore = state
+            let restore_candidate = state
                 .all_model_checkpoint_paths
                 .iter()
-                .any(|p| p == &restore_path);
+                .find(|p| p.as_str() == restore_ckpt)
+                .cloned()
+                .or_else(|| {
+                    state
+                        .all_model_checkpoint_paths
+                        .iter()
+                        .find(|p| {
+                            Path::new(p).file_name().and_then(|s| s.to_str()) == Some(restore_base)
+                        })
+                        .cloned()
+                })
+                .or_else(|| {
+                    let derived = Path::new(&state.model_checkpoint_path)
+                        .parent()
+                        .map(|p| p.join(restore_base))
+                        .unwrap_or_else(|| PathBuf::from(restore_base))
+                        .to_string_lossy()
+                        .to_string();
+                    state
+                        .all_model_checkpoint_paths
+                        .iter()
+                        .find(|p| p.as_str() == derived)
+                        .cloned()
+                });
 
-            if has_restore {
+            if let Some(restore_path) = restore_candidate {
                 let restore_marker = model_dir.join("restore_ckpt");
                 let should_apply = if mode.is_train() {
                     !restore_marker.exists()
@@ -769,6 +787,65 @@ all_model_checkpoint_paths: "model.ckpt-30"
         )
         .unwrap_err();
         assert!(matches!(err, RunnerUtilsError::ReadCheckpointFailed));
+    }
+
+    #[test]
+    fn test_get_checkpoint_state_with_restore_override_matches_basename_to_full_path() {
+        let tmp = tempdir().unwrap();
+        let model_dir = tmp.path().join("model");
+        fs::create_dir_all(&model_dir).unwrap();
+        fs::write(
+            model_dir.join("checkpoint"),
+            r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "/restore/model.ckpt-61"
+all_model_checkpoint_paths: "/restore/model.ckpt-30"
+"#,
+        )
+        .unwrap();
+
+        let st = get_checkpoint_state_with_restore_override(
+            &model_dir,
+            "checkpoint",
+            Some("model.ckpt-30"),
+            RunnerMode::Eval,
+            1,
+            Duration::from_millis(1),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(st.model_checkpoint_path, "/restore/model.ckpt-30");
+    }
+
+    #[test]
+    fn test_get_checkpoint_state_with_restore_override_non_checkpoint_filename_no_override() {
+        let tmp = tempdir().unwrap();
+        let model_dir = tmp.path().join("model");
+        fs::create_dir_all(&model_dir).unwrap();
+        fs::write(
+            model_dir.join("ckpt_state.pbtxt"),
+            r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-30"
+"#,
+        )
+        .unwrap();
+
+        let st = get_checkpoint_state_with_restore_override(
+            &model_dir,
+            "ckpt_state.pbtxt",
+            Some("model.ckpt-30"),
+            RunnerMode::Eval,
+            1,
+            Duration::from_millis(1),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            Path::new(&st.model_checkpoint_path).file_name().unwrap(),
+            "model.ckpt-61"
+        );
     }
 
     #[test]
