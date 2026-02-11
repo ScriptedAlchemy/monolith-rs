@@ -34,8 +34,6 @@ pub enum RunnerUtilsError {
     MissingTfConfig,
     #[error("psm is required for Consul discovery")]
     MissingPsm,
-    #[error("Discovery backend unsupported in runner_utils: {0}")]
-    UnsupportedDiscovery(String),
     #[error("Discovery error: {0}")]
     Discovery(String),
     #[error("Timed out waiting for restore synchronization file: {path}")]
