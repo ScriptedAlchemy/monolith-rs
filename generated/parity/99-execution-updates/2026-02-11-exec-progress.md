@@ -447,6 +447,17 @@
   - gradient-size mismatch rejection in apply path,
   - invalid worker-range rejection in barrier path.
 
+### 42) PS client typed barrier error mapping parity
+- Improved barrier client error semantics:
+  - validates `timeout_ms > 0` before RPC,
+  - maps barrier timeout responses to `PsError::Timeout(Duration)`,
+  - maps non-timeout status-code `1` responses to `PsError::InvalidConfig`,
+  - preserves status-code-aware mapping for cancellation/internal cases.
+- Added async regression coverage for:
+  - non-positive timeout rejection,
+  - timeout mapping from real server barrier timeout response,
+  - server-side barrier shape mismatch mapping to `InvalidConfig`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -506,6 +517,7 @@
 55. `cargo test --workspace -q` ✅ (post PS client no-shard guards and additional client edge-case tests)
 56. `cargo test -p monolith-training -q` ✅ (post PS client early input validation parity hardening)
 57. `cargo test --workspace -q` ✅ (post PS client early input validation + dimension/barrier guard hardening)
+58. `cargo test -p monolith-training -q` ✅ (post typed PS client barrier status-code error mapping)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
