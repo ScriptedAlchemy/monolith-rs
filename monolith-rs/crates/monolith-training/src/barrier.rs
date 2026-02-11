@@ -70,7 +70,7 @@ impl PsBarrier {
 #[async_trait::async_trait]
 impl Barrier for PsBarrier {
     async fn wait(&self, barrier_id: &str, worker_id: i32, num_workers: i32) -> BarrierResult<()> {
-        let mut client = self.client.lock().await;
+        let client = self.client.lock().await;
         client
             .barrier(barrier_id, worker_id, num_workers, self.timeout_ms)
             .await?;
