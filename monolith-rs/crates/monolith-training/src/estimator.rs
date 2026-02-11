@@ -46,6 +46,10 @@ pub enum EstimatorError {
         current: EstimatorMode,
         requested: EstimatorMode,
     },
+
+    /// Run config merge/build error.
+    #[error("Run config error: {0}")]
+    RunConfig(#[from] crate::run_config::RunConfigError),
 }
 
 /// Result type for estimator operations.
@@ -342,7 +346,18 @@ impl<M: ModelFn> Estimator<M> {
 
     /// Creates an estimator from execution-time runner configuration.
     pub fn from_runner_config(runner_conf: &crate::run_config::RunnerConfig, model_fn: M) -> Self {
+        crate::run_config::RunConfig::apply_runtime_env_exports(runner_conf);
         Self::new(runner_conf.to_estimator_config(), model_fn)
+    }
+
+    /// Creates an estimator from user-facing run config (plus optional runner base overrides).
+    pub fn from_run_config(
+        run_conf: &crate::run_config::RunConfig,
+        base: Option<crate::run_config::RunnerConfig>,
+        model_fn: M,
+    ) -> EstimatorResult<Self> {
+        let runner = run_conf.to_runner_config(base)?;
+        Ok(Self::from_runner_config(&runner, model_fn))
     }
 
     /// Returns a reference to the configuration.
@@ -611,10 +626,17 @@ mod tests {
 
     #[test]
     fn test_estimator_from_runner_config() {
+        static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = ENV_MUTEX.lock().unwrap();
+        std::env::remove_var("TF_GRPC_WORKER_CACHE_THREADS");
+        std::env::remove_var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER");
+
         let runner = crate::run_config::RunnerConfig {
             model_dir: PathBuf::from("/tmp/model_from_runner"),
             log_step_count_steps: 7,
             restore_ckpt: Some("model.ckpt-88".to_string()),
+            tf_grpc_worker_cache_threads: Some(11),
+            monolith_grpc_worker_service_handler_multiplier: Some(9),
             ..crate::run_config::RunnerConfig::default()
         };
         let model_fn = ConstantModelFn::new(0.5);
@@ -624,6 +646,32 @@ mod tests {
         assert_eq!(
             estimator.config().warm_start_from,
             Some(PathBuf::from("model.ckpt-88"))
+        );
+        assert_eq!(
+            std::env::var("TF_GRPC_WORKER_CACHE_THREADS").unwrap(),
+            "11"
+        );
+        assert_eq!(
+            std::env::var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER").unwrap(),
+            "9"
+        );
+    }
+
+    #[test]
+    fn test_estimator_from_run_config() {
+        let run = crate::run_config::RunConfig {
+            model_dir: PathBuf::from("/tmp/model_from_run"),
+            log_step_count_steps: 13,
+            restore_ckpt: Some("model.ckpt-100".to_string()),
+            ..crate::run_config::RunConfig::default()
+        };
+        let model_fn = ConstantModelFn::new(0.1);
+        let estimator = Estimator::from_run_config(&run, None, model_fn).unwrap();
+        assert_eq!(estimator.config().model_dir, PathBuf::from("/tmp/model_from_run"));
+        assert_eq!(estimator.config().log_step_count_steps, 13);
+        assert_eq!(
+            estimator.config().warm_start_from,
+            Some(PathBuf::from("model.ckpt-100"))
         );
     }
 
