@@ -332,6 +332,138 @@ impl ServiceDiscoveryAsync for HangingDiscoverFromRunConfigDiscovery {
     }
 }
 
+struct HangingDiscoverWithHangingCleanupFromConfigDiscovery {
+    connect_count: AtomicUsize,
+    disconnect_count: AtomicUsize,
+    discover_count: AtomicUsize,
+    deregister_count: AtomicUsize,
+}
+
+impl HangingDiscoverWithHangingCleanupFromConfigDiscovery {
+    fn new() -> Self {
+        Self {
+            connect_count: AtomicUsize::new(0),
+            disconnect_count: AtomicUsize::new(0),
+            discover_count: AtomicUsize::new(0),
+            deregister_count: AtomicUsize::new(0),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl ServiceDiscoveryAsync for HangingDiscoverWithHangingCleanupFromConfigDiscovery {
+    async fn connect(&self) -> monolith_training::discovery::Result<()> {
+        self.connect_count.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn disconnect(&self) -> monolith_training::discovery::Result<()> {
+        self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+        std::future::pending::<()>().await;
+        #[allow(unreachable_code)]
+        Ok(())
+    }
+
+    async fn register_async(
+        &self,
+        _service: ServiceInfo,
+    ) -> monolith_training::discovery::Result<()> {
+        Ok(())
+    }
+
+    async fn discover_async(
+        &self,
+        _service_type: &str,
+    ) -> monolith_training::discovery::Result<Vec<ServiceInfo>> {
+        self.discover_count.fetch_add(1, Ordering::SeqCst);
+        std::future::pending::<()>().await;
+        #[allow(unreachable_code)]
+        Ok(Vec::new())
+    }
+
+    async fn watch_async(
+        &self,
+        _service_type: &str,
+    ) -> monolith_training::discovery::Result<tokio::sync::broadcast::Receiver<DiscoveryEvent>>
+    {
+        let (_tx, rx) = tokio::sync::broadcast::channel(1);
+        Ok(rx)
+    }
+
+    async fn deregister_async(&self, _service_id: &str) -> monolith_training::discovery::Result<()> {
+        self.deregister_count.fetch_add(1, Ordering::SeqCst);
+        std::future::pending::<()>().await;
+        #[allow(unreachable_code)]
+        Ok(())
+    }
+}
+
+struct HangingDiscoverWithFailingCleanupFromConfigDiscovery {
+    connect_count: AtomicUsize,
+    disconnect_count: AtomicUsize,
+    discover_count: AtomicUsize,
+    deregister_count: AtomicUsize,
+}
+
+impl HangingDiscoverWithFailingCleanupFromConfigDiscovery {
+    fn new() -> Self {
+        Self {
+            connect_count: AtomicUsize::new(0),
+            disconnect_count: AtomicUsize::new(0),
+            discover_count: AtomicUsize::new(0),
+            deregister_count: AtomicUsize::new(0),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl ServiceDiscoveryAsync for HangingDiscoverWithFailingCleanupFromConfigDiscovery {
+    async fn connect(&self) -> monolith_training::discovery::Result<()> {
+        self.connect_count.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn disconnect(&self) -> monolith_training::discovery::Result<()> {
+        self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+        Err(monolith_training::discovery::DiscoveryError::Internal(
+            "forced disconnect failure".to_string(),
+        ))
+    }
+
+    async fn register_async(
+        &self,
+        _service: ServiceInfo,
+    ) -> monolith_training::discovery::Result<()> {
+        Ok(())
+    }
+
+    async fn discover_async(
+        &self,
+        _service_type: &str,
+    ) -> monolith_training::discovery::Result<Vec<ServiceInfo>> {
+        self.discover_count.fetch_add(1, Ordering::SeqCst);
+        std::future::pending::<()>().await;
+        #[allow(unreachable_code)]
+        Ok(Vec::new())
+    }
+
+    async fn watch_async(
+        &self,
+        _service_type: &str,
+    ) -> monolith_training::discovery::Result<tokio::sync::broadcast::Receiver<DiscoveryEvent>>
+    {
+        let (_tx, rx) = tokio::sync::broadcast::channel(1);
+        Ok(rx)
+    }
+
+    async fn deregister_async(&self, _service_id: &str) -> monolith_training::discovery::Result<()> {
+        self.deregister_count.fetch_add(1, Ordering::SeqCst);
+        Err(monolith_training::discovery::DiscoveryError::Internal(
+            "forced deregister failure".to_string(),
+        ))
+    }
+}
+
 #[tokio::test]
 async fn distributed_runner_from_run_config_honors_discover_timeout_controls() {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -465,6 +597,156 @@ async fn distributed_runner_from_run_config_propagates_discover_retry_controls()
         3,
         "connect_retries=2 should yield exactly 3 discover attempts"
     );
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_preserves_discover_timeout_with_custom_service_types_and_index_when_cleanup_times_out(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingDiscoverWithHangingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 3,
+        num_ps: 1,
+        num_workers: 4,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when indexed custom discover times out and cleanup steps block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "discover timeout should remain primary over cleanup timeout failures via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("service type: parameter_server_custom"),
+        "discover-timeout diagnostics via RunConfig should include custom PS service type when cleanup times out: {msg}"
+    );
+    assert!(
+        msg.contains("for worker-3"),
+        "discover-timeout diagnostics via RunConfig should include propagated worker index when cleanup times out: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "last discovery error: Timed out during discovery operation: discover worker-3 for parameter_server_custom after 20ms"
+        ),
+        "discover-timeout diagnostics via RunConfig should preserve indexed custom discover operation-timeout details: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "discover-timeout diagnostics via RunConfig should include cleanup issue context when cleanup steps time out: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: deregister worker-3 from trainer_custom after 20ms"
+        ),
+        "discover-timeout cleanup context via RunConfig should include indexed custom-worker deregister-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: disconnect worker-3 via trainer_custom after 20ms"
+        ),
+        "discover-timeout cleanup context via RunConfig should include indexed custom-worker disconnect-timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_preserves_discover_timeout_with_default_service_type_and_index_when_cleanup_fails(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingDiscoverWithFailingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 2,
+        num_ps: 1,
+        num_workers: 3,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when indexed default discover times out and cleanup fails"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "discover timeout should remain primary over cleanup failures via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("service type: ps"),
+        "discover-timeout diagnostics via RunConfig should include default PS service type when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains("for worker-2"),
+        "discover-timeout diagnostics via RunConfig should include propagated worker index when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "last discovery error: Timed out during discovery operation: discover worker-2 for ps after 20ms"
+        ),
+        "discover-timeout diagnostics via RunConfig should preserve indexed default discover operation-timeout details: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "discover-timeout diagnostics via RunConfig should include cleanup issue context when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains("deregister worker-2 from worker")
+            && msg.contains("forced deregister failure"),
+        "discover-timeout cleanup context via RunConfig should include indexed default-worker deregister-failure diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-2 via worker")
+            && msg.contains("forced disconnect failure"),
+        "discover-timeout cleanup context via RunConfig should include indexed default-worker disconnect-failure diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
 }
@@ -8218,6 +8500,154 @@ async fn distributed_runner_from_runner_config_propagates_discover_retry_control
         3,
         "connect_retries=2 should yield exactly 3 discover attempts"
     );
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_discover_timeout_with_custom_service_types_and_index_when_cleanup_times_out(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingDiscoverWithHangingCleanupFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 3,
+        num_ps: 1,
+        num_workers: 4,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when indexed custom discover times out and cleanup steps block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "discover timeout should remain primary over cleanup timeout failures via RunnerConfig: {msg}"
+    );
+    assert!(
+        msg.contains("service type: parameter_server_custom"),
+        "discover-timeout diagnostics via RunnerConfig should include custom PS service type when cleanup times out: {msg}"
+    );
+    assert!(
+        msg.contains("for worker-3"),
+        "discover-timeout diagnostics via RunnerConfig should include propagated worker index when cleanup times out: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "last discovery error: Timed out during discovery operation: discover worker-3 for parameter_server_custom after 20ms"
+        ),
+        "discover-timeout diagnostics via RunnerConfig should preserve indexed custom discover operation-timeout details: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "discover-timeout diagnostics via RunnerConfig should include cleanup issue context when cleanup steps time out: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: deregister worker-3 from trainer_custom after 20ms"
+        ),
+        "discover-timeout cleanup context via RunnerConfig should include indexed custom-worker deregister-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: disconnect worker-3 via trainer_custom after 20ms"
+        ),
+        "discover-timeout cleanup context via RunnerConfig should include indexed custom-worker disconnect-timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_discover_timeout_with_default_service_type_and_index_when_cleanup_fails(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingDiscoverWithFailingCleanupFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 2,
+        num_ps: 1,
+        num_workers: 3,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when indexed default discover times out and cleanup fails"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "discover timeout should remain primary over cleanup failures via RunnerConfig: {msg}"
+    );
+    assert!(
+        msg.contains("service type: ps"),
+        "discover-timeout diagnostics via RunnerConfig should include default PS service type when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains("for worker-2"),
+        "discover-timeout diagnostics via RunnerConfig should include propagated worker index when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "last discovery error: Timed out during discovery operation: discover worker-2 for ps after 20ms"
+        ),
+        "discover-timeout diagnostics via RunnerConfig should preserve indexed default discover operation-timeout details: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "discover-timeout diagnostics via RunnerConfig should include cleanup issue context when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains("deregister worker-2 from worker")
+            && msg.contains("forced deregister failure"),
+        "discover-timeout cleanup context via RunnerConfig should include indexed default-worker deregister-failure diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-2 via worker")
+            && msg.contains("forced disconnect failure"),
+        "discover-timeout cleanup context via RunnerConfig should include indexed default-worker disconnect-failure diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
 }
