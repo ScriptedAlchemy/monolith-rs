@@ -88,6 +88,15 @@ impl ParameterSyncReplicatorTask {
     }
 }
 
+impl Drop for ParameterSyncReplicatorTask {
+    fn drop(&mut self) {
+        // Best-effort safety net for call sites that forget explicit `stop().await`.
+        // We signal shutdown and abort the task to avoid lingering detached loops.
+        let _ = self.stop_tx.send(true);
+        self.join_handle.abort();
+    }
+}
+
 impl ParameterSyncReplicator {
     pub fn new(
         ps: Arc<PsServer>,
@@ -211,5 +220,23 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(30)).await;
         let stopped = tokio::time::timeout(Duration::from_secs(1), task.stop()).await;
         assert!(stopped.is_ok(), "replicator task stop should complete quickly");
+    }
+
+    #[tokio::test]
+    async fn test_parameter_sync_replicator_task_drop_is_safe() {
+        let ps = PsServer::new(0, 8);
+        let tracker = Arc::new(DirtyTracker::default());
+        let task = ParameterSyncReplicator::new(
+            ps,
+            tracker,
+            Vec::new(),
+            "m".to_string(),
+            "sig".to_string(),
+            "emb".to_string(),
+        )
+        .spawn(Duration::from_millis(20));
+
+        drop(task);
+        tokio::time::sleep(Duration::from_millis(50)).await;
     }
 }
