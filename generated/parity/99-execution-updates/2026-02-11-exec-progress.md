@@ -958,6 +958,22 @@
 - Added async regression
   `test_run_worker_role_clears_stale_ordering_issue_after_usable_discovery`.
 
+### 90) Worker heartbeat lifecycle cleanup + deterministic shutdown
+- Refactored discovery heartbeat orchestration in `runner.rs` into shared helper
+  utilities used by both PS and worker roles:
+  - `spawn_heartbeat_task(...)`
+  - `stop_heartbeat_task(...)`
+- Added worker-role heartbeat coverage:
+  - worker now runs backend heartbeat while waiting for PS discovery retries,
+  - heartbeat task is explicitly stopped/joined before worker role returns
+    (success or timeout error) to avoid background task leaks.
+- Updated PS role to use the same shared heartbeat helpers for consistent
+  lifecycle behavior across both distributed roles.
+- Added async regression
+  `test_worker_heartbeat_task_stops_after_worker_timeout` validating:
+  - heartbeats are emitted during retry wait,
+  - heartbeat count becomes stable after worker timeout exit (no leak).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1107,6 +1123,7 @@
 146. `cargo test --workspace -q` ✅ (post stale discovery-error cleanup on successful rediscovery attempts and full workspace rerun)
 147. `cargo test -p monolith-training -q` ✅ (post stale ordering-issue cleanup on usable rediscovery attempts in worker timeout diagnostics)
 148. `cargo test --workspace -q` ✅ (post stale ordering-issue cleanup on usable rediscovery attempts and full workspace rerun)
+149. `cargo test -p monolith-training -q` ✅ (post worker heartbeat lifecycle cleanup + deterministic worker timeout heartbeat-task shutdown)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
