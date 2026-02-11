@@ -75,6 +75,22 @@
     - deterministic de-duplication + ordering.
   - added regression tests for glob/csv/filelist/not-found behavior.
 
+### 6) Additional parity hardening in file/prefetch/distributed flows
+- Added integration parity tests for `monolith-training::file_ops`:
+  - verifies `WritableFile::append_entry_dump` writes TFRecord-framed `EntryDump` protos
+    that round-trip decode correctly,
+  - validates input-shape errors for `append_entry_dump`,
+  - validates post-close append behavior (`BrokenPipe`).
+- Added integration parity tests for `monolith-training::prefetch_queue`:
+  - zero-capacity passthrough behavior,
+  - nested enqueue/dequeue preserving non-tensor leaves (`String`/`Null`),
+  - async function manager end-of-run queue drain behavior.
+- Upgraded `monolith-training::distributed::LocalCluster` synchronization semantics:
+  - `Worker::sync_barrier` now enforces running-state precondition,
+  - new non-blocking local barrier coordination in `LocalCluster::sync_barrier`,
+  - adds explicit `BarrierStatus::{Waiting, Released}` outcomes per barrier epoch,
+  - adds barrier release regression coverage across epochs.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -84,6 +100,7 @@
 5. `cargo test -p monolith-training -q` ✅ (re-run after each native-training change)
 6. `cargo test --workspace -q` ✅ (post-native-training parity update verification)
 7. `cargo test -p monolith-data -q` ✅ (post-pattern expansion regression run)
+8. `cargo test -p monolith-training -q` ✅ (post file_ops + prefetch + distributed barrier updates)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
