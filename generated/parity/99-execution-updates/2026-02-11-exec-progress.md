@@ -234,6 +234,16 @@
   - Primus discovery queries through `RunnerDiscovery`,
   - expected error behavior when calling query on descriptor-only ZK variant.
 
+### 19) Estimator constructors from RunConfig/RunnerConfig
+- Added estimator construction helpers aligned with runtime config flows:
+  - `Estimator::from_runner_config(...)`
+  - `Estimator::from_run_config(...)`
+- `from_runner_config` now applies runtime env exports before constructing estimator config.
+- `from_run_config` performs run→runner merge parity and then builds estimator.
+- Added tests verifying:
+  - estimator config fields propagated correctly from run/runner configs,
+  - runtime env export side effects occur during runner-config based construction.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -258,6 +268,7 @@
 20. `cargo test -p monolith-training -q` ✅ (post run/runner → estimator config bridge additions)
 21. `cargo test -p monolith-training -q` ✅ (post checkpoint override edge-case hardening)
 22. `cargo test -p monolith-training -q` ✅ (post `RunnerDiscovery` helper integration)
+23. `cargo test -p monolith-training -q` ✅ (post estimator constructors from run/runner config)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
