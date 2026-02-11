@@ -883,6 +883,17 @@
   sequenced discovery backend (error first, empty result next) to verify the
   original discovery failure context is retained at timeout.
 
+### 82) Combined timeout diagnostics coverage (ordering + discovery error)
+- Added async regression
+  `test_run_worker_role_timeout_reports_ordering_and_discovery_errors`.
+- Uses sequenced discovery behavior where:
+  - first attempt returns mixed metadata (ordering inconsistency),
+  - second attempt returns discovery backend failure.
+- Verifies timeout diagnostics preserve and emit both context signals in the
+  final error:
+  - `MixedIndexMetadataPresence`,
+  - underlying discovery error (`forced discover failure`).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1016,6 +1027,7 @@
 130. `cargo test --workspace -q` ✅ (post PS registration-failure cleanup regression coverage and full workspace rerun)
 131. `cargo test -p monolith-training -q` ✅ (post worker timeout diagnostics enhancement retaining last discovery backend error across retries)
 132. `cargo test --workspace -q` ✅ (post worker timeout diagnostics enhancement retaining last discovery backend error and full workspace rerun)
+133. `cargo test -p monolith-training -q` ✅ (post combined ordering+discovery timeout diagnostics regression coverage)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
