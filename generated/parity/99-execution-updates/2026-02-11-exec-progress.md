@@ -117,6 +117,14 @@
   - non-train override behavior,
   - parse/retry failure path.
 
+### 9) `monolith_discovery` context parity for Consul psm generation
+- Updated `runner_utils::monolith_discovery(...)` to auto-generate a Consul `psm`
+  identifier when caller does not explicitly provide one:
+  - uses `env_utils::generate_psm_from_uuid(...)` over `runner_conf.deep_insight_name`,
+  - mirrors Python context-manager flow where non-local discovery creates psm internally.
+- Added unit + integration coverage ensuring Consul discovery context now succeeds
+  without explicit `psm` argument.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -129,6 +137,7 @@
 8. `cargo test -p monolith-training -q` ✅ (post file_ops + prefetch + distributed barrier updates)
 9. `cargo test -p monolith-training -q` ✅ (post ZK discovery selection + `isabs` helper updates)
 10. `cargo test -p monolith-training -q` ✅ (post checkpoint-state override/retry parity helper)
+11. `cargo test -p monolith-training -q` ✅ (post monolith_discovery Consul auto-psm behavior)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
