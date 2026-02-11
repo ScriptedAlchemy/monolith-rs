@@ -756,6 +756,59 @@ mod tests {
         }
     }
 
+    struct SequencedOrderAndErrorDiscovery {
+        calls: AtomicUsize,
+    }
+
+    impl SequencedOrderAndErrorDiscovery {
+        fn new() -> Self {
+            Self {
+                calls: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for SequencedOrderAndErrorDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            let n = self.calls.fetch_add(1, Ordering::SeqCst);
+            if n == 0 {
+                let mut ps0 = ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 10001);
+                ps0 = ps0.with_metadata("index", "0");
+                let ps1 = ServiceInfo::new("ps-1", "ps-1", "ps", "127.0.0.1", 10002);
+                Ok(vec![ps0, ps1])
+            } else {
+                Err(crate::discovery::DiscoveryError::Internal(
+                    "forced discover failure".to_string(),
+                ))
+            }
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            Ok(())
+        }
+    }
+
     #[async_trait::async_trait]
     impl ServiceDiscoveryAsync for SequencedDiscoverDiscovery {
         async fn connect(&self) -> DiscoveryResult<()> {
@@ -999,6 +1052,32 @@ mod tests {
         assert!(
             msg.contains("forced discover failure"),
             "expected timeout to preserve last discovery error, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_timeout_reports_ordering_and_discovery_errors() {
+        let discovery = Arc::new(SequencedOrderAndErrorDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 2,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 1,
+            retry_backoff_ms: 1,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg)
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("MixedIndexMetadataPresence"),
+            "expected timeout to include ordering issue, got: {msg}"
+        );
+        assert!(
+            msg.contains("forced discover failure"),
+            "expected timeout to include discovery error, got: {msg}"
         );
     }
 
