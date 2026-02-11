@@ -1642,6 +1642,23 @@
 - Extends diagnostic parity coverage to both role families (worker + ps) for
   connect-timeout error attribution.
 
+### 150) Register-timeout diagnostic enrichment with service-type context
+- Extended discovery operation timeout diagnostics to support richer operation
+  descriptors (operation strings now carry full context instead of relying on a
+  fixed `op + service_id` formatter).
+- Updated worker/ps register timeout paths to include service-type context in
+  timeout diagnostics:
+  - `register <service_id> as <service_type>`
+- Added integration regressions proving custom service-type propagation into
+  register timeout diagnostics across run/runner config entrypoints:
+  - `distributed_runner_from_run_config_propagates_worker_service_type_into_register_timeout_diagnostics`
+  - `distributed_runner_from_runner_config_propagates_worker_service_type_into_register_timeout_diagnostics`
+  - `distributed_runner_from_run_config_propagates_ps_service_type_into_register_timeout_diagnostics`
+  - `distributed_runner_from_runner_config_propagates_ps_service_type_into_register_timeout_diagnostics`
+- Updated existing timeout regressions to assert new default diagnostic form:
+  - worker: `register worker-0 as worker ...`
+  - ps: `register ps-0 as ps ...`
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1917,6 +1934,8 @@
 272. `cargo test --workspace -q` ✅ (post worker-index timeout diagnostic propagation integrations across run/runner config entrypoints full workspace rerun)
 273. `cargo test -p monolith-training -q` ✅ (post ps-index timeout diagnostic propagation integrations across run/runner config entrypoints)
 274. `cargo test --workspace -q` ✅ (post ps-index timeout diagnostic propagation integrations across run/runner config entrypoints full workspace rerun)
+275. `cargo test -p monolith-training -q` ✅ (post register-timeout diagnostic enrichment with service-type context + integration regressions)
+276. `cargo test --workspace -q` ✅ (post register-timeout diagnostic enrichment with service-type context full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
