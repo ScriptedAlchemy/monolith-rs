@@ -228,12 +228,21 @@ fn spawn_heartbeat_task<D: ServiceDiscoveryAsync + 'static + ?Sized>(
                     }
                 }
                 _ = tokio::time::sleep(interval) => {
-                    if let Err(e) = discovery.heartbeat_async(&service_id).await {
-                        tracing::warn!(
-                            service_id = %service_id,
-                            error = %e,
-                            "Discovery heartbeat failed"
-                        );
+                    tokio::select! {
+                        stop_changed = stop_rx.changed() => {
+                            if stop_changed.is_err() || *stop_rx.borrow() {
+                                break;
+                            }
+                        }
+                        hb_res = discovery.heartbeat_async(&service_id) => {
+                            if let Err(e) = hb_res {
+                                tracing::warn!(
+                                    service_id = %service_id,
+                                    error = %e,
+                                    "Discovery heartbeat failed"
+                                );
+                            }
+                        }
                     }
                 }
             }
@@ -945,6 +954,67 @@ mod tests {
         }
     }
 
+    struct BlockingHeartbeatActiveCountDiscovery {
+        active_heartbeats: AtomicUsize,
+    }
+
+    impl BlockingHeartbeatActiveCountDiscovery {
+        fn new() -> Self {
+            Self {
+                active_heartbeats: AtomicUsize::new(0),
+            }
+        }
+
+        fn active_heartbeats(&self) -> usize {
+            self.active_heartbeats.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for BlockingHeartbeatActiveCountDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            Ok(Vec::new())
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn heartbeat_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            self.active_heartbeats.fetch_add(1, Ordering::SeqCst);
+            struct ActiveGuard<'a>(&'a AtomicUsize);
+            impl<'a> Drop for ActiveGuard<'a> {
+                fn drop(&mut self) {
+                    self.0.fetch_sub(1, Ordering::SeqCst);
+                }
+            }
+            let _guard = ActiveGuard(&self.active_heartbeats);
+            std::future::pending::<()>().await;
+            #[allow(unreachable_code)]
+            Ok(())
+        }
+    }
+
     #[async_trait::async_trait]
     impl ServiceDiscoveryAsync for SequencedDiscoverErrorThenPartialDiscovery {
         async fn connect(&self) -> DiscoveryResult<()> {
@@ -1626,6 +1696,52 @@ mod tests {
         assert!(
             res.unwrap().is_err(),
             "worker should still fail due to PS discovery timeout"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_ps_abort_cancels_inflight_blocking_heartbeat() {
+        let discovery = Arc::new(BlockingHeartbeatActiveCountDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            heartbeat_interval: Some(Duration::from_millis(1)),
+            ..DistributedRunConfig::default()
+        };
+
+        let ps_task = tokio::spawn(run_distributed(Arc::clone(&discovery), cfg));
+
+        let started = tokio::time::timeout(Duration::from_millis(250), async {
+            loop {
+                if discovery.active_heartbeats() > 0 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await;
+        assert!(
+            started.is_ok(),
+            "blocking heartbeat should have started before abort"
+        );
+
+        ps_task.abort();
+
+        let stopped = tokio::time::timeout(Duration::from_millis(300), async {
+            loop {
+                if discovery.active_heartbeats() == 0 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await;
+        assert!(
+            stopped.is_ok(),
+            "in-flight blocking heartbeat should be cancelled after PS abort"
         );
     }
 
