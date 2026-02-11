@@ -1574,6 +1574,19 @@
 - Complements connect-path cleanup-timeout coverage to ensure cleanup-timeout
   propagation is validated for both setup failure families (connect + register).
 
+### 144) Barrier-timeout propagation integration coverage across config entrypoints
+- Added barrier-timeout focused integration regressions:
+  - `distributed_runner_from_run_config_propagates_barrier_timeout_controls`
+  - `distributed_runner_from_runner_config_propagates_barrier_timeout_controls`
+- Uses real in-memory discovery + live PS role task with `num_workers=2` and a
+  single active worker to force barrier wait timeout in worker role path.
+- Validates across both config entrypoints that:
+  - worker failure surfaces barrier-timeout semantics (`Barrier timeout`),
+  - runtime returns promptly (bounded elapsed time) according to configured
+    `barrier_timeout_ms` controls rather than default long waits.
+- Extends config-entrypoint propagation coverage beyond discovery/cleanup
+  controls to include synchronization timeout semantics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1837,6 +1850,8 @@
 260. `cargo test --workspace -q` ✅ (post cleanup-timeout propagation integration regressions across run/runner config entrypoints full workspace rerun)
 261. `cargo test -p monolith-training -q` ✅ (post register-path cleanup-timeout propagation integration regressions across run/runner config entrypoints)
 262. `cargo test --workspace -q` ✅ (post register-path cleanup-timeout propagation integration regressions across run/runner config entrypoints full workspace rerun)
+263. `cargo test -p monolith-training -q` ✅ (post barrier-timeout propagation integration regressions across run/runner config entrypoints)
+264. `cargo test --workspace -q` ✅ (post barrier-timeout propagation integration regressions across run/runner config entrypoints full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
