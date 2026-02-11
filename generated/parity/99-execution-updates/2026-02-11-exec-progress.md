@@ -221,6 +221,19 @@
   - basename → full-path override resolution,
   - non-`checkpoint` filename bypass behavior.
 
+### 18) Runner discovery helper integration
+- Expanded `RunnerDiscovery` with backend-agnostic operational helpers:
+  - `register(name, index, addr)`,
+  - `deregister(name, index, addr)`,
+  - `query(name)`.
+- This enables runner-side discovery callsites to use a unified API across
+  TF_CONFIG/MLP/Consul backends.
+- ZK descriptor variant now returns explicit guidance errors for register/query
+  calls, directing callers to use concrete ZK discovery implementation.
+- Added tests to validate:
+  - Primus discovery queries through `RunnerDiscovery`,
+  - expected error behavior when calling query on descriptor-only ZK variant.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -244,6 +257,7 @@
 19. `cargo test -p monolith-training -q` ✅ (post distributed runner cleanup lifecycle updates)
 20. `cargo test -p monolith-training -q` ✅ (post run/runner → estimator config bridge additions)
 21. `cargo test -p monolith-training -q` ✅ (post checkpoint override edge-case hardening)
+22. `cargo test -p monolith-training -q` ✅ (post `RunnerDiscovery` helper integration)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
