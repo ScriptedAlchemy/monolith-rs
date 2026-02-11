@@ -661,6 +661,14 @@
 - Extended runner config mapping test coverage to assert default barrier timeout
   wiring (`distributed_config_from_runner`).
 
+### 62) Train CLI parity: barrier-timeout propagation
+- Added distributed CLI option `--barrier-timeout-ms` to `monolith-cli train`.
+- Wired the option through `TrainCommand` into
+  `DistributedRunConfig.barrier_timeout_ms` so runtime barrier wait behavior can
+  be tuned from command-line configuration.
+- Updated train-command test fixture constructors to include the new field and
+  keep compile/test parity coverage green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -754,6 +762,8 @@
 90. `cargo test -p monolith-training -q` ✅ (post worker runtime PS client connection reuse optimization)
 92. `cargo test -p monolith-training -q` ✅ (post configurable worker barrier timeout wiring in distributed runner)
 91. `cargo test --workspace -q` ✅ (post worker PS client reuse optimization and latest barrier/distributed/runtime updates)
+93. `cargo test -p monolith-cli -q` ✅ (post train CLI barrier-timeout flag plumbing for distributed runtime config)
+94. `cargo test --workspace -q` ✅ (post train CLI/distributed runner barrier-timeout parity wiring and full regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
