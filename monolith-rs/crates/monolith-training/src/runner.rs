@@ -258,16 +258,18 @@ async fn stop_heartbeat_task(
     if let Some(stop_tx) = heartbeat_stop_tx {
         let _ = stop_tx.send(true);
     }
-    if let Some(task) = heartbeat_task {
+    if let Some(mut task) = heartbeat_task {
         let stop_timeout = Duration::from_millis(100);
-        match tokio::time::timeout(stop_timeout, task).await {
-            Ok(joined) => {
+        tokio::select! {
+            joined = &mut task => {
                 let _ = joined;
             }
-            Err(_) => {
+            _ = tokio::time::sleep(stop_timeout) => {
+                task.abort();
+                let _ = task.await;
                 tracing::warn!(
                     timeout_ms = stop_timeout.as_millis(),
-                    "Heartbeat task did not stop promptly; aborting"
+                    "Heartbeat task did not stop promptly; forced abort"
                 );
             }
         }
@@ -1807,6 +1809,24 @@ mod tests {
         assert!(
             stopped.is_ok(),
             "in-flight blocking heartbeat should be cancelled after PS abort"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_stop_heartbeat_task_aborts_nonterminating_task() {
+        let (stop_tx, _stop_rx) = tokio::sync::watch::channel(false);
+        let stuck_task = tokio::spawn(async {
+            std::future::pending::<()>().await;
+        });
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(300),
+            stop_heartbeat_task(Some(stop_tx), Some(stuck_task)),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "stop_heartbeat_task should return promptly by aborting stuck heartbeat tasks"
         );
     }
 
