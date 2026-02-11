@@ -186,20 +186,45 @@ impl ConsulServiceDiscovery {
         let elements = retry_with_socket_error(|| self.client.lookup(&self.consul_id, 15))?;
         let mut addrs: HashMap<String, BTreeMap<i32, String>> = HashMap::new();
 
-        for element in elements {
-            let port = element.get("Port").and_then(|v| v.as_u64()).unwrap_or(0) as u16;
-            let tags = element.get("Tags").cloned().unwrap_or_default();
+        for (entry_idx, element) in elements.into_iter().enumerate() {
+            let port = element
+                .get("Port")
+                .and_then(|v| v.as_u64())
+                .ok_or_else(|| {
+                    ServiceDiscoveryError::Other(format!(
+                        "Malformed consul lookup response at entry {entry_idx}: missing Port"
+                    ))
+                })? as u16;
+
+            let tags = element.get("Tags").and_then(|v| v.as_object()).ok_or_else(|| {
+                ServiceDiscoveryError::Other(format!(
+                    "Malformed consul lookup response at entry {entry_idx}: missing Tags"
+                ))
+            })?;
+
             let name = tags
                 .get("name")
                 .and_then(|v| v.as_str())
-                .unwrap_or_default()
+                .ok_or_else(|| {
+                    ServiceDiscoveryError::Other(format!(
+                        "Malformed consul lookup response at entry {entry_idx}: missing tag 'name'"
+                    ))
+                })?
                 .to_string();
-            let ip = tags.get("ip").and_then(|v| v.as_str()).unwrap_or_default();
+            let ip = tags.get("ip").and_then(|v| v.as_str()).ok_or_else(|| {
+                ServiceDiscoveryError::Other(format!(
+                    "Malformed consul lookup response at entry {entry_idx}: missing tag 'ip'"
+                ))
+            })?;
             let index: i32 = tags
                 .get("index")
-                .and_then(|v| v.as_str())
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0);
+                .and_then(|v| v.as_i64())
+                .or_else(|| tags.get("index").and_then(|v| v.as_str()?.parse::<i64>().ok()))
+                .ok_or_else(|| {
+                    ServiceDiscoveryError::Other(format!(
+                        "Malformed consul lookup response at entry {entry_idx}: missing/invalid tag 'index'"
+                    ))
+                })? as i32;
             let addr = format!("{ip}:{port}");
             addrs.entry(name).or_default().insert(index, addr);
         }
@@ -767,6 +792,43 @@ mod tests {
         let d = ConsulServiceDiscovery::new("unique_id").with_client(c);
         let err = d.register("ps", 0, "192.168.0.1:1001").unwrap_err();
         assert_eq!(err.to_string(), "This machine is blacklisted by consul.");
+    }
+
+    #[test]
+    fn consul_query_all_rejects_malformed_entries() {
+        struct MalformedLookupConsul;
+        impl ConsulLike for MalformedLookupConsul {
+            fn lookup(
+                &self,
+                _name: &str,
+                _timeout_secs: u64,
+            ) -> std::io::Result<Vec<serde_json::Value>> {
+                Ok(vec![serde_json::json!({
+                    "Port": 1001,
+                    "Tags": {"name": "ps", "ip": "127.0.0.1"}
+                })])
+            }
+
+            fn register(
+                &self,
+                _name: &str,
+                _port: u16,
+                _tags: &HashMap<String, String>,
+            ) -> std::io::Result<()> {
+                Ok(())
+            }
+
+            fn deregister(&self, _name: &str, _port: u16) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let d = ConsulServiceDiscovery::new("unique_id").with_client(Arc::new(MalformedLookupConsul));
+        let err = d.query_all().unwrap_err();
+        assert!(
+            err.to_string().contains("missing/invalid tag 'index'"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]
