@@ -996,6 +996,19 @@
 - Added regression
   `test_in_memory_removes_dead_watchers_after_notification`.
 
+### 93) Consul registration replacement bounded retry semantics
+- Hardened `native_training::service_discovery::ConsulServiceDiscovery::register(...)`
+  replacement flow for existing `(name, index)` entries:
+  - added bounded replacement retries (`max_replace_retries`, default 60),
+  - returns explicit timeout-style error when stale existing registration never
+    clears (`Timed out clearing existing consul registration ...`),
+  - short-circuits idempotently when the desired address is already visible.
+- Added builder helper:
+  - `with_max_replace_retries(...)` for deterministic tuning in tests.
+- Added regressions:
+  - `consul_idempotent_registration_short_circuits_when_addr_already_visible`
+  - `consul_register_times_out_when_old_registration_never_clears`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1151,6 +1164,8 @@
 152. `cargo test --workspace -q` ✅ (post discovery watch poller lifecycle cleanup and full workspace regression rerun)
 153. `cargo test -p monolith-training -q` ✅ (post in-memory discovery dead-watcher sender cleanup)
 154. `cargo test --workspace -q` ✅ (post in-memory discovery dead-watcher sender cleanup and full workspace regression rerun)
+155. `cargo test -p monolith-training -q` ✅ (post bounded consul replacement-retry hardening and stale-registration timeout/idempotence regressions)
+156. `cargo test --workspace -q` ✅ (post bounded consul replacement-retry hardening and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
