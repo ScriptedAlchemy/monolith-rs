@@ -9,7 +9,7 @@
 //! on matching the Python semantics + error strings as exercised by tests.
 
 use std::collections::{BTreeMap, HashMap};
-use std::sync::{atomic::AtomicU64, atomic::Ordering, Arc, Mutex};
+use std::sync::{atomic::AtomicBool, atomic::AtomicU64, atomic::Ordering, Arc, Mutex};
 use std::time::Duration;
 
 use crate::native_training::consul as bd_consul;
@@ -347,6 +347,7 @@ pub struct ZkServiceDiscovery {
     path_prefix: String,
     client: Arc<dyn ZkClientLike>,
     threads: Arc<Mutex<HashMap<(String, i32), Arc<ZkRegThread>>>>,
+    closed: AtomicBool,
     max_tries: usize,
     delay_secs: u64,
 }
@@ -355,6 +356,7 @@ impl std::fmt::Debug for ZkServiceDiscovery {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ZkServiceDiscovery")
             .field("path_prefix", &self.path_prefix)
+            .field("closed", &self.closed.load(Ordering::SeqCst))
             .field("max_tries", &self.max_tries)
             .field("delay_secs", &self.delay_secs)
             .finish_non_exhaustive()
@@ -410,6 +412,7 @@ impl ZkServiceDiscovery {
             path_prefix,
             client,
             threads: Arc::new(Mutex::new(HashMap::new())),
+            closed: AtomicBool::new(false),
             max_tries: 3,
             delay_secs: 5,
         };
@@ -480,6 +483,11 @@ impl ZkServiceDiscovery {
 
 impl ServiceDiscovery for ZkServiceDiscovery {
     fn register(&self, name: &str, index: i32, addr: &str) -> Result<()> {
+        if self.closed.load(Ordering::SeqCst) {
+            return Err(ServiceDiscoveryError::Other(
+                "ZkServiceDiscovery is closed".to_string(),
+            ));
+        }
         self.internal_register(name, index, addr)?;
 
         // Spawn periodic re-registration thread (best-effort), mirroring Python.
@@ -559,6 +567,11 @@ impl ServiceDiscovery for ZkServiceDiscovery {
     }
 
     fn deregister(&self, name: &str, index: i32, _addr: &str) -> Result<()> {
+        if self.closed.load(Ordering::SeqCst) {
+            return Err(ServiceDiscoveryError::Other(
+                "ZkServiceDiscovery is closed".to_string(),
+            ));
+        }
         let path = self.path(name, index);
         let _ = self.client.delete_recursive(&path);
 
@@ -571,6 +584,11 @@ impl ServiceDiscovery for ZkServiceDiscovery {
     }
 
     fn query(&self, name: &str) -> Result<BTreeMap<i32, String>> {
+        if self.closed.load(Ordering::SeqCst) {
+            return Err(ServiceDiscoveryError::Other(
+                "ZkServiceDiscovery is closed".to_string(),
+            ));
+        }
         let children = self.client.get_children(&self.path_prefix)?;
         let mut out = BTreeMap::new();
         for child in children {
@@ -594,6 +612,9 @@ impl ServiceDiscovery for ZkServiceDiscovery {
     }
 
     fn close(&self) -> Result<()> {
+        if self.closed.swap(true, Ordering::SeqCst) {
+            return Ok(());
+        }
         let drained = {
             let mut threads = self.threads.lock().unwrap();
             threads.drain().map(|(_, ts)| ts).collect::<Vec<_>>()
@@ -1096,5 +1117,22 @@ mod tests {
         d.deregister("ps", 0, "192.168.0.1:1001").unwrap();
         d.close().unwrap();
         d.close().unwrap();
+    }
+
+    #[test]
+    fn zk_operations_fail_after_close() {
+        let c = Arc::new(FakeZk::new());
+        let d =
+            ZkServiceDiscovery::new("test_model", Arc::clone(&c) as Arc<dyn ZkClientLike>).unwrap();
+        d.close().unwrap();
+
+        let register_err = d.register("ps", 0, "192.168.0.1:1001").unwrap_err();
+        assert!(register_err.to_string().contains("closed"));
+
+        let query_err = d.query("ps").unwrap_err();
+        assert!(query_err.to_string().contains("closed"));
+
+        let deregister_err = d.deregister("ps", 0, "192.168.0.1:1001").unwrap_err();
+        assert!(deregister_err.to_string().contains("closed"));
     }
 }
