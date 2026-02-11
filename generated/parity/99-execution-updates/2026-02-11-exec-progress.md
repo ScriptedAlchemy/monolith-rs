@@ -547,6 +547,7 @@
 60. `cargo test -p monolith-training -q` ✅ (post PS client shard/all health+stats API additions)
 61. `cargo test --workspace -q` ✅ (post PS client health/stats API additions and shard validation coverage)
 62. `cargo test -p monolith-training -q` ✅ (post PS client batch lookup/apply convenience API additions)
+63. `cargo test --workspace -q` ✅ (post PS client batch lookup/apply additions and regression coverage)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
