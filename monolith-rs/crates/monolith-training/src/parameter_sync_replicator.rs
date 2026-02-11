@@ -14,6 +14,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
+use tokio::sync::watch;
+use tokio::task::JoinHandle;
 
 #[derive(Debug, Error)]
 pub enum ReplicatorError {
@@ -70,6 +72,22 @@ pub struct ParameterSyncReplicator {
     max_batch_fids: usize,
 }
 
+/// Handle for a running background replication task.
+///
+/// Dropping this handle signals the task to stop on the next loop select-cycle.
+pub struct ParameterSyncReplicatorTask {
+    stop_tx: watch::Sender<bool>,
+    join_handle: JoinHandle<()>,
+}
+
+impl ParameterSyncReplicatorTask {
+    /// Signals the replication task to stop and waits for completion.
+    pub async fn stop(mut self) {
+        let _ = self.stop_tx.send(true);
+        let _ = (&mut self.join_handle).await;
+    }
+}
+
 impl ParameterSyncReplicator {
     pub fn new(
         ps: Arc<PsServer>,
@@ -96,15 +114,28 @@ impl ParameterSyncReplicator {
     }
 
     /// Spawn a background task that flushes deltas every `interval`.
-    pub fn spawn(self, interval: Duration) {
-        tokio::spawn(async move {
+    pub fn spawn(self, interval: Duration) -> ParameterSyncReplicatorTask {
+        let (stop_tx, mut stop_rx) = watch::channel(false);
+        let join_handle = tokio::spawn(async move {
             loop {
-                if let Err(e) = self.flush_once().await {
-                    tracing::warn!(error = %e, "ParameterSyncReplicator flush failed");
+                tokio::select! {
+                    stop_changed = stop_rx.changed() => {
+                        if stop_changed.is_err() || *stop_rx.borrow() {
+                            break;
+                        }
+                    }
+                    _ = tokio::time::sleep(interval) => {
+                        if let Err(e) = self.flush_once().await {
+                            tracing::warn!(error = %e, "ParameterSyncReplicator flush failed");
+                        }
+                    }
                 }
-                tokio::time::sleep(interval).await;
             }
         });
+        ParameterSyncReplicatorTask {
+            stop_tx,
+            join_handle,
+        }
     }
 
     async fn flush_once(&self) -> ReplicatorResult<()> {
@@ -156,5 +187,29 @@ impl ParameterSyncReplicator {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_parameter_sync_replicator_task_stop() {
+        let ps = PsServer::new(0, 8);
+        let tracker = Arc::new(DirtyTracker::default());
+        let task = ParameterSyncReplicator::new(
+            ps,
+            tracker,
+            Vec::new(),
+            "m".to_string(),
+            "sig".to_string(),
+            "emb".to_string(),
+        )
+        .spawn(Duration::from_millis(20));
+
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        let stopped = tokio::time::timeout(Duration::from_secs(1), task.stop()).await;
+        assert!(stopped.is_ok(), "replicator task stop should complete quickly");
     }
 }

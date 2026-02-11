@@ -298,12 +298,12 @@ async fn run_ps_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
 
     // If parameter sync replication is enabled, wire dirty tracking into the PS RPC path
     // and spawn a background replicator.
-    if !cfg.parameter_sync_targets.is_empty() {
+    let mut parameter_sync_task = if !cfg.parameter_sync_targets.is_empty() {
         let tracker = Arc::new(DirtyTracker::default());
         ps.set_dirty_tracker(Arc::clone(&tracker));
 
         // The replicator exports dirty FIDs from the PS table and pushes them to online.
-        ParameterSyncReplicator::new(
+        let task = ParameterSyncReplicator::new(
             Arc::clone(&ps),
             tracker,
             cfg.parameter_sync_targets.clone(),
@@ -312,7 +312,10 @@ async fn run_ps_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
             cfg.table_name.clone(),
         )
         .spawn(cfg.parameter_sync_interval);
-    }
+        Some(task)
+    } else {
+        None
+    };
 
     // Bind early so we can register the real (possibly ephemeral) port. Python tests always pass
     // explicit ports; in Rust we also want to support `:0` for local tests.
@@ -376,6 +379,9 @@ async fn run_ps_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     }
     if let Some(task) = heartbeat_task.take() {
         let _ = task.await;
+    }
+    if let Some(task) = parameter_sync_task.take() {
+        task.stop().await;
     }
 
     server_result?;
