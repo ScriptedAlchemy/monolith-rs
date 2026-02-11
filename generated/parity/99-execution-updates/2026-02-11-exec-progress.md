@@ -1192,6 +1192,17 @@
 - Added regression:
   - `test_run_distributed_disconnects_when_worker_role_fails_after_registration`.
 
+### 112) Disconnect-failure propagation after successful worker completion
+- Added distributed-runner regression for success path where:
+  - worker role succeeds against a live PS,
+  - `deregister_async` succeeds,
+  - `disconnect()` fails.
+- Verifies runner:
+  - still performs deregister before disconnect,
+  - returns disconnect error explicitly.
+- Added regression:
+  - `test_run_distributed_surfaces_disconnect_failure_after_success`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1384,6 +1395,8 @@
 189. `cargo test --workspace -q` ✅ (post disconnect-after-success lifecycle regression for deregister-failure path and full workspace rerun)
 190. `cargo test -p monolith-training -q` ✅ (post worker-timeout cleanup regression after successful registration)
 191. `cargo test --workspace -q` ✅ (post worker-timeout cleanup regression after successful registration and full workspace rerun)
+192. `cargo test -p monolith-training -q` ✅ (post disconnect-failure propagation regression after successful worker completion)
+193. `cargo test --workspace -q` ✅ (post disconnect-failure propagation regression after successful worker completion and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
