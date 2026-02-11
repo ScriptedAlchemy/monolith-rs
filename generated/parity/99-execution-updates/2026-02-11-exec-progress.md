@@ -838,6 +838,17 @@
 - Added regression `test_parameter_sync_replicator_task_stop` to validate
   stop/join lifecycle behavior.
 
+### 78) Worker registration failure cleanup robustness
+- Hardened `run_distributed(...)` worker-role startup flow so worker
+  registration errors no longer early-return before cleanup.
+- Registration failure now feeds into common role error handling, ensuring:
+  - `deregister_async(service_id)` is still attempted,
+  - `disconnect()` is still attempted.
+- Added async regression
+  `test_run_distributed_disconnects_when_worker_registration_fails` using a
+  failing discovery backend to assert cleanup calls happen even when
+  registration fails before worker loop startup.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -963,6 +974,7 @@
 122. `cargo test --workspace -q` ✅ (post worker timeout diagnostics regression and full workspace rerun)
 123. `cargo test -p monolith-training -q` ✅ (post ParameterSync replicator managed-task lifecycle cleanup and PS runner shutdown wiring)
 124. `cargo test --workspace -q` ✅ (post ParameterSync replicator managed-task lifecycle cleanup and full workspace regression rerun)
+125. `cargo test -p monolith-training -q` ✅ (post distributed runner cleanup hardening for worker registration failure path)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
