@@ -1473,6 +1473,17 @@
 - Complements existing run-config discover-timeout integration coverage for
   entrypoint parity completeness.
 
+### 136) Discover-retry propagation integration coverage across config entrypoints
+- Added retry-focused discover-timeout integration regressions:
+  - `distributed_runner_from_run_config_propagates_discover_retry_controls`
+  - `distributed_runner_from_runner_config_propagates_discover_retry_controls`
+- Validates with `connect_retries=2` and blocking discover backend that:
+  - exactly three discover attempts are made,
+  - timeout diagnostics still include configured operation timeout context,
+  - cleanup attempts execute after retries are exhausted.
+- Extends timeout-control parity coverage from value propagation to retry-loop
+  semantics propagation in both config entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1720,6 +1731,8 @@
 244. `cargo test --workspace -q` ✅ (post PS register-timeout precedence integration regressions across run/runner config entrypoints full workspace rerun)
 245. `cargo test -p monolith-training -q` ✅ (post runner-config discover-timeout propagation integration regression)
 246. `cargo test --workspace -q` ✅ (post runner-config discover-timeout propagation integration regression full workspace rerun)
+247. `cargo test -p monolith-training -q` ✅ (post discover-retry propagation integration regressions across run/runner config entrypoints)
+248. `cargo test --workspace -q` ✅ (post discover-retry propagation integration regressions across run/runner config entrypoints full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
