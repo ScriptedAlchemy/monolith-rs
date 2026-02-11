@@ -3175,6 +3175,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_times_out() {
+        let discovery = Arc::new(HangingRegisterWithHangingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_operation_timeout: Duration::from_millis(20),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(700),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when ps register and cleanup operations are blocked"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery operation: register ps-0 after 20ms"),
+            "ps register timeout should remain primary over cleanup timeout failures: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_ps_register_timeout_does_not_hang() {
         let discovery = Arc::new(HangingRegisterDiscovery::new());
         let cfg = DistributedRunConfig {
