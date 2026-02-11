@@ -3157,8 +3157,45 @@ mod tests {
         );
         let msg = res.unwrap().unwrap_err().to_string();
         assert!(
-            msg.contains("Timed out during discovery operation: register worker-0"),
+            msg.contains("Timed out during discovery operation: register worker-0 as worker"),
             "unexpected worker register-timeout error: {msg}"
+        );
+        assert!(
+            msg.contains("after 200ms"),
+            "register-timeout diagnostics should include configured timeout duration: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_worker_register_timeout_includes_custom_service_type_context()
+    {
+        let discovery = Arc::new(HangingRegisterDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            discovery_operation_timeout: Duration::from_millis(200),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(900),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when worker registration blocks"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery operation: register worker-0 as trainer_custom"),
+            "worker register-timeout diagnostics should include custom service-type context: {msg}"
         );
         assert!(
             msg.contains("after 200ms"),
@@ -3259,8 +3296,45 @@ mod tests {
         );
         let msg = res.unwrap().unwrap_err().to_string();
         assert!(
-            msg.contains("Timed out during discovery operation: register ps-0"),
+            msg.contains("Timed out during discovery operation: register ps-0 as ps"),
             "unexpected ps register-timeout error: {msg}"
+        );
+        assert!(
+            msg.contains("after 200ms"),
+            "register-timeout diagnostics should include configured timeout duration: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_ps_register_timeout_includes_custom_service_type_context() {
+        let discovery = Arc::new(HangingRegisterDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_operation_timeout: Duration::from_millis(200),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(900),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when ps registration blocks"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery operation: register ps-0 as parameter_server_custom"),
+            "ps register-timeout diagnostics should include custom service-type context: {msg}"
         );
         assert!(
             msg.contains("after 200ms"),
