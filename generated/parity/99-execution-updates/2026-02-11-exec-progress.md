@@ -458,6 +458,18 @@
   - timeout mapping from real server barrier timeout response,
   - server-side barrier shape mismatch mapping to `InvalidConfig`.
 
+### 43) PS client health/stats API parity
+- Added explicit PS client helper APIs for observability:
+  - `health_check_shard(shard_id, component)`
+  - `health_check_all(component)` (parallel fanout)
+  - `get_stats_shard(shard_id, include_table_stats)`
+  - `get_stats_all(include_table_stats)` (parallel fanout)
+- Added shard-index validation for single-shard helper calls.
+- Added end-to-end async coverage:
+  - shard health check on live gRPC server,
+  - per-shard stats retrieval after lookup traffic,
+  - multi-shard health/stats fanout behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -519,6 +531,7 @@
 57. `cargo test --workspace -q` ✅ (post PS client early input validation + dimension/barrier guard hardening)
 58. `cargo test -p monolith-training -q` ✅ (post typed PS client barrier status-code error mapping)
 59. `cargo test --workspace -q` ✅ (post typed PS client barrier error mapping and additional status-semantics tests)
+60. `cargo test -p monolith-training -q` ✅ (post PS client shard/all health+stats API additions)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
