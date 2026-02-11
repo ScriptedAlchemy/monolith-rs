@@ -409,7 +409,12 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     let mut max_usable_ps_observed: usize = 0;
     for attempt in 0..=cfg.connect_retries {
         let ps_services = match discovery.discover_async(&cfg.discovery_service_type_ps).await {
-            Ok(services) => services,
+            Ok(services) => {
+                if last_discovery_error.is_some() {
+                    last_discovery_error = None;
+                }
+                services
+            }
             Err(e) => {
                 last_discovery_error = Some(e.to_string());
                 Vec::new()
@@ -750,14 +755,10 @@ mod tests {
         }
 
         async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
-            let n = self.calls.fetch_add(1, Ordering::SeqCst);
-            if n == 0 {
-                Err(crate::discovery::DiscoveryError::Internal(
-                    "forced discover failure".to_string(),
-                ))
-            } else {
-                Ok(Vec::new())
-            }
+            let _ = self.calls.fetch_add(1, Ordering::SeqCst);
+            Err(crate::discovery::DiscoveryError::Internal(
+                "forced discover failure".to_string(),
+            ))
         }
 
         async fn watch_async(
@@ -835,6 +836,62 @@ mod tests {
             Self {
                 calls: AtomicUsize::new(0),
             }
+        }
+    }
+
+    struct SequencedDiscoverErrorThenPartialDiscovery {
+        calls: AtomicUsize,
+    }
+
+    impl SequencedDiscoverErrorThenPartialDiscovery {
+        fn new() -> Self {
+            Self {
+                calls: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for SequencedDiscoverErrorThenPartialDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            let n = self.calls.fetch_add(1, Ordering::SeqCst);
+            if n == 0 {
+                Err(crate::discovery::DiscoveryError::Internal(
+                    "forced discover failure".to_string(),
+                ))
+            } else {
+                Ok(vec![ServiceInfo::new(
+                    "ps-0",
+                    "ps-0",
+                    "ps",
+                    "127.0.0.1",
+                    10001,
+                )])
+            }
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            Ok(())
         }
     }
 
@@ -1223,6 +1280,32 @@ mod tests {
         assert!(
             msg.contains("attempts: 2"),
             "expected timeout to report attempt count, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_clears_stale_discovery_error_after_successful_discover() {
+        let discovery = Arc::new(SequencedDiscoverErrorThenPartialDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 2,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 1,
+            retry_backoff_ms: 1,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg)
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            !msg.contains("forced discover failure"),
+            "stale discovery error should be cleared after successful discover, got: {msg}"
+        );
+        assert!(
+            msg.contains("max raw observed: 1"),
+            "expected successful discover attempt to contribute to max observed diagnostics, got: {msg}"
         );
     }
 
