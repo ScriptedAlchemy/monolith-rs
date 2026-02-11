@@ -134,7 +134,10 @@ pub use py_discovery::{
 pub use run_config::{
     Result as RunConfigResult, RunConfig, RunConfigError, RunnerConfig,
 };
-pub use runner::{run_distributed, DistributedRunConfig, Role};
+pub use runner::{
+    distributed_config_from_runner, run_distributed, run_distributed_from_runner_config,
+    DistributedRunConfig, Role,
+};
 pub use runner_utils::{
     copy_checkpoint_from_restore_dir, get_checkpoint_state_with_restore_override, get_discovery,
     initialize_restore_checkpoint_from_runner, isabs, monolith_discovery,

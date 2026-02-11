@@ -13,6 +13,8 @@ use crate::barrier::{PsBarrier, SharedBarrier};
 use crate::discovery::{ServiceDiscoveryAsync, ServiceInfo};
 use crate::distributed_ps::{PsClient, PsServer};
 use crate::parameter_sync_replicator::{DirtyTracker, ParameterSyncReplicator};
+use crate::run_config::RunnerConfig;
+use crate::runner_utils::initialize_restore_checkpoint_from_runner;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -76,6 +78,22 @@ impl Default for DistributedRunConfig {
     }
 }
 
+/// Builds a distributed-runner config from a higher-level runner config.
+pub fn distributed_config_from_runner(
+    runner_conf: &RunnerConfig,
+    role: Role,
+    bind_addr: SocketAddr,
+) -> DistributedRunConfig {
+    DistributedRunConfig {
+        role,
+        index: runner_conf.index,
+        num_ps: runner_conf.num_ps.max(1),
+        num_workers: runner_conf.num_workers.max(1),
+        bind_addr,
+        ..DistributedRunConfig::default()
+    }
+}
+
 /// Run a PS or worker process using the provided discovery backend.
 pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     discovery: Arc<D>,
@@ -114,6 +132,25 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
 
     discovery.disconnect().await?;
     Ok(())
+}
+
+/// RunnerConfig-driven distributed entrypoint.
+///
+/// This applies runner post-init restore/env semantics, then dispatches into
+/// the role-based distributed runner.
+pub async fn run_distributed_from_runner_config<D: ServiceDiscoveryAsync + 'static + ?Sized>(
+    discovery: Arc<D>,
+    runner_conf: &RunnerConfig,
+    role: Role,
+    bind_addr: SocketAddr,
+) -> anyhow::Result<()> {
+    let _ = initialize_restore_checkpoint_from_runner(
+        runner_conf,
+        Duration::from_secs(30),
+        Duration::from_millis(200),
+    )?;
+    let cfg = distributed_config_from_runner(runner_conf, role, bind_addr);
+    run_distributed(discovery, cfg).await
 }
 
 async fn run_ps_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
@@ -260,4 +297,71 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         .await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::discovery::InMemoryDiscovery;
+
+    #[test]
+    fn test_distributed_config_from_runner_maps_fields() {
+        let rc = RunnerConfig {
+            index: 2,
+            num_ps: 3,
+            num_workers: 5,
+            ..RunnerConfig::default()
+        };
+        let cfg = distributed_config_from_runner(
+            &rc,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        );
+        assert_eq!(cfg.index, 2);
+        assert_eq!(cfg.num_ps, 3);
+        assert_eq!(cfg.num_workers, 5);
+        assert!(matches!(cfg.role, Role::Worker));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_from_runner_config_smoke() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+
+        let ps_rc = RunnerConfig {
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            ..RunnerConfig::default()
+        };
+        let worker_rc = RunnerConfig {
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            ..RunnerConfig::default()
+        };
+
+        let discovery_bg = Arc::clone(&discovery);
+        let ps_rc_bg = ps_rc.clone();
+        let ps_task = tokio::spawn(async move {
+            run_distributed_from_runner_config(
+                discovery_bg,
+                &ps_rc_bg,
+                Role::Ps,
+                "127.0.0.1:0".parse().unwrap(),
+            )
+            .await
+        });
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let worker_res = run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &worker_rc,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        )
+        .await;
+        assert!(worker_res.is_ok(), "worker failed: {worker_res:?}");
+
+        ps_task.abort();
+    }
 }

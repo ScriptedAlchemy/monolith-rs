@@ -115,3 +115,48 @@ async fn distributed_runner_in_memory_ps_and_worker() {
     // PS runs forever; abort for test shutdown.
     ps_task.abort();
 }
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_smoke() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use monolith_training::RunnerConfig;
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let ps_rc = RunnerConfig {
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        ..RunnerConfig::default()
+    };
+    let worker_rc = RunnerConfig {
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        ..RunnerConfig::default()
+    };
+
+    let discovery_bg = Arc::clone(&discovery);
+    let ps_rc_bg = ps_rc.clone();
+    let ps_task = tokio::spawn(async move {
+        run_distributed_from_runner_config(
+            discovery_bg,
+            &ps_rc_bg,
+            Role::Ps,
+            "127.0.0.1:0".parse().unwrap(),
+        )
+        .await
+    });
+
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    let worker_res = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &worker_rc,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    assert!(worker_res.is_ok(), "worker failed: {worker_res:?}");
+    ps_task.abort();
+}
