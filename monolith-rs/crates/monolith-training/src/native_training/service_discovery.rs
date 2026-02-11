@@ -143,6 +143,7 @@ impl ConsulLike for RealConsul {
 pub struct ConsulServiceDiscovery {
     consul_id: String,
     client: Arc<dyn ConsulLike>,
+    closed: Arc<AtomicBool>,
     retry_time_secs: f64,
     max_replace_retries: usize,
 }
@@ -151,6 +152,7 @@ impl std::fmt::Debug for ConsulServiceDiscovery {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ConsulServiceDiscovery")
             .field("consul_id", &self.consul_id)
+            .field("closed", &self.closed.load(Ordering::SeqCst))
             .field("retry_time_secs", &self.retry_time_secs)
             .field("max_replace_retries", &self.max_replace_retries)
             .finish_non_exhaustive()
@@ -162,6 +164,7 @@ impl ConsulServiceDiscovery {
         Self {
             consul_id: consul_id.into(),
             client: Arc::new(RealConsul::new()),
+            closed: Arc::new(AtomicBool::new(false)),
             retry_time_secs: 3.0,
             max_replace_retries: 60,
         }
@@ -235,6 +238,11 @@ impl ConsulServiceDiscovery {
 
 impl ServiceDiscovery for ConsulServiceDiscovery {
     fn register(&self, name: &str, index: i32, addr: &str) -> Result<()> {
+        if self.closed.load(Ordering::SeqCst) {
+            return Err(ServiceDiscoveryError::Other(
+                "ConsulServiceDiscovery is closed".to_string(),
+            ));
+        }
         // Best-effort: deregister any existing address for the same (name, index).
         let mut replace_retries = 0usize;
         loop {
@@ -290,14 +298,29 @@ impl ServiceDiscovery for ConsulServiceDiscovery {
     }
 
     fn deregister(&self, _name: &str, _index: i32, addr: &str) -> Result<()> {
+        if self.closed.load(Ordering::SeqCst) {
+            return Err(ServiceDiscoveryError::Other(
+                "ConsulServiceDiscovery is closed".to_string(),
+            ));
+        }
         let (_host, port) = parse_host_port(addr)?;
         retry_with_socket_error(|| self.client.deregister(&self.consul_id, port))?;
         Ok(())
     }
 
     fn query(&self, name: &str) -> Result<BTreeMap<i32, String>> {
+        if self.closed.load(Ordering::SeqCst) {
+            return Err(ServiceDiscoveryError::Other(
+                "ConsulServiceDiscovery is closed".to_string(),
+            ));
+        }
         let all = self.query_all()?;
         Ok(all.get(name).cloned().unwrap_or_default())
+    }
+
+    fn close(&self) -> Result<()> {
+        self.closed.store(true, Ordering::SeqCst);
+        Ok(())
     }
 }
 
@@ -899,6 +922,25 @@ mod tests {
                 .contains("Timed out clearing existing consul registration"),
             "unexpected error: {err}"
         );
+    }
+
+    #[test]
+    fn consul_close_is_idempotent_and_blocks_operations() {
+        let c = Arc::new(FakeConsul::new(vec![]));
+        let d = ConsulServiceDiscovery::new("unique_id")
+            .with_retry_time_secs(0.0)
+            .with_client(c);
+        d.close().unwrap();
+        d.close().unwrap();
+
+        let register_err = d.register("ps", 0, "192.168.0.1:1001").unwrap_err();
+        assert!(register_err.to_string().contains("closed"));
+
+        let query_err = d.query("ps").unwrap_err();
+        assert!(query_err.to_string().contains("closed"));
+
+        let deregister_err = d.deregister("ps", 0, "192.168.0.1:1001").unwrap_err();
+        assert!(deregister_err.to_string().contains("closed"));
     }
 
     #[test]
