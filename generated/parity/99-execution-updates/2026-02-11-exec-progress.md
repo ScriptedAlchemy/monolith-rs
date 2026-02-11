@@ -2326,6 +2326,25 @@
 - Result: connect-failure cleanup diagnostics now have symmetric worker/PS role
   integration coverage for run/runner entrypoints.
 
+### 192) Successful-role disconnect-only cleanup failures now include explicit cleanup issue context
+- Hardened `run_distributed` post-success cleanup tail path:
+  - when `deregister` succeeds but `disconnect` fails/timeouts, returned error
+    now appends explicit successful-role cleanup issue context instead of
+    surfacing raw disconnect cleanup error alone.
+- Expanded runner unit assertions for successful worker runs:
+  - disconnect failure after success now asserts appended successful-role cleanup
+    context,
+  - disconnect timeout after success now asserts appended successful-role cleanup
+    context,
+  - custom worker service-type disconnect timeout after success now asserts
+    appended successful-role cleanup context.
+- Expanded native-training integration assertions (RunConfig + RunnerConfig)
+  for successful worker run + custom disconnect timeout path to assert appended
+  successful-role cleanup issue context.
+- Result: all cleanup-failure result paths (connect-stage, role-error-stage,
+  post-success-stage) now provide explicit cleanup-context framing while
+  preserving primary error precedence.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2690,6 +2709,8 @@
 361. `ZK_AUTH=user:pass cargo test -p monolith-training --test native_training_parity -q` ✅ (post PS-role connect-failure cleanup timeout/failure integration parity expansion with custom PS service-type diagnostics)
 362. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post PS-role connect-failure cleanup parity expansion targeted training/cli rerun)
 363. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post PS-role connect-failure cleanup parity expansion full workspace rerun under ambient ZK auth env)
+364. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post successful-role disconnect-only cleanup context propagation hardening and related unit/integration parity assertion updates)
+365. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post successful-role disconnect-only cleanup context propagation hardening full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

@@ -2217,6 +2217,10 @@ async fn distributed_runner_from_run_config_surfaces_disconnect_timeout_with_cus
         ),
         "disconnect timeout diagnostics should include custom worker service type from RunConfig after successful worker run: {msg}"
     );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after successful role completion"),
+        "disconnect-timeout diagnostics after successful worker run should include cleanup issue context via RunConfig: {msg}"
+    );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
@@ -6190,6 +6194,10 @@ async fn distributed_runner_from_runner_config_surfaces_disconnect_timeout_with_
             "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
         ),
         "disconnect timeout diagnostics should include custom worker service type from RunnerConfig after successful worker run: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after successful role completion"),
+        "disconnect-timeout diagnostics after successful worker run should include cleanup issue context via RunnerConfig: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);

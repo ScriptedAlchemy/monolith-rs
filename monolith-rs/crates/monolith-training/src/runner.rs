@@ -678,7 +678,12 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         }
         return Err(anyhow::Error::from(de));
     }
-    disconnect_result?;
+    if let Err(disconnect_err) = disconnect_result {
+        return Err(anyhow::anyhow!(
+            "{} (discovery cleanup encountered issues after successful role completion)",
+            disconnect_err
+        ));
+    }
     Ok(())
 }
 
@@ -4547,6 +4552,10 @@ mod tests {
             msg.contains("forced disconnect failure"),
             "unexpected error: {msg}"
         );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after successful role completion"),
+            "disconnect failure after successful role should include cleanup issue context: {msg}"
+        );
         assert_eq!(
             discovery.deregister_count(),
             1,
@@ -4591,6 +4600,10 @@ mod tests {
         assert!(
             msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker"),
             "unexpected error: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after successful role completion"),
+            "disconnect timeout after successful role should include cleanup issue context: {msg}"
         );
         assert!(
             msg.contains("after 200ms"),
@@ -4638,6 +4651,10 @@ mod tests {
         assert!(
             msg.contains("Timed out during discovery cleanup: disconnect worker-0 via trainer_custom"),
             "disconnect-timeout diagnostics should include custom service-type context: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after successful role completion"),
+            "custom disconnect-timeout after successful role should include cleanup issue context: {msg}"
         );
         assert!(
             msg.contains("after 200ms"),
