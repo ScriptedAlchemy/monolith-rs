@@ -39,6 +39,8 @@ pub struct RunnerConfig {
     pub enable_embedding_postpush: bool,
     pub enable_realtime_training: bool,
     pub enable_parameter_sync: bool,
+    pub tf_grpc_worker_cache_threads: Option<usize>,
+    pub monolith_grpc_worker_service_handler_multiplier: Option<usize>,
 }
 
 impl Default for RunnerConfig {
@@ -61,6 +63,8 @@ impl Default for RunnerConfig {
             enable_embedding_postpush: true,
             enable_realtime_training: false,
             enable_parameter_sync: false,
+            tf_grpc_worker_cache_threads: None,
+            monolith_grpc_worker_service_handler_multiplier: None,
         }
     }
 }
@@ -84,6 +88,8 @@ pub struct RunConfig {
     pub embedding_prefetch_capacity: usize,
     pub enable_embedding_postpush: bool,
     pub enable_parameter_sync: bool,
+    pub tf_grpc_worker_cache_threads: Option<usize>,
+    pub monolith_grpc_worker_service_handler_multiplier: Option<usize>,
 }
 
 impl Default for RunConfig {
@@ -105,6 +111,8 @@ impl Default for RunConfig {
             embedding_prefetch_capacity: 0,
             enable_embedding_postpush: false,
             enable_parameter_sync: false,
+            tf_grpc_worker_cache_threads: None,
+            monolith_grpc_worker_service_handler_multiplier: None,
         }
     }
 }
@@ -138,6 +146,8 @@ impl RunConfig {
         merge_field!(enable_gpu_training);
         merge_field!(embedding_prefetch_capacity);
         merge_field!(enable_embedding_postpush);
+        merge_field!(tf_grpc_worker_cache_threads);
+        merge_field!(monolith_grpc_worker_service_handler_multiplier);
         merge_field!(tf_config);
         merge_field!(deep_insight_name);
         merge_field!(zk_server);
@@ -198,8 +208,27 @@ impl RunConfig {
         push_override!(embedding_prefetch_capacity);
         push_override!(enable_embedding_postpush);
         push_override!(enable_parameter_sync);
+        push_override!(tf_grpc_worker_cache_threads);
+        push_override!(monolith_grpc_worker_service_handler_multiplier);
 
         out
+    }
+
+    /// Exports runtime env vars expected by Python estimator initialization.
+    ///
+    /// Mirrors:
+    /// - `TF_GRPC_WORKER_CACHE_THREADS`
+    /// - `MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER`
+    pub fn apply_runtime_env_exports(runner: &RunnerConfig) {
+        if let Some(v) = runner.tf_grpc_worker_cache_threads {
+            std::env::set_var("TF_GRPC_WORKER_CACHE_THREADS", v.to_string());
+        }
+        if let Some(v) = runner.monolith_grpc_worker_service_handler_multiplier {
+            std::env::set_var(
+                "MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER",
+                v.to_string(),
+            );
+        }
     }
 }
 
@@ -288,6 +317,7 @@ mod tests {
         let rc = RunConfig {
             num_ps: 2,
             enable_parameter_sync: true,
+            tf_grpc_worker_cache_threads: Some(8),
             ..RunConfig::default()
         };
         let overrides = rc.user_overrides();
@@ -295,6 +325,34 @@ mod tests {
         assert_eq!(
             overrides.get("enable_parameter_sync").unwrap(),
             &serde_json::json!(true)
+        );
+        assert_eq!(
+            overrides.get("tf_grpc_worker_cache_threads").unwrap(),
+            &serde_json::json!(8)
+        );
+    }
+
+    #[test]
+    fn test_apply_runtime_env_exports() {
+        // Keep this test isolated from other env-var-dependent tests.
+        static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = ENV_MUTEX.lock().unwrap();
+
+        std::env::remove_var("TF_GRPC_WORKER_CACHE_THREADS");
+        std::env::remove_var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER");
+        let rc = RunnerConfig {
+            tf_grpc_worker_cache_threads: Some(16),
+            monolith_grpc_worker_service_handler_multiplier: Some(3),
+            ..RunnerConfig::default()
+        };
+        RunConfig::apply_runtime_env_exports(&rc);
+        assert_eq!(
+            std::env::var("TF_GRPC_WORKER_CACHE_THREADS").unwrap(),
+            "16"
+        );
+        assert_eq!(
+            std::env::var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER").unwrap(),
+            "3"
         );
     }
 }
