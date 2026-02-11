@@ -794,6 +794,18 @@
   - `test_ordered_ps_addrs_rejects_mixed_index_metadata_presence`
   - `test_ordered_ps_addrs_rejects_invalid_index_metadata`
 
+### 74) Distributed runtime config preflight validation
+- Added `DistributedRunConfig::validate()` and wired it into
+  `run_distributed(...)` before discovery/role startup.
+- Enforced preflight constraints:
+  - `num_ps > 0`
+  - `num_workers > 0`
+  - `dim > 0`
+  - `barrier_timeout_ms > 0`
+- Added async regression
+  `test_run_distributed_rejects_invalid_runtime_config` to assert immediate
+  typed failure on invalid distributed launch configuration.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -911,6 +923,7 @@
 114. `cargo test --workspace -q` ✅ (post run/runner config discovery-role + table/dim propagation updates and full workspace regression rerun)
 115. `cargo test -p monolith-training -q` ✅ (post strict mixed/invalid PS index-metadata consistency gating in worker discovery ordering)
 116. `cargo test --workspace -q` ✅ (post strict mixed/invalid PS index-metadata consistency gating and full workspace regression rerun)
+117. `cargo test -p monolith-training -q` ✅ (post distributed runtime config preflight validation guard and invalid-config regression)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
