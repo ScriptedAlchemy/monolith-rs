@@ -1234,6 +1234,17 @@
   - role-error precedence is preserved even when both cleanup steps time out
     (`test_run_distributed_preserves_worker_error_when_cleanup_steps_timeout`).
 
+### 116) Parameter-sync replicator deterministic stop under stuck task conditions
+- Hardened `ParameterSyncReplicatorTask::stop` to avoid indefinite awaits:
+  - added bounded stop timeout and forced `abort()` fallback when join does not
+    complete promptly,
+  - emits warning with timeout context when forced abort path is used.
+- Improved replicator spawn loop cancellation behavior:
+  - each scheduled flush now races `flush_once()` against stop signal so stop can
+    preempt in-flight flush execution points.
+- Added regression:
+  - `test_parameter_sync_replicator_task_stop_aborts_nonterminating_task`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1436,6 +1447,8 @@
 199. `cargo test --workspace -q` ✅ (post worker-error precedence regression when cleanup steps time out and full workspace rerun)
 200. `cargo test -p monolith-training -q` ✅ (post discovery-cleanup timeout wrapper + disconnect-timeout success-path regression additions)
 201. `cargo test --workspace -q` ✅ (post discovery-cleanup timeout wrapper + disconnect-timeout success-path regression additions and full workspace rerun)
+202. `cargo test -p monolith-training -q` ✅ (post parameter-sync replicator deterministic stop hardening + nonterminating-stop regression)
+203. `cargo test --workspace -q` ✅ (post parameter-sync replicator deterministic stop hardening + nonterminating-stop regression and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
