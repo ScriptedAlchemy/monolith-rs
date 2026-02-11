@@ -681,6 +681,18 @@ mod tests {
     }
 
     #[test]
+    fn test_build_distributed_run_config_rejects_negative_barrier_timeout() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.barrier_timeout_ms = -1;
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--barrier-timeout-ms must be > 0"),
+            "unexpected barrier-timeout validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_tfrecord_training_creates_checkpoint() {
         let dir = tempdir().unwrap();
         let model_dir = dir.path().join("model");
