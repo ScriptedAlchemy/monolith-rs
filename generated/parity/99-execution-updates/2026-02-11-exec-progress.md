@@ -1535,6 +1535,18 @@
 - Completes connect-timeout precedence integration coverage for both worker and
   PS roles across run-config and runner-config entrypoints.
 
+### 141) Zero-timeout validation integration coverage across config entrypoints
+- Added validation-focused config entrypoint regressions:
+  - `distributed_runner_from_run_config_rejects_zero_operation_timeout`
+  - `distributed_runner_from_run_config_rejects_zero_cleanup_timeout`
+  - `distributed_runner_from_runner_config_rejects_zero_operation_timeout`
+  - `distributed_runner_from_runner_config_rejects_zero_cleanup_timeout`
+- Validates that zero timeout values propagated from both run-config and
+  runner-config surfaces are rejected by distributed config validation before
+  runtime orchestration.
+- Confirms entrypoint-level timeout propagation includes invalid-value rejection
+  semantics in addition to previously covered timeout and retry behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1792,6 +1804,8 @@
 254. `cargo test --workspace -q` ✅ (post config-surface service-type mapping assertion hardening full workspace rerun)
 255. `cargo test -p monolith-training -q` ✅ (post PS connect-timeout precedence integration regressions across run/runner config entrypoints)
 256. `cargo test --workspace -q` ✅ (post PS connect-timeout precedence integration regressions across run/runner config entrypoints full workspace rerun)
+257. `cargo test -p monolith-training -q` ✅ (post zero-timeout validation integration regressions across run/runner config entrypoints)
+258. `cargo test --workspace -q` ✅ (post zero-timeout validation integration regressions across run/runner config entrypoints full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
