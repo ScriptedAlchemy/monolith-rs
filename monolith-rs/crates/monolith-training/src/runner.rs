@@ -7912,6 +7912,65 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_preserves_worker_error_with_default_service_type_and_index_when_cleanup_steps_timeout(
+    ) {
+        let discovery = Arc::new(WorkerTimeoutWithHangingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 2,
+            num_ps: 1,
+            num_workers: 3,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(1500),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when indexed default worker discovery times out and cleanup steps time out"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker-role timeout should remain primary over cleanup timeout errors with default service type/index: {msg}"
+        );
+        assert!(
+            msg.contains("service type: ps"),
+            "worker-timeout diagnostics should include default PS service-type context with indexed default service types: {msg}"
+        );
+        assert!(
+            msg.contains("for worker-2"),
+            "worker-timeout diagnostics should include indexed worker service-id context for default service types: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "worker-timeout errors should include cleanup issue context when cleanup steps time out with default service type/index: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: deregister worker-2 from worker after 20ms"
+            ),
+            "worker-timeout cleanup issue context should include indexed default-worker deregister-timeout diagnostics: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: disconnect worker-2 via worker after 20ms"
+            ),
+            "worker-timeout cleanup issue context should include indexed default-worker disconnect-timeout diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_honors_configured_cleanup_timeout() {
         let discovery = Arc::new(WorkerTimeoutWithHangingCleanupDiscovery::new());
         let cfg = DistributedRunConfig {

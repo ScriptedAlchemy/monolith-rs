@@ -1733,6 +1733,72 @@ async fn distributed_runner_from_run_config_preserves_worker_timeout_with_custom
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_preserves_worker_timeout_with_default_service_type_and_index_when_cleanup_times_out(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverWithHangingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 2,
+        num_ps: 1,
+        num_workers: 3,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when indexed default worker timeout cleanup steps block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "worker timeout should remain primary over cleanup timeout failures with default service type/index via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("service type: ps"),
+        "worker-timeout diagnostics via RunConfig should include default PS service type when cleanup steps block with indexed worker: {msg}"
+    );
+    assert!(
+        msg.contains("for worker-2"),
+        "worker-timeout diagnostics via RunConfig should include propagated worker index when cleanup steps block with default service type: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "worker-timeout diagnostics via RunConfig should include cleanup issue context when cleanup steps block with default service type/index: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister worker-2 from worker after 20ms"),
+        "worker-timeout cleanup context via RunConfig should include indexed default-worker deregister-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-2 via worker after 20ms"),
+        "worker-timeout cleanup context via RunConfig should include indexed default-worker disconnect-timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_propagates_worker_index_into_ps_discovery_timeout_diagnostics(
 ) {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -10253,6 +10319,71 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_with_cus
             "Timed out during discovery cleanup: disconnect worker-3 via trainer_custom after 20ms"
         ),
         "worker-timeout cleanup context via RunnerConfig should include indexed custom-worker disconnect-timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_worker_timeout_with_default_service_type_and_index_when_cleanup_times_out(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverWithHangingCleanupFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 2,
+        num_ps: 1,
+        num_workers: 3,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when indexed default worker timeout cleanup steps block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "worker timeout should remain primary over cleanup timeout failures with default service type/index via RunnerConfig: {msg}"
+    );
+    assert!(
+        msg.contains("service type: ps"),
+        "worker-timeout diagnostics via RunnerConfig should include default PS service type when cleanup steps block with indexed worker: {msg}"
+    );
+    assert!(
+        msg.contains("for worker-2"),
+        "worker-timeout diagnostics via RunnerConfig should include propagated worker index when cleanup steps block with default service type: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "worker-timeout diagnostics via RunnerConfig should include cleanup issue context when cleanup steps block with default service type/index: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister worker-2 from worker after 20ms"),
+        "worker-timeout cleanup context via RunnerConfig should include indexed default-worker deregister-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-2 via worker after 20ms"),
+        "worker-timeout cleanup context via RunnerConfig should include indexed default-worker disconnect-timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
