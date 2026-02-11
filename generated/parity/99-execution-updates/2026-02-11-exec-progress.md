@@ -394,6 +394,21 @@
   - multi-round barrier reuse and successful reset behavior,
   - mismatched `num_workers` rejection semantics.
 
+### 37) Generation-based PS barrier state + duplicate worker guard
+- Reworked PS barrier internals from raw `tokio::Barrier` round assumptions to
+  explicit generation-based state:
+  - `generation` tracked per `barrier_id`,
+  - `arrived_workers` tracked explicitly per generation.
+- Added duplicate worker protection:
+  - repeated `worker_id` arrival in same generation now returns explicit error.
+- Improved timeout safety:
+  - timed-out worker is removed from current generation arrival set,
+  - stale timeout races detect generation advancement and return success.
+- Added async tests for:
+  - duplicate worker rejection while first request is pending,
+  - timeout cleanup allowing subsequent successful retry round,
+  - existing mismatch/reset semantics remain covered.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -443,6 +458,7 @@
 45. `cargo test --workspace -q` ✅ (post PS latency + failed-apply stats parity updates)
 46. `cargo test -p monolith-training -q` ✅ (post PS barrier semantics hardening)
 47. `cargo test --workspace -q` ✅ (post PS barrier consistency + stats parity updates)
+48. `cargo test -p monolith-training -q` ✅ (post generation-based PS barrier state + duplicate-worker guard)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
