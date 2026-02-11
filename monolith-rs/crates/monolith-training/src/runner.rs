@@ -280,7 +280,15 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     cfg: DistributedRunConfig,
 ) -> anyhow::Result<()> {
     cfg.validate()?;
-    discovery.connect().await?;
+    if let Err(e) = discovery.connect().await {
+        if let Err(disconnect_err) = discovery.disconnect().await {
+            tracing::warn!(
+                error = %disconnect_err,
+                "Failed to disconnect discovery after connect failure"
+            );
+        }
+        return Err(anyhow::Error::from(e));
+    }
 
     let (service_type, service_id) = match cfg.role {
         Role::Ps => (
@@ -639,6 +647,28 @@ mod tests {
         }
     }
 
+    struct FailingConnectDiscovery {
+        connect_count: AtomicUsize,
+        disconnect_count: AtomicUsize,
+    }
+
+    impl FailingConnectDiscovery {
+        fn new() -> Self {
+            Self {
+                connect_count: AtomicUsize::new(0),
+                disconnect_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn connect_count(&self) -> usize {
+            self.connect_count.load(Ordering::SeqCst)
+        }
+
+        fn disconnect_count(&self) -> usize {
+            self.disconnect_count.load(Ordering::SeqCst)
+        }
+    }
+
     #[async_trait::async_trait]
     impl ServiceDiscoveryAsync for FailingRegisterDiscovery {
         async fn connect(&self) -> DiscoveryResult<()> {
@@ -674,6 +704,41 @@ mod tests {
             Err(crate::discovery::DiscoveryError::NotFound(
                 "missing".to_string(),
             ))
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for FailingConnectDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            self.connect_count.fetch_add(1, Ordering::SeqCst);
+            Err(crate::discovery::DiscoveryError::ConnectionFailed(
+                "forced connect failure".to_string(),
+            ))
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            Ok(Vec::new())
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            Ok(())
         }
     }
 
@@ -1796,6 +1861,27 @@ mod tests {
             discovery.deregister_count(),
             1,
             "deregister should still be attempted on ps registration failure"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_attempts_disconnect_when_connect_fails() {
+        let discovery = Arc::new(FailingConnectDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(res.is_err(), "expected connect failure");
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should be attempted when connect fails"
         );
     }
 }
