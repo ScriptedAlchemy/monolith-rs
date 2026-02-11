@@ -373,6 +373,7 @@
 34. `cargo test -p monolith-training -q` ✅ (post initialized estimator constructor from run config)
 35. `cargo test -p monolith-training -q` ✅ (post run-config distributed runner entrypoint)
 36. `cargo test -p monolith-training -q` ✅ (post estimator run-config distributed runtime helper)
+37. `cargo test --workspace -q` ✅ (post latest estimator/runner run-config convenience API additions)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
