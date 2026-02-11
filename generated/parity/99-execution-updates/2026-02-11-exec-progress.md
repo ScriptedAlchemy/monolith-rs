@@ -598,6 +598,15 @@
   validating concurrent wait behavior for both in-memory and PS-backed barrier
   implementations.
 
+### 55) Shard-selectable PS barrier coordinator API
+- Added `PsClient::barrier_on_shard(shard_id, barrier_id, worker_id, num_workers, timeout_ms)`
+  for explicit barrier coordinator selection in multi-shard deployments.
+- `PsClient::barrier(...)` now delegates to `barrier_on_shard(0, ...)` for backward-compatible default behavior.
+- Added regression tests:
+  - `test_ps_client_barrier_on_shard_rejects_invalid_index`
+  - `test_ps_client_barrier_on_shard_routes_to_selected_coordinator`
+  covering shard-index validation and explicit coordinator routing semantics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -678,6 +687,7 @@
 77. `cargo test -p monolith-core -q` ✅ (post path_utils source-path and env-race hardening)
 78. `cargo test --workspace -q` ✅ (post path_utils robustness fix and full workspace regression)
 79. `cargo test -p monolith-training -q` ✅ (post lock-free PsBarrier wrapper refactor and barrier-layer concurrency tests)
+80. `cargo test -p monolith-training -q` ✅ (post shard-selectable PS barrier coordinator API + routing/index regressions)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
