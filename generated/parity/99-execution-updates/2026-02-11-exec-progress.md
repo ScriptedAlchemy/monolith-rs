@@ -169,6 +169,16 @@
   - combined `steps + max_steps` behavior,
   - explicit eval-step overrides.
 
+### 13) Distributed runner integration with `RunnerConfig`
+- Added `runner::distributed_config_from_runner(...)` to map `RunnerConfig` into
+  `DistributedRunConfig` (role/index/cluster sizing + bind address).
+- Added `runner::run_distributed_from_runner_config(...)`:
+  - applies runner post-init restore/env semantics via `initialize_restore_checkpoint_from_runner`,
+  - dispatches into existing role-based distributed runner.
+- Exported new runner APIs at crate root for downstream runtime wiring.
+- Added smoke coverage in both unit and integration tests for RunnerConfig-driven
+  PS/worker distributed startup.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -187,6 +197,7 @@
 14. `cargo test -p monolith-training -q` ✅ (post runtime wiring of env-export helper)
 15. `cargo test --workspace -q` ✅ (post latest runner-config + runner-utils parity updates)
 16. `cargo test -p monolith-training -q` ✅ (post estimator `steps/max_steps` parity API updates)
+17. `cargo test -p monolith-training -q` ✅ (post RunnerConfig-driven distributed runner entrypoint)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
