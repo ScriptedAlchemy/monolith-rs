@@ -2414,6 +2414,27 @@
 - Result: post-success cleanup failure diagnostics are now richer and symmetric
   across default/custom service-type integration paths.
 
+### 197) PS connect-failure cleanup diagnostics parity expanded for default service type and runner unit coverage
+- Added runner unit regressions for PS connect-failure paths with custom PS
+  service type:
+  - `test_run_distributed_ps_connect_failure_does_not_hang_when_disconnect_blocks_with_custom_service_type`
+  - `test_run_distributed_returns_ps_connect_error_when_connect_and_disconnect_fail_with_custom_service_type`
+- Expanded native-training integration parity for **default PS service type**
+  connect-failure cleanup diagnostics (RunConfig + RunnerConfig):
+  - timeout cleanup mode:
+    - `distributed_runner_from_run_config_preserves_default_ps_connect_failure_with_cleanup_timeout_context`
+    - `distributed_runner_from_runner_config_preserves_default_ps_connect_failure_with_cleanup_timeout_context`
+  - failure cleanup mode:
+    - `distributed_runner_from_run_config_preserves_default_ps_connect_failure_with_disconnect_failure_context`
+    - `distributed_runner_from_runner_config_preserves_default_ps_connect_failure_with_disconnect_failure_context`
+- New assertions verify:
+  - primary connect failure precedence,
+  - appended cleanup issue context,
+  - default-service-type cleanup operation diagnostics (`disconnect ps-0 via ps`)
+    for timeout and failure cleanup outcomes.
+- Result: connect-failure cleanup diagnostics now have explicit default-service
+  integration parity for PS role plus reinforced runner-level unit coverage.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2791,6 +2812,8 @@
 374. `ZK_AUTH=user:pass cargo test -p monolith-training --test native_training_parity -q` ✅ (post post-success single-step cleanup operation-context diagnostic wrapping and custom-worker failure integration parity expansion)
 375. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post post-success single-step cleanup operation-context parity expansion targeted training/cli rerun)
 376. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post post-success single-step cleanup operation-context parity expansion full workspace rerun under ambient ZK auth env)
+377. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post PS connect-failure cleanup diagnostics parity expansion for default service type integration paths and PS unit coverage)
+378. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post PS connect-failure cleanup diagnostics parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
