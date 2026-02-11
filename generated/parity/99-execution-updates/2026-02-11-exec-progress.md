@@ -1783,6 +1783,27 @@
   environment-sensitive failure mode for
   `test_get_zk_auth_data_none`.
 
+### 160) Parameter-sync target metadata validation hardening
+- Expanded parameter-sync validation when replication targets are configured:
+  - reject empty/whitespace `parameter_sync_targets` entries,
+  - reject empty/whitespace `parameter_sync_model_name`,
+  - reject empty/whitespace `parameter_sync_signature_name`.
+- Added CLI distributed-config builder validation counterparts:
+  - `--parameter-sync-target` entries must be non-empty,
+  - `--parameter-sync-model-name` must be non-empty when targets are set,
+  - `--parameter-sync-signature-name` must be non-empty when targets are set.
+- Added regression coverage:
+  - CLI:
+    - `test_build_distributed_run_config_rejects_empty_parameter_sync_target_entry`
+    - `test_build_distributed_run_config_rejects_empty_parameter_sync_model_name_with_targets`
+    - `test_build_distributed_run_config_rejects_empty_parameter_sync_signature_name_with_targets`
+  - distributed config unit:
+    - `test_distributed_config_validate_rejects_empty_parameter_sync_target_entry`
+    - `test_distributed_config_validate_rejects_empty_parameter_sync_model_name_when_targets_configured`
+    - `test_distributed_config_validate_rejects_empty_parameter_sync_signature_when_targets_configured`
+- Prevents malformed parameter-sync metadata from reaching runtime replication
+  loops and failing late at push/connect boundaries.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2079,6 +2100,8 @@
 293. `unset ZK_AUTH && cargo test --workspace -q` ✅ (post parameter-sync interval validation full workspace rerun)
 294. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post env-utils test isolation hardening)
 295. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post env-utils test isolation hardening full workspace rerun under ambient ZK auth env)
+296. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post parameter-sync target metadata validation hardening)
+297. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post parameter-sync target metadata validation hardening full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
