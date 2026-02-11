@@ -298,6 +298,13 @@
   - syncs restore checkpoints for chief/local mode,
   - creates expected restore marker / monolith checkpoint side effects.
 
+### 26) Discovery selection helper directly from `RunConfig`
+- Added `get_discovery_from_run_config(run_conf, base, psm)`:
+  - applies RunConfig→RunnerConfig merge semantics first,
+  - then resolves discovery backend using existing runner discovery factory.
+- Exported helper from crate root for downstream runtime callsites.
+- Added unit + integration coverage for Primus selection via run-config path.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -330,6 +337,7 @@
 28. `cargo test -p monolith-training -q` ✅ (post MonolithDiscoveryGuard operational helper expansion)
 29. `cargo test -p monolith-training -q` ✅ (post runner_utils integration guard-operation tests)
 30. `cargo test -p monolith-training -q` ✅ (post estimator runtime initialization helper)
+31. `cargo test -p monolith-training -q` ✅ (post `get_discovery_from_run_config` helper integration)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
