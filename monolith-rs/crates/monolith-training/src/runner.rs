@@ -181,37 +181,30 @@ impl DistributedRunConfig {
                 "distributed config requires parameter_sync_targets entries without leading/trailing whitespace"
             );
         }
+        let mut seen_parameter_sync_targets =
+            HashSet::with_capacity(self.parameter_sync_targets.len());
         for target in &self.parameter_sync_targets {
-            let endpoint_target =
-                if target.starts_with("http://") || target.starts_with("https://") {
-                    target.clone()
-                } else {
-                    format!("http://{target}")
-                };
-            tonic::transport::Endpoint::from_shared(endpoint_target).map_err(|e| {
+            let has_http_prefix = target
+                .get(..7)
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("http://"));
+            let has_https_prefix = target
+                .get(..8)
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("https://"));
+            let endpoint_target = if has_http_prefix || has_https_prefix {
+                target.clone()
+            } else {
+                format!("http://{target}")
+            };
+            tonic::transport::Endpoint::from_shared(endpoint_target.clone()).map_err(|e| {
                 anyhow::anyhow!(
                     "distributed config has invalid parameter_sync_targets entry `{}`: {}",
                     target,
                     e
                 )
             })?;
-        }
-        let mut seen_parameter_sync_targets =
-            HashSet::with_capacity(self.parameter_sync_targets.len());
-        if self
-            .parameter_sync_targets
-            .iter()
-            .any(|target| {
-                let canonical = target
-                    .get(..7)
-                    .filter(|prefix| prefix.eq_ignore_ascii_case("http://"))
-                    .map(|_| &target[7..])
-                    .unwrap_or(target)
-                    .to_ascii_lowercase();
-                !seen_parameter_sync_targets.insert(canonical)
-            })
-        {
-            anyhow::bail!("distributed config requires unique parameter_sync_targets entries");
+            if !seen_parameter_sync_targets.insert(endpoint_target.to_ascii_lowercase()) {
+                anyhow::bail!("distributed config requires unique parameter_sync_targets entries");
+            }
         }
         if !self.parameter_sync_targets.is_empty() && self.parameter_sync_model_name.trim().is_empty()
         {
@@ -2270,6 +2263,18 @@ mod tests {
         assert!(
             err.contains("distributed config has invalid parameter_sync_targets entry `http://`"),
             "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_accepts_case_insensitive_http_scheme_parameter_sync_target(
+    ) {
+        let cfg = DistributedRunConfig {
+            parameter_sync_targets: vec!["HtTp://127.0.0.1:8500".to_string()],
+            ..DistributedRunConfig::default()
+        };
+        cfg.validate().expect(
+            "case-insensitive http scheme should be accepted for parameter_sync_targets endpoint parsing",
         );
     }
 

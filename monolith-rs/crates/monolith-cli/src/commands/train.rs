@@ -287,37 +287,30 @@ impl TrainCommand {
         {
             anyhow::bail!("--parameter-sync-target entries must not have leading/trailing whitespace");
         }
+        let mut seen_parameter_sync_targets =
+            HashSet::with_capacity(self.parameter_sync_targets.len());
         for target in &self.parameter_sync_targets {
-            let endpoint_target =
-                if target.starts_with("http://") || target.starts_with("https://") {
-                    target.clone()
-                } else {
-                    format!("http://{target}")
-                };
-            tonic::transport::Endpoint::from_shared(endpoint_target).map_err(|e| {
+            let has_http_prefix = target
+                .get(..7)
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("http://"));
+            let has_https_prefix = target
+                .get(..8)
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("https://"));
+            let endpoint_target = if has_http_prefix || has_https_prefix {
+                target.clone()
+            } else {
+                format!("http://{target}")
+            };
+            tonic::transport::Endpoint::from_shared(endpoint_target.clone()).map_err(|e| {
                 anyhow::anyhow!(
                     "--parameter-sync-target contains invalid endpoint `{}`: {}",
                     target,
                     e
                 )
             })?;
-        }
-        let mut seen_parameter_sync_targets =
-            HashSet::with_capacity(self.parameter_sync_targets.len());
-        if self
-            .parameter_sync_targets
-            .iter()
-            .any(|target| {
-                let canonical = target
-                    .get(..7)
-                    .filter(|prefix| prefix.eq_ignore_ascii_case("http://"))
-                    .map(|_| &target[7..])
-                    .unwrap_or(target)
-                    .to_ascii_lowercase();
-                !seen_parameter_sync_targets.insert(canonical)
-            })
-        {
-            anyhow::bail!("--parameter-sync-target entries must be unique");
+            if !seen_parameter_sync_targets.insert(endpoint_target.to_ascii_lowercase()) {
+                anyhow::bail!("--parameter-sync-target entries must be unique");
+            }
         }
         if !self.parameter_sync_targets.is_empty() && self.parameter_sync_model_name.trim().is_empty()
         {
@@ -1035,6 +1028,19 @@ mod tests {
             err.contains("--parameter-sync-target contains invalid endpoint `http://`"),
             "unexpected parameter-sync target endpoint validation error: {err}"
         );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_accepts_case_insensitive_http_scheme_parameter_sync_target(
+    ) {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec!["HtTp://127.0.0.1:8500".to_string()];
+        let cfg = cmd
+            .build_distributed_run_config()
+            .expect("case-insensitive http scheme should be accepted for parameter-sync target")
+            .expect("distributed mode should produce a distributed config");
+        assert_eq!(cfg.parameter_sync_targets, vec!["HtTp://127.0.0.1:8500".to_string()]);
     }
 
     #[test]
