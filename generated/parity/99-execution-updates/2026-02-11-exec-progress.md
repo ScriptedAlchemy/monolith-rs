@@ -347,6 +347,13 @@
   runtime init path directly.
 - Added unit + integration coverage for run-config restore initialization behavior.
 
+### 32) Initialized estimator constructor from `RunnerConfig`
+- Added `Estimator::from_runner_config_initialized(...)`:
+  - applies runner runtime initialization (restore/env semantics),
+  - returns `(Estimator, Option<CheckpointState>)`.
+- Added regression coverage validating restore side effects and estimator config
+  propagation through the runner-config initialized constructor path.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -387,6 +394,7 @@
 36. `cargo test -p monolith-training -q` ✅ (post estimator run-config distributed runtime helper)
 37. `cargo test --workspace -q` ✅ (post latest estimator/runner run-config convenience API additions)
 38. `cargo test -p monolith-training -q` ✅ (post run-config restore initialization helper parity APIs)
+39. `cargo test -p monolith-training -q` ✅ (post initialized estimator constructor from runner config)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
