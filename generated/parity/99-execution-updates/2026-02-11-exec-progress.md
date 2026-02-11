@@ -1997,6 +1997,29 @@
 - Prevents subtle table-name key mismatches between lookup/apply calls and PS
   table initialization caused by accidental whitespace in distributed configs.
 
+### 171) Whitespace-normalized parameter-sync metadata validation parity
+- Expanded distributed runtime validation (when parameter-sync targets are
+  configured) to reject leading/trailing whitespace in:
+  - `parameter_sync_targets` entries
+  - `parameter_sync_model_name`
+  - `parameter_sync_signature_name`
+- Added CLI distributed-config builder parity checks rejecting the same
+  whitespace-padded parameter-sync inputs.
+- Added regression coverage:
+  - CLI unit:
+    - `test_build_distributed_run_config_rejects_whitespace_padded_parameter_sync_target_entry`
+    - `test_build_distributed_run_config_rejects_whitespace_padded_parameter_sync_model_name_with_targets`
+    - `test_build_distributed_run_config_rejects_whitespace_padded_parameter_sync_signature_name_with_targets`
+  - distributed config unit:
+    - `test_distributed_config_validate_rejects_whitespace_padded_parameter_sync_target_entry`
+    - `test_distributed_config_validate_rejects_whitespace_padded_parameter_sync_model_name_when_targets_configured`
+    - `test_distributed_config_validate_rejects_whitespace_padded_parameter_sync_signature_when_targets_configured`
+  - native-training integration parity:
+    - run-config + runner-config regressions for padded target/model/signature
+      rejection through distributed runner entrypoints.
+- Prevents subtle replication endpoint/model signature mismatches caused by
+  whitespace-tainted metadata while preserving early, actionable diagnostics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2315,6 +2338,8 @@
 315. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post whitespace-padded discovery service-type validation full workspace rerun under ambient ZK auth env)
 316. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post whitespace-padded distributed table-name validation parity across CLI/runtime entrypoints)
 317. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post whitespace-padded distributed table-name validation full workspace rerun under ambient ZK auth env)
+318. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post whitespace-padded parameter-sync metadata validation parity across CLI/runtime entrypoints)
+319. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post whitespace-padded parameter-sync metadata validation full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

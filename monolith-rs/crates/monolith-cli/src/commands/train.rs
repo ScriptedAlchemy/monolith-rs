@@ -275,6 +275,13 @@ impl TrainCommand {
         {
             anyhow::bail!("--parameter-sync-target entries must be non-empty");
         }
+        if self
+            .parameter_sync_targets
+            .iter()
+            .any(|target| target.trim() != target)
+        {
+            anyhow::bail!("--parameter-sync-target entries must not have leading/trailing whitespace");
+        }
         if !self.parameter_sync_targets.is_empty() && self.parameter_sync_model_name.trim().is_empty()
         {
             anyhow::bail!(
@@ -282,10 +289,24 @@ impl TrainCommand {
             );
         }
         if !self.parameter_sync_targets.is_empty()
+            && self.parameter_sync_model_name.trim() != self.parameter_sync_model_name
+        {
+            anyhow::bail!(
+                "--parameter-sync-model-name must not have leading/trailing whitespace when --parameter-sync-target is provided"
+            );
+        }
+        if !self.parameter_sync_targets.is_empty()
             && self.parameter_sync_signature_name.trim().is_empty()
         {
             anyhow::bail!(
                 "--parameter-sync-signature-name must be non-empty when --parameter-sync-target is provided"
+            );
+        }
+        if !self.parameter_sync_targets.is_empty()
+            && self.parameter_sync_signature_name.trim() != self.parameter_sync_signature_name
+        {
+            anyhow::bail!(
+                "--parameter-sync-signature-name must not have leading/trailing whitespace when --parameter-sync-target is provided"
             );
         }
 
@@ -940,6 +961,18 @@ mod tests {
     }
 
     #[test]
+    fn test_build_distributed_run_config_rejects_whitespace_padded_parameter_sync_target_entry() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec![" 127.0.0.1:8500 ".to_string()];
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--parameter-sync-target entries must not have leading/trailing whitespace"),
+            "unexpected parameter-sync target whitespace validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_build_distributed_run_config_rejects_empty_parameter_sync_model_name_with_targets() {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
@@ -955,6 +988,22 @@ mod tests {
     }
 
     #[test]
+    fn test_build_distributed_run_config_rejects_whitespace_padded_parameter_sync_model_name_with_targets(
+    ) {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec!["127.0.0.1:8500".to_string()];
+        cmd.parameter_sync_model_name = " model ".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "--parameter-sync-model-name must not have leading/trailing whitespace when --parameter-sync-target is provided"
+            ),
+            "unexpected parameter-sync model-name whitespace validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_build_distributed_run_config_rejects_empty_parameter_sync_signature_name_with_targets() {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
@@ -966,6 +1015,22 @@ mod tests {
                 "--parameter-sync-signature-name must be non-empty when --parameter-sync-target is provided"
             ),
             "unexpected parameter-sync signature-name validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_whitespace_padded_parameter_sync_signature_name_with_targets(
+    ) {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec!["127.0.0.1:8500".to_string()];
+        cmd.parameter_sync_signature_name = " signature ".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "--parameter-sync-signature-name must not have leading/trailing whitespace when --parameter-sync-target is provided"
+            ),
+            "unexpected parameter-sync signature-name whitespace validation error: {err}"
         );
     }
 

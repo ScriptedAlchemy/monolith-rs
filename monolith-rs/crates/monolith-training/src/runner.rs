@@ -167,6 +167,15 @@ impl DistributedRunConfig {
                 "distributed config requires non-empty parameter_sync_targets entries"
             );
         }
+        if self
+            .parameter_sync_targets
+            .iter()
+            .any(|target| target.trim() != target)
+        {
+            anyhow::bail!(
+                "distributed config requires parameter_sync_targets entries without leading/trailing whitespace"
+            );
+        }
         if !self.parameter_sync_targets.is_empty() && self.parameter_sync_model_name.trim().is_empty()
         {
             anyhow::bail!(
@@ -174,10 +183,24 @@ impl DistributedRunConfig {
             );
         }
         if !self.parameter_sync_targets.is_empty()
+            && self.parameter_sync_model_name.trim() != self.parameter_sync_model_name
+        {
+            anyhow::bail!(
+                "distributed config requires parameter_sync_model_name without leading/trailing whitespace when parameter_sync_targets are configured"
+            );
+        }
+        if !self.parameter_sync_targets.is_empty()
             && self.parameter_sync_signature_name.trim().is_empty()
         {
             anyhow::bail!(
                 "distributed config requires non-empty parameter_sync_signature_name when parameter_sync_targets are configured"
+            );
+        }
+        if !self.parameter_sync_targets.is_empty()
+            && self.parameter_sync_signature_name.trim() != self.parameter_sync_signature_name
+        {
+            anyhow::bail!(
+                "distributed config requires parameter_sync_signature_name without leading/trailing whitespace when parameter_sync_targets are configured"
             );
         }
         Ok(())
@@ -2165,6 +2188,21 @@ mod tests {
     }
 
     #[test]
+    fn test_distributed_config_validate_rejects_whitespace_padded_parameter_sync_target_entry() {
+        let cfg = DistributedRunConfig {
+            parameter_sync_targets: vec![" 127.0.0.1:8500 ".to_string()],
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "distributed config requires parameter_sync_targets entries without leading/trailing whitespace"
+            ),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_distributed_config_validate_rejects_empty_parameter_sync_model_name_when_targets_configured(
     ) {
         let cfg = DistributedRunConfig {
@@ -2182,6 +2220,23 @@ mod tests {
     }
 
     #[test]
+    fn test_distributed_config_validate_rejects_whitespace_padded_parameter_sync_model_name_when_targets_configured(
+    ) {
+        let cfg = DistributedRunConfig {
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_model_name: " model ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "distributed config requires parameter_sync_model_name without leading/trailing whitespace when parameter_sync_targets are configured"
+            ),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_distributed_config_validate_rejects_empty_parameter_sync_signature_when_targets_configured(
     ) {
         let cfg = DistributedRunConfig {
@@ -2193,6 +2248,23 @@ mod tests {
         assert!(
             err.contains(
                 "distributed config requires non-empty parameter_sync_signature_name when parameter_sync_targets are configured"
+            ),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_whitespace_padded_parameter_sync_signature_when_targets_configured(
+    ) {
+        let cfg = DistributedRunConfig {
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_signature_name: " signature ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "distributed config requires parameter_sync_signature_name without leading/trailing whitespace when parameter_sync_targets are configured"
             ),
             "unexpected validation error: {err}"
         );
