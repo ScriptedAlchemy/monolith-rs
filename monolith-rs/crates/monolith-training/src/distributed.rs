@@ -425,6 +425,15 @@ pub struct LocalCluster {
 }
 
 impl LocalCluster {
+    fn remove_barrier_waiter(&mut self, epoch: u64, worker_index: usize) {
+        if let Some(waiters) = self.barrier_waiters.get_mut(&epoch) {
+            waiters.remove(&worker_index);
+            if waiters.is_empty() {
+                self.barrier_waiters.remove(&epoch);
+            }
+        }
+    }
+
     /// Creates a new local cluster from a validated cluster config.
     pub fn new(config: ClusterConfig, learning_rate: f32) -> DistributedResult<Self> {
         config.validate()?;
@@ -606,6 +615,9 @@ impl LocalCluster {
                 }
                 BarrierStatus::Waiting { epoch, .. } => {
                     if start.elapsed() >= timeout {
+                        // Match robust distributed barrier semantics: a timed-out worker
+                        // should not remain as a stale participant for future retries.
+                        self.remove_barrier_waiter(epoch, worker_index);
                         return Err(DistributedError::BarrierTimeout {
                             epoch,
                             timeout_ms: timeout.as_millis() as u64,
@@ -885,5 +897,52 @@ mod tests {
                 participants: 2
             }
         ));
+    }
+
+    #[test]
+    fn test_local_cluster_wait_for_barrier_timeout_cleanup_allows_retry() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000)],
+            vec![make_addr(6000), make_addr(6001)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
+        cluster.start().unwrap();
+
+        // Worker 0 times out waiting at epoch 0.
+        let timeout_err = cluster
+            .wait_for_barrier(
+                0,
+                std::time::Duration::from_millis(8),
+                std::time::Duration::from_millis(1),
+            )
+            .unwrap_err();
+        assert!(matches!(
+            timeout_err,
+            DistributedError::BarrierTimeout { epoch: 0, .. }
+        ));
+
+        // Cleanup should have removed worker 0 from waiter set, so worker 1 alone
+        // should still be in waiting state instead of incorrectly releasing.
+        let worker1_first = cluster.sync_barrier(1).unwrap();
+        assert_eq!(
+            worker1_first,
+            BarrierStatus::Waiting {
+                epoch: 0,
+                arrived: 1,
+                required: 2
+            }
+        );
+
+        // Worker 0 retries and now barrier can release correctly.
+        let worker0_retry = cluster.sync_barrier(0).unwrap();
+        assert_eq!(
+            worker0_retry,
+            BarrierStatus::Released {
+                epoch: 0,
+                participants: 2
+            }
+        );
     }
 }
