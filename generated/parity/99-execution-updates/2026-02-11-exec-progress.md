@@ -870,6 +870,19 @@
 - Ensures role-specific registration error paths remain aligned with distributed
   runner cleanup semantics.
 
+### 81) Worker timeout diagnostics retain last discovery backend error
+- Hardened worker discovery retry logic to preserve the last discovery backend
+  error string across attempts and include it in timeout diagnostics.
+- Timeout errors now surface richer context combinations:
+  - ordering issue + discovery error,
+  - ordering issue only,
+  - discovery error only,
+  - neither (legacy generic timeout).
+- Added async regression
+  `test_run_worker_role_preserves_last_discovery_error_across_retries` using a
+  sequenced discovery backend (error first, empty result next) to verify the
+  original discovery failure context is retained at timeout.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1001,6 +1014,7 @@
 128. `cargo test --workspace -q` ✅ (post worker discovery timeout diagnostic retention hardening and full workspace rerun)
 129. `cargo test -p monolith-training -q` ✅ (post PS registration-failure cleanup regression coverage)
 130. `cargo test --workspace -q` ✅ (post PS registration-failure cleanup regression coverage and full workspace rerun)
+131. `cargo test -p monolith-training -q` ✅ (post worker timeout diagnostics enhancement retaining last discovery backend error across retries)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
