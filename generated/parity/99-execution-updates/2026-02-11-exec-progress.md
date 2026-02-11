@@ -1075,6 +1075,18 @@
 - Added regression:
   - `test_mlp_query_all_only_includes_supported_configured_roles`.
 
+### 99) Consul query_all malformed-entry diagnostics hardening
+- Hardened `native_training::service_discovery::ConsulServiceDiscovery::query_all()`:
+  - now validates required lookup fields strictly per entry:
+    - `Port`,
+    - `Tags.name`,
+    - `Tags.ip`,
+    - `Tags.index` (string or integer parseable).
+  - malformed entries now return explicit typed errors instead of being silently
+    coerced to default/empty values.
+- Added regression:
+  - `consul_query_all_rejects_malformed_entries`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1241,6 +1253,8 @@
 163. `cargo test --workspace -q` ✅ (post model-registry test-race stabilization and full workspace regression rerun)
 164. `cargo test -p monolith-training -q` ✅ (post MLP query_all configured-role filtering parity tightening)
 165. `cargo test --workspace -q` ✅ (post MLP query_all configured-role filtering parity tightening and full workspace regression rerun)
+166. `cargo test -p monolith-training -q` ✅ (post strict Consul query_all malformed-entry validation and diagnostics hardening)
+167. `cargo test --workspace -q` ✅ (post strict Consul query_all malformed-entry validation and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
