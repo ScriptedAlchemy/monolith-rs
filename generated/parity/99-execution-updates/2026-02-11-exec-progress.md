@@ -518,6 +518,7 @@
 56. `cargo test -p monolith-training -q` ✅ (post PS client early input validation parity hardening)
 57. `cargo test --workspace -q` ✅ (post PS client early input validation + dimension/barrier guard hardening)
 58. `cargo test -p monolith-training -q` ✅ (post typed PS client barrier status-code error mapping)
+59. `cargo test --workspace -q` ✅ (post typed PS client barrier error mapping and additional status-semantics tests)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
