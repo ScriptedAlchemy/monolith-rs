@@ -230,26 +230,48 @@ async fn run_ps_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         addr = %actual_addr,
         "Starting PS gRPC server"
     );
-    if let Some(interval) = cfg.heartbeat_interval {
+    let (heartbeat_stop_tx, mut heartbeat_task) = if let Some(interval) = cfg.heartbeat_interval {
+        let (stop_tx, mut stop_rx) = tokio::sync::watch::channel(false);
         let discovery = Arc::clone(&discovery);
         let service_id = service_id.to_string();
-        tokio::spawn(async move {
+        let task = tokio::spawn(async move {
             loop {
-                if let Err(e) = discovery.heartbeat_async(&service_id).await {
-                    tracing::warn!(
-                        service_id = %service_id,
-                        error = %e,
-                        "Discovery heartbeat failed"
-                    );
+                tokio::select! {
+                    stop_changed = stop_rx.changed() => {
+                        if stop_changed.is_err() || *stop_rx.borrow() {
+                            break;
+                        }
+                    }
+                    _ = tokio::time::sleep(interval) => {
+                        if let Err(e) = discovery.heartbeat_async(&service_id).await {
+                            tracing::warn!(
+                                service_id = %service_id,
+                                error = %e,
+                                "Discovery heartbeat failed"
+                            );
+                        }
+                    }
                 }
-                tokio::time::sleep(interval).await;
             }
         });
-    }
-    tonic::transport::Server::builder()
+        (Some(stop_tx), Some(task))
+    } else {
+        (None, None)
+    };
+
+    let server_result = tonic::transport::Server::builder()
         .add_service(Arc::clone(&ps).into_service())
         .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
-        .await?;
+        .await;
+
+    if let Some(stop_tx) = heartbeat_stop_tx {
+        let _ = stop_tx.send(true);
+    }
+    if let Some(task) = heartbeat_task.take() {
+        let _ = task.await;
+    }
+
+    server_result?;
     Ok(())
 }
 
@@ -326,7 +348,85 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::discovery::{InMemoryDiscovery, ServiceDiscovery};
+    use crate::discovery::{
+        DiscoveryEvent, InMemoryDiscovery, Result as DiscoveryResult, ServiceDiscovery,
+        ServiceDiscoveryAsync, ServiceInfo,
+    };
+    use std::collections::HashMap;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct CountingDiscovery {
+        services: std::sync::Mutex<HashMap<String, ServiceInfo>>,
+        heartbeat_count: AtomicUsize,
+        events_tx: tokio::sync::broadcast::Sender<DiscoveryEvent>,
+    }
+
+    impl CountingDiscovery {
+        fn new() -> Self {
+            let (events_tx, _) = tokio::sync::broadcast::channel(64);
+            Self {
+                services: std::sync::Mutex::new(HashMap::new()),
+                heartbeat_count: AtomicUsize::new(0),
+                events_tx,
+            }
+        }
+
+        fn heartbeat_count(&self) -> usize {
+            self.heartbeat_count.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for CountingDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn register_async(&self, service: ServiceInfo) -> DiscoveryResult<()> {
+            self.services
+                .lock()
+                .unwrap()
+                .insert(service.id.clone(), service.clone());
+            let _ = self.events_tx.send(DiscoveryEvent::ServiceAdded(service));
+            Ok(())
+        }
+
+        async fn discover_async(&self, service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            let services = self
+                .services
+                .lock()
+                .unwrap()
+                .values()
+                .filter(|s| s.service_type == service_type)
+                .cloned()
+                .collect();
+            Ok(services)
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            Ok(self.events_tx.subscribe())
+        }
+
+        async fn deregister_async(&self, service_id: &str) -> DiscoveryResult<()> {
+            self.services.lock().unwrap().remove(service_id);
+            let _ = self
+                .events_tx
+                .send(DiscoveryEvent::ServiceRemoved(service_id.to_string()));
+            Ok(())
+        }
+
+        async fn heartbeat_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            self.heartbeat_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
 
     #[test]
     fn test_distributed_config_from_runner_maps_fields() {
@@ -418,5 +518,36 @@ mod tests {
         .await;
         // With no PS role started we expect timeout from worker path.
         assert!(worker_res.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_ps_heartbeat_task_stops_after_ps_task_abort() {
+        let discovery = Arc::new(CountingDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            heartbeat_interval: Some(Duration::from_millis(10)),
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_distributed(Arc::clone(&discovery), cfg));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            discovery.heartbeat_count() > 0,
+            "heartbeat should run while PS task is alive"
+        );
+
+        task.abort();
+        tokio::time::sleep(Duration::from_millis(40)).await;
+        let after_abort = discovery.heartbeat_count();
+        tokio::time::sleep(Duration::from_millis(40)).await;
+        let stable = discovery.heartbeat_count();
+        assert_eq!(
+            stable, after_abort,
+            "heartbeat task should stop after PS task cancellation"
+        );
     }
 }
