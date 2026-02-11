@@ -380,6 +380,128 @@ impl Worker {
     }
 }
 
+/// A local in-process distributed cluster simulator.
+///
+/// This provides a practical runtime for tests and local development where
+/// parameter servers and workers run in a single process.
+#[derive(Debug)]
+pub struct LocalCluster {
+    config: ClusterConfig,
+    parameter_servers: Vec<ParameterServer>,
+    workers: Vec<Worker>,
+    learning_rate: f32,
+}
+
+impl LocalCluster {
+    /// Creates a new local cluster from a validated cluster config.
+    pub fn new(config: ClusterConfig, learning_rate: f32) -> DistributedResult<Self> {
+        config.validate()?;
+        let parameter_servers = (0..config.num_ps()).map(ParameterServer::new).collect();
+        let workers = (0..config.num_workers())
+            .map(|idx| Worker::new(idx, config.num_workers()))
+            .collect();
+        Ok(Self {
+            config,
+            parameter_servers,
+            workers,
+            learning_rate,
+        })
+    }
+
+    /// Starts all PS and worker roles.
+    pub fn start(&mut self) -> DistributedResult<()> {
+        for ps in &mut self.parameter_servers {
+            ps.start()?;
+        }
+        for worker in &mut self.workers {
+            worker.start()?;
+        }
+        Ok(())
+    }
+
+    /// Stops all roles.
+    pub fn stop(&mut self) -> DistributedResult<()> {
+        for worker in &mut self.workers {
+            worker.stop()?;
+        }
+        for ps in &mut self.parameter_servers {
+            ps.stop()?;
+        }
+        Ok(())
+    }
+
+    /// Registers a parameter in the routed parameter server shard.
+    pub fn register_parameter(
+        &mut self,
+        name: impl Into<String>,
+        values: Vec<f32>,
+    ) -> DistributedResult<usize> {
+        let name = name.into();
+        let ps_idx = get_ps_index(&name, self.parameter_servers.len());
+        let ps = self.parameter_servers.get_mut(ps_idx).ok_or_else(|| {
+            DistributedError::InvalidConfiguration(format!("Invalid PS index {}", ps_idx))
+        })?;
+        ps.set_parameter(name, values);
+        Ok(ps_idx)
+    }
+
+    /// Fetches a parameter from its routed PS shard.
+    pub fn get_parameter(&self, name: &str) -> Option<Vec<f32>> {
+        let ps_idx = get_ps_index(name, self.parameter_servers.len());
+        self.parameter_servers.get(ps_idx)?.get_parameter(name)
+    }
+
+    /// Runs one worker training step and applies gradients to routed parameters.
+    ///
+    /// Returns the updated parameter values for each touched parameter.
+    pub fn train_step(
+        &mut self,
+        worker_index: usize,
+        gradients: &HashMap<String, Vec<f32>>,
+    ) -> DistributedResult<HashMap<String, Vec<f32>>> {
+        let worker = self.workers.get_mut(worker_index).ok_or_else(|| {
+            DistributedError::InvalidConfiguration(format!(
+                "Worker index {} out of range",
+                worker_index
+            ))
+        })?;
+        worker.step()?;
+
+        let mut updated = HashMap::new();
+        for (param_name, grad) in gradients {
+            let ps_idx = get_ps_index(param_name, self.parameter_servers.len());
+            let ps = self.parameter_servers.get_mut(ps_idx).ok_or_else(|| {
+                DistributedError::InvalidConfiguration(format!("Invalid PS index {}", ps_idx))
+            })?;
+            let next = ps.apply_gradients(param_name, grad, self.learning_rate)?;
+            updated.insert(param_name.clone(), next);
+        }
+
+        Ok(updated)
+    }
+
+    /// Returns current step of a specific worker.
+    pub fn worker_step(&self, worker_index: usize) -> DistributedResult<u64> {
+        let worker = self.workers.get(worker_index).ok_or_else(|| {
+            DistributedError::InvalidConfiguration(format!(
+                "Worker index {} out of range",
+                worker_index
+            ))
+        })?;
+        Ok(worker.current_step())
+    }
+
+    /// Returns total configured number of workers.
+    pub fn num_workers(&self) -> usize {
+        self.config.num_workers()
+    }
+
+    /// Returns total configured number of parameter servers.
+    pub fn num_ps(&self) -> usize {
+        self.config.num_ps()
+    }
+}
+
 /// Determines which parameter server should store a given parameter.
 ///
 /// Uses consistent hashing to distribute parameters across servers.
@@ -503,5 +625,38 @@ mod tests {
 
         // Edge case: 0 PS
         assert_eq!(get_ps_index("test", 0), 0);
+    }
+
+    #[test]
+    fn test_local_cluster_train_step() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000), make_addr(5001)],
+            vec![make_addr(6000), make_addr(6001)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
+        cluster.start().unwrap();
+
+        let ps_idx = cluster.register_parameter("w", vec![1.0, 2.0]).unwrap();
+        assert_eq!(ps_idx, get_ps_index("w", cluster.num_ps()));
+
+        let mut grads = HashMap::new();
+        grads.insert("w".to_string(), vec![0.5, 1.0]);
+        let updated = cluster.train_step(0, &grads).unwrap();
+        assert_eq!(updated["w"], vec![0.95, 1.9]);
+        assert_eq!(cluster.worker_step(0).unwrap(), 1);
+
+        cluster.stop().unwrap();
+    }
+
+    #[test]
+    fn test_local_cluster_bad_worker_index() {
+        let cfg = ClusterConfig::new(vec![make_addr(5000)], vec![make_addr(6000)], 0, false);
+        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
+        cluster.start().unwrap();
+        let grads: HashMap<String, Vec<f32>> = HashMap::new();
+        let err = cluster.train_step(5, &grads).unwrap_err();
+        assert!(matches!(err, DistributedError::InvalidConfiguration(_)));
     }
 }
