@@ -583,6 +583,7 @@
 64. `cargo test -p monolith-training -q` ✅ (post local-cluster barrier timeout cleanup + retry regression)
 65. `cargo test -p monolith-training -q` ✅ (post batch-lookup duplicate found-flag regression coverage)
 66. `cargo test -p monolith-training -q` ✅ (post explicit discovery-guard close lifecycle API + idempotence coverage)
+67. `cargo test --workspace -q` ✅ (post distributed/runtime + discovery lifecycle parity hardening)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
