@@ -375,6 +375,13 @@
   - non-zero average latency fields,
   - stats payload consistency after real RPC handler invocation.
 
+### 35) PS stats parity for failed apply requests
+- Updated apply-gradients error path to participate in stats accounting:
+  - failed gradient-shape requests now increment `apply_gradients_count`,
+  - failed requests contribute to `avg_apply_latency_us`.
+- Added regression coverage validating failed apply requests are reflected in
+  stats counters and latency fields.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -420,6 +427,7 @@
 41. `cargo test -p monolith-training -q` ✅ (post local-cluster blocking barrier parity helper)
 42. `cargo test --workspace -q` ✅ (post local-cluster blocking barrier parity helper + repeated release semantics)
 43. `cargo test -p monolith-training -q` ✅ (post PS lookup/apply latency stats tracking)
+44. `cargo test -p monolith-training -q` ✅ (post failed-apply request accounting in PS stats)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
