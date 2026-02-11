@@ -124,6 +124,10 @@ pub fn distributed_config_from_runner(
         connect_retries: runner_conf.connect_retries,
         retry_backoff_ms: runner_conf.retry_backoff_ms,
         barrier_timeout_ms: runner_conf.barrier_timeout_ms,
+        discovery_operation_timeout: Duration::from_millis(
+            runner_conf.discovery_operation_timeout_ms,
+        ),
+        discovery_cleanup_timeout: Duration::from_millis(runner_conf.discovery_cleanup_timeout_ms),
         ..DistributedRunConfig::default()
     }
 }
@@ -1700,6 +1704,8 @@ mod tests {
             connect_retries: 11,
             retry_backoff_ms: 77,
             barrier_timeout_ms: 2222,
+            discovery_operation_timeout_ms: 4321,
+            discovery_cleanup_timeout_ms: 123,
             ..RunnerConfig::default()
         };
         let cfg = distributed_config_from_runner(
@@ -1717,6 +1723,8 @@ mod tests {
         assert_eq!(cfg.connect_retries, 11);
         assert_eq!(cfg.retry_backoff_ms, 77);
         assert_eq!(cfg.barrier_timeout_ms, 2222);
+        assert_eq!(cfg.discovery_operation_timeout, Duration::from_millis(4321));
+        assert_eq!(cfg.discovery_cleanup_timeout, Duration::from_millis(123));
         assert!(matches!(cfg.role, Role::Worker));
     }
 

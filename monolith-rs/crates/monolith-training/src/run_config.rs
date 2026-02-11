@@ -34,6 +34,8 @@ pub struct RunnerConfig {
     pub connect_retries: usize,
     pub retry_backoff_ms: u64,
     pub barrier_timeout_ms: i64,
+    pub discovery_operation_timeout_ms: u64,
+    pub discovery_cleanup_timeout_ms: u64,
     pub log_step_count_steps: u64,
     pub discovery_type: ServiceDiscoveryType,
     pub discovery_service_type_ps: String,
@@ -67,6 +69,8 @@ impl Default for RunnerConfig {
             connect_retries: 6,
             retry_backoff_ms: 500,
             barrier_timeout_ms: 10_000,
+            discovery_operation_timeout_ms: 5_000,
+            discovery_cleanup_timeout_ms: 200,
             log_step_count_steps: 100,
             discovery_type: ServiceDiscoveryType::Primus,
             discovery_service_type_ps: "ps".to_string(),
@@ -102,6 +106,8 @@ pub struct RunConfig {
     pub connect_retries: usize,
     pub retry_backoff_ms: u64,
     pub barrier_timeout_ms: i64,
+    pub discovery_operation_timeout_ms: u64,
+    pub discovery_cleanup_timeout_ms: u64,
     pub log_step_count_steps: u64,
     pub discovery_type: ServiceDiscoveryType,
     pub discovery_service_type_ps: String,
@@ -134,6 +140,8 @@ impl Default for RunConfig {
             connect_retries: 6,
             retry_backoff_ms: 500,
             barrier_timeout_ms: 10_000,
+            discovery_operation_timeout_ms: 5_000,
+            discovery_cleanup_timeout_ms: 200,
             log_step_count_steps: 100,
             discovery_type: ServiceDiscoveryType::Primus,
             discovery_service_type_ps: "ps".to_string(),
@@ -183,6 +191,8 @@ impl RunConfig {
         merge_field!(connect_retries);
         merge_field!(retry_backoff_ms);
         merge_field!(barrier_timeout_ms);
+        merge_field!(discovery_operation_timeout_ms);
+        merge_field!(discovery_cleanup_timeout_ms);
         merge_field!(log_step_count_steps);
         merge_field!(enable_gpu_training);
         merge_field!(embedding_prefetch_capacity);
@@ -249,6 +259,8 @@ impl RunConfig {
         push_override!(connect_retries);
         push_override!(retry_backoff_ms);
         push_override!(barrier_timeout_ms);
+        push_override!(discovery_operation_timeout_ms);
+        push_override!(discovery_cleanup_timeout_ms);
         push_override!(log_step_count_steps);
         push_override!(discovery_type);
         push_override!(discovery_service_type_ps);
@@ -338,6 +350,8 @@ mod tests {
             connect_retries: 9,
             retry_backoff_ms: 88,
             barrier_timeout_ms: 4321,
+            discovery_operation_timeout_ms: 7654,
+            discovery_cleanup_timeout_ms: 321,
             discovery_service_type_ps: "parameter_server".to_string(),
             discovery_service_type_worker: "trainer".to_string(),
             table_name: "item_emb".to_string(),
@@ -361,6 +375,8 @@ mod tests {
         assert_eq!(merged.connect_retries, 9);
         assert_eq!(merged.retry_backoff_ms, 88);
         assert_eq!(merged.barrier_timeout_ms, 4321);
+        assert_eq!(merged.discovery_operation_timeout_ms, 7654);
+        assert_eq!(merged.discovery_cleanup_timeout_ms, 321);
         assert_eq!(merged.discovery_service_type_ps, "parameter_server");
         assert_eq!(merged.discovery_service_type_worker, "trainer");
         assert_eq!(merged.table_name, "item_emb");
@@ -415,6 +431,8 @@ mod tests {
             connect_retries: 12,
             retry_backoff_ms: 345,
             barrier_timeout_ms: 9000,
+            discovery_operation_timeout_ms: 6789,
+            discovery_cleanup_timeout_ms: 321,
             discovery_service_type_ps: "parameter_server".to_string(),
             table_name: "item_emb".to_string(),
             dim: 256,
@@ -433,6 +451,14 @@ mod tests {
         assert_eq!(overrides.get("connect_retries").unwrap(), &serde_json::json!(12));
         assert_eq!(overrides.get("retry_backoff_ms").unwrap(), &serde_json::json!(345));
         assert_eq!(overrides.get("barrier_timeout_ms").unwrap(), &serde_json::json!(9000));
+        assert_eq!(
+            overrides.get("discovery_operation_timeout_ms").unwrap(),
+            &serde_json::json!(6789)
+        );
+        assert_eq!(
+            overrides.get("discovery_cleanup_timeout_ms").unwrap(),
+            &serde_json::json!(321)
+        );
         assert_eq!(
             overrides.get("discovery_service_type_ps").unwrap(),
             &serde_json::json!("parameter_server")
