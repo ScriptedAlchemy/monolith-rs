@@ -1,5 +1,8 @@
 use monolith_training::py_discovery::TfConfigServiceDiscovery;
-use monolith_training::{copy_checkpoint_from_restore_dir, EntryError};
+use monolith_training::{
+    copy_checkpoint_from_restore_dir, get_discovery, ConstantModelFn, EntryError, Estimator,
+    RunConfig, RunnerConfig,
+};
 use std::fs;
 use tempfile::tempdir;
 
@@ -159,4 +162,47 @@ async fn distributed_runner_from_runner_config_smoke() {
     .await;
     assert!(worker_res.is_ok(), "worker failed: {worker_res:?}");
     ps_task.abort();
+}
+
+#[test]
+fn estimator_from_run_config_roundtrip() {
+    let run = RunConfig {
+        model_dir: std::path::PathBuf::from("/tmp/parity_estimator"),
+        log_step_count_steps: 15,
+        restore_ckpt: Some("model.ckpt-22".to_string()),
+        ..RunConfig::default()
+    };
+    let estimator = Estimator::from_run_config(&run, None, ConstantModelFn::new(0.1)).unwrap();
+    assert_eq!(
+        estimator.config().model_dir,
+        std::path::PathBuf::from("/tmp/parity_estimator")
+    );
+    assert_eq!(estimator.config().log_step_count_steps, 15);
+    assert_eq!(
+        estimator.config().warm_start_from,
+        Some(std::path::PathBuf::from("model.ckpt-22"))
+    );
+}
+
+#[test]
+fn runner_discovery_query_primus_roundtrip() {
+    let tf_config = serde_json::json!({
+      "cluster": {
+        "chief": ["chief:2222"],
+        "ps": ["ps0:2222", "ps1:2222"],
+        "worker": ["worker0:2222"]
+      },
+      "task": {"type": "worker", "index": 0}
+    })
+    .to_string();
+    let runner = RunnerConfig {
+        is_local: false,
+        discovery_type: monolith_training::native_training::service_discovery::ServiceDiscoveryType::Primus,
+        tf_config: Some(tf_config),
+        ..RunnerConfig::default()
+    };
+    let d = get_discovery(&runner, None).unwrap().expect("discovery");
+    let ps = d.query("ps").unwrap();
+    assert_eq!(ps.get(&0).unwrap(), "ps0:2222");
+    assert_eq!(ps.get(&1).unwrap(), "ps1:2222");
 }
