@@ -1832,6 +1832,26 @@
 - Ensures parameter-sync replication settings are configurable and validated
   consistently across all distributed runtime entrypoint surfaces.
 
+### 162) Run/runner config cleanup-timeout diagnostics parity after successful worker runs
+- Added new integration-only discovery backend and helper PS server bootstrap to
+  exercise **successful worker execution + blocked cleanup** scenarios via
+  run/runner-config entrypoints.
+- Added four parity regressions validating that post-success cleanup timeout
+  diagnostics preserve configured custom worker service-type context:
+  - run-config path:
+    - `distributed_runner_from_run_config_surfaces_deregister_timeout_with_custom_service_type_after_success`
+    - `distributed_runner_from_run_config_surfaces_disconnect_timeout_with_custom_service_type_after_success`
+  - runner-config path:
+    - `distributed_runner_from_runner_config_surfaces_deregister_timeout_with_custom_service_type_after_success`
+    - `distributed_runner_from_runner_config_surfaces_disconnect_timeout_with_custom_service_type_after_success`
+- These tests specifically prove parity for cleanup-timeout diagnostic strings:
+  - `deregister worker-0 from <custom_worker_service_type>`
+  - `disconnect worker-0 via <custom_worker_service_type>`
+  after an otherwise successful distributed worker lifecycle.
+- Closes a run/runner-config entrypoint parity gap where this custom service-type
+  cleanup diagnostic behavior was only covered at lower-level distributed-runner
+  unit test surfaces.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2132,6 +2152,8 @@
 297. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post parameter-sync target metadata validation hardening full workspace rerun under ambient ZK auth env)
 298. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post run/runner-config parameter-sync field parity wiring and validation regression restoration)
 299. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post run/runner-config parameter-sync field parity wiring full workspace rerun under ambient ZK auth env)
+300. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post run/runner-config cleanup-timeout custom service-type diagnostic parity regressions after successful worker runs)
+301. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post run/runner-config cleanup-timeout custom service-type diagnostic parity updates full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

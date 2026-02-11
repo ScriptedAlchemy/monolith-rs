@@ -941,6 +941,120 @@ async fn distributed_runner_from_run_config_propagates_custom_service_type_field
     );
 }
 
+#[tokio::test]
+async fn distributed_runner_from_run_config_surfaces_deregister_timeout_with_custom_service_type_after_success(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let (ps_server, ps_addr) = spawn_worker_success_ps_server(8).await;
+    let discovery = Arc::new(HangingCleanupAfterSuccessFromConfigDiscovery::new(
+        ps_addr.to_string(),
+        true,
+        false,
+    ));
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        dim: 8,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when deregister cleanup blocks after successful ps run"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: deregister worker-0 from trainer_custom after 20ms"
+        ),
+        "deregister timeout diagnostics should include custom worker service type from RunConfig after successful worker run: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+    ps_server.abort();
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_surfaces_disconnect_timeout_with_custom_service_type_after_success(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let (ps_server, ps_addr) = spawn_worker_success_ps_server(8).await;
+    let discovery = Arc::new(HangingCleanupAfterSuccessFromConfigDiscovery::new(
+        ps_addr.to_string(),
+        false,
+        true,
+    ));
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        dim: 8,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when disconnect cleanup blocks after successful ps run"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
+        ),
+        "disconnect timeout diagnostics should include custom worker service type from RunConfig after successful worker run: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+    ps_server.abort();
+}
+
 struct HangingConnectAndCleanupFromRunConfigDiscovery {
     connect_count: AtomicUsize,
     disconnect_count: AtomicUsize,
@@ -1506,6 +1620,120 @@ impl ServiceDiscoveryAsync for RecordingServiceTypePropagationDiscovery {
         self.deregister_count.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
+}
+
+struct HangingCleanupAfterSuccessFromConfigDiscovery {
+    connect_count: AtomicUsize,
+    register_count: AtomicUsize,
+    discover_count: AtomicUsize,
+    disconnect_count: AtomicUsize,
+    deregister_count: AtomicUsize,
+    ps_addr: String,
+    hang_deregister: bool,
+    hang_disconnect: bool,
+}
+
+impl HangingCleanupAfterSuccessFromConfigDiscovery {
+    fn new(ps_addr: String, hang_deregister: bool, hang_disconnect: bool) -> Self {
+        Self {
+            connect_count: AtomicUsize::new(0),
+            register_count: AtomicUsize::new(0),
+            discover_count: AtomicUsize::new(0),
+            disconnect_count: AtomicUsize::new(0),
+            deregister_count: AtomicUsize::new(0),
+            ps_addr,
+            hang_deregister,
+            hang_disconnect,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl ServiceDiscoveryAsync for HangingCleanupAfterSuccessFromConfigDiscovery {
+    async fn connect(&self) -> monolith_training::discovery::Result<()> {
+        self.connect_count.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn disconnect(&self) -> monolith_training::discovery::Result<()> {
+        self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+        if self.hang_disconnect {
+            std::future::pending::<()>().await;
+            #[allow(unreachable_code)]
+            return Ok(());
+        }
+        Ok(())
+    }
+
+    async fn register_async(
+        &self,
+        _service: ServiceInfo,
+    ) -> monolith_training::discovery::Result<()> {
+        self.register_count.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn discover_async(
+        &self,
+        service_type: &str,
+    ) -> monolith_training::discovery::Result<Vec<ServiceInfo>> {
+        self.discover_count.fetch_add(1, Ordering::SeqCst);
+        let ps_addr: std::net::SocketAddr = self.ps_addr.parse().map_err(|e| {
+            monolith_training::discovery::DiscoveryError::Internal(format!(
+                "invalid ps_addr in HangingCleanupAfterSuccessFromConfigDiscovery: {e}"
+            ))
+        })?;
+        let mut service = ServiceInfo::new(
+            "ps-0".to_string(),
+            "ps-0".to_string(),
+            service_type.to_string(),
+            ps_addr.ip().to_string(),
+            ps_addr.port(),
+        );
+        service = service.with_metadata("addr", self.ps_addr.clone());
+        service = service.with_metadata("index", "0");
+        Ok(vec![service])
+    }
+
+    async fn watch_async(
+        &self,
+        _service_type: &str,
+    ) -> monolith_training::discovery::Result<tokio::sync::broadcast::Receiver<DiscoveryEvent>>
+    {
+        let (_tx, rx) = tokio::sync::broadcast::channel(1);
+        Ok(rx)
+    }
+
+    async fn deregister_async(&self, _service_id: &str) -> monolith_training::discovery::Result<()> {
+        self.deregister_count.fetch_add(1, Ordering::SeqCst);
+        if self.hang_deregister {
+            std::future::pending::<()>().await;
+            #[allow(unreachable_code)]
+            return Ok(());
+        }
+        Ok(())
+    }
+}
+
+async fn spawn_worker_success_ps_server(
+    dim: usize,
+) -> (
+    tokio::task::JoinHandle<std::result::Result<(), tonic::transport::Error>>,
+    std::net::SocketAddr,
+) {
+    let ps = monolith_training::distributed_ps::PsServer::new(0, dim);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind ephemeral listener for worker-success parity tests");
+    let actual_addr = listener
+        .local_addr()
+        .expect("resolve local addr for worker-success parity tests");
+    let ps_server = tokio::spawn(
+        tonic::transport::Server::builder()
+            .add_service(monolith_training::distributed_ps::PsServer::into_service(ps.clone()))
+            .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener)),
+    );
+    (ps_server, actual_addr)
 }
 
 #[tokio::test]
@@ -2681,6 +2909,118 @@ async fn distributed_runner_from_runner_config_propagates_custom_service_type_fi
         vec!["parameter_server_custom".to_string()],
         "worker discovery should query custom ps discovery service type"
     );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_surfaces_deregister_timeout_with_custom_service_type_after_success(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let (ps_server, ps_addr) = spawn_worker_success_ps_server(8).await;
+    let discovery = Arc::new(HangingCleanupAfterSuccessFromConfigDiscovery::new(
+        ps_addr.to_string(),
+        true,
+        false,
+    ));
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        dim: 8,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when deregister cleanup blocks after successful ps run"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: deregister worker-0 from trainer_custom after 20ms"
+        ),
+        "deregister timeout diagnostics should include custom worker service type from RunnerConfig after successful worker run: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+    ps_server.abort();
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_surfaces_disconnect_timeout_with_custom_service_type_after_success(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let (ps_server, ps_addr) = spawn_worker_success_ps_server(8).await;
+    let discovery = Arc::new(HangingCleanupAfterSuccessFromConfigDiscovery::new(
+        ps_addr.to_string(),
+        false,
+        true,
+    ));
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        dim: 8,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when disconnect cleanup blocks after successful ps run"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
+        ),
+        "disconnect timeout diagnostics should include custom worker service type from RunnerConfig after successful worker run: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+    ps_server.abort();
 }
 
 #[tokio::test]
