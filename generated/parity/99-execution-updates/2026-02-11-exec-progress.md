@@ -1298,6 +1298,16 @@
   - role-level cleanup (`deregister` + `disconnect`) still runs when discovery
     operations block.
 
+### 121) Train CLI parity exposure for discovery timeout controls
+- Extended `monolith-cli train` flags with explicit discovery timeout controls:
+  - `--discovery-operation-timeout-ms` (default `5000`)
+  - `--discovery-cleanup-timeout-ms` (default `200`)
+- Wired new flags through distributed config assembly into runner runtime:
+  - `DistributedRunConfig::discovery_operation_timeout`
+  - `DistributedRunConfig::discovery_cleanup_timeout`
+- Updated train command default test fixtures to include new timeout fields so
+  CLI parity defaults remain explicit and regression-protected.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1512,6 +1522,8 @@
 211. `cargo test --workspace -q` ✅ (post configurable discovery cleanup-timeout support + CLI wiring full workspace rerun)
 212. `cargo test -p monolith-training -q` ✅ (post worker discover-operation timeout handling and retry-loop blocking regressions)
 213. `cargo test --workspace -q` ✅ (post worker discover-operation timeout handling and retry-loop blocking regressions full workspace rerun)
+214. `cargo test -p monolith-cli -q` ✅ (post train CLI discovery timeout flag exposure + config wiring updates)
+215. `cargo test --workspace -q` ✅ (post train CLI discovery timeout flag exposure + config wiring updates full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
