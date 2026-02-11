@@ -15,8 +15,10 @@ use tokio::sync::Barrier as TokioBarrier;
 pub enum BarrierError {
     #[error("Barrier timeout")]
     Timeout,
+    #[error("Barrier invalid configuration: {0}")]
+    InvalidConfig(String),
     #[error("Barrier RPC error: {0}")]
-    Rpc(#[from] PsError),
+    Rpc(PsError),
 }
 
 pub type BarrierResult<T> = Result<T, BarrierError>;
@@ -67,10 +69,16 @@ impl PsBarrier {
 #[async_trait::async_trait]
 impl Barrier for PsBarrier {
     async fn wait(&self, barrier_id: &str, worker_id: i32, num_workers: i32) -> BarrierResult<()> {
-        self.client
+        match self
+            .client
             .barrier(barrier_id, worker_id, num_workers, self.timeout_ms)
-            .await?;
-        Ok(())
+            .await
+        {
+            Ok(()) => Ok(()),
+            Err(PsError::Timeout(_)) => Err(BarrierError::Timeout),
+            Err(PsError::InvalidConfig(msg)) => Err(BarrierError::InvalidConfig(msg)),
+            Err(e) => Err(BarrierError::Rpc(e)),
+        }
     }
 }
 
@@ -121,6 +129,48 @@ mod tests {
         );
         assert!(r0.is_ok());
         assert!(r1.is_ok());
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_barrier_maps_timeout_to_barrier_timeout() {
+        let bind = std::net::TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr]).await.unwrap();
+        let barrier = PsBarrier::new(client, 20);
+        let err = barrier.wait("timeout_case", 0, 2).await.unwrap_err();
+        assert!(matches!(err, BarrierError::Timeout));
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_barrier_maps_invalid_config_error() {
+        let bind = std::net::TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr]).await.unwrap();
+        let barrier = PsBarrier::new(client, 100);
+        let err = barrier.wait("bad_cfg", -1, 2).await.unwrap_err();
+        assert!(matches!(err, BarrierError::InvalidConfig(_)));
 
         server.abort();
     }
