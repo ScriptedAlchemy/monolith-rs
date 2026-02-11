@@ -27,6 +27,10 @@ pub enum DistributedError {
     /// The cluster configuration is invalid.
     #[error("Invalid cluster configuration: {0}")]
     InvalidConfiguration(String),
+
+    /// Timed out waiting for barrier synchronization.
+    #[error("Barrier timeout at epoch {epoch} after {timeout_ms} ms")]
+    BarrierTimeout { epoch: u64, timeout_ms: u64 },
 }
 
 /// Result type for distributed operations.
@@ -417,6 +421,7 @@ pub struct LocalCluster {
     workers: Vec<Worker>,
     learning_rate: f32,
     barrier_waiters: HashMap<u64, HashSet<usize>>,
+    released_barriers: HashMap<u64, usize>,
 }
 
 impl LocalCluster {
@@ -433,6 +438,7 @@ impl LocalCluster {
             workers,
             learning_rate,
             barrier_waiters: HashMap::new(),
+            released_barriers: HashMap::new(),
         })
     }
 
@@ -456,6 +462,7 @@ impl LocalCluster {
             ps.stop()?;
         }
         self.barrier_waiters.clear();
+        self.released_barriers.clear();
         Ok(())
     }
 
@@ -545,6 +552,12 @@ impl LocalCluster {
         })?;
         worker.sync_barrier()?;
         let epoch = worker.current_step();
+        if let Some(&participants) = self.released_barriers.get(&epoch) {
+            return Ok(BarrierStatus::Released {
+                epoch,
+                participants,
+            });
+        }
         let required = self.workers.len();
 
         let arrived = {
@@ -555,6 +568,7 @@ impl LocalCluster {
 
         if arrived >= required {
             self.barrier_waiters.remove(&epoch);
+            self.released_barriers.insert(epoch, required);
             Ok(BarrierStatus::Released {
                 epoch,
                 participants: required,
@@ -565,6 +579,41 @@ impl LocalCluster {
                 arrived,
                 required,
             })
+        }
+    }
+
+    /// Blocking barrier synchronization helper with timeout.
+    ///
+    /// This repeatedly checks local barrier state until the worker's current
+    /// epoch has been released or the timeout elapses.
+    pub fn wait_for_barrier(
+        &mut self,
+        worker_index: usize,
+        timeout: std::time::Duration,
+        poll_interval: std::time::Duration,
+    ) -> DistributedResult<BarrierStatus> {
+        let start = std::time::Instant::now();
+        loop {
+            match self.sync_barrier(worker_index)? {
+                BarrierStatus::Released {
+                    epoch,
+                    participants,
+                } => {
+                    return Ok(BarrierStatus::Released {
+                        epoch,
+                        participants,
+                    });
+                }
+                BarrierStatus::Waiting { epoch, .. } => {
+                    if start.elapsed() >= timeout {
+                        return Err(DistributedError::BarrierTimeout {
+                            epoch,
+                            timeout_ms: timeout.as_millis() as u64,
+                        });
+                    }
+                }
+            }
+            std::thread::sleep(poll_interval);
         }
     }
 }
@@ -778,5 +827,63 @@ mod tests {
                 participants: 2
             }
         );
+
+        // Re-checking a released epoch from first worker now reports released.
+        let again = cluster.sync_barrier(0).unwrap();
+        assert_eq!(
+            again,
+            BarrierStatus::Released {
+                epoch: 1,
+                participants: 2
+            }
+        );
+    }
+
+    #[test]
+    fn test_local_cluster_wait_for_barrier_timeout() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000)],
+            vec![make_addr(6000), make_addr(6001)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
+        cluster.start().unwrap();
+
+        let err = cluster
+            .wait_for_barrier(
+                0,
+                std::time::Duration::from_millis(10),
+                std::time::Duration::from_millis(1),
+            )
+            .unwrap_err();
+        assert!(matches!(err, DistributedError::BarrierTimeout { epoch: 0, .. }));
+    }
+
+    #[test]
+    fn test_local_cluster_wait_for_barrier_success() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000)],
+            vec![make_addr(6000), make_addr(6001)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
+        cluster.start().unwrap();
+
+        let first = cluster.sync_barrier(0).unwrap();
+        assert!(matches!(first, BarrierStatus::Waiting { epoch: 0, .. }));
+        let second = cluster.wait_for_barrier(
+            1,
+            std::time::Duration::from_millis(50),
+            std::time::Duration::from_millis(1),
+        );
+        assert!(matches!(
+            second.unwrap(),
+            BarrierStatus::Released {
+                epoch: 0,
+                participants: 2
+            }
+        ));
     }
 }
