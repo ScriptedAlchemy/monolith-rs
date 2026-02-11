@@ -1622,6 +1622,16 @@
 - Confirms `dim > 0` validation is enforced consistently across CLI assembly
   and both config entrypoint runtime validation paths.
 
+### 148) Worker-index timeout diagnostic propagation integration coverage
+- Added worker-index diagnostic propagation regressions:
+  - `distributed_runner_from_run_config_propagates_worker_index_into_connect_timeout_diagnostics`
+  - `distributed_runner_from_runner_config_propagates_worker_index_into_connect_timeout_diagnostics`
+- Uses blocked connect + blocked cleanup backend with non-zero worker indices
+  to validate that timeout diagnostics include the expected role/index service-id
+  (`worker-<index>`) propagated from run-config and runner-config entrypoints.
+- Strengthens diagnostic parity by proving index propagation through config
+  entrypoints into runtime timeout error contexts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1893,6 +1903,8 @@
 268. `cargo test --workspace -q` ✅ (post negative barrier-timeout validation coverage across CLI and config entrypoints full workspace rerun)
 269. `cargo test -p monolith-cli -q && cargo test -p monolith-training -q` ✅ (post distributed dim input validation coverage across CLI and config entrypoints)
 270. `cargo test --workspace -q` ✅ (post distributed dim input validation coverage across CLI and config entrypoints full workspace rerun)
+271. `cargo test -p monolith-training -q` ✅ (post worker-index timeout diagnostic propagation integrations across run/runner config entrypoints)
+272. `cargo test --workspace -q` ✅ (post worker-index timeout diagnostic propagation integrations across run/runner config entrypoints full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
