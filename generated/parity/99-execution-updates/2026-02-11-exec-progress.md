@@ -768,6 +768,20 @@
   instead of selecting one address arbitrarily.
 - Added regression `test_ordered_ps_addrs_rejects_conflicting_duplicate_index`.
 
+### 72) RunConfig/RunnerConfig propagation for discovery role names + table settings
+- Expanded distributed runtime config bridge fields in `run_config.rs`:
+  - `discovery_service_type_ps`
+  - `discovery_service_type_worker`
+  - `table_name`
+  - `dim`
+- Added merge + user-override parity handling for all four fields in
+  `RunConfig::to_runner_config(...)` and `RunConfig::user_overrides()`.
+- Updated `distributed_config_from_runner(...)` to propagate these values into
+  `DistributedRunConfig` so runner-config based launches no longer rely on
+  hardcoded defaults for discovery role names and embedding table dimensions.
+- Expanded tests in `run_config.rs` and `runner.rs` to assert end-to-end field
+  propagation and override visibility.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -881,6 +895,7 @@
 110. `cargo test --workspace -q` ✅ (post contiguous PS shard-index enforcement and full workspace regression rerun)
 111. `cargo test -p monolith-training -q` ✅ (post conflicting duplicate shard-index advertisement guard in worker discovery ordering)
 112. `cargo test --workspace -q` ✅ (post conflicting duplicate shard-index advertisement guard and full workspace regression rerun)
+113. `cargo test -p monolith-training -q` ✅ (post run/runner config propagation of discovery service-role names and table settings into distributed runtime config)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
