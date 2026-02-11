@@ -626,6 +626,18 @@
 - This removes potential encoded-position collision risks for very large
   per-shard batches while keeping remap behavior unchanged.
 
+### 58) Typed barrier-layer error mapping parity
+- Enhanced `barrier.rs` error semantics so `PsBarrier` maps `PsClient` errors
+  into barrier-domain variants:
+  - `PsError::Timeout(_)` -> `BarrierError::Timeout`
+  - `PsError::InvalidConfig(msg)` -> `BarrierError::InvalidConfig(msg)`
+  - all other PS errors -> `BarrierError::Rpc(PsError)`
+- Added targeted barrier-layer regressions:
+  - `test_ps_barrier_maps_timeout_to_barrier_timeout`
+  - `test_ps_barrier_maps_invalid_config_error`
+  ensuring callers can distinguish timeout/configuration failures from generic
+  RPC failures.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -712,6 +724,7 @@
 83. `cargo test --workspace -q` ✅ (post default health/stats helper APIs and latest distributed/runtime parity updates)
 84. `cargo test -p monolith-training -q` ✅ (post tuple-based lookup shard/local position mapping hardening)
 85. `cargo test --workspace -q` ✅ (post latest PS client barrier/health/stats and lookup index hardening updates)
+86. `cargo test -p monolith-training -q` ✅ (post typed barrier-layer error mapping and timeout/config regression coverage)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
