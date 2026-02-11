@@ -1150,6 +1150,7 @@
 151. `cargo test -p monolith-training -q` ✅ (post discovery watch poller lifecycle cleanup and unsubscribe-stop regressions)
 152. `cargo test --workspace -q` ✅ (post discovery watch poller lifecycle cleanup and full workspace regression rerun)
 153. `cargo test -p monolith-training -q` ✅ (post in-memory discovery dead-watcher sender cleanup)
+154. `cargo test --workspace -q` ✅ (post in-memory discovery dead-watcher sender cleanup and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
