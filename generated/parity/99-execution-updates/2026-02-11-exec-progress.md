@@ -335,6 +335,18 @@
   - preserves estimator-level distributed error mapping.
 - Added estimator-level async smoke coverage for run-config driven PS/worker flow.
 
+### 31) Run-config restore initialization helper parity
+- Added runner-utils restore initialization helpers from `RunConfig`:
+  - `initialize_restore_checkpoint_from_run_config(...)`
+  - `initialize_restore_checkpoint_from_run_config_defaults(...)`
+- Added explicit `RunnerUtilsError::RunConfig` variant for merge failures.
+- Updated run-config wrappers to use run-config-specific error mapping.
+- Added estimator convenience API:
+  - `Estimator::initialize_runtime_from_run_config(...)`.
+- Refactored `Estimator::from_run_config_initialized(...)` to reuse the run-config
+  runtime init path directly.
+- Added unit + integration coverage for run-config restore initialization behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -374,6 +386,7 @@
 35. `cargo test -p monolith-training -q` ✅ (post run-config distributed runner entrypoint)
 36. `cargo test -p monolith-training -q` ✅ (post estimator run-config distributed runtime helper)
 37. `cargo test --workspace -q` ✅ (post latest estimator/runner run-config convenience API additions)
+38. `cargo test -p monolith-training -q` ✅ (post run-config restore initialization helper parity APIs)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
