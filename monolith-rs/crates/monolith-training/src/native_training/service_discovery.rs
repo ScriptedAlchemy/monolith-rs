@@ -31,7 +31,7 @@ pub enum ServiceDiscoveryError {
 
 pub type Result<T> = std::result::Result<T, ServiceDiscoveryError>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ServiceDiscoveryType {
     Primus = 1,
     Consul = 2,

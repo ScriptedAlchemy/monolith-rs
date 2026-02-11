@@ -70,6 +70,7 @@ pub mod native_training;
 pub mod parameter_sync_replicator;
 pub mod prefetch_queue;
 pub mod py_discovery;
+pub mod run_config;
 pub mod runner;
 pub mod runner_utils;
 
@@ -129,6 +130,9 @@ pub use prefetch_queue::{
 };
 pub use py_discovery::{
     HostFileDiscovery, MlpServiceDiscovery, PyServiceDiscovery, TfConfigServiceDiscovery,
+};
+pub use run_config::{
+    Result as RunConfigResult, RunConfig, RunConfigError, RunnerConfig,
 };
 pub use runner::{run_distributed, DistributedRunConfig, Role};
 pub use runner_utils::{copy_checkpoint_from_restore_dir, CheckpointState, RunnerUtilsError};
