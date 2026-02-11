@@ -1009,6 +1009,17 @@
   - `consul_idempotent_registration_short_circuits_when_addr_already_visible`
   - `consul_register_times_out_when_old_registration_never_clears`.
 
+### 94) ZK registration-thread lock/close lifecycle cleanup
+- Hardened `native_training::service_discovery::ZkServiceDiscovery` thread-map
+  lifecycle handling to avoid holding shared lock across thread joins:
+  - `register(...)`: remove/rejoin old thread outside lock before insert,
+  - `deregister(...)`: remove thread handle, then join outside lock,
+  - `close(...)`: drain thread map under lock, then join all drained threads
+    without lock contention.
+- Added regression:
+  - `zk_close_is_idempotent_after_deregister`
+  to validate close/deregister lifecycle remains safe and idempotent.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1166,6 +1177,8 @@
 154. `cargo test --workspace -q` ✅ (post in-memory discovery dead-watcher sender cleanup and full workspace regression rerun)
 155. `cargo test -p monolith-training -q` ✅ (post bounded consul replacement-retry hardening and stale-registration timeout/idempotence regressions)
 156. `cargo test --workspace -q` ✅ (post bounded consul replacement-retry hardening and full workspace regression rerun)
+157. `cargo test -p monolith-training -q` ✅ (post ZK registration-thread lock cleanup and close-idempotence regression)
+158. `cargo test --workspace -q` ✅ (post ZK registration-thread lock cleanup and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
