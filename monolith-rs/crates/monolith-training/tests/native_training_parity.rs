@@ -3008,6 +3008,30 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_when_clea
         msg.contains("Timed out during discovery operation: register worker-0 as worker after 20ms"),
         "register timeout should remain primary over cleanup timeout when configured via RunConfig: {msg}"
     );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "register timeout diagnostics should include cleanup issue context via RunConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister worker-0 from worker"),
+        "register-timeout cleanup context via RunConfig should include worker deregister timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker"),
+        "register-timeout cleanup context via RunConfig should include worker disconnect timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "register-timeout errors should include cleanup issue context via RunConfig entrypoint: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister worker-0 from worker"),
+        "run-config register-timeout cleanup issue context should include worker deregister timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker"),
+        "run-config register-timeout cleanup issue context should include worker disconnect timeout diagnostics: {msg}"
+    );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
@@ -3050,6 +3074,30 @@ async fn distributed_runner_from_run_config_propagates_worker_service_type_into_
     assert!(
         msg.contains("Timed out during discovery operation: register worker-0 as trainer_custom after 20ms"),
         "custom worker service type from RunConfig should appear in timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "custom worker register-timeout diagnostics should include cleanup issue context via RunConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister worker-0 from trainer_custom"),
+        "custom worker register-timeout cleanup context via RunConfig should include worker deregister timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via trainer_custom"),
+        "custom worker register-timeout cleanup context via RunConfig should include worker disconnect timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "custom worker register-timeout errors should include cleanup issue context via RunConfig entrypoint: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister worker-0 from trainer_custom"),
+        "run-config custom worker register-timeout cleanup issue context should include deregister timeout diagnostics with custom worker service type: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via trainer_custom"),
+        "run-config custom worker register-timeout cleanup issue context should include disconnect timeout diagnostics with custom worker service type: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
@@ -3094,6 +3142,14 @@ async fn distributed_runner_from_run_config_honors_cleanup_timeout_after_registe
     assert!(
         msg.contains("Timed out during discovery operation: register worker-0 as worker after 10ms"),
         "operation timeout diagnostics should include configured operation timeout: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "cleanup timeout bounding path should still include cleanup issue context via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "register-timeout errors should include cleanup issue context for reduced cleanup timeout via RunConfig entrypoint: {msg}"
     );
     assert!(
         elapsed < Duration::from_millis(150),
@@ -3141,6 +3197,30 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_when_c
         msg.contains("Timed out during discovery operation: register ps-0 as ps after 20ms"),
         "ps register timeout should remain primary over cleanup timeout when configured via RunConfig: {msg}"
     );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "ps register-timeout diagnostics should include cleanup issue context via RunConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister ps-0 from ps"),
+        "ps register-timeout cleanup context via RunConfig should include ps deregister timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect ps-0 via ps"),
+        "ps register-timeout cleanup context via RunConfig should include ps disconnect timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "ps register-timeout errors should include cleanup issue context via RunConfig entrypoint: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister ps-0 from ps"),
+        "run-config ps register-timeout cleanup issue context should include ps deregister timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect ps-0 via ps"),
+        "run-config ps register-timeout cleanup issue context should include ps disconnect timeout diagnostics: {msg}"
+    );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
@@ -3183,6 +3263,30 @@ async fn distributed_runner_from_run_config_propagates_ps_service_type_into_regi
     assert!(
         msg.contains("Timed out during discovery operation: register ps-0 as ps_custom after 20ms"),
         "custom ps service type from RunConfig should appear in timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "custom ps register-timeout diagnostics should include cleanup issue context via RunConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister ps-0 from ps_custom"),
+        "custom ps register-timeout cleanup context via RunConfig should include ps deregister timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect ps-0 via ps_custom"),
+        "custom ps register-timeout cleanup context via RunConfig should include ps disconnect timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "custom ps register-timeout errors should include cleanup issue context via RunConfig entrypoint: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister ps-0 from ps_custom"),
+        "run-config custom ps register-timeout cleanup issue context should include deregister timeout diagnostics with custom ps service type: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect ps-0 via ps_custom"),
+        "run-config custom ps register-timeout cleanup issue context should include disconnect timeout diagnostics with custom ps service type: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
@@ -5459,6 +5563,18 @@ async fn distributed_runner_from_runner_config_preserves_register_timeout_when_c
         msg.contains("Timed out during discovery operation: register worker-0 as worker after 20ms"),
         "register timeout should remain primary over cleanup timeout when configured via RunnerConfig: {msg}"
     );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "register timeout diagnostics should include cleanup issue context via RunnerConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister worker-0 from worker"),
+        "register-timeout cleanup context via RunnerConfig should include worker deregister timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker"),
+        "register-timeout cleanup context via RunnerConfig should include worker disconnect timeout diagnostics: {msg}"
+    );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
@@ -5501,6 +5617,18 @@ async fn distributed_runner_from_runner_config_propagates_worker_service_type_in
     assert!(
         msg.contains("Timed out during discovery operation: register worker-0 as trainer_custom after 20ms"),
         "custom worker service type from RunnerConfig should appear in timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "custom worker register-timeout diagnostics should include cleanup issue context via RunnerConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister worker-0 from trainer_custom"),
+        "custom worker register-timeout cleanup context via RunnerConfig should include worker deregister timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via trainer_custom"),
+        "custom worker register-timeout cleanup context via RunnerConfig should include worker disconnect timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
@@ -5545,6 +5673,10 @@ async fn distributed_runner_from_runner_config_honors_cleanup_timeout_after_regi
     assert!(
         msg.contains("Timed out during discovery operation: register worker-0 as worker after 10ms"),
         "operation timeout diagnostics should include configured operation timeout: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "cleanup timeout bounding path should still include cleanup issue context via RunnerConfig: {msg}"
     );
     assert!(
         elapsed < Duration::from_millis(150),
@@ -5592,6 +5724,18 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_timeout_whe
         msg.contains("Timed out during discovery operation: register ps-0 as ps after 20ms"),
         "ps register timeout should remain primary over cleanup timeout when configured via RunnerConfig: {msg}"
     );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "ps register-timeout diagnostics should include cleanup issue context via RunnerConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister ps-0 from ps"),
+        "ps register-timeout cleanup context via RunnerConfig should include ps deregister timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect ps-0 via ps"),
+        "ps register-timeout cleanup context via RunnerConfig should include ps disconnect timeout diagnostics: {msg}"
+    );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
@@ -5634,6 +5778,18 @@ async fn distributed_runner_from_runner_config_propagates_ps_service_type_into_r
     assert!(
         msg.contains("Timed out during discovery operation: register ps-0 as ps_custom after 20ms"),
         "custom ps service type from RunnerConfig should appear in timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "custom ps register-timeout diagnostics should include cleanup issue context via RunnerConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister ps-0 from ps_custom"),
+        "custom ps register-timeout cleanup context via RunnerConfig should include ps deregister timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect ps-0 via ps_custom"),
+        "custom ps register-timeout cleanup context via RunnerConfig should include ps disconnect timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);

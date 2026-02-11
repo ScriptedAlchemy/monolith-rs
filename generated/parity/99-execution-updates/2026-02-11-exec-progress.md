@@ -2235,6 +2235,19 @@
     cleanup issue context presence and cleanup timeout operation diagnostics in
     worker discovery timeout + blocked cleanup flows.
 
+### 186) Register-timeout parity now verifies appended cleanup diagnostics in both RunConfig and RunnerConfig paths
+- Extended integration parity coverage for register-timeout-with-blocked-cleanup
+  scenarios across worker and PS roles:
+  - default + custom worker service types
+  - default + custom PS service types
+- New assertions verify returned errors include both:
+  - primary register timeout diagnostics (error precedence preserved),
+  - appended cleanup issue context with concrete cleanup operation timeout
+    messages (`deregister ...`, `disconnect ...`).
+- Completes end-to-end diagnostic parity for role error paths where cleanup also
+  fails or times out, ensuring consistency between unit-level runner behavior
+  and run/runner configuration entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2583,6 +2596,8 @@
 345. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post strict internal-whitespace normalization for distributed service/table/parameter-sync identity fields full workspace rerun under ambient ZK auth env)
 346. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post role-error cleanup issue context propagation while preserving primary error text in distributed runner + parity test updates)
 347. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post role-error cleanup issue context propagation parity expansion full workspace rerun under ambient ZK auth env)
+348. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post register-timeout integration parity expansion asserting appended cleanup diagnostics for run/runner worker+ps role paths with blocked cleanup)
+349. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post register-timeout cleanup-diagnostic integration parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
