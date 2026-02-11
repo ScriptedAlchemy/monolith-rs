@@ -242,6 +242,11 @@ impl TrainCommand {
         if self.discovery_service_type_worker.trim().is_empty() {
             anyhow::bail!("--discovery-service-type-worker must be non-empty");
         }
+        if self.discovery_service_type_ps.trim() == self.discovery_service_type_worker.trim() {
+            anyhow::bail!(
+                "--discovery-service-type-ps and --discovery-service-type-worker must be distinct"
+            );
+        }
         if self.table_name.trim().is_empty() {
             anyhow::bail!("--table-name must be non-empty in distributed mode");
         }
@@ -826,6 +831,21 @@ mod tests {
         assert!(
             err.contains("--discovery-service-type-worker must be non-empty"),
             "unexpected worker service-type validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_identical_ps_and_worker_service_types() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.discovery_service_type_ps = "service".to_string();
+        cmd.discovery_service_type_worker = "service".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "--discovery-service-type-ps and --discovery-service-type-worker must be distinct"
+            ),
+            "unexpected identical service-type validation error: {err}"
         );
     }
 

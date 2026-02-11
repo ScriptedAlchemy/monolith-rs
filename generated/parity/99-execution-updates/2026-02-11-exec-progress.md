@@ -1939,6 +1939,24 @@
 - Ensures run/runner-config entrypoints no longer mask malformed topology and
   now align with CLI-level strict cluster-size validation semantics.
 
+### 168) Distinct PS/worker discovery service-type validation parity
+- Added distributed runtime validation requiring
+  `discovery_service_type_ps != discovery_service_type_worker` (trim-aware).
+- Added CLI distributed-config builder counterpart requiring:
+  - `--discovery-service-type-ps` and
+  - `--discovery-service-type-worker`
+  to be distinct in distributed mode.
+- Added regression coverage:
+  - CLI unit:
+    - `test_build_distributed_run_config_rejects_identical_ps_and_worker_service_types`
+  - distributed config unit:
+    - `test_distributed_config_validate_rejects_identical_ps_and_worker_service_types`
+  - native-training integration parity:
+    - `distributed_runner_from_run_config_rejects_identical_ps_and_worker_service_types`
+    - `distributed_runner_from_runner_config_rejects_identical_ps_and_worker_service_types`
+- Prevents ambiguous cluster advertisement/discovery where PS and worker entries
+  share the same service type and can pollute worker PS discovery resolution.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2251,6 +2269,8 @@
 309. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post non-empty distributed table-name validation parity full workspace rerun under ambient ZK auth env)
 310. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post strict zero-count propagation in distributed config mapping + zero-size cluster validation regressions)
 311. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post strict zero-count propagation and zero-size cluster validation full workspace rerun under ambient ZK auth env)
+312. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post distinct PS/worker discovery service-type validation parity across CLI/runtime entrypoints)
+313. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post distinct PS/worker discovery service-type validation full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

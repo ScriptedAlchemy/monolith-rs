@@ -130,6 +130,11 @@ impl DistributedRunConfig {
         if self.discovery_service_type_worker.trim().is_empty() {
             anyhow::bail!("distributed config requires non-empty discovery_service_type_worker");
         }
+        if self.discovery_service_type_ps.trim() == self.discovery_service_type_worker.trim() {
+            anyhow::bail!(
+                "distributed config requires distinct discovery_service_type_ps and discovery_service_type_worker"
+            );
+        }
         if self.table_name.trim().is_empty() {
             anyhow::bail!("distributed config requires non-empty table_name");
         }
@@ -2038,6 +2043,22 @@ mod tests {
         let err = cfg.validate().unwrap_err().to_string();
         assert!(
             err.contains("distributed config requires non-empty discovery_service_type_worker"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_identical_ps_and_worker_service_types() {
+        let cfg = DistributedRunConfig {
+            discovery_service_type_ps: "service".to_string(),
+            discovery_service_type_worker: "service".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "distributed config requires distinct discovery_service_type_ps and discovery_service_type_worker"
+            ),
             "unexpected validation error: {err}"
         );
     }
