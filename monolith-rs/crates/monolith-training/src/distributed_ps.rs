@@ -728,9 +728,24 @@ impl PsClient {
         create_if_missing: bool,
     ) -> PsResult<Vec<f32>> {
         let response = self
-            .lookup_response(table_name, fids, dim_size, create_if_missing)
+            .lookup_detailed(table_name, fids, dim_size, create_if_missing)
             .await?;
         Ok(response.embeddings)
+    }
+
+    /// Looks up embeddings and returns full response metadata.
+    ///
+    /// This variant exposes found/initialized counters and per-FID found flags
+    /// alongside embedding vectors.
+    pub async fn lookup_detailed(
+        &self,
+        table_name: &str,
+        fids: &[i64],
+        dim_size: usize,
+        create_if_missing: bool,
+    ) -> PsResult<LookupResponse> {
+        self.lookup_response(table_name, fids, dim_size, create_if_missing)
+            .await
     }
 
     /// Applies gradients for the given FIDs.
@@ -746,7 +761,7 @@ impl PsClient {
         global_step: i64,
     ) -> PsResult<(i32, i32)> {
         let response = self
-            .apply_gradients_response(
+            .apply_gradients_detailed(
                 table_name,
                 fids,
                 gradients,
@@ -756,6 +771,27 @@ impl PsClient {
             )
             .await?;
         Ok((response.num_updated, response.num_not_found))
+    }
+
+    /// Applies gradients and returns full response metadata.
+    pub async fn apply_gradients_detailed(
+        &self,
+        table_name: &str,
+        fids: &[i64],
+        gradients: &[f32],
+        dim_size: usize,
+        learning_rate: f32,
+        global_step: i64,
+    ) -> PsResult<ApplyGradientsResponse> {
+        self.apply_gradients_response(
+            table_name,
+            fids,
+            gradients,
+            dim_size,
+            learning_rate,
+            global_step,
+        )
+        .await
     }
 
     async fn lookup_response(
@@ -1652,6 +1688,41 @@ mod tests {
 
         h0.abort();
         h1.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_detailed_lookup_and_apply_metadata() {
+        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr]).await.unwrap();
+
+        let first_lookup = client.lookup_detailed("meta", &[7, 7, 9], 2, true).await.unwrap();
+        assert_eq!(first_lookup.status_code, 0);
+        assert_eq!(first_lookup.found, vec![false, false, false]);
+        assert_eq!(first_lookup.num_found, 0);
+        assert_eq!(first_lookup.num_initialized, 3);
+
+        let second_lookup = client.lookup_detailed("meta", &[7, 9], 2, false).await.unwrap();
+        assert_eq!(second_lookup.status_code, 0);
+        assert_eq!(second_lookup.found, vec![true, true]);
+        assert_eq!(second_lookup.num_found, 2);
+        assert_eq!(second_lookup.num_initialized, 0);
+
+        let apply_resp = client
+            .apply_gradients_detailed("meta", &[7, 9], &[1.0, 2.0, 3.0, 4.0], 2, 0.1, 1)
+            .await
+            .unwrap();
+        assert_eq!(apply_resp.status_code, 0);
+        assert_eq!(apply_resp.num_updated, 2);
+        assert_eq!(apply_resp.num_not_found, 0);
+
+        server.abort();
     }
 
     #[tokio::test]
