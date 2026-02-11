@@ -99,6 +99,31 @@ pub fn distributed_config_from_runner(
     }
 }
 
+fn ordered_ps_addrs(ps_services: Vec<ServiceInfo>) -> Vec<String> {
+    let mut indexed = Vec::with_capacity(ps_services.len());
+    for svc in &ps_services {
+        let Some(idx_str) = svc.metadata.get("index") else {
+            let mut addrs: Vec<String> = ps_services.into_iter().map(|s| s.address()).collect();
+            addrs.sort();
+            addrs.dedup();
+            return addrs;
+        };
+        let Ok(idx) = idx_str.parse::<usize>() else {
+            let mut addrs: Vec<String> = ps_services.into_iter().map(|s| s.address()).collect();
+            addrs.sort();
+            addrs.dedup();
+            return addrs;
+        };
+        indexed.push((idx, svc.address()));
+    }
+
+    indexed.sort_by(|(a_idx, a_addr), (b_idx, b_addr)| {
+        a_idx.cmp(b_idx).then_with(|| a_addr.cmp(b_addr))
+    });
+    indexed.dedup_by(|(a_idx, _), (b_idx, _)| a_idx == b_idx);
+    indexed.into_iter().map(|(_, addr)| addr).collect()
+}
+
 /// Run a PS or worker process using the provided discovery backend.
 pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     discovery: Arc<D>,
@@ -294,9 +319,7 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
             .await
             .unwrap_or_default();
 
-        let mut addrs: Vec<String> = ps_services.into_iter().map(|s| s.address()).collect();
-        addrs.sort();
-        addrs.dedup();
+        let addrs = ordered_ps_addrs(ps_services);
 
         if addrs.len() >= cfg.num_ps {
             ps_addrs = addrs;
@@ -451,6 +474,32 @@ mod tests {
         assert_eq!(cfg.retry_backoff_ms, 77);
         assert_eq!(cfg.barrier_timeout_ms, 2222);
         assert!(matches!(cfg.role, Role::Worker));
+    }
+
+    #[test]
+    fn test_ordered_ps_addrs_prefers_discovery_index_metadata() {
+        let mut ps1 = ServiceInfo::new("ps-1", "ps-1", "ps", "127.0.0.1", 10001);
+        ps1 = ps1.with_metadata("index", "1");
+        let mut ps0 = ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 20001);
+        ps0 = ps0.with_metadata("index", "0");
+
+        let ordered = ordered_ps_addrs(vec![ps1, ps0]);
+        assert_eq!(
+            ordered,
+            vec!["127.0.0.1:20001".to_string(), "127.0.0.1:10001".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_ordered_ps_addrs_falls_back_to_address_sort_without_index() {
+        let ps_b = ServiceInfo::new("ps-b", "ps-b", "ps", "127.0.0.1", 30001);
+        let ps_a = ServiceInfo::new("ps-a", "ps-a", "ps", "127.0.0.1", 20001);
+
+        let ordered = ordered_ps_addrs(vec![ps_b, ps_a]);
+        assert_eq!(
+            ordered,
+            vec!["127.0.0.1:20001".to_string(), "127.0.0.1:30001".to_string()]
+        );
     }
 
     #[tokio::test]
