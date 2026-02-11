@@ -10,7 +10,10 @@ use monolith_serving::embedding_store::EmbeddingStore;
 use monolith_serving::parameter_sync_rpc::{ParameterSyncGrpcServer, PushSink};
 use monolith_serving::parameter_sync_sink::EmbeddingStorePushSink;
 use monolith_serving::tfserving_server::TfServingPredictionServer;
-use monolith_serving::{AgentServiceImpl, ModelLoader, ModelLoaderConfig};
+use monolith_serving::{
+    AgentServiceImpl, ModelLoader, ModelLoaderConfig, Server as MonolithServer,
+    ServerConfig as MonolithServerConfig,
+};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{info, warn};
@@ -86,6 +89,17 @@ pub struct ServeCommand {
 }
 
 impl ServeCommand {
+    fn build_server_config(&self) -> MonolithServerConfig {
+        MonolithServerConfig::builder()
+            .host(self.host.clone())
+            .port(self.port)
+            .num_workers(self.workers)
+            .model_path(self.model_dir.clone())
+            .health_check_enabled(self.health_check)
+            .max_concurrent_requests(self.max_batch_size)
+            .build()
+    }
+
     /// Execute the serve command
     pub async fn run(&self) -> Result<()> {
         info!("Starting model server...");
@@ -168,7 +182,14 @@ impl ServeCommand {
             None
         };
 
-        info!("Server started successfully (serve command is still a stub for AgentService/model inference)");
+        // Start the primary Monolith serving server.
+        let serving_server = MonolithServer::new(self.build_server_config());
+        serving_server
+            .start()
+            .await
+            .context("Failed to start primary serving server")?;
+
+        info!("Monolith serving server started successfully");
 
         // Keep the process running.
         tokio::signal::ctrl_c()
@@ -176,6 +197,10 @@ impl ServeCommand {
             .context("Failed to listen for shutdown signal")?;
 
         info!("Received shutdown signal, stopping server...");
+        serving_server
+            .stop()
+            .await
+            .context("Failed to stop primary serving server")?;
         Ok(())
     }
 
@@ -229,5 +254,31 @@ mod tests {
         };
 
         assert_eq!(cmd.bind_address(), "127.0.0.1:9000");
+    }
+
+    #[test]
+    fn test_build_server_config_parity() {
+        let cmd = ServeCommand {
+            model_dir: PathBuf::from("/tmp/model"),
+            port: 9001,
+            workers: 8,
+            host: "127.0.0.1".to_string(),
+            health_check: false,
+            health_port: None,
+            max_batch_size: 256,
+            batch_timeout_ms: 10,
+            enable_logging: false,
+            model_version: None,
+            parameter_sync_bind_addr: None,
+            tfserving_bind_addr: None,
+        };
+
+        let cfg = cmd.build_server_config();
+        assert_eq!(cfg.host, "127.0.0.1");
+        assert_eq!(cfg.port, 9001);
+        assert_eq!(cfg.num_workers, 8);
+        assert_eq!(cfg.model_path, PathBuf::from("/tmp/model"));
+        assert!(!cfg.health_check_enabled);
+        assert_eq!(cfg.max_concurrent_requests, 256);
     }
 }
