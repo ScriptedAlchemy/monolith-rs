@@ -59,6 +59,10 @@
   - maps discovery `Consul -> Zk` for runner compatibility,
   - enforces CPU defaults (`embedding_prefetch_capacity >= 1`, post-push enabled),
   - exposes explicit user override extraction.
+- `runner_utils` parity expanded:
+  - added discovery factory selection (`local/primus/consul/mlp`),
+  - added context-style discovery guard with automatic `close()`,
+  - added tests mirroring Python runner_utils discovery selection behavior.
 
 ## Validation evidence (commands run)
 
