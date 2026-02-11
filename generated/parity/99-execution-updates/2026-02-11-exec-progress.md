@@ -544,6 +544,20 @@
   - lagging worker can still observe released epoch before it advances,
   - obsolete epoch markers are eventually pruned once all workers move forward.
 
+### 50) Immutable/concurrency-friendly PS client API surface
+- Updated `PsClient` request methods to borrow immutably (`&self`) where mutation
+  is unnecessary:
+  - `lookup`, `apply_gradients`, `barrier`,
+  - `health_check_shard`, `health_check_all`,
+  - `get_stats_shard`, `get_stats_all`,
+  - `batch_lookup`, `batch_apply_gradients`.
+- Added `#[derive(Clone)]` on `PsClient` for ergonomic sharing in runtime orchestration.
+- Refactored shard RPC calls to use cloned tonic clients inside each method, removing
+  mutable self requirements while preserving behavior and result ordering.
+- Added async regression `test_ps_client_supports_parallel_immutable_lookups` to
+  validate concurrent lookup calls on a shared immutable client reference.
+- Updated worker runtime call path (`runner.rs`) to align with immutable PS client API.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -617,6 +631,7 @@
 69. `cargo test --workspace -q` ✅ (post batched PS per-entry validation hardening and regression coverage)
 70. `cargo test -p monolith-training -q` ✅ (post local-cluster released-barrier pruning + lagging-worker safety regression)
 71. `cargo test --workspace -q` ✅ (post local-cluster released-barrier pruning and latest distributed/runtime parity hardening)
+72. `cargo test -p monolith-training -q` ✅ (post immutable/concurrency-friendly PS client API refactor + parallel immutable lookup test)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
