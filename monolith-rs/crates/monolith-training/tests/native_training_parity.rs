@@ -521,6 +521,60 @@ async fn distributed_runner_from_run_config_propagates_retry_backoff_controls() 
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_preserves_worker_discovery_error_when_cleanup_times_out(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    let discovery = Arc::new(EmptyDiscoverWithHangingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let started = Instant::now();
+    let res = tokio::time::timeout(
+        Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when worker discovery fails and cleanup steps block"
+    );
+    let elapsed = started.elapsed();
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "worker discovery timeout should remain primary over cleanup timeout failures when configured via RunConfig: {msg}"
+    );
+    assert!(
+        elapsed < Duration::from_millis(260),
+        "cleanup timeout from RunConfig should bound blocked worker-cleanup duration after discovery failure (elapsed: {:?})",
+        elapsed
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_zero_operation_timeout() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -1528,6 +1582,73 @@ impl ServiceDiscoveryAsync for EmptyDiscoverFromConfigDiscovery {
     }
 }
 
+struct EmptyDiscoverWithHangingCleanupFromConfigDiscovery {
+    connect_count: AtomicUsize,
+    register_count: AtomicUsize,
+    discover_count: AtomicUsize,
+    disconnect_count: AtomicUsize,
+    deregister_count: AtomicUsize,
+}
+
+impl EmptyDiscoverWithHangingCleanupFromConfigDiscovery {
+    fn new() -> Self {
+        Self {
+            connect_count: AtomicUsize::new(0),
+            register_count: AtomicUsize::new(0),
+            discover_count: AtomicUsize::new(0),
+            disconnect_count: AtomicUsize::new(0),
+            deregister_count: AtomicUsize::new(0),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl ServiceDiscoveryAsync for EmptyDiscoverWithHangingCleanupFromConfigDiscovery {
+    async fn connect(&self) -> monolith_training::discovery::Result<()> {
+        self.connect_count.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn disconnect(&self) -> monolith_training::discovery::Result<()> {
+        self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+        std::future::pending::<()>().await;
+        #[allow(unreachable_code)]
+        Ok(())
+    }
+
+    async fn register_async(
+        &self,
+        _service: ServiceInfo,
+    ) -> monolith_training::discovery::Result<()> {
+        self.register_count.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn discover_async(
+        &self,
+        _service_type: &str,
+    ) -> monolith_training::discovery::Result<Vec<ServiceInfo>> {
+        self.discover_count.fetch_add(1, Ordering::SeqCst);
+        Ok(Vec::new())
+    }
+
+    async fn watch_async(
+        &self,
+        _service_type: &str,
+    ) -> monolith_training::discovery::Result<tokio::sync::broadcast::Receiver<DiscoveryEvent>>
+    {
+        let (_tx, rx) = tokio::sync::broadcast::channel(1);
+        Ok(rx)
+    }
+
+    async fn deregister_async(&self, _service_id: &str) -> monolith_training::discovery::Result<()> {
+        self.deregister_count.fetch_add(1, Ordering::SeqCst);
+        std::future::pending::<()>().await;
+        #[allow(unreachable_code)]
+        Ok(())
+    }
+}
+
 struct RecordingServiceTypePropagationDiscovery {
     connect_count: AtomicUsize,
     register_count: AtomicUsize,
@@ -2486,6 +2607,59 @@ async fn distributed_runner_from_runner_config_propagates_retry_backoff_controls
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 3);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_worker_discovery_error_when_cleanup_times_out(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    let discovery = Arc::new(EmptyDiscoverWithHangingCleanupFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let started = Instant::now();
+    let res = tokio::time::timeout(
+        Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when worker discovery fails and cleanup steps block"
+    );
+    let elapsed = started.elapsed();
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "worker discovery timeout should remain primary over cleanup timeout failures when configured via RunnerConfig: {msg}"
+    );
+    assert!(
+        elapsed < Duration::from_millis(260),
+        "cleanup timeout from RunnerConfig should bound blocked worker-cleanup duration after discovery failure (elapsed: {:?})",
+        elapsed
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
 }
