@@ -1511,6 +1511,17 @@
 - Ensures config-level custom service-type controls are propagated end-to-end
   into runtime discovery lifecycle calls.
 
+### 139) Config-surface service-type mapping assertion hardening
+- Strengthened config-level mapping regressions for service-type fields:
+  - train CLI distributed-config builder mapping test now asserts custom
+    `discovery_service_type_ps` and `discovery_service_type_worker` values are
+    preserved in generated `DistributedRunConfig`.
+  - run-config user-overrides regression now asserts
+    `discovery_service_type_worker` participates in explicit override reporting
+    alongside existing PS service-type override checks.
+- Complements runtime propagation integrations by ensuring upstream config and
+  CLI mapping surfaces preserve custom service-type inputs deterministically.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1764,6 +1775,8 @@
 250. `cargo test --workspace -q` ✅ (post retry-backoff propagation integration regressions across run/runner config entrypoints full workspace rerun)
 251. `cargo test -p monolith-training -q` ✅ (post custom discovery service-type propagation integration regressions across run/runner config entrypoints)
 252. `cargo test --workspace -q` ✅ (post custom discovery service-type propagation integration regressions across run/runner config entrypoints full workspace rerun)
+253. `cargo test -p monolith-cli -q && cargo test -p monolith-training -q` ✅ (post config-surface service-type mapping assertion hardening)
+254. `cargo test --workspace -q` ✅ (post config-surface service-type mapping assertion hardening full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
