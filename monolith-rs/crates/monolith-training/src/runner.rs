@@ -822,6 +822,28 @@ mod tests {
         }
     }
 
+    struct HangingConnectWithHangingDisconnectDiscovery {
+        connect_count: AtomicUsize,
+        disconnect_count: AtomicUsize,
+    }
+
+    impl HangingConnectWithHangingDisconnectDiscovery {
+        fn new() -> Self {
+            Self {
+                connect_count: AtomicUsize::new(0),
+                disconnect_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn connect_count(&self) -> usize {
+            self.connect_count.load(Ordering::SeqCst)
+        }
+
+        fn disconnect_count(&self) -> usize {
+            self.disconnect_count.load(Ordering::SeqCst)
+        }
+    }
+
     struct FailingConnectWithHangingDisconnectDiscovery {
         connect_count: AtomicUsize,
         disconnect_count: AtomicUsize,
@@ -873,6 +895,34 @@ mod tests {
     }
 
     impl HangingRegisterDiscovery {
+        fn new() -> Self {
+            Self {
+                connect_count: AtomicUsize::new(0),
+                disconnect_count: AtomicUsize::new(0),
+                deregister_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn connect_count(&self) -> usize {
+            self.connect_count.load(Ordering::SeqCst)
+        }
+
+        fn disconnect_count(&self) -> usize {
+            self.disconnect_count.load(Ordering::SeqCst)
+        }
+
+        fn deregister_count(&self) -> usize {
+            self.deregister_count.load(Ordering::SeqCst)
+        }
+    }
+
+    struct HangingRegisterWithHangingCleanupDiscovery {
+        connect_count: AtomicUsize,
+        disconnect_count: AtomicUsize,
+        deregister_count: AtomicUsize,
+    }
+
+    impl HangingRegisterWithHangingCleanupDiscovery {
         fn new() -> Self {
             Self {
                 connect_count: AtomicUsize::new(0),
@@ -1185,6 +1235,43 @@ mod tests {
     }
 
     #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for HangingConnectWithHangingDisconnectDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            self.connect_count.fetch_add(1, Ordering::SeqCst);
+            std::future::pending::<()>().await;
+            #[allow(unreachable_code)]
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+            std::future::pending::<()>().await;
+            #[allow(unreachable_code)]
+            Ok(())
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            Ok(Vec::new())
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
     impl ServiceDiscoveryAsync for FailingConnectWithHangingDisconnectDiscovery {
         async fn connect(&self) -> DiscoveryResult<()> {
             self.connect_count.fetch_add(1, Ordering::SeqCst);
@@ -1290,6 +1377,46 @@ mod tests {
 
         async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
             self.deregister_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for HangingRegisterWithHangingCleanupDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            self.connect_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+            std::future::pending::<()>().await;
+            #[allow(unreachable_code)]
+            Ok(())
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            std::future::pending::<()>().await;
+            #[allow(unreachable_code)]
+            Ok(())
+        }
+
+        async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            Ok(Vec::new())
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            self.deregister_count.fetch_add(1, Ordering::SeqCst);
+            std::future::pending::<()>().await;
+            #[allow(unreachable_code)]
             Ok(())
         }
     }
@@ -2948,6 +3075,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_times_out()
+    {
+        let discovery = Arc::new(HangingConnectWithHangingDisconnectDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            discovery_operation_timeout: Duration::from_millis(20),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(700),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when connect and cleanup disconnect are both blocked"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery operation: connect worker-0 after 20ms"),
+            "connect timeout should remain primary even if cleanup disconnect also times out: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_worker_register_timeout_does_not_hang() {
         let discovery = Arc::new(HangingRegisterDiscovery::new());
         let cfg = DistributedRunConfig {
@@ -2976,6 +3135,39 @@ mod tests {
         assert!(
             msg.contains("after 200ms"),
             "register-timeout diagnostics should include configured timeout duration: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_times_out()
+    {
+        let discovery = Arc::new(HangingRegisterWithHangingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            discovery_operation_timeout: Duration::from_millis(20),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(700),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when register and cleanup operations are blocked"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery operation: register worker-0 after 20ms"),
+            "register timeout should remain primary over cleanup timeout failures: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(discovery.deregister_count(), 1);
