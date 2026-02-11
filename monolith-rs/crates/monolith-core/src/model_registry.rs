@@ -93,6 +93,9 @@ mod tests {
     use super::*;
     use crate::base_model_params::SingleTaskModelParams;
     use crate::hyperparams::Params;
+    use std::sync::Mutex;
+
+    static REGISTRY_TEST_MUTEX: Mutex<()> = Mutex::new(());
 
     #[derive(Default)]
     struct DummyParams;
@@ -107,6 +110,7 @@ mod tests {
 
     #[test]
     fn test_register_duplicate_error_message() {
+        let _guard = REGISTRY_TEST_MUTEX.lock().unwrap();
         clear_registry_for_test();
 
         let key = "monolith.tasks.dummy.Dummy";
@@ -121,6 +125,7 @@ mod tests {
 
     #[test]
     fn test_get_class_not_found_error_message() {
+        let _guard = REGISTRY_TEST_MUTEX.lock().unwrap();
         clear_registry_for_test();
 
         let err = get_class("does.not.Exist").unwrap_err();
