@@ -2386,6 +2386,10 @@ async fn distributed_runner_from_run_config_surfaces_deregister_failure_after_su
         msg.contains("discovery cleanup encountered issues after successful role completion"),
         "default-service-type deregister failure should include successful-role cleanup issue context via RunConfig: {msg}"
     );
+    assert!(
+        msg.contains("deregister worker-0 from worker"),
+        "default-service-type deregister failure should include cleanup operation context via RunConfig: {msg}"
+    );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
@@ -2434,6 +2438,122 @@ async fn distributed_runner_from_run_config_surfaces_disconnect_failure_after_su
     assert!(
         msg.contains("discovery cleanup encountered issues after successful role completion"),
         "default-service-type disconnect failure should include successful-role cleanup issue context via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-0 via worker"),
+        "default-service-type disconnect failure should include cleanup operation context via RunConfig: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+    ps_server.abort();
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_surfaces_custom_worker_deregister_failure_after_success(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let (ps_server, ps_addr) = spawn_worker_success_ps_server(8).await;
+    let discovery = Arc::new(FailingCleanupAfterSuccessFromConfigDiscovery::new(
+        ps_addr.to_string(),
+        true,
+        false,
+    ));
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        dim: 8,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("forced deregister failure"),
+        "custom-worker deregister failure should be preserved after successful worker run via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("deregister worker-0 from trainer_custom"),
+        "custom-worker deregister failure should include cleanup operation context via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after successful role completion"),
+        "custom-worker deregister failure should include successful-role cleanup issue context via RunConfig: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+    ps_server.abort();
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_surfaces_custom_worker_disconnect_failure_after_success(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let (ps_server, ps_addr) = spawn_worker_success_ps_server(8).await;
+    let discovery = Arc::new(FailingCleanupAfterSuccessFromConfigDiscovery::new(
+        ps_addr.to_string(),
+        false,
+        true,
+    ));
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        dim: 8,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("forced disconnect failure"),
+        "custom-worker disconnect failure should be preserved after successful worker run via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-0 via trainer_custom"),
+        "custom-worker disconnect failure should include cleanup operation context via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after successful role completion"),
+        "custom-worker disconnect failure should include successful-role cleanup issue context via RunConfig: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
@@ -6668,6 +6788,10 @@ async fn distributed_runner_from_runner_config_surfaces_deregister_failure_after
         msg.contains("discovery cleanup encountered issues after successful role completion"),
         "default-service-type deregister failure should include successful-role cleanup issue context via RunnerConfig: {msg}"
     );
+    assert!(
+        msg.contains("deregister worker-0 from worker"),
+        "default-service-type deregister failure should include cleanup operation context via RunnerConfig: {msg}"
+    );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
@@ -6715,6 +6839,120 @@ async fn distributed_runner_from_runner_config_surfaces_disconnect_failure_after
     assert!(
         msg.contains("discovery cleanup encountered issues after successful role completion"),
         "default-service-type disconnect failure should include successful-role cleanup issue context via RunnerConfig: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-0 via worker"),
+        "default-service-type disconnect failure should include cleanup operation context via RunnerConfig: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+    ps_server.abort();
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_surfaces_custom_worker_deregister_failure_after_success(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let (ps_server, ps_addr) = spawn_worker_success_ps_server(8).await;
+    let discovery = Arc::new(FailingCleanupAfterSuccessFromConfigDiscovery::new(
+        ps_addr.to_string(),
+        true,
+        false,
+    ));
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        dim: 8,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("forced deregister failure"),
+        "custom-worker deregister failure should be preserved after successful worker run via RunnerConfig: {msg}"
+    );
+    assert!(
+        msg.contains("deregister worker-0 from trainer_custom"),
+        "custom-worker deregister failure should include cleanup operation context via RunnerConfig: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after successful role completion"),
+        "custom-worker deregister failure should include successful-role cleanup issue context via RunnerConfig: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+    ps_server.abort();
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_surfaces_custom_worker_disconnect_failure_after_success(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let (ps_server, ps_addr) = spawn_worker_success_ps_server(8).await;
+    let discovery = Arc::new(FailingCleanupAfterSuccessFromConfigDiscovery::new(
+        ps_addr.to_string(),
+        false,
+        true,
+    ));
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        dim: 8,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("forced disconnect failure"),
+        "custom-worker disconnect failure should be preserved after successful worker run via RunnerConfig: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-0 via trainer_custom"),
+        "custom-worker disconnect failure should include cleanup operation context via RunnerConfig: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after successful role completion"),
+        "custom-worker disconnect failure should include successful-role cleanup issue context via RunnerConfig: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);

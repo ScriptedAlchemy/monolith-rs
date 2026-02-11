@@ -677,13 +677,17 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
             ));
         }
         return Err(anyhow::anyhow!(
-            "{} (discovery cleanup encountered issues after successful role completion)",
+            "{} (discovery cleanup encountered issues after successful role completion: {}: {})",
+            de,
+            deregister_op,
             de
         ));
     }
     if let Err(disconnect_err) = disconnect_result {
         return Err(anyhow::anyhow!(
-            "{} (discovery cleanup encountered issues after successful role completion)",
+            "{} (discovery cleanup encountered issues after successful role completion: {}: {})",
+            disconnect_err,
+            disconnect_op,
             disconnect_err
         ));
     }
@@ -4422,6 +4426,10 @@ mod tests {
             msg.contains("discovery cleanup encountered issues after successful role completion"),
             "deregister failure after successful role should include cleanup issue context: {msg}"
         );
+        assert!(
+            msg.contains("deregister worker-0 from worker"),
+            "deregister failure after successful role should include cleanup operation context: {msg}"
+        );
         assert_eq!(
             discovery.deregister_count(),
             1,
@@ -4570,6 +4578,10 @@ mod tests {
         assert!(
             msg.contains("discovery cleanup encountered issues after successful role completion"),
             "disconnect failure after successful role should include cleanup issue context: {msg}"
+        );
+        assert!(
+            msg.contains("disconnect worker-0 via worker"),
+            "disconnect failure after successful role should include cleanup operation context: {msg}"
         );
         assert_eq!(
             discovery.deregister_count(),
