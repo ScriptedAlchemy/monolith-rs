@@ -737,6 +737,7 @@ async fn distributed_runner_from_run_config_rejects_empty_worker_service_type() 
     );
 }
 
+
 #[tokio::test]
 async fn distributed_runner_from_run_config_propagates_custom_service_type_fields() {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -2339,6 +2340,7 @@ async fn distributed_runner_from_runner_config_rejects_empty_worker_service_type
         "empty runner-config worker service type should be rejected by distributed config validation: {err}"
     );
 }
+
 
 #[tokio::test]
 async fn distributed_runner_from_runner_config_propagates_custom_service_type_fields() {

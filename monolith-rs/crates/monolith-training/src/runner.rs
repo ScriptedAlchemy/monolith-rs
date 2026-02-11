@@ -113,6 +113,11 @@ impl DistributedRunConfig {
         if self.discovery_service_type_worker.trim().is_empty() {
             anyhow::bail!("distributed config requires non-empty discovery_service_type_worker");
         }
+        if !self.parameter_sync_targets.is_empty() && self.parameter_sync_interval.is_zero() {
+            anyhow::bail!(
+                "distributed config requires parameter_sync_interval > 0 when parameter_sync_targets are configured"
+            );
+        }
         Ok(())
     }
 }
@@ -1919,6 +1924,23 @@ mod tests {
         let err = cfg.validate().unwrap_err().to_string();
         assert!(
             err.contains("distributed config requires non-empty discovery_service_type_worker"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_zero_parameter_sync_interval_when_targets_configured(
+    ) {
+        let cfg = DistributedRunConfig {
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(0),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "distributed config requires parameter_sync_interval > 0 when parameter_sync_targets are configured"
+            ),
             "unexpected validation error: {err}"
         );
     }

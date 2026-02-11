@@ -230,6 +230,11 @@ impl TrainCommand {
         if self.discovery_service_type_worker.trim().is_empty() {
             anyhow::bail!("--discovery-service-type-worker must be non-empty");
         }
+        if !self.parameter_sync_targets.is_empty() && self.parameter_sync_interval_ms == 0 {
+            anyhow::bail!(
+                "--parameter-sync-interval-ms must be > 0 when --parameter-sync-target is provided"
+            );
+        }
 
         let bind_addr: SocketAddr = self
             .bind_addr
@@ -734,6 +739,21 @@ mod tests {
         assert!(
             err.contains("--discovery-service-type-worker must be non-empty"),
             "unexpected worker service-type validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_zero_parameter_sync_interval_with_targets() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec!["127.0.0.1:8500".to_string()];
+        cmd.parameter_sync_interval_ms = 0;
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "--parameter-sync-interval-ms must be > 0 when --parameter-sync-target is provided"
+            ),
+            "unexpected parameter-sync-interval validation error: {err}"
         );
     }
 
