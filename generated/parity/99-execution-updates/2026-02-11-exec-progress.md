@@ -732,6 +732,15 @@
   to validate explicit invalid-configuration errors when callers invoke these
   operations outside the running lifecycle window.
 
+### 68) Cluster configuration duplicate-address validation parity
+- Hardened `ClusterConfig::validate()` to reject duplicate endpoint entries:
+  - duplicate parameter-server addresses,
+  - duplicate worker addresses.
+- This prevents ambiguous in-process topology setup and mirrors stricter
+  distributed runtime configuration hygiene.
+- Extended `test_cluster_config_validation` with explicit duplicate-address
+  negative cases for both PS and worker lists.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -837,6 +846,7 @@
 102. `cargo test --workspace -q` ✅ (post local PS/worker lifecycle guard parity hardening and full workspace regression rerun)
 103. `cargo test -p monolith-training -q` ✅ (post local-cluster running-state enforcement for register/train operations)
 104. `cargo test --workspace -q` ✅ (post local-cluster running-state enforcement for register/train operations and full workspace regression rerun)
+105. `cargo test -p monolith-training -q` ✅ (post cluster-config duplicate-address validation hardening)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
