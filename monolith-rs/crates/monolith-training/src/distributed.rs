@@ -434,6 +434,18 @@ pub struct LocalCluster {
 }
 
 impl LocalCluster {
+    fn ensure_cluster_running(&self) -> DistributedResult<()> {
+        let all_ps_running = self.parameter_servers.iter().all(ParameterServer::is_running);
+        let all_workers_running = self.workers.iter().all(Worker::is_running);
+        if all_ps_running && all_workers_running {
+            Ok(())
+        } else {
+            Err(DistributedError::InvalidConfiguration(
+                "local cluster is not fully running".to_string(),
+            ))
+        }
+    }
+
     fn prune_released_barriers(&mut self) {
         // Keep released epochs that may still be observed by lagging workers.
         // Once all workers have advanced beyond an epoch (epoch < min step),
@@ -523,6 +535,7 @@ impl LocalCluster {
         name: impl Into<String>,
         values: Vec<f32>,
     ) -> DistributedResult<usize> {
+        self.ensure_cluster_running()?;
         let name = name.into();
         let ps_idx = get_ps_index(&name, self.parameter_servers.len());
         let ps = self.parameter_servers.get_mut(ps_idx).ok_or_else(|| {
@@ -546,6 +559,7 @@ impl LocalCluster {
         worker_index: usize,
         gradients: &HashMap<String, Vec<f32>>,
     ) -> DistributedResult<HashMap<String, Vec<f32>>> {
+        self.ensure_cluster_running()?;
         let worker = self.workers.get_mut(worker_index).ok_or_else(|| {
             DistributedError::InvalidConfiguration(format!(
                 "Worker index {} out of range",
@@ -861,12 +875,37 @@ mod tests {
     }
 
     #[test]
+    fn test_local_cluster_register_parameter_requires_running_cluster() {
+        let cfg = ClusterConfig::new(vec![make_addr(5000)], vec![make_addr(6000)], 0, false);
+        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
+        let err = cluster
+            .register_parameter("w", vec![1.0, 2.0])
+            .unwrap_err();
+        assert!(matches!(err, DistributedError::InvalidConfiguration(_)));
+
+        cluster.start().unwrap();
+        assert!(cluster.register_parameter("w", vec![1.0, 2.0]).is_ok());
+    }
+
+    #[test]
     fn test_local_cluster_bad_worker_index() {
         let cfg = ClusterConfig::new(vec![make_addr(5000)], vec![make_addr(6000)], 0, false);
         let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
         cluster.start().unwrap();
         let grads: HashMap<String, Vec<f32>> = HashMap::new();
         let err = cluster.train_step(5, &grads).unwrap_err();
+        assert!(matches!(err, DistributedError::InvalidConfiguration(_)));
+    }
+
+    #[test]
+    fn test_local_cluster_train_step_requires_running_cluster() {
+        let cfg = ClusterConfig::new(vec![make_addr(5000)], vec![make_addr(6000)], 0, false);
+        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
+        cluster.start().unwrap();
+        cluster.stop().unwrap();
+
+        let grads: HashMap<String, Vec<f32>> = HashMap::new();
+        let err = cluster.train_step(0, &grads).unwrap_err();
         assert!(matches!(err, DistributedError::InvalidConfiguration(_)));
     }
 
