@@ -3039,6 +3039,19 @@
   default/custom indexed parity across runner + RunConfig + RunnerConfig
   entrypoints.
 
+### 229) Runner connect-timeout cleanup-failure indexed default-worker parity added
+- Added runner-level regression:
+  - `test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_default_service_type_and_index`
+- New assertions verify indexed default-worker connect-timeout diagnostics
+  preserve:
+  - operation-timeout context (`connect worker-2 via worker`),
+  - cleanup issue context,
+  - disconnect-failure diagnostics with indexed default-worker identity
+    (`disconnect worker-2 via worker` + `forced disconnect failure`).
+- Result: runner-level connect-timeout + cleanup-failure diagnostics now include
+  explicit indexed default-worker parity alongside existing custom/default PS
+  and custom worker coverage.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3499,6 +3512,9 @@
 457. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post connect-timeout cleanup-failure matrix parity expansion across runner/config entrypoints)
 458. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post connect-timeout cleanup-failure matrix parity compatibility verification)
 459. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post connect-timeout cleanup-failure matrix parity expansion full workspace rerun under ambient ZK auth env)
+460. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner-only indexed default-worker connect-timeout cleanup-failure parity addition)
+461. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post runner-only indexed default-worker connect-timeout cleanup-failure compatibility verification)
+462. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post runner-only indexed default-worker connect-timeout cleanup-failure parity addition full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

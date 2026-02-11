@@ -5287,6 +5287,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_default_service_type_and_index(
+    ) {
+        let discovery = Arc::new(HangingConnectWithFailingDisconnectDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 2,
+            num_ps: 1,
+            num_workers: 3,
+            discovery_operation_timeout: Duration::from_millis(20),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(700),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when indexed default-worker connect is blocked and cleanup disconnect fails"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery operation: connect worker-2 via worker after 20ms"),
+            "indexed default-worker connect timeout should remain primary even if cleanup disconnect fails: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "indexed default-worker connect-timeout failures should include cleanup issue context when disconnect cleanup fails: {msg}"
+        );
+        assert!(
+            msg.contains("disconnect worker-2 via worker")
+                && msg.contains("forced disconnect failure"),
+            "indexed default-worker connect-timeout cleanup issue context should include default-service-type/index disconnect failure diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_custom_service_type_and_index(
     ) {
         let discovery = Arc::new(HangingConnectWithFailingDisconnectDiscovery::new());
