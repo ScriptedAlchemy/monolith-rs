@@ -289,6 +289,15 @@
 - This ensures guard ergonomics are validated not only at unit level but also
   at integration-test entrypoints.
 
+### 25) Estimator runtime initialization from runner config
+- Added `Estimator::initialize_runtime_from_runner_config(...)`:
+  - applies runner post-init restore/env behavior via runner-utils defaults helper,
+  - returns optional checkpoint-state evidence for runtime orchestration.
+- Added estimator-level error mapping for runner-utils failures.
+- Added regression coverage ensuring runtime initialization:
+  - syncs restore checkpoints for chief/local mode,
+  - creates expected restore marker / monolith checkpoint side effects.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -320,6 +329,7 @@
 27. `cargo test --workspace -q` ✅ (post latest estimator/runner parity and integration test additions)
 28. `cargo test -p monolith-training -q` ✅ (post MonolithDiscoveryGuard operational helper expansion)
 29. `cargo test -p monolith-training -q` ✅ (post runner_utils integration guard-operation tests)
+30. `cargo test -p monolith-training -q` ✅ (post estimator runtime initialization helper)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
