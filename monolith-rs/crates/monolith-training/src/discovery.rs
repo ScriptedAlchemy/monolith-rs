@@ -419,10 +419,12 @@ impl InMemoryDiscovery {
 
     /// Notifies watchers of an event.
     fn notify_watchers(&self, service_type: &str, event: DiscoveryEvent) {
-        let watchers = self.watchers.lock().unwrap();
+        let mut watchers = self.watchers.lock().unwrap();
         if let Some(sender) = watchers.get(service_type) {
-            // Ignore send errors (no receivers)
-            let _ = sender.send(event);
+            if sender.receiver_count() == 0 || sender.send(event).is_err() {
+                // No active subscribers for this service type anymore.
+                watchers.remove(service_type);
+            }
         }
     }
 
@@ -1450,6 +1452,25 @@ mod tests {
             }
             _ => panic!("Expected ServiceUpdated event"),
         }
+    }
+
+    #[test]
+    fn test_in_memory_removes_dead_watchers_after_notification() {
+        let discovery = InMemoryDiscovery::new();
+        let rx = discovery.watch("ps").unwrap();
+        assert!(
+            discovery.watchers.lock().unwrap().contains_key("ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        drop(rx);
+
+        let service = ServiceInfo::new("ps-0", "PS 0", "ps", "localhost", 5000);
+        discovery.register(service).unwrap();
+        assert!(
+            !discovery.watchers.lock().unwrap().contains_key("ps"),
+            "dead watcher sender should be removed after notification"
+        );
     }
 
     #[tokio::test]
