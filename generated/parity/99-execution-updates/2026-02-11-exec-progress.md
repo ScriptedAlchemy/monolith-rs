@@ -415,6 +415,17 @@
 - Added regression test ensuring out-of-range worker IDs fail with clear
   diagnostics and do not mutate barrier state.
 
+### 39) PS client true parallel fanout parity
+- Upgraded `distributed_ps::PsClient` to execute shard RPCs concurrently:
+  - lookup fanout now runs all shard requests via `try_join_all`,
+  - apply-gradients fanout now runs all shard updates in parallel as well.
+- This aligns runtime behavior with module design intent and Python parity notes
+  around parallel shard fanout semantics.
+- Added end-to-end async regression coverage:
+  - starts two real PS gRPC servers,
+  - verifies cross-shard lookup/create behavior,
+  - verifies duplicate-gradient aggregation + update correctness across shards.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -468,6 +479,7 @@
 49. `cargo test --workspace -q` ✅ (post generation-based PS barrier state and duplicate-worker timeout cleanup semantics)
 50. `cargo test -p monolith-training -q` ✅ (post PS barrier worker-id range validation)
 51. `cargo test --workspace -q` ✅ (post PS barrier worker-id validation and generation-state runtime checks)
+52. `cargo test -p monolith-training -q` ✅ (post PS client parallel shard fanout implementation)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
