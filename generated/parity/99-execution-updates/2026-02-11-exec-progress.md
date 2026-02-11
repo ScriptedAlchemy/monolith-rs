@@ -338,6 +338,7 @@
 29. `cargo test -p monolith-training -q` ✅ (post runner_utils integration guard-operation tests)
 30. `cargo test -p monolith-training -q` ✅ (post estimator runtime initialization helper)
 31. `cargo test -p monolith-training -q` ✅ (post `get_discovery_from_run_config` helper integration)
+32. `cargo test --workspace -q` ✅ (post latest runner/discovery and estimator runtime parity updates)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
