@@ -2733,6 +2733,36 @@
 - Result: register-failure cleanup-failure diagnostics now have indexed parity
   across runner + RunConfig + RunnerConfig custom service-type paths.
 
+### 215) Default-service indexed register-failure cleanup parity expanded (failure + timeout)
+- Added runner-level indexed default-service regressions for cleanup-failure:
+  - `test_run_distributed_worker_registration_failure_with_default_service_type_and_index_includes_cleanup_context`
+  - `test_run_distributed_ps_registration_failure_with_default_service_type_and_index_includes_cleanup_context`
+- Added runner-level indexed default-service regressions for cleanup-timeout:
+  - `test_run_distributed_preserves_worker_register_failure_with_default_service_type_and_index_when_cleanup_steps_timeout`
+  - `test_run_distributed_preserves_ps_register_failure_with_default_service_type_and_index_when_cleanup_steps_timeout`
+- Added RunConfig indexed default-service integration regressions:
+  - cleanup-failure:
+    - `distributed_runner_from_run_config_preserves_worker_register_failure_with_default_service_type_and_index_cleanup_context`
+    - `distributed_runner_from_run_config_preserves_ps_register_failure_with_default_service_type_and_index_cleanup_context`
+  - cleanup-timeout:
+    - `distributed_runner_from_run_config_preserves_worker_register_failure_with_default_service_type_and_index_cleanup_timeout_context`
+    - `distributed_runner_from_run_config_preserves_ps_register_failure_with_default_service_type_and_index_cleanup_timeout_context`
+- Added RunnerConfig indexed default-service integration regressions:
+  - cleanup-failure:
+    - `distributed_runner_from_runner_config_preserves_worker_register_failure_with_default_service_type_and_index_cleanup_context`
+    - `distributed_runner_from_runner_config_preserves_ps_register_failure_with_default_service_type_and_index_cleanup_context`
+  - cleanup-timeout:
+    - `distributed_runner_from_runner_config_preserves_worker_register_failure_with_default_service_type_and_index_cleanup_timeout_context`
+    - `distributed_runner_from_runner_config_preserves_ps_register_failure_with_default_service_type_and_index_cleanup_timeout_context`
+- New assertions verify indexed default-service operation diagnostics preserve:
+  - worker index (`worker-3`) and ps index (`ps-2`),
+  - primary register-failure precedence,
+  - role-error cleanup issue context,
+  - explicit deregister/disconnect operation context for both cleanup-failure
+    and cleanup-timeout paths.
+- Result: register-failure cleanup diagnostics now have complete
+  default/custom + indexed parity across runner + RunConfig + RunnerConfig.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3151,6 +3181,9 @@
 415. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post indexed register-failure cleanup-failure diagnostics parity expansion)
 416. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post indexed register-failure cleanup-failure diagnostics parity compatibility verification)
 417. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post indexed register-failure cleanup-failure diagnostics parity expansion full workspace rerun under ambient ZK auth env)
+418. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post default-service indexed register-failure cleanup failure/timeout parity expansion)
+419. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post default-service indexed register-failure cleanup parity compatibility verification)
+420. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post default-service indexed register-failure cleanup parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
