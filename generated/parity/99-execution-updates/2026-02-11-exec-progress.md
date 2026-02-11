@@ -1346,6 +1346,19 @@
 - This improves runtime diagnosability for timeout tuning and environment
   debugging without changing error-precedence behavior.
 
+### 125) Setup-timeout precedence hardened when cleanup also blocks
+- Added blocked-cleanup precedence regressions for setup-stage timeout paths:
+  - `test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_times_out`
+  - `test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_times_out`
+- Added dedicated blocking backends to simulate:
+  - connect timeout + blocking disconnect cleanup,
+  - register timeout + blocking deregister/disconnect cleanup.
+- Coverage verifies:
+  - distributed runner remains non-hanging under compounded blocking conditions,
+  - setup-stage timeout error remains primary even when cleanup operations also
+    time out,
+  - cleanup attempts still execute once (count-based assertions).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1569,6 +1582,8 @@
 220. `cargo test --workspace -q` ✅ (post distributed timeout validation guards and zero-timeout validation regressions full workspace rerun)
 221. `cargo test -p monolith-training -q` ✅ (post timeout-diagnostics duration context enrichment across operation/cleanup timeout regressions)
 222. `cargo test --workspace -q` ✅ (post timeout-diagnostics duration context enrichment full workspace rerun)
+223. `cargo test -p monolith-training -q` ✅ (post blocked-cleanup precedence regressions for setup-stage connect/register timeout paths)
+224. `cargo test --workspace -q` ✅ (post blocked-cleanup precedence regressions for setup-stage connect/register timeout paths full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
