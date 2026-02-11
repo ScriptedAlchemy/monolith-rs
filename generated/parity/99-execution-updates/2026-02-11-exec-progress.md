@@ -501,6 +501,20 @@
   - subsequent lookup reports duplicate entries as found,
   - `num_found` / `num_initialized` match duplicated request cardinality.
 
+### 47) Discovery guard lifecycle API hardening
+- Added `MonolithDiscoveryGuard::close(&mut self)` for explicit, manual discovery
+  teardown without waiting for drop.
+- Close behavior is idempotent:
+  - first close detaches and closes the backend,
+  - repeated close calls are safe no-ops.
+- Updated `Drop` implementation to delegate to `close()` so explicit/manual and
+  implicit/drop lifecycles stay behaviorally aligned.
+- Added integration test `test_monolith_discovery_guard_manual_close_is_idempotent`
+  validating:
+  - manual close transitions guard to local/no-backend mode,
+  - subsequent query returns `LocalModeNoDiscovery`,
+  - repeated close remains successful.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -568,6 +582,7 @@
 63. `cargo test --workspace -q` ✅ (post PS client batch lookup/apply additions and regression coverage)
 64. `cargo test -p monolith-training -q` ✅ (post local-cluster barrier timeout cleanup + retry regression)
 65. `cargo test -p monolith-training -q` ✅ (post batch-lookup duplicate found-flag regression coverage)
+66. `cargo test -p monolith-training -q` ✅ (post explicit discovery-guard close lifecycle API + idempotence coverage)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
