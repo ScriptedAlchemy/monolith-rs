@@ -135,7 +135,11 @@ pub use run_config::{
     Result as RunConfigResult, RunConfig, RunConfigError, RunnerConfig,
 };
 pub use runner::{run_distributed, DistributedRunConfig, Role};
-pub use runner_utils::{copy_checkpoint_from_restore_dir, CheckpointState, RunnerUtilsError};
+pub use runner_utils::{
+    copy_checkpoint_from_restore_dir, get_discovery, monolith_discovery,
+    prepare_restore_checkpoint, CheckpointState, MonolithDiscoveryGuard, RunnerDiscovery,
+    RunnerUtilsError,
+};
 
 /// Training configuration combining estimator and distributed settings.
 ///
