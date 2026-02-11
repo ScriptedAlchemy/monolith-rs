@@ -607,6 +607,17 @@
   - `test_ps_client_barrier_on_shard_routes_to_selected_coordinator`
   covering shard-index validation and explicit coordinator routing semantics.
 
+### 56) Default PS health/stats client helpers
+- Added convenience APIs on `PsClient`:
+  - `health_check(component)` -> default shard (index 0)
+  - `get_stats(include_table_stats)` -> default shard (index 0)
+- Hardened shard APIs with explicit no-client guard semantics:
+  - `health_check_shard(...)` now returns `InvalidConfig("no PS clients configured")`
+    when client list is empty.
+  - `get_stats_shard(...)` now mirrors the same no-client guard.
+- Added async regression `test_ps_client_default_health_and_stats_methods`
+  validating default helper behavior and stats retrieval on live PS gRPC server.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -689,6 +700,7 @@
 79. `cargo test -p monolith-training -q` ✅ (post lock-free PsBarrier wrapper refactor and barrier-layer concurrency tests)
 80. `cargo test -p monolith-training -q` ✅ (post shard-selectable PS barrier coordinator API + routing/index regressions)
 81. `cargo test --workspace -q` ✅ (post shard-selectable barrier coordinator API and lock-free barrier wrapper updates)
+82. `cargo test -p monolith-training -q` ✅ (post default health/stats client helpers + shard no-client guard parity)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
