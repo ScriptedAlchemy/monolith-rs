@@ -940,6 +940,15 @@
 - Added async regression
   `test_run_worker_role_timeout_reports_attempt_count`.
 
+### 88) Stale discovery-error cleanup after successful rediscovery
+- Refined worker discovery retry diagnostics so successful discover calls clear
+  previously latched backend-discovery errors.
+- Prevents stale error strings from polluting final timeout messages when later
+  attempts do reach the discovery backend successfully but still do not meet PS
+  quorum.
+- Added async regression
+  `test_run_worker_role_clears_stale_discovery_error_after_successful_discover`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1085,6 +1094,7 @@
 142. `cargo test --workspace -q` ✅ (post raw-vs-usable PS visibility diagnostics enhancement and full workspace rerun)
 143. `cargo test -p monolith-training -q` ✅ (post worker timeout diagnostics enhancement reporting retry attempt count)
 144. `cargo test --workspace -q` ✅ (post worker timeout diagnostics enhancement reporting retry attempt count and full workspace rerun)
+145. `cargo test -p monolith-training -q` ✅ (post stale discovery-error cleanup on successful rediscovery attempts in worker timeout diagnostics)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
