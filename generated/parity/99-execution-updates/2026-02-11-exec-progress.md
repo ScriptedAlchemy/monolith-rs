@@ -1691,6 +1691,19 @@
 - Complements worker-role unit coverage with top-level distributed entrypoint
   coverage for custom service-type timeout message fidelity.
 
+### 154) Distributed-runner register timeout custom service-type regressions
+- Added direct distributed-runner regressions for custom register service-type
+  timeout diagnostics:
+  - `test_run_distributed_worker_register_timeout_includes_custom_service_type_context`
+  - `test_run_distributed_ps_register_timeout_includes_custom_service_type_context`
+- Tightened default register-timeout assertions in blocking register regressions
+  to match enriched default context:
+  - worker: `register worker-0 as worker ...`
+  - ps: `register ps-0 as ps ...`
+- Confirms both worker and ps top-level distributed registration timeout paths
+  preserve custom service-type context while still enforcing bounded timeout
+  behavior and cleanup attempts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1974,6 +1987,8 @@
 280. `cargo test --workspace -q` ✅ (post runner-level discover timeout service-type diagnostic regression full workspace rerun)
 281. `cargo test -p monolith-training -q` ✅ (post distributed-runner discover timeout custom service-type regression)
 282. `cargo test --workspace -q` ✅ (post distributed-runner discover timeout custom service-type regression full workspace rerun)
+283. `cargo test -p monolith-training -q` ✅ (post distributed-runner register timeout custom service-type regressions)
+284. `cargo test --workspace -q` ✅ (post distributed-runner register timeout custom service-type regressions full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
