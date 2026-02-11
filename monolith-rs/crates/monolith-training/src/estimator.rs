@@ -375,9 +375,8 @@ impl<M: ModelFn> Estimator<M> {
         base: Option<crate::run_config::RunnerConfig>,
         model_fn: M,
     ) -> EstimatorResult<(Self, Option<crate::runner_utils::CheckpointState>)> {
-        let runner = run_conf.to_runner_config(base)?;
-        let init_state = Self::initialize_runtime_from_runner_config(&runner)?;
-        let est = Self::from_runner_config(&runner, model_fn);
+        let init_state = Self::initialize_runtime_from_run_config(run_conf, base.clone())?;
+        let est = Self::from_run_config(run_conf, base, model_fn)?;
         Ok((est, init_state))
     }
 
@@ -386,6 +385,15 @@ impl<M: ModelFn> Estimator<M> {
         runner_conf: &crate::run_config::RunnerConfig,
     ) -> EstimatorResult<Option<crate::runner_utils::CheckpointState>> {
         crate::runner_utils::initialize_restore_checkpoint_from_runner_defaults(runner_conf)
+            .map_err(EstimatorError::from)
+    }
+
+    /// Applies run-config post-init runtime behavior (merge + env exports + restore sync).
+    pub fn initialize_runtime_from_run_config(
+        run_conf: &crate::run_config::RunConfig,
+        base: Option<crate::run_config::RunnerConfig>,
+    ) -> EstimatorResult<Option<crate::runner_utils::CheckpointState>> {
+        crate::runner_utils::initialize_restore_checkpoint_from_run_config_defaults(run_conf, base)
             .map_err(EstimatorError::from)
     }
 
@@ -803,6 +811,44 @@ all_model_checkpoint_paths: "model.ckpt-30"
             "model.ckpt-30"
         );
         assert_eq!(estimator.config().model_dir, model_dir);
+    }
+
+    #[test]
+    fn test_initialize_runtime_from_run_config_restore() {
+        let tmp = tempfile::tempdir().unwrap();
+        let restore_dir = tmp.path().join("restore");
+        let model_dir = tmp.path().join("model");
+        std::fs::create_dir_all(&restore_dir).unwrap();
+        std::fs::create_dir_all(&model_dir).unwrap();
+        std::fs::write(
+            restore_dir.join("checkpoint"),
+            r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-30"
+"#,
+        )
+        .unwrap();
+
+        let run = crate::run_config::RunConfig {
+            is_local: true,
+            model_dir: model_dir.clone(),
+            restore_dir: Some(restore_dir),
+            restore_ckpt: Some("model.ckpt-30".to_string()),
+            ..crate::run_config::RunConfig::default()
+        };
+        let st =
+            Estimator::<ConstantModelFn>::initialize_runtime_from_run_config(&run, None)
+                .unwrap()
+                .unwrap();
+        assert_eq!(
+            std::path::Path::new(&st.model_checkpoint_path)
+                .file_name()
+                .unwrap(),
+            "model.ckpt-30"
+        );
+        assert!(model_dir.join("restore_ckpt").exists());
+        assert!(model_dir.join("monolith_checkpoint").exists());
     }
 
     #[tokio::test]

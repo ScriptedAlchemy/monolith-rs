@@ -2,6 +2,8 @@ use monolith_training::native_training::service_discovery::ServiceDiscoveryType;
 use monolith_training::{
     get_checkpoint_state_with_restore_override, get_discovery,
     get_discovery_from_run_config,
+    initialize_restore_checkpoint_from_run_config,
+    initialize_restore_checkpoint_from_run_config_defaults,
     initialize_restore_checkpoint_from_runner, monolith_discovery, prepare_restore_checkpoint,
     monolith_discovery_from_run_config, RunConfig, RunnerConfig, RunnerMode,
 };
@@ -282,4 +284,53 @@ all_model_checkpoint_paths: "model.ckpt-30"
         Path::new(&st.model_checkpoint_path).file_name().unwrap(),
         "model.ckpt-30"
     );
+}
+
+#[test]
+fn test_run_config_restore_init_chief_path() {
+    let tmp = tempdir().unwrap();
+    let restore_dir = tmp.path().join("restore");
+    let model_dir = tmp.path().join("model");
+    fs::create_dir_all(&restore_dir).unwrap();
+    fs::create_dir_all(&model_dir).unwrap();
+    fs::write(
+        restore_dir.join("checkpoint"),
+        r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-30"
+"#,
+    )
+    .unwrap();
+
+    let run = RunConfig {
+        is_local: true,
+        model_dir: model_dir.clone(),
+        restore_dir: Some(restore_dir),
+        restore_ckpt: Some("model.ckpt-30".to_string()),
+        ..RunConfig::default()
+    };
+
+    let st = initialize_restore_checkpoint_from_run_config(
+        &run,
+        None,
+        Duration::from_secs(1),
+        Duration::from_millis(10),
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        Path::new(&st.model_checkpoint_path).file_name().unwrap(),
+        "model.ckpt-30"
+    );
+}
+
+#[test]
+fn test_run_config_restore_init_defaults_none_when_restore_missing() {
+    let run = RunConfig {
+        is_local: true,
+        ..RunConfig::default()
+    };
+    let st = initialize_restore_checkpoint_from_run_config_defaults(&run, None).unwrap();
+    assert!(st.is_none());
 }

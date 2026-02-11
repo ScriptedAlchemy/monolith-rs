@@ -40,6 +40,8 @@ pub enum RunnerUtilsError {
     MissingPsm,
     #[error("Discovery error: {0}")]
     Discovery(String),
+    #[error("RunConfig merge error: {0}")]
+    RunConfig(String),
     #[error("Timed out waiting for restore synchronization file: {path}")]
     RestoreSyncTimeout { path: PathBuf },
     #[error("No discovery backend available in local mode")]
@@ -406,7 +408,7 @@ pub fn get_discovery_from_run_config(
 ) -> Result<Option<RunnerDiscovery>, RunnerUtilsError> {
     let runner = run_conf
         .to_runner_config(base)
-        .map_err(|e| RunnerUtilsError::Discovery(e.to_string()))?;
+        .map_err(|e| RunnerUtilsError::RunConfig(e.to_string()))?;
     get_discovery(&runner, psm)
 }
 
@@ -436,7 +438,7 @@ pub fn monolith_discovery_from_run_config(
 ) -> Result<MonolithDiscoveryGuard, RunnerUtilsError> {
     let runner = run_conf
         .to_runner_config(base)
-        .map_err(|e| RunnerUtilsError::Discovery(e.to_string()))?;
+        .map_err(|e| RunnerUtilsError::RunConfig(e.to_string()))?;
     monolith_discovery(&runner, psm)
 }
 
@@ -616,6 +618,33 @@ pub fn initialize_restore_checkpoint_from_runner_defaults(
     let timeout = Duration::from_secs(runner_conf.restore_sync_timeout_secs.max(1));
     let poll = Duration::from_millis(runner_conf.restore_sync_poll_interval_ms.max(1));
     initialize_restore_checkpoint_from_runner(runner_conf, timeout, poll)
+}
+
+/// Run-config restore initialization helper.
+///
+/// Applies RunConfig -> RunnerConfig merge semantics, then executes restore
+/// synchronization behavior.
+pub fn initialize_restore_checkpoint_from_run_config(
+    run_conf: &crate::run_config::RunConfig,
+    base: Option<RunnerConfig>,
+    timeout: Duration,
+    poll_interval: Duration,
+) -> Result<Option<CheckpointState>, RunnerUtilsError> {
+    let runner = run_conf
+        .to_runner_config(base)
+        .map_err(|e| RunnerUtilsError::RunConfig(e.to_string()))?;
+    initialize_restore_checkpoint_from_runner(&runner, timeout, poll_interval)
+}
+
+/// Run-config defaulted restore initialization.
+pub fn initialize_restore_checkpoint_from_run_config_defaults(
+    run_conf: &crate::run_config::RunConfig,
+    base: Option<RunnerConfig>,
+) -> Result<Option<CheckpointState>, RunnerUtilsError> {
+    let runner = run_conf
+        .to_runner_config(base)
+        .map_err(|e| RunnerUtilsError::RunConfig(e.to_string()))?;
+    initialize_restore_checkpoint_from_runner_defaults(&runner)
 }
 
 #[cfg(test)]
@@ -1151,5 +1180,53 @@ all_model_checkpoint_paths: "model.ckpt-30"
         };
         let st = initialize_restore_checkpoint_from_runner_defaults(&rc).unwrap();
         assert!(st.is_none());
+    }
+
+    #[test]
+    fn test_initialize_restore_checkpoint_from_run_config_defaults() {
+        let rc = crate::run_config::RunConfig {
+            is_local: true,
+            ..crate::run_config::RunConfig::default()
+        };
+        let st = initialize_restore_checkpoint_from_run_config_defaults(&rc, None).unwrap();
+        assert!(st.is_none());
+    }
+
+    #[test]
+    fn test_initialize_restore_checkpoint_from_run_config_chief_path() {
+        let tmp = tempdir().unwrap();
+        let restore_dir = tmp.path().join("restore");
+        let model_dir = tmp.path().join("model");
+        fs::create_dir_all(&restore_dir).unwrap();
+        fs::create_dir_all(&model_dir).unwrap();
+        fs::write(
+            restore_dir.join("checkpoint"),
+            r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-30"
+"#,
+        )
+        .unwrap();
+
+        let run = crate::run_config::RunConfig {
+            is_local: true,
+            model_dir: model_dir.clone(),
+            restore_dir: Some(restore_dir),
+            restore_ckpt: Some("model.ckpt-30".to_string()),
+            ..crate::run_config::RunConfig::default()
+        };
+        let st = initialize_restore_checkpoint_from_run_config(
+            &run,
+            None,
+            Duration::from_secs(1),
+            Duration::from_millis(10),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            Path::new(&st.model_checkpoint_path).file_name().unwrap(),
+            "model.ckpt-30"
+        );
     }
 }
