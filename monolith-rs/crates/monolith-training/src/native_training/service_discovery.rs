@@ -186,6 +186,11 @@ impl ConsulServiceDiscovery {
     }
 
     pub fn query_all(&self) -> Result<HashMap<String, BTreeMap<i32, String>>> {
+        if self.closed.load(Ordering::SeqCst) {
+            return Err(ServiceDiscoveryError::Other(
+                "ConsulServiceDiscovery is closed".to_string(),
+            ));
+        }
         let elements = retry_with_socket_error(|| self.client.lookup(&self.consul_id, 15))?;
         let mut addrs: HashMap<String, BTreeMap<i32, String>> = HashMap::new();
 
@@ -938,6 +943,9 @@ mod tests {
 
         let query_err = d.query("ps").unwrap_err();
         assert!(query_err.to_string().contains("closed"));
+
+        let query_all_err = d.query_all().unwrap_err();
+        assert!(query_all_err.to_string().contains("closed"));
 
         let deregister_err = d.deregister("ps", 0, "192.168.0.1:1001").unwrap_err();
         assert!(deregister_err.to_string().contains("closed"));
