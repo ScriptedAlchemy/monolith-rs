@@ -313,6 +313,15 @@
 - Added unit + integration tests validating Primus guard creation + query behavior
   through run-config entrypoint.
 
+### 28) Initialized estimator constructor from `RunConfig`
+- Added `Estimator::from_run_config_initialized(...)`:
+  - performs run→runner merge,
+  - executes runner runtime initialization (restore/env side effects),
+  - returns `(Estimator, Option<CheckpointState>)` for callers that need restore evidence.
+- Added regression coverage validating:
+  - restore synchronization side effects via initialized constructor path,
+  - estimator config propagation from run config values.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -348,6 +357,7 @@
 31. `cargo test -p monolith-training -q` ✅ (post `get_discovery_from_run_config` helper integration)
 32. `cargo test --workspace -q` ✅ (post latest runner/discovery and estimator runtime parity updates)
 33. `cargo test -p monolith-training -q` ✅ (post `monolith_discovery_from_run_config` helper integration)
+34. `cargo test -p monolith-training -q` ✅ (post initialized estimator constructor from run config)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
