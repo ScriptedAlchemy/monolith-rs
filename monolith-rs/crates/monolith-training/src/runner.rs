@@ -205,6 +205,55 @@ fn ordered_ps_addrs(
     Ok(ordered)
 }
 
+fn spawn_heartbeat_task<D: ServiceDiscoveryAsync + 'static + ?Sized>(
+    discovery: Arc<D>,
+    service_id: &str,
+    interval: Option<Duration>,
+) -> (
+    Option<tokio::sync::watch::Sender<bool>>,
+    Option<tokio::task::JoinHandle<()>>,
+) {
+    let Some(interval) = interval else {
+        return (None, None);
+    };
+
+    let (stop_tx, mut stop_rx) = tokio::sync::watch::channel(false);
+    let service_id = service_id.to_string();
+    let task = tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                stop_changed = stop_rx.changed() => {
+                    if stop_changed.is_err() || *stop_rx.borrow() {
+                        break;
+                    }
+                }
+                _ = tokio::time::sleep(interval) => {
+                    if let Err(e) = discovery.heartbeat_async(&service_id).await {
+                        tracing::warn!(
+                            service_id = %service_id,
+                            error = %e,
+                            "Discovery heartbeat failed"
+                        );
+                    }
+                }
+            }
+        }
+    });
+    (Some(stop_tx), Some(task))
+}
+
+async fn stop_heartbeat_task(
+    heartbeat_stop_tx: Option<tokio::sync::watch::Sender<bool>>,
+    heartbeat_task: Option<tokio::task::JoinHandle<()>>,
+) {
+    if let Some(stop_tx) = heartbeat_stop_tx {
+        let _ = stop_tx.send(true);
+    }
+    if let Some(task) = heartbeat_task {
+        let _ = task.await;
+    }
+}
+
 /// Run a PS or worker process using the provided discovery backend.
 pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     discovery: Arc<D>,
@@ -342,46 +391,15 @@ async fn run_ps_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         addr = %actual_addr,
         "Starting PS gRPC server"
     );
-    let (heartbeat_stop_tx, mut heartbeat_task) = if let Some(interval) = cfg.heartbeat_interval {
-        let (stop_tx, mut stop_rx) = tokio::sync::watch::channel(false);
-        let discovery = Arc::clone(&discovery);
-        let service_id = service_id.to_string();
-        let task = tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    stop_changed = stop_rx.changed() => {
-                        if stop_changed.is_err() || *stop_rx.borrow() {
-                            break;
-                        }
-                    }
-                    _ = tokio::time::sleep(interval) => {
-                        if let Err(e) = discovery.heartbeat_async(&service_id).await {
-                            tracing::warn!(
-                                service_id = %service_id,
-                                error = %e,
-                                "Discovery heartbeat failed"
-                            );
-                        }
-                    }
-                }
-            }
-        });
-        (Some(stop_tx), Some(task))
-    } else {
-        (None, None)
-    };
+    let (heartbeat_stop_tx, heartbeat_task) =
+        spawn_heartbeat_task(Arc::clone(&discovery), service_id, cfg.heartbeat_interval);
 
     let server_result = tonic::transport::Server::builder()
         .add_service(Arc::clone(&ps).into_service())
         .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
         .await;
 
-    if let Some(stop_tx) = heartbeat_stop_tx {
-        let _ = stop_tx.send(true);
-    }
-    if let Some(task) = heartbeat_task.take() {
-        let _ = task.await;
-    }
+    stop_heartbeat_task(heartbeat_stop_tx, heartbeat_task).await;
     if let Some(task) = parameter_sync_task.take() {
         task.stop().await;
     }
@@ -392,7 +410,7 @@ async fn run_ps_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
 
 async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     discovery: Arc<D>,
-    _service_id: &str,
+    service_id: &str,
     cfg: DistributedRunConfig,
 ) -> anyhow::Result<()> {
     // Worker: wait until we discover the expected PS set, then connect client.
@@ -402,126 +420,136 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         "Waiting for PS discovery"
     );
 
-    let mut ps_addrs: Vec<String> = Vec::new();
-    let mut last_ordering_issue: Option<PsAddrOrderError> = None;
-    let mut last_discovery_error: Option<String> = None;
-    let mut max_raw_ps_observed: usize = 0;
-    let mut max_usable_ps_observed: usize = 0;
-    for attempt in 0..=cfg.connect_retries {
-        let ps_services = match discovery.discover_async(&cfg.discovery_service_type_ps).await {
-            Ok(services) => {
-                if last_discovery_error.is_some() {
-                    last_discovery_error = None;
-                }
-                services
-            }
-            Err(e) => {
-                last_discovery_error = Some(e.to_string());
-                Vec::new()
-            }
-        };
-        max_raw_ps_observed = max_raw_ps_observed.max(ps_services.len());
+    let (heartbeat_stop_tx, heartbeat_task) =
+        spawn_heartbeat_task(Arc::clone(&discovery), service_id, cfg.heartbeat_interval);
 
-        let (addrs, ordering_issue) = match ordered_ps_addrs(ps_services, cfg.num_ps) {
-            Ok(addrs) => (addrs, None),
-            Err(issue) => (Vec::new(), Some(issue)),
-        };
-        max_usable_ps_observed = max_usable_ps_observed.max(addrs.len());
-        if let Some(issue) = ordering_issue {
-            last_ordering_issue = Some(issue);
-        } else if !addrs.is_empty() {
-            // If ordering recovered and we have at least one usable endpoint,
-            // clear previously latched ordering inconsistency diagnostics.
-            last_ordering_issue = None;
+    let result: anyhow::Result<()> = async {
+        let mut ps_addrs: Vec<String> = Vec::new();
+        let mut last_ordering_issue: Option<PsAddrOrderError> = None;
+        let mut last_discovery_error: Option<String> = None;
+        let mut max_raw_ps_observed: usize = 0;
+        let mut max_usable_ps_observed: usize = 0;
+        for attempt in 0..=cfg.connect_retries {
+            let ps_services = match discovery.discover_async(&cfg.discovery_service_type_ps).await {
+                Ok(services) => {
+                    if last_discovery_error.is_some() {
+                        last_discovery_error = None;
+                    }
+                    services
+                }
+                Err(e) => {
+                    last_discovery_error = Some(e.to_string());
+                    Vec::new()
+                }
+            };
+            max_raw_ps_observed = max_raw_ps_observed.max(ps_services.len());
+
+            let (addrs, ordering_issue) = match ordered_ps_addrs(ps_services, cfg.num_ps) {
+                Ok(addrs) => (addrs, None),
+                Err(issue) => (Vec::new(), Some(issue)),
+            };
+            max_usable_ps_observed = max_usable_ps_observed.max(addrs.len());
+            if let Some(issue) = ordering_issue {
+                last_ordering_issue = Some(issue);
+            } else if !addrs.is_empty() {
+                // If ordering recovered and we have at least one usable endpoint,
+                // clear previously latched ordering inconsistency diagnostics.
+                last_ordering_issue = None;
+            }
+
+            if addrs.len() >= cfg.num_ps {
+                ps_addrs = addrs;
+                break;
+            }
+
+            if attempt == cfg.connect_retries {
+                let attempts_made = attempt + 1;
+                match (last_ordering_issue, last_discovery_error.as_deref()) {
+                    (Some(issue), Some(discovery_error)) => {
+                        return Err(anyhow::anyhow!(
+                            "Timed out waiting for PS discovery: got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last ordering issue: {:?}; last discovery error: {})",
+                            addrs.len(),
+                            cfg.num_ps,
+                            attempts_made,
+                            max_raw_ps_observed,
+                            max_usable_ps_observed,
+                            issue,
+                            discovery_error
+                        ));
+                    }
+                    (Some(issue), None) => {
+                        return Err(anyhow::anyhow!(
+                            "Timed out waiting for PS discovery: got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last ordering issue: {:?})",
+                            addrs.len(),
+                            cfg.num_ps,
+                            attempts_made,
+                            max_raw_ps_observed,
+                            max_usable_ps_observed,
+                            issue
+                        ));
+                    }
+                    (None, Some(discovery_error)) => {
+                        return Err(anyhow::anyhow!(
+                            "Timed out waiting for PS discovery: got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last discovery error: {})",
+                            addrs.len(),
+                            cfg.num_ps,
+                            attempts_made,
+                            max_raw_ps_observed,
+                            max_usable_ps_observed,
+                            discovery_error
+                        ));
+                    }
+                    (None, None) => {
+                        return Err(anyhow::anyhow!(
+                            "Timed out waiting for PS discovery: got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {})",
+                            addrs.len(),
+                            cfg.num_ps,
+                            attempts_made,
+                            max_raw_ps_observed,
+                            max_usable_ps_observed
+                        ));
+                    }
+                }
+            }
+
+            tokio::time::sleep(Duration::from_millis(cfg.retry_backoff_ms)).await;
         }
 
-        if addrs.len() >= cfg.num_ps {
-            ps_addrs = addrs;
-            break;
-        }
+        // For now, take the first num_ps.
+        ps_addrs.truncate(cfg.num_ps);
+        let ps_addr_refs: Vec<&str> = ps_addrs.iter().map(|s| s.as_str()).collect();
+        tracing::info!(role = "worker", index = cfg.index, ps = ?ps_addrs, "Connecting to PS shards");
 
-        if attempt == cfg.connect_retries {
-            let attempts_made = attempt + 1;
-            match (last_ordering_issue, last_discovery_error.as_deref()) {
-                (Some(issue), Some(discovery_error)) => {
-                    anyhow::bail!(
-                        "Timed out waiting for PS discovery: got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last ordering issue: {:?}; last discovery error: {})",
-                        addrs.len(),
-                        cfg.num_ps,
-                        attempts_made,
-                        max_raw_ps_observed,
-                        max_usable_ps_observed,
-                        issue,
-                        discovery_error
-                    );
-                }
-                (Some(issue), None) => {
-                    anyhow::bail!(
-                        "Timed out waiting for PS discovery: got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last ordering issue: {:?})",
-                        addrs.len(),
-                        cfg.num_ps,
-                        attempts_made,
-                        max_raw_ps_observed,
-                        max_usable_ps_observed,
-                        issue
-                    );
-                }
-                (None, Some(discovery_error)) => {
-                    anyhow::bail!(
-                        "Timed out waiting for PS discovery: got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last discovery error: {})",
-                        addrs.len(),
-                        cfg.num_ps,
-                        attempts_made,
-                        max_raw_ps_observed,
-                        max_usable_ps_observed,
-                        discovery_error
-                    );
-                }
-                (None, None) => {
-                    anyhow::bail!(
-                        "Timed out waiting for PS discovery: got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {})",
-                        addrs.len(),
-                        cfg.num_ps,
-                        attempts_made,
-                        max_raw_ps_observed,
-                        max_usable_ps_observed
-                    );
-                }
-            }
-        }
+        let ps_client = PsClient::connect(&ps_addr_refs).await?;
+        let barrier: SharedBarrier =
+            Arc::new(PsBarrier::new(ps_client.clone(), cfg.barrier_timeout_ms));
 
-        tokio::time::sleep(Duration::from_millis(cfg.retry_backoff_ms)).await;
+        // Minimal "training loop" skeleton proving that:
+        // - lookup works
+        // - barrier works
+        // - apply_gradients works
+        let my_ids = vec![cfg.index as i64, cfg.index as i64, 42];
+        let _ = ps_client
+            .lookup(&cfg.table_name, &my_ids, cfg.dim, true)
+            .await?;
+
+        // Barrier on step 0.
+        barrier
+            .wait("step0", cfg.index as i32, cfg.num_workers as i32)
+            .await?;
+
+        // Apply fake gradients (all ones).
+        let grads = vec![1.0f32; my_ids.len() * cfg.dim];
+        let _ = ps_client
+            .apply_gradients(&cfg.table_name, &my_ids, &grads, cfg.dim, 0.01, 0)
+            .await?;
+
+        Ok(())
     }
+    .await;
 
-    // For now, take the first num_ps.
-    ps_addrs.truncate(cfg.num_ps);
-    let ps_addr_refs: Vec<&str> = ps_addrs.iter().map(|s| s.as_str()).collect();
-    tracing::info!(role = "worker", index = cfg.index, ps = ?ps_addrs, "Connecting to PS shards");
-
-    let ps_client = PsClient::connect(&ps_addr_refs).await?;
-    let barrier: SharedBarrier = Arc::new(PsBarrier::new(ps_client.clone(), cfg.barrier_timeout_ms));
-
-    // Minimal "training loop" skeleton proving that:
-    // - lookup works
-    // - barrier works
-    // - apply_gradients works
-    let my_ids = vec![cfg.index as i64, cfg.index as i64, 42];
-    let _ = ps_client
-        .lookup(&cfg.table_name, &my_ids, cfg.dim, true)
-        .await?;
-
-    // Barrier on step 0.
-    barrier
-        .wait("step0", cfg.index as i32, cfg.num_workers as i32)
-        .await?;
-
-    // Apply fake gradients (all ones).
-    let grads = vec![1.0f32; my_ids.len() * cfg.dim];
-    let _ = ps_client
-        .apply_gradients(&cfg.table_name, &my_ids, &grads, cfg.dim, 0.01, 0)
-        .await?;
-
-    Ok(())
+    stop_heartbeat_task(heartbeat_stop_tx, heartbeat_task).await;
+    result
 }
 
 #[cfg(test)]
@@ -1393,6 +1421,37 @@ mod tests {
         assert!(
             msg.contains("max usable observed: 1"),
             "expected usable discovery state to be reflected in diagnostics, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_worker_heartbeat_task_stops_after_worker_timeout() {
+        let discovery = Arc::new(CountingDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 4,
+            retry_backoff_ms: 25,
+            heartbeat_interval: Some(Duration::from_millis(5)),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_worker_role(Arc::clone(&discovery), "worker-0", cfg).await;
+        assert!(res.is_err(), "worker should time out with no PS services");
+
+        let after_timeout = discovery.heartbeat_count();
+        assert!(
+            after_timeout > 0,
+            "worker heartbeat should run while waiting for discovery retries"
+        );
+
+        tokio::time::sleep(Duration::from_millis(40)).await;
+        let stable = discovery.heartbeat_count();
+        assert_eq!(
+            stable, after_timeout,
+            "worker heartbeat task should stop after worker role exits"
         );
     }
 
