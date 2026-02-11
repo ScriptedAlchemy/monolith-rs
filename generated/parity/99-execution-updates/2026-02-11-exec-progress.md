@@ -880,6 +880,7 @@
 109. `cargo test -p monolith-training -q` ✅ (post contiguous PS shard-index enforcement for metadata-based worker discovery ordering)
 110. `cargo test --workspace -q` ✅ (post contiguous PS shard-index enforcement and full workspace regression rerun)
 111. `cargo test -p monolith-training -q` ✅ (post conflicting duplicate shard-index advertisement guard in worker discovery ordering)
+112. `cargo test --workspace -q` ✅ (post conflicting duplicate shard-index advertisement guard and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
