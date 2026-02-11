@@ -80,6 +80,24 @@ impl Default for DistributedRunConfig {
     }
 }
 
+impl DistributedRunConfig {
+    fn validate(&self) -> anyhow::Result<()> {
+        if self.num_ps == 0 {
+            anyhow::bail!("distributed config requires num_ps > 0");
+        }
+        if self.num_workers == 0 {
+            anyhow::bail!("distributed config requires num_workers > 0");
+        }
+        if self.dim == 0 {
+            anyhow::bail!("distributed config requires dim > 0");
+        }
+        if self.barrier_timeout_ms <= 0 {
+            anyhow::bail!("distributed config requires barrier_timeout_ms > 0");
+        }
+        Ok(())
+    }
+}
+
 /// Builds a distributed-runner config from a higher-level runner config.
 pub fn distributed_config_from_runner(
     runner_conf: &RunnerConfig,
@@ -177,6 +195,7 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     discovery: Arc<D>,
     cfg: DistributedRunConfig,
 ) -> anyhow::Result<()> {
+    cfg.validate()?;
     discovery.connect().await?;
 
     let (service_type, service_id) = match cfg.role {
@@ -680,6 +699,18 @@ mod tests {
         .await;
         // With no PS role started we expect timeout from worker path.
         assert!(worker_res.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_invalid_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.unwrap_err();
+        assert!(err.to_string().contains("num_ps > 0"));
     }
 
     #[tokio::test]
