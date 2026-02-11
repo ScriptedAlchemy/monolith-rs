@@ -141,7 +141,11 @@ impl DistributedRunConfig {
                 "distributed config requires discovery_service_type_worker without leading/trailing whitespace"
             );
         }
-        if self.discovery_service_type_ps.trim() == self.discovery_service_type_worker.trim() {
+        if self
+            .discovery_service_type_ps
+            .trim()
+            .eq_ignore_ascii_case(self.discovery_service_type_worker.trim())
+        {
             anyhow::bail!(
                 "distributed config requires distinct discovery_service_type_ps and discovery_service_type_worker"
             );
@@ -2151,6 +2155,23 @@ mod tests {
     fn test_distributed_config_validate_rejects_identical_ps_and_worker_service_types() {
         let cfg = DistributedRunConfig {
             discovery_service_type_ps: "service".to_string(),
+            discovery_service_type_worker: "service".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "distributed config requires distinct discovery_service_type_ps and discovery_service_type_worker"
+            ),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_case_insensitive_identical_ps_and_worker_service_types(
+    ) {
+        let cfg = DistributedRunConfig {
+            discovery_service_type_ps: "Service".to_string(),
             discovery_service_type_worker: "service".to_string(),
             ..DistributedRunConfig::default()
         };

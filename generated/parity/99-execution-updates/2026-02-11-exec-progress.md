@@ -2086,6 +2086,21 @@
   - integration tests (RunConfig + RunnerConfig) verifying malformed endpoint
     rejection through distributed runner entrypoints.
 
+### 176) Discovery service-type distinctness normalized case-insensitively
+- Hardened distributed config validation to reject PS/worker discovery service
+  types that differ only by ASCII letter case after trimming (e.g.
+  `Service` vs `service`).
+- Applied consistently in both entrypoint layers:
+  - runtime distributed validation (`DistributedRunConfig::validate`)
+  - CLI distributed config builder (`TrainCommand::build_distributed_run_config`)
+- Prevents ambiguous discovery namespaces and accidental cross-role service
+  collisions caused by case-variant configuration drift.
+- Added regression coverage:
+  - runner unit: rejects case-insensitive identical discovery service types
+  - CLI unit: rejects case-insensitive identical service-type flags
+  - native-training integration (RunConfig + RunnerConfig): rejects
+    case-insensitive identical PS/worker service type pairs.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2414,6 +2429,8 @@
 325. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post parameter-sync target http-prefix normalization full workspace rerun under ambient ZK auth env)
 326. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post strict parameter-sync endpoint syntax validation and malformed-target regression expansion)
 327. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post strict parameter-sync endpoint syntax validation full workspace rerun under ambient ZK auth env)
+328. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post case-insensitive discovery service-type distinctness normalization across CLI/runtime validation layers)
+329. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post case-insensitive discovery service-type distinctness normalization full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

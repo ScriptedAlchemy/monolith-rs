@@ -253,7 +253,11 @@ impl TrainCommand {
                 "--discovery-service-type-worker must not have leading/trailing whitespace"
             );
         }
-        if self.discovery_service_type_ps.trim() == self.discovery_service_type_worker.trim() {
+        if self
+            .discovery_service_type_ps
+            .trim()
+            .eq_ignore_ascii_case(self.discovery_service_type_worker.trim())
+        {
             anyhow::bail!(
                 "--discovery-service-type-ps and --discovery-service-type-worker must be distinct"
             );
@@ -934,6 +938,22 @@ mod tests {
                 "--discovery-service-type-ps and --discovery-service-type-worker must be distinct"
             ),
             "unexpected identical service-type validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_case_insensitive_identical_ps_and_worker_service_types(
+    ) {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.discovery_service_type_ps = "Service".to_string();
+        cmd.discovery_service_type_worker = "service".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "--discovery-service-type-ps and --discovery-service-type-worker must be distinct"
+            ),
+            "unexpected case-insensitive identical service-type validation error: {err}"
         );
     }
 

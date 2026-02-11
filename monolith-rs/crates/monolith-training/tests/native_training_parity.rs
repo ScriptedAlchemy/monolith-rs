@@ -1126,6 +1126,41 @@ async fn distributed_runner_from_run_config_rejects_identical_ps_and_worker_serv
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_rejects_case_insensitive_identical_ps_and_worker_service_types(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_service_type_ps: "Service".to_string(),
+        discovery_service_type_worker: "service".to_string(),
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains(
+            "distributed config requires distinct discovery_service_type_ps and discovery_service_type_worker"
+        ),
+        "case-insensitive identical run-config discovery service types should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_empty_table_name() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -3814,6 +3849,41 @@ async fn distributed_runner_from_runner_config_rejects_identical_ps_and_worker_s
             "distributed config requires distinct discovery_service_type_ps and discovery_service_type_worker"
         ),
         "identical runner-config discovery service types should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_case_insensitive_identical_ps_and_worker_service_types(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_service_type_ps: "Service".to_string(),
+        discovery_service_type_worker: "service".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains(
+            "distributed config requires distinct discovery_service_type_ps and discovery_service_type_worker"
+        ),
+        "case-insensitive identical runner-config discovery service types should be rejected by distributed config validation: {err}"
     );
 }
 
