@@ -139,6 +139,18 @@
   - chief/worker synchronization through config-driven initialization,
   - merge behavior carrying restore fields from `RunConfig` into `RunnerConfig`.
 
+### 11) RunnerConfig env-export parity for estimator initialization
+- Expanded `RunConfig`/`RunnerConfig` with optional env-export fields:
+  - `tf_grpc_worker_cache_threads`,
+  - `monolith_grpc_worker_service_handler_multiplier`.
+- Added `RunConfig::apply_runtime_env_exports(&RunnerConfig)` helper to mirror
+  Python estimator-side exports:
+  - `TF_GRPC_WORKER_CACHE_THREADS`,
+  - `MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER`.
+- Added regression tests covering:
+  - merge + user override visibility for these new fields,
+  - concrete env var export behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -153,6 +165,7 @@
 10. `cargo test -p monolith-training -q` ✅ (post checkpoint-state override/retry parity helper)
 11. `cargo test -p monolith-training -q` ✅ (post monolith_discovery Consul auto-psm behavior)
 12. `cargo test -p monolith-training -q` ✅ (post RunnerConfig restore-init parity helper updates)
+13. `cargo test -p monolith-training -q` ✅ (post RunnerConfig env-export parity updates)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
