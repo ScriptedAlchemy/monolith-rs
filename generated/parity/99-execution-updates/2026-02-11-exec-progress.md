@@ -2940,6 +2940,31 @@
   cleanup-timeout/cleanup-failure parity across runner + RunConfig +
   RunnerConfig paths.
 
+### 224) Register-timeout cleanup matrix parity completed
+- Expanded runner register-timeout regressions to cover remaining matrix cells:
+  - `test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_times_out_with_custom_service_type_and_index`
+  - `test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_fails_with_custom_service_type_and_index`
+  - `test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_times_out_with_custom_service_type_and_index`
+  - `test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_fails_with_default_service_type_and_index`
+- Expanded RunConfig integration coverage:
+  - `distributed_runner_from_run_config_preserves_register_timeout_with_default_service_type_and_index_disconnect_failure_context`
+  - `distributed_runner_from_run_config_preserves_register_timeout_with_custom_service_type_and_index_when_cleanup_blocks`
+  - `distributed_runner_from_run_config_preserves_ps_register_timeout_with_default_service_type_and_index_disconnect_failure_context`
+  - `distributed_runner_from_run_config_preserves_ps_register_timeout_with_custom_service_type_and_index_when_cleanup_blocks`
+- Expanded RunnerConfig integration coverage:
+  - `distributed_runner_from_runner_config_preserves_register_timeout_with_default_service_type_and_index_disconnect_failure_context`
+  - `distributed_runner_from_runner_config_preserves_register_timeout_with_custom_service_type_and_index_when_cleanup_blocks`
+  - `distributed_runner_from_runner_config_preserves_ps_register_timeout_with_default_service_type_and_index_disconnect_failure_context`
+  - `distributed_runner_from_runner_config_preserves_ps_register_timeout_with_custom_service_type_and_index_when_cleanup_blocks`
+- New assertions complete the register-timeout cleanup matrix by verifying:
+  - default/custom service-type propagation in operation-timeout diagnostics,
+  - default/custom service-type propagation in cleanup diagnostics,
+  - indexed role identity propagation (`worker-2`, `worker-3`, `ps-2`) across
+    cleanup-timeout and cleanup-failure contexts.
+- Result: register-timeout diagnostics now have full default/custom ×
+  cleanup-timeout/cleanup-failure parity across runner + RunConfig +
+  RunnerConfig entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3385,6 +3410,9 @@
 442. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post discover-timeout cleanup matrix parity completion across runner/config entrypoints)
 443. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post discover-timeout cleanup matrix parity compatibility verification)
 444. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post discover-timeout cleanup matrix parity completion full workspace rerun under ambient ZK auth env)
+445. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post register-timeout cleanup matrix parity completion across runner/config entrypoints)
+446. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post register-timeout cleanup matrix parity compatibility verification)
+447. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post register-timeout cleanup matrix parity completion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
