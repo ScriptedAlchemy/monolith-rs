@@ -458,6 +458,8 @@ pub fn initialize_restore_checkpoint_from_runner(
     timeout: Duration,
     poll_interval: Duration,
 ) -> Result<Option<CheckpointState>, RunnerUtilsError> {
+    crate::run_config::RunConfig::apply_runtime_env_exports(runner_conf);
+
     let Some(restore_dir) = runner_conf.restore_dir.as_ref() else {
         return Ok(None);
     };
@@ -771,14 +773,29 @@ all_model_checkpoint_paths: "model.ckpt-30"
 
     #[test]
     fn test_initialize_restore_checkpoint_from_runner_none_when_restore_missing() {
+        static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _env_guard = ENV_MUTEX.lock().unwrap();
+        std::env::remove_var("TF_GRPC_WORKER_CACHE_THREADS");
+        std::env::remove_var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER");
+
         let rc = RunnerConfig {
             restore_dir: None,
+            tf_grpc_worker_cache_threads: Some(6),
+            monolith_grpc_worker_service_handler_multiplier: Some(4),
             ..RunnerConfig::default()
         };
         let st =
             initialize_restore_checkpoint_from_runner(&rc, Duration::from_secs(1), Duration::from_millis(1))
                 .unwrap();
         assert!(st.is_none());
+        assert_eq!(
+            std::env::var("TF_GRPC_WORKER_CACHE_THREADS").unwrap(),
+            "6"
+        );
+        assert_eq!(
+            std::env::var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER").unwrap(),
+            "4"
+        );
     }
 
     #[test]
