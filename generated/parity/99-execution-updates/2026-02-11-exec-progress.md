@@ -2435,6 +2435,31 @@
 - Result: connect-failure cleanup diagnostics now have explicit default-service
   integration parity for PS role plus reinforced runner-level unit coverage.
 
+### 198) Post-success both-cleanup-failure diagnostics now preserve explicit deregister operation context end-to-end
+- Hardened `run_distributed` post-success **both-cleanup-failure** branch so
+  returned errors now include explicit deregister operation context even when
+  deregister remains the primary failure:
+  - `deregister <service-id> from <service-type>: <deregister-error>`
+  - plus appended disconnect operation diagnostics in cleanup issue context.
+- Expanded runner unit regression
+  `test_run_distributed_prefers_deregister_error_when_both_post_success_cleanup_steps_fail`
+  to assert explicit deregister operation context in addition to disconnect
+  failure context.
+- Expanded native-training integration parity:
+  - added default-service-type both-failure tests (RunConfig + RunnerConfig):
+    - `distributed_runner_from_run_config_preserves_deregister_failure_with_disconnect_failure_context_after_success`
+    - `distributed_runner_from_runner_config_preserves_deregister_failure_with_disconnect_failure_context_after_success`
+  - added custom-worker both-failure tests (RunConfig + RunnerConfig):
+    - `distributed_runner_from_run_config_surfaces_custom_worker_deregister_failure_after_success`
+    - `distributed_runner_from_run_config_surfaces_custom_worker_disconnect_failure_after_success`
+    - `distributed_runner_from_runner_config_surfaces_custom_worker_deregister_failure_after_success`
+    - `distributed_runner_from_runner_config_surfaces_custom_worker_disconnect_failure_after_success`
+  - enriched existing default-service-type single-step failure assertions to
+    require cleanup operation context presence.
+- Result: post-success cleanup failure diagnostics now consistently carry
+  operation-level context for both primary and secondary cleanup failures across
+  default/custom run/runner entrypoint paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2814,6 +2839,8 @@
 376. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post post-success single-step cleanup operation-context parity expansion full workspace rerun under ambient ZK auth env)
 377. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post PS connect-failure cleanup diagnostics parity expansion for default service type integration paths and PS unit coverage)
 378. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post PS connect-failure cleanup diagnostics parity expansion full workspace rerun under ambient ZK auth env)
+379. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post post-success both-cleanup-failure diagnostic operation-context parity expansion across default/custom integration paths)
+380. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post post-success both-cleanup-failure diagnostic operation-context parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

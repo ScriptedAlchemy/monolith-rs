@@ -670,7 +670,8 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
                 "Failed to disconnect discovery after successful role with deregister failure"
             );
             return Err(anyhow::anyhow!(
-                "{} (discovery cleanup encountered issues after successful role completion: {}: {})",
+                "{}: {} (discovery cleanup encountered issues after successful role completion: {}: {})",
+                deregister_op,
                 de,
                 disconnect_op,
                 disconnect_err
@@ -4813,6 +4814,10 @@ mod tests {
         assert!(
             msg.contains("forced deregister failure"),
             "deregister failure should take precedence when both cleanup steps fail: {msg}"
+        );
+        assert!(
+            msg.contains("deregister worker-0 from worker"),
+            "post-success cleanup issue diagnostics should include deregister operation context when both cleanup steps fail: {msg}"
         );
         assert!(
             msg.contains("discovery cleanup encountered issues after successful role completion"),

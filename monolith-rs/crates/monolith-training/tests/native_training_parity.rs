@@ -2452,6 +2452,60 @@ async fn distributed_runner_from_run_config_surfaces_disconnect_failure_after_su
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_preserves_deregister_failure_with_disconnect_failure_context_after_success(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let (ps_server, ps_addr) = spawn_worker_success_ps_server(8).await;
+    let discovery = Arc::new(FailingCleanupAfterSuccessFromConfigDiscovery::new(
+        ps_addr.to_string(),
+        true,
+        true,
+    ));
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        dim: 8,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("deregister worker-0 from worker") && msg.contains("forced deregister failure"),
+        "run-config post-success both-failure diagnostics should preserve deregister failure with operation context: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after successful role completion"),
+        "run-config post-success both-failure diagnostics should include cleanup issue context: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-0 via worker") && msg.contains("forced disconnect failure"),
+        "run-config post-success both-failure diagnostics should include disconnect failure with operation context: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+    ps_server.abort();
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_surfaces_custom_worker_deregister_failure_after_success(
 ) {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -7019,6 +7073,59 @@ async fn distributed_runner_from_runner_config_surfaces_disconnect_failure_after
     assert!(
         msg.contains("disconnect worker-0 via worker"),
         "default-service-type disconnect failure should include cleanup operation context via RunnerConfig: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+    ps_server.abort();
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_deregister_failure_with_disconnect_failure_context_after_success(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let (ps_server, ps_addr) = spawn_worker_success_ps_server(8).await;
+    let discovery = Arc::new(FailingCleanupAfterSuccessFromConfigDiscovery::new(
+        ps_addr.to_string(),
+        true,
+        true,
+    ));
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        dim: 8,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("deregister worker-0 from worker") && msg.contains("forced deregister failure"),
+        "runner-config post-success both-failure diagnostics should preserve deregister failure with operation context: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after successful role completion"),
+        "runner-config post-success both-failure diagnostics should include cleanup issue context: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-0 via worker") && msg.contains("forced disconnect failure"),
+        "runner-config post-success both-failure diagnostics should include disconnect failure with operation context: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
