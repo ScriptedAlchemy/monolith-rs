@@ -1772,6 +1772,17 @@
 - Prevents runtime panic risk from invalid zero replication interval in
   parameter-sync task setup paths.
 
+### 159) Env-utils test isolation against ambient ZK auth environment leakage
+- Hardened `native_training::env_utils` tests with serialized env mutation and
+  automatic env snapshot/restore to prevent cross-test/process environment
+  leakage from `ZK_AUTH`.
+- Added explicit trim-empty regression:
+  - `test_get_zk_auth_data_empty_after_trim_is_none`
+- Verified full workspace remains green even when `ZK_AUTH` is explicitly set
+  in the parent environment (`ZK_AUTH=user:pass`), eliminating prior
+  environment-sensitive failure mode for
+  `test_get_zk_auth_data_none`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2066,6 +2077,8 @@
 291. `unset ZK_AUTH && cargo test --workspace -q` ✅ (post non-empty discovery service-type validation across CLI/runtime configs full workspace rerun)
 292. `cargo test -p monolith-cli -q && cargo test -p monolith-training -q` ✅ (post parameter-sync interval validation when targets are configured)
 293. `unset ZK_AUTH && cargo test --workspace -q` ✅ (post parameter-sync interval validation full workspace rerun)
+294. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post env-utils test isolation hardening)
+295. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post env-utils test isolation hardening full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
