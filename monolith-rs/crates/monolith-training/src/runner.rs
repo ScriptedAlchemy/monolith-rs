@@ -163,6 +163,18 @@ pub async fn run_distributed_from_runner_config<D: ServiceDiscoveryAsync + 'stat
     run_distributed(discovery, cfg).await
 }
 
+/// Run distributed runtime directly from RunConfig by applying merge semantics first.
+pub async fn run_distributed_from_run_config<D: ServiceDiscoveryAsync + 'static + ?Sized>(
+    discovery: Arc<D>,
+    run_conf: &crate::run_config::RunConfig,
+    base: Option<RunnerConfig>,
+    role: Role,
+    bind_addr: SocketAddr,
+) -> anyhow::Result<()> {
+    let runner = run_conf.to_runner_config(base)?;
+    run_distributed_from_runner_config(discovery, &runner, role, bind_addr).await
+}
+
 async fn run_ps_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     discovery: Arc<D>,
     service_id: &str,
@@ -377,5 +389,26 @@ mod tests {
         );
 
         ps_task.abort();
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_from_run_config_smoke() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let run = crate::run_config::RunConfig {
+            is_local: true,
+            num_ps: 1,
+            num_workers: 1,
+            ..crate::run_config::RunConfig::default()
+        };
+        let worker_res = run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        )
+        .await;
+        // With no PS role started we expect timeout from worker path.
+        assert!(worker_res.is_err());
     }
 }

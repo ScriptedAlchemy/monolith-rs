@@ -136,7 +136,7 @@ pub use run_config::{
 };
 pub use runner::{
     distributed_config_from_runner, run_distributed, run_distributed_from_runner_config,
-    DistributedRunConfig, Role,
+    run_distributed_from_run_config, DistributedRunConfig, Role,
 };
 pub use runner_utils::{
     copy_checkpoint_from_restore_dir, get_checkpoint_state_with_restore_override, get_discovery,

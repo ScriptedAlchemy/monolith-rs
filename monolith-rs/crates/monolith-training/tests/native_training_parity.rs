@@ -164,6 +164,46 @@ async fn distributed_runner_from_runner_config_smoke() {
     ps_task.abort();
 }
 
+#[tokio::test]
+async fn distributed_runner_from_run_config_smoke() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 1,
+        ..RunConfig::default()
+    };
+
+    let discovery_bg = Arc::clone(&discovery);
+    let run_bg = run.clone();
+    let ps_task = tokio::spawn(async move {
+        run_distributed_from_run_config(
+            discovery_bg,
+            &run_bg,
+            None,
+            Role::Ps,
+            "127.0.0.1:0".parse().unwrap(),
+        )
+        .await
+    });
+
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    let worker_res = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    assert!(worker_res.is_ok(), "worker failed: {worker_res:?}");
+    ps_task.abort();
+}
+
 #[test]
 fn estimator_from_run_config_roundtrip() {
     let run = RunConfig {
