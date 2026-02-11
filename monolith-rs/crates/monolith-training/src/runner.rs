@@ -237,8 +237,10 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
             );
             service = service.with_metadata("addr", cfg.bind_addr.to_string());
             service = service.with_metadata("index", cfg.index.to_string());
-            discovery.register_async(service).await?;
-            run_worker_role(Arc::clone(&discovery), &service_id, cfg).await
+            match discovery.register_async(service).await {
+                Ok(()) => run_worker_role(Arc::clone(&discovery), &service_id, cfg).await,
+                Err(e) => Err(anyhow::Error::from(e)),
+            }
         }
     };
 
@@ -496,6 +498,72 @@ mod tests {
 
         fn heartbeat_count(&self) -> usize {
             self.heartbeat_count.load(Ordering::SeqCst)
+        }
+    }
+
+    struct FailingRegisterDiscovery {
+        connect_count: AtomicUsize,
+        disconnect_count: AtomicUsize,
+        deregister_count: AtomicUsize,
+    }
+
+    impl FailingRegisterDiscovery {
+        fn new() -> Self {
+            Self {
+                connect_count: AtomicUsize::new(0),
+                disconnect_count: AtomicUsize::new(0),
+                deregister_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn connect_count(&self) -> usize {
+            self.connect_count.load(Ordering::SeqCst)
+        }
+
+        fn disconnect_count(&self) -> usize {
+            self.disconnect_count.load(Ordering::SeqCst)
+        }
+
+        fn deregister_count(&self) -> usize {
+            self.deregister_count.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for FailingRegisterDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            self.connect_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Err(crate::discovery::DiscoveryError::Internal(
+                "forced register failure".to_string(),
+            ))
+        }
+
+        async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            Ok(Vec::new())
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            self.deregister_count.fetch_add(1, Ordering::SeqCst);
+            Err(crate::discovery::DiscoveryError::NotFound(
+                "missing".to_string(),
+            ))
         }
     }
 
@@ -789,6 +857,33 @@ mod tests {
         assert_eq!(
             stable, after_abort,
             "heartbeat task should stop after PS task cancellation"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_disconnects_when_worker_registration_fails() {
+        let discovery = Arc::new(FailingRegisterDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(res.is_err(), "expected worker registration failure");
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should be called on worker registration failure"
+        );
+        assert_eq!(
+            discovery.deregister_count(),
+            1,
+            "deregister should still be attempted on worker registration failure"
         );
     }
 }
