@@ -3310,6 +3310,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_worker_discover_timeout_includes_custom_service_type_context() {
+        let discovery = Arc::new(HangingDiscoverDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_operation_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(900),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when worker discover operation blocks"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains(
+                "last discovery error: Timed out during discovery operation: discover worker-0 for parameter_server_custom after 20ms"
+            ),
+            "discover timeout diagnostics should include queried custom service type: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_connect_failure_does_not_hang_when_disconnect_blocks() {
         let discovery = Arc::new(FailingConnectWithHangingDisconnectDiscovery::new());
         let cfg = DistributedRunConfig {
