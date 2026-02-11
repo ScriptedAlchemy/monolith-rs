@@ -39,6 +39,30 @@ fn test_run_config_to_discovery_selection_primus() {
 }
 
 #[test]
+fn test_run_config_to_discovery_selection_zk() {
+    let run = RunConfig {
+        is_local: false,
+        discovery_type: ServiceDiscoveryType::Zk,
+        deep_insight_name: "job_for_zk".to_string(),
+        zk_server: "zkhost:2181".to_string(),
+        ..RunConfig::default()
+    };
+    let runner = run
+        .to_runner_config(Some(RunnerConfig {
+            is_local: false,
+            discovery_type: ServiceDiscoveryType::Zk,
+            ..RunnerConfig::default()
+        }))
+        .unwrap();
+
+    let d = get_discovery(&runner, None).unwrap().expect("discovery");
+    assert_eq!(d.kind(), "zk");
+    let (job, zk) = d.zk_config().expect("zk config");
+    assert_eq!(job, "job_for_zk");
+    assert_eq!(zk, "zkhost:2181");
+}
+
+#[test]
 fn test_monolith_discovery_local_returns_none() {
     let rc = RunnerConfig {
         is_local: true,

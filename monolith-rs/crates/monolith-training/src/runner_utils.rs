@@ -104,6 +104,10 @@ pub enum RunnerDiscovery {
     TfConfig(TfConfigServiceDiscovery),
     Mlp(MlpServiceDiscovery),
     Consul(ConsulServiceDiscovery),
+    Zk {
+        deep_insight_name: String,
+        zk_server: String,
+    },
 }
 
 impl RunnerDiscovery {
@@ -112,6 +116,17 @@ impl RunnerDiscovery {
             RunnerDiscovery::TfConfig(_) => "tf_config",
             RunnerDiscovery::Mlp(_) => "mlp",
             RunnerDiscovery::Consul(_) => "consul",
+            RunnerDiscovery::Zk { .. } => "zk",
+        }
+    }
+
+    pub fn zk_config(&self) -> Option<(&str, &str)> {
+        match self {
+            RunnerDiscovery::Zk {
+                deep_insight_name,
+                zk_server,
+            } => Some((deep_insight_name.as_str(), zk_server.as_str())),
+            _ => None,
         }
     }
 
@@ -126,6 +141,7 @@ impl RunnerDiscovery {
             RunnerDiscovery::Consul(d) => d
                 .close()
                 .map_err(|e| RunnerUtilsError::Discovery(e.to_string())),
+            RunnerDiscovery::Zk { .. } => Ok(()),
         }
     }
 }
@@ -174,12 +190,10 @@ pub fn get_discovery(
             RunnerDiscovery::Consul(ConsulServiceDiscovery::new(psm.to_string()))
         }
         ServiceDiscoveryType::Mlp => RunnerDiscovery::Mlp(MlpServiceDiscovery::new()),
-        ServiceDiscoveryType::Zk => {
-            return Err(RunnerUtilsError::UnsupportedDiscovery(
-                "zookeeper discovery is not wired in runner_utils; use discovery::ZkDiscovery"
-                    .to_string(),
-            ));
-        }
+        ServiceDiscoveryType::Zk => RunnerDiscovery::Zk {
+            deep_insight_name: runner_conf.deep_insight_name.clone(),
+            zk_server: runner_conf.zk_server.clone(),
+        },
     };
     Ok(Some(discovery))
 }
@@ -421,6 +435,22 @@ all_model_checkpoint_paths: "model.ckpt-0"
         };
         let discovery = get_discovery(&rc, Some("test_psm")).unwrap();
         assert_eq!(discovery.unwrap().kind(), "consul");
+    }
+
+    #[test]
+    fn test_get_discovery_zk() {
+        let rc = RunnerConfig {
+            is_local: false,
+            discovery_type: ServiceDiscoveryType::Zk,
+            deep_insight_name: "test_job".to_string(),
+            zk_server: "127.0.0.1:2181".to_string(),
+            ..RunnerConfig::default()
+        };
+        let discovery = get_discovery(&rc, None).unwrap().expect("discovery");
+        assert_eq!(discovery.kind(), "zk");
+        let (job, zk) = discovery.zk_config().expect("zk config");
+        assert_eq!(job, "test_job");
+        assert_eq!(zk, "127.0.0.1:2181");
     }
 
     #[test]
