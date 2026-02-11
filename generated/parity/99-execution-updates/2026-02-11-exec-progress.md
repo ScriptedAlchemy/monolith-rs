@@ -2699,6 +2699,22 @@
 - Result: custom worker service-type cleanup-timeout diagnostics now include
   explicit worker-index parity across runner + RunConfig + RunnerConfig paths.
 
+### 213) Indexed PS register-failure cleanup-timeout diagnostics parity expanded
+- Added runner-level indexed PS regression:
+  - `test_run_distributed_preserves_ps_register_failure_with_custom_service_type_and_index_when_cleanup_steps_timeout`
+- Added RunConfig integration regression:
+  - `distributed_runner_from_run_config_preserves_ps_register_failure_with_custom_service_type_and_index_cleanup_timeout_context`
+- Added RunnerConfig integration regression:
+  - `distributed_runner_from_runner_config_preserves_ps_register_failure_with_custom_service_type_and_index_cleanup_timeout_context`
+- New assertions verify that non-zero PS index is preserved through
+  register-failure cleanup-timeout diagnostics:
+  - `deregister ps-2 from parameter_server_custom`
+  - `disconnect ps-2 via parameter_server_custom`
+  while preserving primary register-failure precedence and role-error cleanup
+  issue context.
+- Result: custom PS service-type cleanup-timeout diagnostics now include explicit
+  PS-index parity across runner + RunConfig + RunnerConfig paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3111,6 +3127,9 @@
 409. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post indexed worker register-failure cleanup-timeout diagnostics parity expansion)
 410. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post indexed worker register-failure cleanup-timeout diagnostics parity compatibility verification)
 411. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post indexed worker register-failure cleanup-timeout diagnostics parity expansion full workspace rerun under ambient ZK auth env)
+412. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post indexed PS register-failure cleanup-timeout diagnostics parity expansion)
+413. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post indexed PS register-failure cleanup-timeout diagnostics parity compatibility verification)
+414. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post indexed PS register-failure cleanup-timeout diagnostics parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
