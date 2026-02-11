@@ -87,6 +87,44 @@ fn test_monolith_discovery_consul_auto_psm() {
 }
 
 #[test]
+fn test_monolith_discovery_guard_query_primus() {
+    let tf_config = serde_json::json!({
+      "cluster": {
+        "chief": ["chief:2222"],
+        "ps": ["ps0:2222", "ps1:2222"],
+        "worker": ["worker0:2222"]
+      },
+      "task": {"type": "worker", "index": 0}
+    })
+    .to_string();
+    let rc = RunnerConfig {
+        is_local: false,
+        discovery_type: ServiceDiscoveryType::Primus,
+        tf_config: Some(tf_config),
+        ..RunnerConfig::default()
+    };
+    let guard = monolith_discovery(&rc, None).unwrap();
+    assert_eq!(guard.kind(), Some("tf_config"));
+    let ps = guard.query("ps").unwrap();
+    assert_eq!(ps.get(&0).unwrap(), "ps0:2222");
+    assert_eq!(ps.get(&1).unwrap(), "ps1:2222");
+}
+
+#[test]
+fn test_monolith_discovery_guard_local_register_error() {
+    let rc = RunnerConfig {
+        is_local: true,
+        ..RunnerConfig::default()
+    };
+    let guard = monolith_discovery(&rc, None).unwrap();
+    let err = guard.register("ps", 0, "127.0.0.1:1000").unwrap_err();
+    assert!(matches!(
+        err,
+        monolith_training::RunnerUtilsError::LocalModeNoDiscovery
+    ));
+}
+
+#[test]
 fn test_prepare_restore_checkpoint_chief_then_worker() {
     let tmp = tempdir().unwrap();
     let restore_dir = tmp.path().join("restore");
