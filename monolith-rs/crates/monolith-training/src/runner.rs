@@ -4309,6 +4309,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_preserves_worker_register_failure_with_custom_service_type_and_index_when_cleanup_steps_timeout(
+    ) {
+        let discovery = Arc::new(FailingRegisterWithHangingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 3,
+            num_ps: 1,
+            num_workers: 4,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(900),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when indexed worker register fails and custom-service cleanup steps block"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("forced register failure"),
+            "indexed worker register failure should remain primary when custom-service cleanup steps time out: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "indexed worker register-failure diagnostics should include cleanup issue context when custom-service cleanup steps time out: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: deregister worker-3 from trainer_custom after 20ms"
+            ),
+            "indexed worker register-failure cleanup diagnostics should include custom-service-type deregister-timeout context: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: disconnect worker-3 via trainer_custom after 20ms"
+            ),
+            "indexed worker register-failure cleanup diagnostics should include custom-service-type disconnect-timeout context: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.register_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_preserves_ps_register_failure_with_custom_service_type_when_cleanup_steps_timeout(
     ) {
         let discovery = Arc::new(FailingRegisterWithHangingCleanupDiscovery::new());
