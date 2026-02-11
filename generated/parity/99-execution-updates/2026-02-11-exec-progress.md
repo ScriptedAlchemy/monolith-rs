@@ -49,6 +49,16 @@
   - robust BytePS/Horovod backend detection from `MONOLITH_WITH_BYTEPS`,
   - rank/size/local_rank/local_size read from Horovod/OMPI/BytePS env conventions,
   - defensive fallbacks for missing/invalid values.
+- `distributed` module now includes a `LocalCluster` runtime simulator:
+  - starts/stops local PS + worker roles,
+  - routes parameter registration by hash to PS shards,
+  - applies worker gradient steps against routed parameters.
+- Added `run_config` parity module:
+  - introduces `RunConfig` and `RunnerConfig`,
+  - implements Python-style merge semantics preserving CLI/base overrides,
+  - maps discovery `Consul -> Zk` for runner compatibility,
+  - enforces CPU defaults (`embedding_prefetch_capacity >= 1`, post-push enabled),
+  - exposes explicit user override extraction.
 
 ## Validation evidence (commands run)
 
