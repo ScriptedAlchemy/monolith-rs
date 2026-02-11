@@ -1308,6 +1308,22 @@
 - Updated train command default test fixtures to include new timeout fields so
   CLI parity defaults remain explicit and regression-protected.
 
+### 122) RunConfig/RunnerConfig parity propagation for discovery timeout controls
+- Extended native training config models with timeout fields:
+  - `RunConfig::discovery_operation_timeout_ms`
+  - `RunConfig::discovery_cleanup_timeout_ms`
+  - `RunnerConfig::discovery_operation_timeout_ms`
+  - `RunnerConfig::discovery_cleanup_timeout_ms`
+- Added merge and override propagation for both timeout fields in:
+  - `RunConfig::to_runner_config`
+  - `RunConfig::user_overrides`
+- Updated distributed runner config mapping so RunnerConfig-derived execution
+  now carries timeout values into:
+  - `DistributedRunConfig::discovery_operation_timeout`
+  - `DistributedRunConfig::discovery_cleanup_timeout`
+- Expanded parity regressions to assert timeout field merge/override visibility
+  and runner mapping correctness.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1524,6 +1540,9 @@
 213. `cargo test --workspace -q` ✅ (post worker discover-operation timeout handling and retry-loop blocking regressions full workspace rerun)
 214. `cargo test -p monolith-cli -q` ✅ (post train CLI discovery timeout flag exposure + config wiring updates)
 215. `cargo test --workspace -q` ✅ (post train CLI discovery timeout flag exposure + config wiring updates full workspace rerun)
+216. `cargo test -p monolith-training -q` ✅ (post run-config/runner-config discovery-timeout field propagation and mapping regressions)
+217. `cargo test -p monolith-cli -q` ✅ (post run-config timeout-field expansion compatibility check against CLI command surfaces)
+218. `cargo test --workspace -q` ✅ (post run-config/runner-config discovery-timeout field propagation full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
