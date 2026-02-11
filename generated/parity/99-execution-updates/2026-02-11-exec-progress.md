@@ -305,6 +305,14 @@
 - Exported helper from crate root for downstream runtime callsites.
 - Added unit + integration coverage for Primus selection via run-config path.
 
+### 27) Discovery guard construction helper directly from `RunConfig`
+- Added `monolith_discovery_from_run_config(run_conf, base, psm)`:
+  - applies RunConfig→RunnerConfig merge,
+  - constructs `MonolithDiscoveryGuard` from merged runner config in one step.
+- Exported helper at crate root for runtime callsites.
+- Added unit + integration tests validating Primus guard creation + query behavior
+  through run-config entrypoint.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -339,6 +347,7 @@
 30. `cargo test -p monolith-training -q` ✅ (post estimator runtime initialization helper)
 31. `cargo test -p monolith-training -q` ✅ (post `get_discovery_from_run_config` helper integration)
 32. `cargo test --workspace -q` ✅ (post latest runner/discovery and estimator runtime parity updates)
+33. `cargo test -p monolith-training -q` ✅ (post `monolith_discovery_from_run_config` helper integration)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
