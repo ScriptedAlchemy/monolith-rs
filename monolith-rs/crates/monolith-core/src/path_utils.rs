@@ -38,9 +38,37 @@ pub fn find_main() -> Result<PathBuf> {
     }
 
     // Use this file's on-disk location as the Python version uses __file__.
-    let path = Path::new(file!());
-    let abs = std::fs::canonicalize(path).map_err(|e| MonolithError::InternalError {
-        message: format!("Failed to canonicalize {}: {}", path.display(), e),
+    // `file!()` can be crate- or workspace-relative depending on compilation
+    // context; resolve both forms before canonicalization for stable behavior
+    // across different working directories and test runners.
+    let source_path = Path::new(file!());
+    let resolved_source_path = if source_path.is_absolute() {
+        source_path.to_path_buf()
+    } else {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let manifest_relative = manifest_dir.join(source_path);
+        if manifest_relative.exists() {
+            manifest_relative
+        } else {
+            let workspace_relative = manifest_dir
+                .parent()
+                .and_then(|p| p.parent())
+                .map(|workspace| workspace.join(source_path))
+                .unwrap_or_else(|| source_path.to_path_buf());
+            if workspace_relative.exists() {
+                workspace_relative
+            } else {
+                source_path.to_path_buf()
+            }
+        }
+    };
+
+    let abs = std::fs::canonicalize(&resolved_source_path).map_err(|e| MonolithError::InternalError {
+        message: format!(
+            "Failed to canonicalize {}: {}",
+            resolved_source_path.display(),
+            e
+        ),
     })?;
     let abs_s = abs.to_string_lossy();
 
@@ -92,9 +120,17 @@ pub fn get_libops_path(lib_name: impl AsRef<Path>) -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     #[test]
     fn test_find_main_override() {
+        let _guard = env_lock().lock().unwrap();
+
         // This workspace root contains `monolith/`, so we can safely override.
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
@@ -114,6 +150,8 @@ mod tests {
 
     #[test]
     fn test_get_libops_path_points_to_file() {
+        let _guard = env_lock().lock().unwrap();
+
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
