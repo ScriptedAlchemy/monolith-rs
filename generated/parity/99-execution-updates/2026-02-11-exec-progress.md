@@ -1804,6 +1804,34 @@
 - Prevents malformed parameter-sync metadata from reaching runtime replication
   loops and failing late at push/connect boundaries.
 
+### 161) Run/runner config parity wiring for parameter-sync replication fields
+- Extended `RunConfig` and `RunnerConfig` with explicit parameter-sync
+  replication fields:
+  - `parameter_sync_targets`
+  - `parameter_sync_interval_ms`
+  - `parameter_sync_model_name`
+  - `parameter_sync_signature_name`
+- Updated run-config merge and user-override extraction to preserve/emit these
+  fields using existing Python-parity merge semantics.
+- Wired `distributed_config_from_runner` to propagate all parameter-sync
+  replication fields into `DistributedRunConfig`, closing a runtime-config gap
+  where these values previously always fell back to distributed defaults.
+- Added/updated regression coverage:
+  - run_config unit:
+    - explicit merge assertions for all new fields
+    - `user_overrides` assertions for all new fields
+  - distributed config mapping unit:
+    - `test_distributed_config_from_runner_maps_fields` now validates complete
+      parameter-sync propagation
+  - native-training parity integration:
+    - reintroduced run/runner-config parameter-sync validation regressions now
+      that fields are first-class:
+      - zero interval with targets is rejected
+      - empty target entries are rejected
+      - empty model/signature names with targets are rejected
+- Ensures parameter-sync replication settings are configurable and validated
+  consistently across all distributed runtime entrypoint surfaces.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2102,6 +2130,8 @@
 295. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post env-utils test isolation hardening full workspace rerun under ambient ZK auth env)
 296. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post parameter-sync target metadata validation hardening)
 297. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post parameter-sync target metadata validation hardening full workspace rerun under ambient ZK auth env)
+298. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post run/runner-config parameter-sync field parity wiring and validation regression restoration)
+299. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post run/runner-config parameter-sync field parity wiring full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

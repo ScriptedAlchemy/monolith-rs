@@ -167,6 +167,10 @@ pub fn distributed_config_from_runner(
             runner_conf.discovery_operation_timeout_ms,
         ),
         discovery_cleanup_timeout: Duration::from_millis(runner_conf.discovery_cleanup_timeout_ms),
+        parameter_sync_targets: runner_conf.parameter_sync_targets.clone(),
+        parameter_sync_interval: Duration::from_millis(runner_conf.parameter_sync_interval_ms),
+        parameter_sync_model_name: runner_conf.parameter_sync_model_name.clone(),
+        parameter_sync_signature_name: runner_conf.parameter_sync_signature_name.clone(),
         ..DistributedRunConfig::default()
     }
 }
@@ -1876,6 +1880,10 @@ mod tests {
             barrier_timeout_ms: 2222,
             discovery_operation_timeout_ms: 4321,
             discovery_cleanup_timeout_ms: 123,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval_ms: 345,
+            parameter_sync_model_name: "my_model".to_string(),
+            parameter_sync_signature_name: "my_signature".to_string(),
             ..RunnerConfig::default()
         };
         let cfg = distributed_config_from_runner(
@@ -1895,6 +1903,10 @@ mod tests {
         assert_eq!(cfg.barrier_timeout_ms, 2222);
         assert_eq!(cfg.discovery_operation_timeout, Duration::from_millis(4321));
         assert_eq!(cfg.discovery_cleanup_timeout, Duration::from_millis(123));
+        assert_eq!(cfg.parameter_sync_targets, vec!["127.0.0.1:8500".to_string()]);
+        assert_eq!(cfg.parameter_sync_interval, Duration::from_millis(345));
+        assert_eq!(cfg.parameter_sync_model_name, "my_model");
+        assert_eq!(cfg.parameter_sync_signature_name, "my_signature");
         assert!(matches!(cfg.role, Role::Worker));
     }
 

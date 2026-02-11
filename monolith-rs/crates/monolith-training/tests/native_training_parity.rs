@@ -737,6 +737,144 @@ async fn distributed_runner_from_run_config_rejects_empty_worker_service_type() 
     );
 }
 
+#[tokio::test]
+async fn distributed_runner_from_run_config_rejects_zero_parameter_sync_interval_with_targets() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+        parameter_sync_interval_ms: 0,
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains(
+            "distributed config requires parameter_sync_interval > 0 when parameter_sync_targets are configured"
+        ),
+        "zero run-config parameter-sync interval with targets should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_rejects_empty_parameter_sync_target_entry() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec![" ".to_string()],
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("distributed config requires non-empty parameter_sync_targets entries"),
+        "empty run-config parameter-sync target entry should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_rejects_empty_parameter_sync_model_name_with_targets() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+        parameter_sync_model_name: "".to_string(),
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains(
+            "distributed config requires non-empty parameter_sync_model_name when parameter_sync_targets are configured"
+        ),
+        "empty run-config parameter-sync model name should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_rejects_empty_parameter_sync_signature_name_with_targets(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+        parameter_sync_signature_name: "  ".to_string(),
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains(
+            "distributed config requires non-empty parameter_sync_signature_name when parameter_sync_targets are configured"
+        ),
+        "empty run-config parameter-sync signature name should be rejected by distributed config validation: {err}"
+    );
+}
+
 
 #[tokio::test]
 async fn distributed_runner_from_run_config_propagates_custom_service_type_fields() {
@@ -2338,6 +2476,145 @@ async fn distributed_runner_from_runner_config_rejects_empty_worker_service_type
     assert!(
         err.contains("distributed config requires non-empty discovery_service_type_worker"),
         "empty runner-config worker service type should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_zero_parameter_sync_interval_with_targets() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+        parameter_sync_interval_ms: 0,
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains(
+            "distributed config requires parameter_sync_interval > 0 when parameter_sync_targets are configured"
+        ),
+        "zero runner-config parameter-sync interval with targets should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_empty_parameter_sync_target_entry() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["".to_string()],
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("distributed config requires non-empty parameter_sync_targets entries"),
+        "empty runner-config parameter-sync target entry should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_empty_parameter_sync_model_name_with_targets(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+        parameter_sync_model_name: " ".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains(
+            "distributed config requires non-empty parameter_sync_model_name when parameter_sync_targets are configured"
+        ),
+        "empty runner-config parameter-sync model name should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_empty_parameter_sync_signature_name_with_targets(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+        parameter_sync_signature_name: "".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains(
+            "distributed config requires non-empty parameter_sync_signature_name when parameter_sync_targets are configured"
+        ),
+        "empty runner-config parameter-sync signature name should be rejected by distributed config validation: {err}"
     );
 }
 

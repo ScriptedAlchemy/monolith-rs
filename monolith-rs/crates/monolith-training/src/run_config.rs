@@ -50,6 +50,10 @@ pub struct RunnerConfig {
     pub enable_embedding_postpush: bool,
     pub enable_realtime_training: bool,
     pub enable_parameter_sync: bool,
+    pub parameter_sync_targets: Vec<String>,
+    pub parameter_sync_interval_ms: u64,
+    pub parameter_sync_model_name: String,
+    pub parameter_sync_signature_name: String,
     pub tf_grpc_worker_cache_threads: Option<usize>,
     pub monolith_grpc_worker_service_handler_multiplier: Option<usize>,
 }
@@ -85,6 +89,10 @@ impl Default for RunnerConfig {
             enable_embedding_postpush: true,
             enable_realtime_training: false,
             enable_parameter_sync: false,
+            parameter_sync_targets: Vec::new(),
+            parameter_sync_interval_ms: 200,
+            parameter_sync_model_name: "default".to_string(),
+            parameter_sync_signature_name: "serving_default".to_string(),
             tf_grpc_worker_cache_threads: None,
             monolith_grpc_worker_service_handler_multiplier: None,
         }
@@ -121,6 +129,10 @@ pub struct RunConfig {
     pub embedding_prefetch_capacity: usize,
     pub enable_embedding_postpush: bool,
     pub enable_parameter_sync: bool,
+    pub parameter_sync_targets: Vec<String>,
+    pub parameter_sync_interval_ms: u64,
+    pub parameter_sync_model_name: String,
+    pub parameter_sync_signature_name: String,
     pub tf_grpc_worker_cache_threads: Option<usize>,
     pub monolith_grpc_worker_service_handler_multiplier: Option<usize>,
 }
@@ -155,6 +167,10 @@ impl Default for RunConfig {
             embedding_prefetch_capacity: 0,
             enable_embedding_postpush: false,
             enable_parameter_sync: false,
+            parameter_sync_targets: Vec::new(),
+            parameter_sync_interval_ms: 200,
+            parameter_sync_model_name: "default".to_string(),
+            parameter_sync_signature_name: "serving_default".to_string(),
             tf_grpc_worker_cache_threads: None,
             monolith_grpc_worker_service_handler_multiplier: None,
         }
@@ -197,6 +213,10 @@ impl RunConfig {
         merge_field!(enable_gpu_training);
         merge_field!(embedding_prefetch_capacity);
         merge_field!(enable_embedding_postpush);
+        merge_field!(parameter_sync_targets);
+        merge_field!(parameter_sync_interval_ms);
+        merge_field!(parameter_sync_model_name);
+        merge_field!(parameter_sync_signature_name);
         merge_field!(tf_grpc_worker_cache_threads);
         merge_field!(monolith_grpc_worker_service_handler_multiplier);
         merge_field!(tf_config);
@@ -274,6 +294,10 @@ impl RunConfig {
         push_override!(embedding_prefetch_capacity);
         push_override!(enable_embedding_postpush);
         push_override!(enable_parameter_sync);
+        push_override!(parameter_sync_targets);
+        push_override!(parameter_sync_interval_ms);
+        push_override!(parameter_sync_model_name);
+        push_override!(parameter_sync_signature_name);
         push_override!(tf_grpc_worker_cache_threads);
         push_override!(monolith_grpc_worker_service_handler_multiplier);
 
@@ -356,6 +380,10 @@ mod tests {
             discovery_service_type_worker: "trainer".to_string(),
             table_name: "item_emb".to_string(),
             dim: 128,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval_ms: 345,
+            parameter_sync_model_name: "my_model".to_string(),
+            parameter_sync_signature_name: "my_signature".to_string(),
             ..RunConfig::default()
         };
         let base = RunnerConfig {
@@ -381,6 +409,10 @@ mod tests {
         assert_eq!(merged.discovery_service_type_worker, "trainer");
         assert_eq!(merged.table_name, "item_emb");
         assert_eq!(merged.dim, 128);
+        assert_eq!(merged.parameter_sync_targets, vec!["127.0.0.1:8500".to_string()]);
+        assert_eq!(merged.parameter_sync_interval_ms, 345);
+        assert_eq!(merged.parameter_sync_model_name, "my_model");
+        assert_eq!(merged.parameter_sync_signature_name, "my_signature");
     }
 
     #[test]
@@ -437,6 +469,10 @@ mod tests {
             discovery_service_type_worker: "trainer".to_string(),
             table_name: "item_emb".to_string(),
             dim: 256,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval_ms: 345,
+            parameter_sync_model_name: "my_model".to_string(),
+            parameter_sync_signature_name: "my_signature".to_string(),
             ..RunConfig::default()
         };
         let overrides = rc.user_overrides();
@@ -470,6 +506,22 @@ mod tests {
         );
         assert_eq!(overrides.get("table_name").unwrap(), &serde_json::json!("item_emb"));
         assert_eq!(overrides.get("dim").unwrap(), &serde_json::json!(256));
+        assert_eq!(
+            overrides.get("parameter_sync_targets").unwrap(),
+            &serde_json::json!(vec!["127.0.0.1:8500"])
+        );
+        assert_eq!(
+            overrides.get("parameter_sync_interval_ms").unwrap(),
+            &serde_json::json!(345)
+        );
+        assert_eq!(
+            overrides.get("parameter_sync_model_name").unwrap(),
+            &serde_json::json!("my_model")
+        );
+        assert_eq!(
+            overrides.get("parameter_sync_signature_name").unwrap(),
+            &serde_json::json!("my_signature")
+        );
     }
 
     #[test]
