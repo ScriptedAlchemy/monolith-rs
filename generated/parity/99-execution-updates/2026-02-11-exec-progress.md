@@ -1394,6 +1394,16 @@
 - Keeps runtime validation intact while surfacing misconfiguration earlier at
   CLI assembly boundaries.
 
+### 129) Run-config timeout propagation integration coverage (worker discover path)
+- Added integration-level regression ensuring `RunConfig` timeout controls
+  propagate through `run_distributed_from_run_config(...)` into runtime worker
+  discovery behavior:
+  - `distributed_runner_from_run_config_honors_discover_timeout_controls`
+- Uses blocking discovery backend to verify:
+  - discover operation timeout surfaces with configured duration context,
+  - run-config timeout fields (`operation` + `cleanup`) are honored end-to-end,
+  - cleanup attempts still execute after timeout-driven worker failure.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1627,6 +1637,8 @@
 230. `cargo test --workspace -q` ✅ (post PS setup-timeout precedence regression for blocked cleanup path full workspace rerun)
 231. `cargo test -p monolith-cli -q` ✅ (post CLI timeout input validation guardrails + builder regression expansion)
 232. `cargo test --workspace -q` ✅ (post CLI timeout input validation guardrails + builder regression expansion full workspace rerun)
+233. `cargo test -p monolith-training -q` ✅ (post run-config discover-timeout integration regression coverage)
+234. `cargo test --workspace -q` ✅ (post run-config discover-timeout integration regression coverage full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
