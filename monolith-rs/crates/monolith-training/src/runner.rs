@@ -350,7 +350,7 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         ),
     };
 
-    let connect_op = format!("connect {service_id}");
+    let connect_op = format!("connect {service_id} via {service_type}");
     if let Err(e) = await_discovery_operation(&connect_op, operation_timeout, discovery.connect())
     .await
     {
@@ -3087,8 +3087,87 @@ mod tests {
         );
         let msg = res.unwrap().unwrap_err().to_string();
         assert!(
-            msg.contains("Timed out during discovery operation: connect worker-0"),
+            msg.contains("Timed out during discovery operation: connect worker-0 via worker"),
             "unexpected connect-timeout error: {msg}"
+        );
+        assert!(
+            msg.contains("after 200ms"),
+            "connect-timeout diagnostics should include configured timeout duration: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should still be attempted after connect timeout"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_worker_connect_timeout_includes_custom_service_type_context() {
+        let discovery = Arc::new(HangingConnectDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            discovery_operation_timeout: Duration::from_millis(200),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(900),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when worker connect blocks"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery operation: connect worker-0 via trainer_custom"),
+            "worker connect-timeout diagnostics should include custom service-type context: {msg}"
+        );
+        assert!(
+            msg.contains("after 200ms"),
+            "connect-timeout diagnostics should include configured timeout duration: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should still be attempted after connect timeout"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_ps_connect_timeout_includes_custom_service_type_context() {
+        let discovery = Arc::new(HangingConnectDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_operation_timeout: Duration::from_millis(200),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(900),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when ps connect blocks"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery operation: connect ps-0 via parameter_server_custom"),
+            "ps connect-timeout diagnostics should include custom service-type context: {msg}"
         );
         assert!(
             msg.contains("after 200ms"),
@@ -3127,7 +3206,7 @@ mod tests {
         );
         let msg = res.unwrap().unwrap_err().to_string();
         assert!(
-            msg.contains("Timed out during discovery operation: connect worker-0 after 20ms"),
+            msg.contains("Timed out during discovery operation: connect worker-0 via worker after 20ms"),
             "connect timeout should remain primary even if cleanup disconnect also times out: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
