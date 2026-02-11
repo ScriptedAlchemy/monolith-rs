@@ -39,6 +39,13 @@ pub enum EstimatorError {
     /// A prediction error occurred.
     #[error("Prediction error: {0}")]
     Prediction(String),
+
+    /// EstimatorSpec update attempted to change mode.
+    #[error("Cannot change EstimatorSpec mode from {current:?} to {requested:?}")]
+    SpecModeChange {
+        current: EstimatorMode,
+        requested: EstimatorMode,
+    },
 }
 
 /// Result type for estimator operations.
@@ -139,6 +146,73 @@ pub enum EstimatorMode {
     Eval,
     /// Prediction mode.
     Predict,
+}
+
+/// Python-style estimator output spec.
+///
+/// Mirrors `EstimatorSpec` defaults from Python:
+/// - `head_name=None`
+/// - `loss=None`
+/// - `optimizer=None`
+/// - `classification=True`
+#[derive(Debug, Clone, PartialEq)]
+pub struct EstimatorSpec {
+    pub mode: EstimatorMode,
+    pub label: Option<String>,
+    pub pred: Vec<f32>,
+    pub head_name: Option<String>,
+    pub loss: Option<f64>,
+    pub optimizer: Option<String>,
+    pub classification: bool,
+}
+
+impl EstimatorSpec {
+    pub fn new(mode: EstimatorMode, label: Option<String>, pred: Vec<f32>) -> Self {
+        Self {
+            mode,
+            label,
+            pred,
+            head_name: None,
+            loss: None,
+            optimizer: None,
+            classification: true,
+        }
+    }
+
+    /// Parity helper mirroring Python `namedtuple._replace(...)`.
+    ///
+    /// Mode can only be supplied when it equals the current mode.
+    pub fn replace(&self, update: EstimatorSpecUpdate) -> EstimatorResult<Self> {
+        if let Some(mode) = update.mode {
+            if mode != self.mode {
+                return Err(EstimatorError::SpecModeChange {
+                    current: self.mode,
+                    requested: mode,
+                });
+            }
+        }
+        Ok(Self {
+            mode: self.mode,
+            label: update.label.unwrap_or_else(|| self.label.clone()),
+            pred: update.pred.unwrap_or_else(|| self.pred.clone()),
+            head_name: update.head_name.unwrap_or_else(|| self.head_name.clone()),
+            loss: update.loss.unwrap_or(self.loss),
+            optimizer: update.optimizer.unwrap_or_else(|| self.optimizer.clone()),
+            classification: update.classification.unwrap_or(self.classification),
+        })
+    }
+}
+
+/// Update payload for [`EstimatorSpec::replace`].
+#[derive(Debug, Clone, Default)]
+pub struct EstimatorSpecUpdate {
+    pub mode: Option<EstimatorMode>,
+    pub label: Option<Option<String>>,
+    pub pred: Option<Vec<f32>>,
+    pub head_name: Option<Option<String>>,
+    pub loss: Option<Option<f64>>,
+    pub optimizer: Option<Option<String>>,
+    pub classification: Option<bool>,
 }
 
 /// Result of a training run.
@@ -624,6 +698,48 @@ mod tests {
         let result = estimator.predict(5).unwrap();
         assert_eq!(result.num_examples, 5);
         assert_eq!(result.predictions.len(), 5);
+    }
+
+    #[test]
+    fn test_estimator_spec_defaults() {
+        let spec = EstimatorSpec::new(EstimatorMode::Predict, None, vec![1.0, 2.0]);
+        assert_eq!(spec.head_name, None);
+        assert_eq!(spec.loss, None);
+        assert_eq!(spec.optimizer, None);
+        assert!(spec.classification);
+    }
+
+    #[test]
+    fn test_estimator_spec_replace_same_mode_allowed() {
+        let spec = EstimatorSpec::new(EstimatorMode::Train, Some("l".to_string()), vec![1.0]);
+        let next = spec
+            .replace(EstimatorSpecUpdate {
+                mode: Some(EstimatorMode::Train),
+                loss: Some(Some(0.5)),
+                classification: Some(false),
+                ..EstimatorSpecUpdate::default()
+            })
+            .unwrap();
+        assert_eq!(next.loss, Some(0.5));
+        assert!(!next.classification);
+    }
+
+    #[test]
+    fn test_estimator_spec_replace_mode_change_rejected() {
+        let spec = EstimatorSpec::new(EstimatorMode::Train, None, vec![]);
+        let err = spec
+            .replace(EstimatorSpecUpdate {
+                mode: Some(EstimatorMode::Eval),
+                ..EstimatorSpecUpdate::default()
+            })
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            EstimatorError::SpecModeChange {
+                current: EstimatorMode::Train,
+                requested: EstimatorMode::Eval
+            }
+        ));
     }
 
     struct InputAwareModelFn;

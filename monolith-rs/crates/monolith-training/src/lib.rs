@@ -108,7 +108,7 @@ pub use entry::{
 };
 pub use estimator::{
     ConstantModelFn, Estimator, EstimatorConfig, EstimatorError, EstimatorMode, EstimatorResult,
-    EvalResult, ModelFn, PredictResult, TrainResult,
+    EstimatorSpec, EstimatorSpecUpdate, EvalResult, ModelFn, PredictResult, TrainResult,
 };
 pub use file_ops::{FileCloseHook, WritableFile};
 pub use hooks::{
