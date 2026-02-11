@@ -1245,6 +1245,20 @@
 - Added regression:
   - `test_parameter_sync_replicator_task_stop_aborts_nonterminating_task`.
 
+### 117) Connect/register blocking-operation hardening in distributed runner
+- Added bounded timeout wrapper for discovery setup operations:
+  - `await_discovery_operation(...)` now guards `connect` and `register` calls
+    to prevent indefinite hangs before role execution.
+- Updated distributed runner flow:
+  - `run_distributed` now uses bounded `connect` and worker `register` calls.
+  - `run_ps_role` now uses bounded `register` call before server startup.
+- Added blocking-operation regressions:
+  - `test_run_distributed_connect_timeout_does_not_hang_and_attempts_disconnect`
+  - `test_run_distributed_worker_register_timeout_does_not_hang`
+  - `test_run_distributed_ps_register_timeout_does_not_hang`
+  - verifies timeout surfacing plus deterministic cleanup attempts
+    (`deregister` + `disconnect`) after setup-stage timeout failures.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1449,6 +1463,8 @@
 201. `cargo test --workspace -q` ✅ (post discovery-cleanup timeout wrapper + disconnect-timeout success-path regression additions and full workspace rerun)
 202. `cargo test -p monolith-training -q` ✅ (post parameter-sync replicator deterministic stop hardening + nonterminating-stop regression)
 203. `cargo test --workspace -q` ✅ (post parameter-sync replicator deterministic stop hardening + nonterminating-stop regression and full workspace rerun)
+204. `cargo test -p monolith-training -q` ✅ (post connect/register discovery-operation timeout hardening and blocking-operation regressions)
+205. `cargo test --workspace -q` ✅ (post connect/register discovery-operation timeout hardening and blocking-operation regressions full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
