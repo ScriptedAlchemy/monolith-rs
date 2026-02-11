@@ -685,6 +685,18 @@
   - run-config merge/user-overrides tests now assert explicit propagation and
     override emission for all new distributed runtime tuning fields.
 
+### 64) PS discovery heartbeat lifecycle cleanup in runner
+- Hardened `run_ps_role(...)` heartbeat management to avoid leaked background
+  heartbeat tasks when PS role exits or is cancelled.
+- Replaced fire-and-forget heartbeat spawn with a watch-channel controlled task:
+  - PS role now signals stop on server shutdown path.
+  - heartbeat task is awaited during shutdown for deterministic cleanup.
+  - cancellation paths (e.g., task abort) are handled via sender drop + stop
+    signal handling.
+- Added async regression `test_ps_heartbeat_task_stops_after_ps_task_abort`
+  using a counting discovery backend to verify heartbeat increments stop after
+  PS task cancellation.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -782,6 +794,7 @@
 94. `cargo test --workspace -q` ✅ (post train CLI/distributed runner barrier-timeout parity wiring and full regression rerun)
 95. `cargo test -p monolith-training -q` ✅ (post run/runner-config propagation of distributed connect-retry/backoff/barrier-timeout fields)
 96. `cargo test --workspace -q` ✅ (post run/runner-config distributed runtime tuning propagation and full workspace regression rerun)
+97. `cargo test -p monolith-training -q` ✅ (post cancellable PS discovery heartbeat lifecycle management in distributed runner)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
