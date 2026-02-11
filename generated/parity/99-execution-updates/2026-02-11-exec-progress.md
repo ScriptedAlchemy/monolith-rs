@@ -1173,6 +1173,15 @@
 - Added regression:
   - `test_stop_heartbeat_task_aborts_nonterminating_task`.
 
+### 110) Disconnect-after-success cleanup regression for deregister failures
+- Added distributed-runner lifecycle regression ensuring disconnect still runs
+  when post-success `deregister_async` fails:
+  - worker role completes successful PS interactions against a live PS server,
+  - backend is forced to fail deregistration,
+  - runner still attempts `disconnect`.
+- Added regression:
+  - `test_run_distributed_attempts_disconnect_when_deregister_fails_after_success`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1361,6 +1370,8 @@
 185. `cargo test --workspace -q` ✅ (post connect-failure discovery disconnect cleanup hardening and full workspace rerun)
 186. `cargo test -p monolith-training -q` ✅ (post forced heartbeat-task abort on shutdown-timeout path)
 187. `cargo test --workspace -q` ✅ (post forced heartbeat-task abort on shutdown-timeout path and full workspace rerun)
+188. `cargo test -p monolith-training -q` ✅ (post disconnect-after-success lifecycle regression for deregister-failure path)
+189. `cargo test --workspace -q` ✅ (post disconnect-after-success lifecycle regression for deregister-failure path and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
