@@ -761,6 +761,13 @@
     instead of silently connecting to a gapped shard set.
 - Added regression `test_ordered_ps_addrs_requires_contiguous_index_set`.
 
+### 71) Conflicting duplicate shard-index discovery guard
+- Hardened metadata-index ordering logic to reject conflicting duplicate shard
+  index advertisements (same `index` with different endpoint addresses).
+- Worker discovery now treats this as inconsistent discovery state and retries
+  instead of selecting one address arbitrarily.
+- Added regression `test_ordered_ps_addrs_rejects_conflicting_duplicate_index`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -872,6 +879,7 @@
 108. `cargo test --workspace -q` ✅ (post deterministic PS discovery ordering by shard index metadata and full workspace regression rerun)
 109. `cargo test -p monolith-training -q` ✅ (post contiguous PS shard-index enforcement for metadata-based worker discovery ordering)
 110. `cargo test --workspace -q` ✅ (post contiguous PS shard-index enforcement and full workspace regression rerun)
+111. `cargo test -p monolith-training -q` ✅ (post conflicting duplicate shard-index advertisement guard in worker discovery ordering)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
