@@ -21,7 +21,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 const DISCOVERY_CLEANUP_TIMEOUT: Duration = Duration::from_millis(200);
-const DISCOVERY_OPERATION_TIMEOUT: Duration = Duration::from_millis(200);
 
 /// Helper for tests: bind to `127.0.0.1:0` and return the chosen address.
 async fn bind_ephemeral(
@@ -53,6 +52,7 @@ pub struct DistributedRunConfig {
     pub retry_backoff_ms: u64,
     pub barrier_timeout_ms: i64,
     pub heartbeat_interval: Option<Duration>,
+    pub discovery_operation_timeout: Duration,
     /// If set, periodically pushes updated embeddings to online serving via ParameterSync.
     pub parameter_sync_targets: Vec<String>,
     pub parameter_sync_interval: Duration,
@@ -76,6 +76,7 @@ impl Default for DistributedRunConfig {
             retry_backoff_ms: 500,
             barrier_timeout_ms: 10_000,
             heartbeat_interval: Some(Duration::from_secs(10)),
+            discovery_operation_timeout: Duration::from_secs(5),
             parameter_sync_targets: Vec::new(),
             parameter_sync_interval: Duration::from_millis(200),
             parameter_sync_model_name: "default".to_string(),
@@ -301,12 +302,13 @@ where
 async fn await_discovery_operation<Fut>(
     service_id: &str,
     op_name: &'static str,
+    timeout: Duration,
     fut: Fut,
 ) -> anyhow::Result<()>
 where
     Fut: Future<Output = crate::discovery::Result<()>>,
 {
-    match tokio::time::timeout(DISCOVERY_OPERATION_TIMEOUT, fut).await {
+    match tokio::time::timeout(timeout, fut).await {
         Ok(res) => res.map_err(anyhow::Error::from),
         Err(_) => Err(anyhow::anyhow!(
             "Timed out during discovery operation: {} {}",
@@ -333,7 +335,14 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         ),
     };
 
-    if let Err(e) = await_discovery_operation(&service_id, "connect", discovery.connect()).await {
+    if let Err(e) = await_discovery_operation(
+        &service_id,
+        "connect",
+        cfg.discovery_operation_timeout,
+        discovery.connect(),
+    )
+    .await
+    {
         if let Err(disconnect_err) =
             await_discovery_cleanup(&service_id, "disconnect", discovery.disconnect()).await
         {
@@ -358,8 +367,13 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
             );
             service = service.with_metadata("addr", cfg.bind_addr.to_string());
             service = service.with_metadata("index", cfg.index.to_string());
-            match await_discovery_operation(&service_id, "register", discovery.register_async(service))
-                .await
+            match await_discovery_operation(
+                &service_id,
+                "register",
+                cfg.discovery_operation_timeout,
+                discovery.register_async(service),
+            )
+            .await
             {
                 Ok(()) => run_worker_role(Arc::clone(&discovery), &service_id, cfg).await,
                 Err(e) => Err(e),
@@ -469,7 +483,13 @@ async fn run_ps_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     service = service.with_metadata("addr", actual_addr.to_string());
     service = service.with_metadata("index", cfg.index.to_string());
     service = service.with_metadata("allow_update", "true");
-    await_discovery_operation(service_id, "register", discovery.register_async(service)).await?;
+    await_discovery_operation(
+        service_id,
+        "register",
+        cfg.discovery_operation_timeout,
+        discovery.register_async(service),
+    )
+    .await?;
 
     tracing::info!(
         role = "ps",
@@ -2707,6 +2727,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
+            discovery_operation_timeout: Duration::from_millis(200),
             ..DistributedRunConfig::default()
         };
 
@@ -2728,6 +2749,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
+            discovery_operation_timeout: Duration::from_millis(200),
             ..DistributedRunConfig::default()
         };
 
@@ -2761,6 +2783,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
+            discovery_operation_timeout: Duration::from_millis(200),
             ..DistributedRunConfig::default()
         };
 
@@ -2792,6 +2815,7 @@ mod tests {
             num_ps: 1,
             num_workers: 1,
             bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_operation_timeout: Duration::from_millis(200),
             ..DistributedRunConfig::default()
         };
 
