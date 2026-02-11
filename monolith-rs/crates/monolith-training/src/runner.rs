@@ -294,8 +294,7 @@ async fn stop_heartbeat_task(
 }
 
 async fn await_discovery_cleanup<Fut>(
-    service_id: &str,
-    op_name: &'static str,
+    op_name: &str,
     timeout: Duration,
     fut: Fut,
 ) -> anyhow::Result<()>
@@ -305,9 +304,8 @@ where
     match tokio::time::timeout(timeout, fut).await {
         Ok(res) => res.map_err(anyhow::Error::from),
         Err(_) => Err(anyhow::anyhow!(
-            "Timed out during discovery cleanup: {} {} after {}ms",
+            "Timed out during discovery cleanup: {} after {}ms",
             op_name,
-            service_id,
             timeout.as_millis()
         )),
     }
@@ -354,10 +352,10 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     if let Err(e) = await_discovery_operation(&connect_op, operation_timeout, discovery.connect())
     .await
     {
+        let disconnect_op = format!("disconnect {service_id} via {service_type}");
         if let Err(disconnect_err) =
             await_discovery_cleanup(
-                &service_id,
-                "disconnect",
+                &disconnect_op,
                 cleanup_timeout,
                 discovery.disconnect(),
             )
@@ -372,7 +370,13 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     }
 
     let role_res: anyhow::Result<()> = match cfg.role {
-        Role::Ps => run_ps_role(Arc::clone(&discovery), &service_id, service_type, cfg).await,
+        Role::Ps => run_ps_role(
+            Arc::clone(&discovery),
+            &service_id,
+            service_type.clone(),
+            cfg,
+        )
+        .await,
         Role::Worker => {
             // Register worker address for parity (some backends rely on it for cluster formation).
             let mut service = ServiceInfo::new(
@@ -398,15 +402,16 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         }
     };
 
+    let deregister_op = format!("deregister {service_id} from {service_type}");
     let deregister_result = await_discovery_cleanup(
-        &service_id,
-        "deregister",
+        &deregister_op,
         cleanup_timeout,
         discovery.deregister_async(&service_id),
     )
     .await;
+    let disconnect_op = format!("disconnect {service_id} via {service_type}");
     let disconnect_result =
-        await_discovery_cleanup(&service_id, "disconnect", cleanup_timeout, discovery.disconnect())
+        await_discovery_cleanup(&disconnect_op, cleanup_timeout, discovery.disconnect())
             .await;
 
     if let Err(e) = role_res {
@@ -3632,8 +3637,55 @@ mod tests {
         assert!(res.is_err(), "expected deregister timeout after successful run");
         let msg = res.unwrap_err().to_string();
         assert!(
-            msg.contains("Timed out during discovery cleanup: deregister worker-0"),
+            msg.contains("Timed out during discovery cleanup: deregister worker-0 from worker"),
             "unexpected error: {msg}"
+        );
+        assert!(
+            msg.contains("after 200ms"),
+            "cleanup-timeout diagnostics should include configured timeout duration: {msg}"
+        );
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should still be attempted when deregister times out"
+        );
+
+        ps_server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_surfaces_deregister_timeout_with_custom_service_type_after_success(
+    ) {
+        let ps = PsServer::new(0, 8);
+        let (listener, actual_addr) = bind_ephemeral("127.0.0.1:0".parse().unwrap())
+            .await
+            .unwrap();
+        let ps_server = tokio::spawn(
+            tonic::transport::Server::builder()
+                .add_service(Arc::clone(&ps).into_service())
+                .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener)),
+        );
+
+        let discovery = Arc::new(HangingDeregisterAfterSuccessDiscovery::new(
+            actual_addr.to_string(),
+        ));
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            dim: 8,
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(res.is_err(), "expected deregister timeout after successful run");
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery cleanup: deregister worker-0 from trainer_custom"),
+            "deregister-timeout diagnostics should include custom service-type context: {msg}"
         );
         assert!(
             msg.contains("after 200ms"),
@@ -3722,8 +3774,55 @@ mod tests {
         assert!(res.is_err(), "expected disconnect timeout after successful run");
         let msg = res.unwrap_err().to_string();
         assert!(
-            msg.contains("Timed out during discovery cleanup: disconnect worker-0"),
+            msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker"),
             "unexpected error: {msg}"
+        );
+        assert!(
+            msg.contains("after 200ms"),
+            "cleanup-timeout diagnostics should include configured timeout duration: {msg}"
+        );
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should be attempted exactly once before timing out"
+        );
+
+        ps_server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_surfaces_disconnect_timeout_with_custom_service_type_after_success(
+    ) {
+        let ps = PsServer::new(0, 8);
+        let (listener, actual_addr) = bind_ephemeral("127.0.0.1:0".parse().unwrap())
+            .await
+            .unwrap();
+        let ps_server = tokio::spawn(
+            tonic::transport::Server::builder()
+                .add_service(Arc::clone(&ps).into_service())
+                .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener)),
+        );
+
+        let discovery = Arc::new(HangingDisconnectAfterSuccessDiscovery::new(
+            actual_addr.to_string(),
+        ));
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            dim: 8,
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(res.is_err(), "expected disconnect timeout after successful run");
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery cleanup: disconnect worker-0 via trainer_custom"),
+            "disconnect-timeout diagnostics should include custom service-type context: {msg}"
         );
         assert!(
             msg.contains("after 200ms"),
