@@ -2194,6 +2194,14 @@
     - userinfo rejection
     - HTTP default-port duplicate normalization rejection.
 
+### 183) Integration parity expanded for HTTPS default-port duplicate normalization
+- Added native-training integration regressions proving default-port
+  canonicalization parity for HTTPS endpoints through both distributed entrypoints:
+  - `distributed_runner_from_run_config_rejects_duplicate_parameter_sync_target_entry_after_https_default_port_normalization`
+  - `distributed_runner_from_runner_config_rejects_duplicate_parameter_sync_target_entry_after_https_default_port_normalization`
+- Ensures `https://host` and `https://host:443` are treated as duplicates
+  end-to-end (not just in unit-level validation coverage).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2536,6 +2544,8 @@
 339. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post explicit http/https-only parameter-sync scheme validation full workspace rerun under ambient ZK auth env)
 340. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post userinfo rejection + default-port normalization canonicalization hardening for parameter-sync endpoints across CLI/runtime layers)
 341. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post userinfo rejection + default-port normalization parameter-sync endpoint canonicalization full workspace rerun under ambient ZK auth env)
+342. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post native-training integration parity expansion for https default-port duplicate normalization)
+343. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post native-training https default-port duplicate normalization integration parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
