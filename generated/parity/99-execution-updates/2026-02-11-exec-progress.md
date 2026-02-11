@@ -1203,6 +1203,15 @@
 - Added regression:
   - `test_run_distributed_surfaces_disconnect_failure_after_success`.
 
+### 113) Combined post-success cleanup failure semantics hardening
+- Hardened `run_distributed(...)` success-path cleanup handling:
+  - when `deregister` fails, runner now still checks/disconnects and logs any
+    disconnect failure before returning the primary deregister error.
+- Added regressions for combined failure/error-priority and connect+disconnect
+  dual-failure cleanup behavior:
+  - `test_run_distributed_prefers_deregister_error_when_both_post_success_cleanup_steps_fail`
+  - `test_run_distributed_returns_connect_error_when_connect_and_disconnect_fail`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1397,6 +1406,8 @@
 191. `cargo test --workspace -q` ✅ (post worker-timeout cleanup regression after successful registration and full workspace rerun)
 192. `cargo test -p monolith-training -q` ✅ (post disconnect-failure propagation regression after successful worker completion)
 193. `cargo test --workspace -q` ✅ (post disconnect-failure propagation regression after successful worker completion and full workspace rerun)
+194. `cargo test -p monolith-training -q` ✅ (post combined cleanup-failure semantics hardening in distributed runner)
+195. `cargo test --workspace -q` ✅ (post combined cleanup-failure semantics hardening in distributed runner and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
