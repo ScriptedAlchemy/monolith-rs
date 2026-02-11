@@ -566,6 +566,7 @@ mod tests {
         services: std::sync::Mutex<HashMap<String, ServiceInfo>>,
         heartbeat_count: AtomicUsize,
         events_tx: tokio::sync::broadcast::Sender<DiscoveryEvent>,
+        discover_delay: Option<Duration>,
     }
 
     impl CountingDiscovery {
@@ -575,7 +576,14 @@ mod tests {
                 services: std::sync::Mutex::new(HashMap::new()),
                 heartbeat_count: AtomicUsize::new(0),
                 events_tx,
+                discover_delay: None,
             }
+        }
+
+        fn with_discover_delay(delay: Duration) -> Self {
+            let mut d = Self::new();
+            d.discover_delay = Some(delay);
+            d
         }
 
         fn heartbeat_count(&self) -> usize {
@@ -669,6 +677,9 @@ mod tests {
         }
 
         async fn discover_async(&self, service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            if let Some(delay) = self.discover_delay {
+                tokio::time::sleep(delay).await;
+            }
             let services = self
                 .services
                 .lock()
@@ -1453,6 +1464,58 @@ mod tests {
             stable, after_timeout,
             "worker heartbeat task should stop after worker role exits"
         );
+    }
+
+    #[tokio::test]
+    async fn test_worker_heartbeat_task_stops_after_worker_success() {
+        let discovery = Arc::new(CountingDiscovery::with_discover_delay(Duration::from_millis(30)));
+        let ps = PsServer::new(0, 8);
+        let (listener, actual_addr) = bind_ephemeral("127.0.0.1:0".parse().unwrap())
+            .await
+            .unwrap();
+        let ps_server = tokio::spawn(
+            tonic::transport::Server::builder()
+                .add_service(Arc::clone(&ps).into_service())
+                .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener)),
+        );
+
+        let mut ps_service = ServiceInfo::new(
+            "ps-0",
+            "ps-0",
+            "ps",
+            actual_addr.ip().to_string(),
+            actual_addr.port(),
+        );
+        ps_service = ps_service.with_metadata("index", "0");
+        discovery.register_async(ps_service).await.unwrap();
+
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 1,
+            retry_backoff_ms: 1,
+            heartbeat_interval: Some(Duration::from_millis(5)),
+            ..DistributedRunConfig::default()
+        };
+        let res = run_worker_role(Arc::clone(&discovery), "worker-0", cfg).await;
+        assert!(res.is_ok(), "worker should succeed with discoverable PS");
+
+        let after_success = discovery.heartbeat_count();
+        assert!(
+            after_success > 0,
+            "worker heartbeat should run while waiting on discovery before success"
+        );
+
+        tokio::time::sleep(Duration::from_millis(40)).await;
+        let stable = discovery.heartbeat_count();
+        assert_eq!(
+            stable, after_success,
+            "worker heartbeat task should stop after successful worker completion"
+        );
+
+        ps_server.abort();
     }
 
     #[tokio::test]
