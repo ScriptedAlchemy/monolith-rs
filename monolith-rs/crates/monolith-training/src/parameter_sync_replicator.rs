@@ -17,6 +17,8 @@ use thiserror::Error;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
+const REPLICATOR_STOP_TIMEOUT: Duration = Duration::from_millis(200);
+
 #[derive(Debug, Error)]
 pub enum ReplicatorError {
     #[error("parameter sync rpc error: {0}")]
@@ -85,7 +87,19 @@ impl ParameterSyncReplicatorTask {
     pub async fn stop(mut self) {
         let _ = self.stop_tx.send(true);
         if let Some(mut handle) = self.join_handle.take() {
-            let _ = (&mut handle).await;
+            tokio::select! {
+                joined = &mut handle => {
+                    let _ = joined;
+                }
+                _ = tokio::time::sleep(REPLICATOR_STOP_TIMEOUT) => {
+                    handle.abort();
+                    let _ = handle.await;
+                    tracing::warn!(
+                        timeout_ms = REPLICATOR_STOP_TIMEOUT.as_millis(),
+                        "ParameterSync replicator task did not stop promptly; forced abort"
+                    );
+                }
+            }
         }
     }
 }
@@ -138,8 +152,17 @@ impl ParameterSyncReplicator {
                         }
                     }
                     _ = tokio::time::sleep(interval) => {
-                        if let Err(e) = self.flush_once().await {
-                            tracing::warn!(error = %e, "ParameterSyncReplicator flush failed");
+                        tokio::select! {
+                            stop_changed = stop_rx.changed() => {
+                                if stop_changed.is_err() || *stop_rx.borrow() {
+                                    break;
+                                }
+                            }
+                            flush_res = self.flush_once() => {
+                                if let Err(e) = flush_res {
+                                    tracing::warn!(error = %e, "ParameterSyncReplicator flush failed");
+                                }
+                            }
                         }
                     }
                 }
@@ -242,5 +265,23 @@ mod tests {
 
         drop(task);
         tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+
+    #[tokio::test]
+    async fn test_parameter_sync_replicator_task_stop_aborts_nonterminating_task() {
+        let (stop_tx, _stop_rx) = watch::channel(false);
+        let pending_task = tokio::spawn(async {
+            std::future::pending::<()>().await;
+        });
+        let task = ParameterSyncReplicatorTask {
+            stop_tx,
+            join_handle: Some(pending_task),
+        };
+
+        let stopped = tokio::time::timeout(Duration::from_secs(1), task.stop()).await;
+        assert!(
+            stopped.is_ok(),
+            "replicator task stop should complete even if underlying task is nonterminating"
+        );
     }
 }
