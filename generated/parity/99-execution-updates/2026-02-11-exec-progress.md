@@ -1123,6 +1123,13 @@
 - Extended regression:
   - `consul_close_is_idempotent_and_blocks_operations`.
 
+### 104) Consul clone lifecycle close-state parity regression
+- Added regression verifying close-state is shared across cloned
+  `ConsulServiceDiscovery` handles:
+  - closing one clone disables operations on peer clones.
+- Added regression:
+  - `consul_close_state_is_shared_across_clones`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1299,6 +1306,8 @@
 173. `cargo test --workspace -q` ✅ (post Consul closed-state lifecycle guard hardening and full workspace regression rerun)
 174. `cargo test -p monolith-training -q` ✅ (post Consul query_all close-state consistency guard)
 175. `cargo test --workspace -q` ✅ (post Consul query_all close-state consistency guard and full workspace regression rerun)
+176. `cargo test -p monolith-training -q` ✅ (post Consul clone close-state parity regression)
+177. `cargo test --workspace -q` ✅ (post Consul clone close-state parity regression and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
