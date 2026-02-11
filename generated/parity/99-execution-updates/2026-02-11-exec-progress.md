@@ -209,6 +209,18 @@
   - `warm_start_from` derived from `restore_ckpt` when set.
 - Added tests for both run/runner config bridges and estimator construction from runner config.
 
+### 17) Runner checkpoint override edge-case hardening
+- Improved `get_checkpoint_state_with_restore_override` matching logic to support
+  Python-compatible restore checkpoint matching across multiple forms:
+  - exact full-path matches,
+  - basename-only matches against full checkpoint paths,
+  - derived parent-path fallback matches.
+- Added additional guard semantics:
+  - restore overrides are applied only when `latest_filename == "checkpoint"`.
+- Added tests covering:
+  - basename → full-path override resolution,
+  - non-`checkpoint` filename bypass behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -231,6 +243,7 @@
 18. `cargo test -p monolith-training -q` ✅ (post `EstimatorSpec` parity surface + tests)
 19. `cargo test -p monolith-training -q` ✅ (post distributed runner cleanup lifecycle updates)
 20. `cargo test -p monolith-training -q` ✅ (post run/runner → estimator config bridge additions)
+21. `cargo test -p monolith-training -q` ✅ (post checkpoint override edge-case hardening)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
