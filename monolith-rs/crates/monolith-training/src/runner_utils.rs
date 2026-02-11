@@ -11,6 +11,11 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::native_training::service_discovery::{
+    ConsulServiceDiscovery, ServiceDiscovery as NativeServiceDiscovery, ServiceDiscoveryType,
+};
+use crate::py_discovery::{MlpServiceDiscovery, PyServiceDiscovery, TfConfigServiceDiscovery};
+use crate::run_config::RunnerConfig;
 use monolith_proto::monolith::native_training::monolith_checkpoint_state::HashTableType;
 use monolith_proto::monolith::native_training::MonolithCheckpointState;
 use monolith_proto::text_format;
@@ -24,6 +29,14 @@ pub enum RunnerUtilsError {
     MissingCheckpoint(PathBuf),
     #[error("restore_ckpt {restore_ckpt} is not in checkpoint.all_model_checkpoint_paths")]
     RestoreCkptNotFound { restore_ckpt: String },
+    #[error("TF_CONFIG is required for Primus discovery")]
+    MissingTfConfig,
+    #[error("psm is required for Consul discovery")]
+    MissingPsm,
+    #[error("Discovery backend unsupported in runner_utils: {0}")]
+    UnsupportedDiscovery(String),
+    #[error("Discovery error: {0}")]
+    Discovery(String),
 }
 
 /// Minimal subset of TensorFlow's `CheckpointState` used by the Python tests.
@@ -80,6 +93,102 @@ fn write_checkpoint_pbtxt(state: &CheckpointState) -> String {
         out.push_str(&format!("all_model_checkpoint_paths: \"{}\"\n", p));
     }
     out
+}
+
+/// Discovery backends produced by [`get_discovery`].
+#[derive(Debug)]
+pub enum RunnerDiscovery {
+    TfConfig(TfConfigServiceDiscovery),
+    Mlp(MlpServiceDiscovery),
+    Consul(ConsulServiceDiscovery),
+}
+
+impl RunnerDiscovery {
+    pub fn kind(&self) -> &'static str {
+        match self {
+            RunnerDiscovery::TfConfig(_) => "tf_config",
+            RunnerDiscovery::Mlp(_) => "mlp",
+            RunnerDiscovery::Consul(_) => "consul",
+        }
+    }
+
+    pub fn close(&self) -> Result<(), RunnerUtilsError> {
+        match self {
+            RunnerDiscovery::TfConfig(d) => d
+                .close()
+                .map_err(|e| RunnerUtilsError::Discovery(e.to_string())),
+            RunnerDiscovery::Mlp(d) => d
+                .close()
+                .map_err(|e| RunnerUtilsError::Discovery(e.to_string())),
+            RunnerDiscovery::Consul(d) => d
+                .close()
+                .map_err(|e| RunnerUtilsError::Discovery(e.to_string())),
+        }
+    }
+}
+
+/// Context-style guard for discovery lifecycle, mirroring Python `monolith_discovery`.
+pub struct MonolithDiscoveryGuard {
+    discovery: Option<RunnerDiscovery>,
+}
+
+impl MonolithDiscoveryGuard {
+    pub fn discovery(&self) -> Option<&RunnerDiscovery> {
+        self.discovery.as_ref()
+    }
+}
+
+impl Drop for MonolithDiscoveryGuard {
+    fn drop(&mut self) {
+        if let Some(d) = &self.discovery {
+            let _ = d.close();
+        }
+    }
+}
+
+/// Select discovery backend from runner config.
+pub fn get_discovery(
+    runner_conf: &RunnerConfig,
+    psm: Option<&str>,
+) -> Result<Option<RunnerDiscovery>, RunnerUtilsError> {
+    if runner_conf.is_local {
+        return Ok(None);
+    }
+
+    let discovery = match runner_conf.discovery_type {
+        ServiceDiscoveryType::Primus => {
+            let tf_config = runner_conf
+                .tf_config
+                .clone()
+                .or_else(|| std::env::var("TF_CONFIG").ok())
+                .ok_or(RunnerUtilsError::MissingTfConfig)?;
+            let d = TfConfigServiceDiscovery::new(&tf_config)
+                .map_err(|e| RunnerUtilsError::Discovery(e.to_string()))?;
+            RunnerDiscovery::TfConfig(d)
+        }
+        ServiceDiscoveryType::Consul => {
+            let psm = psm.ok_or(RunnerUtilsError::MissingPsm)?;
+            RunnerDiscovery::Consul(ConsulServiceDiscovery::new(psm.to_string()))
+        }
+        ServiceDiscoveryType::Mlp => RunnerDiscovery::Mlp(MlpServiceDiscovery::new()),
+        ServiceDiscoveryType::Zk => {
+            return Err(RunnerUtilsError::UnsupportedDiscovery(
+                "zookeeper discovery is not wired in runner_utils; use discovery::ZkDiscovery"
+                    .to_string(),
+            ));
+        }
+    };
+    Ok(Some(discovery))
+}
+
+/// Builds a discovery guard; discovery will be closed automatically on drop.
+pub fn monolith_discovery(
+    runner_conf: &RunnerConfig,
+    psm: Option<&str>,
+) -> Result<MonolithDiscoveryGuard, RunnerUtilsError> {
+    Ok(MonolithDiscoveryGuard {
+        discovery: get_discovery(runner_conf, psm)?,
+    })
 }
 
 /// Copy a `checkpoint` file from `restore_dir` into `model_dir` and write a `restore_ckpt` marker.
@@ -191,6 +300,8 @@ pub fn copy_checkpoint_from_restore_dir(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::native_training::service_discovery::ServiceDiscoveryType;
+    use crate::run_config::RunnerConfig;
     use tempfile::tempdir;
 
     #[test]
@@ -218,5 +329,59 @@ all_model_checkpoint_paths: "model.ckpt-0"
         assert!(model_dir.join("monolith_checkpoint").exists());
         assert!(model_dir.join("restore_ckpt").exists());
         assert!(model_dir.join("checkpoint").exists());
+    }
+
+    #[test]
+    fn test_get_discovery_local() {
+        let rc = RunnerConfig {
+            is_local: true,
+            ..RunnerConfig::default()
+        };
+        let discovery = get_discovery(&rc, None).unwrap();
+        assert!(discovery.is_none());
+    }
+
+    #[test]
+    fn test_get_discovery_primus() {
+        let tf_config = serde_json::json!({
+          "cluster": {
+            "chief": ["host0:2222"],
+            "ps": ["host1:2222"],
+            "worker": ["host2:2222"]
+          },
+          "task": {"type": "worker", "index": 0}
+        })
+        .to_string();
+        let rc = RunnerConfig {
+            is_local: false,
+            discovery_type: ServiceDiscoveryType::Primus,
+            tf_config: Some(tf_config),
+            ..RunnerConfig::default()
+        };
+        let discovery = get_discovery(&rc, None).unwrap();
+        let d = discovery.expect("expected discovery");
+        assert_eq!(d.kind(), "tf_config");
+    }
+
+    #[test]
+    fn test_get_discovery_consul_requires_psm() {
+        let rc = RunnerConfig {
+            is_local: false,
+            discovery_type: ServiceDiscoveryType::Consul,
+            ..RunnerConfig::default()
+        };
+        let err = get_discovery(&rc, None).unwrap_err();
+        assert!(matches!(err, RunnerUtilsError::MissingPsm));
+    }
+
+    #[test]
+    fn test_get_discovery_consul_with_psm() {
+        let rc = RunnerConfig {
+            is_local: false,
+            discovery_type: ServiceDiscoveryType::Consul,
+            ..RunnerConfig::default()
+        };
+        let discovery = get_discovery(&rc, Some("test_psm")).unwrap();
+        assert_eq!(discovery.unwrap().kind(), "consul");
     }
 }

@@ -28,6 +28,9 @@ pub struct RunnerConfig {
     pub model_dir: PathBuf,
     pub log_step_count_steps: u64,
     pub discovery_type: ServiceDiscoveryType,
+    pub tf_config: Option<String>,
+    pub deep_insight_name: String,
+    pub zk_server: String,
     pub enable_gpu_training: bool,
     pub embedding_prefetch_capacity: usize,
     pub enable_embedding_postpush: bool,
@@ -44,6 +47,9 @@ impl Default for RunnerConfig {
             model_dir: PathBuf::from("./model"),
             log_step_count_steps: 100,
             discovery_type: ServiceDiscoveryType::Primus,
+            tf_config: None,
+            deep_insight_name: "monolith".to_string(),
+            zk_server: "127.0.0.1:2181".to_string(),
             enable_gpu_training: false,
             embedding_prefetch_capacity: 1,
             enable_embedding_postpush: true,
@@ -62,6 +68,9 @@ pub struct RunConfig {
     pub model_dir: PathBuf,
     pub log_step_count_steps: u64,
     pub discovery_type: ServiceDiscoveryType,
+    pub tf_config: Option<String>,
+    pub deep_insight_name: String,
+    pub zk_server: String,
     pub enable_gpu_training: bool,
     pub embedding_prefetch_capacity: usize,
     pub enable_embedding_postpush: bool,
@@ -77,6 +86,9 @@ impl Default for RunConfig {
             model_dir: PathBuf::from("./model"),
             log_step_count_steps: 100,
             discovery_type: ServiceDiscoveryType::Primus,
+            tf_config: None,
+            deep_insight_name: "monolith".to_string(),
+            zk_server: "127.0.0.1:2181".to_string(),
             enable_gpu_training: false,
             embedding_prefetch_capacity: 0,
             enable_embedding_postpush: false,
@@ -111,6 +123,9 @@ impl RunConfig {
         merge_field!(enable_gpu_training);
         merge_field!(embedding_prefetch_capacity);
         merge_field!(enable_embedding_postpush);
+        merge_field!(tf_config);
+        merge_field!(deep_insight_name);
+        merge_field!(zk_server);
 
         if self.discovery_type != defaults.discovery_type && self.discovery_type != conf.discovery_type
         {
@@ -158,6 +173,9 @@ impl RunConfig {
         push_override!(model_dir);
         push_override!(log_step_count_steps);
         push_override!(discovery_type);
+        push_override!(tf_config);
+        push_override!(deep_insight_name);
+        push_override!(zk_server);
         push_override!(enable_gpu_training);
         push_override!(embedding_prefetch_capacity);
         push_override!(enable_embedding_postpush);
