@@ -826,6 +826,18 @@
 - This validates the end-to-end diagnostic path (not just helper-level ordering
   return values).
 
+### 77) ParameterSync replicator lifecycle cleanup in PS runner
+- Refactored `ParameterSyncReplicator::spawn(...)` to return a managed
+  `ParameterSyncReplicatorTask` handle with explicit `stop().await` semantics.
+- Added watch-channel based shutdown coordination to the replicator loop, so
+  background replication exits cleanly on:
+  - explicit stop,
+  - owner-drop cancellation paths.
+- Wired `run_ps_role(...)` to retain the spawned replicator task handle and
+  stop/join it during server shutdown, preventing orphaned replication loops.
+- Added regression `test_parameter_sync_replicator_task_stop` to validate
+  stop/join lifecycle behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -949,6 +961,7 @@
 120. `cargo test --workspace -q` ✅ (post typed PS discovery ordering diagnostics and full workspace regression rerun)
 121. `cargo test -p monolith-training -q` ✅ (post worker timeout diagnostics regression for mixed PS shard-index metadata inconsistency)
 122. `cargo test --workspace -q` ✅ (post worker timeout diagnostics regression and full workspace rerun)
+123. `cargo test -p monolith-training -q` ✅ (post ParameterSync replicator managed-task lifecycle cleanup and PS runner shutdown wiring)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
