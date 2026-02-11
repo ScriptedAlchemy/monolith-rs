@@ -1166,6 +1166,13 @@
 - Added regression:
   - `test_run_distributed_attempts_disconnect_when_connect_fails`.
 
+### 109) Forced heartbeat-task abort after shutdown timeout
+- Tightened `stop_heartbeat_task(...)` timeout path:
+  - if heartbeat task does not stop within timeout window, it is now explicitly
+    aborted and awaited, preventing detached long-lived task leaks.
+- Added regression:
+  - `test_stop_heartbeat_task_aborts_nonterminating_task`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1352,6 +1359,8 @@
 183. `cargo test --workspace -q` ✅ (post stop-aware in-flight heartbeat cancellation refactor and full workspace rerun)
 184. `cargo test -p monolith-training -q` ✅ (post connect-failure discovery disconnect cleanup hardening)
 185. `cargo test --workspace -q` ✅ (post connect-failure discovery disconnect cleanup hardening and full workspace rerun)
+186. `cargo test -p monolith-training -q` ✅ (post forced heartbeat-task abort on shutdown-timeout path)
+187. `cargo test --workspace -q` ✅ (post forced heartbeat-task abort on shutdown-timeout path and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
