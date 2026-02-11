@@ -1704,6 +1704,22 @@
   preserve custom service-type context while still enforcing bounded timeout
   behavior and cleanup attempts.
 
+### 155) Connect-timeout diagnostic enrichment with service-type context
+- Enriched connect-timeout operation diagnostics to include service-type context:
+  - `connect <service_id> via <service_type>`
+- Expanded integration coverage across config entrypoints:
+  - run-config worker custom service-type connect timeout regression
+  - run-config ps custom service-type connect timeout regression
+  - runner-config worker custom service-type connect timeout regression
+  - runner-config ps custom service-type connect timeout regression
+- Expanded direct distributed-runner unit coverage:
+  - `test_run_distributed_worker_connect_timeout_includes_custom_service_type_context`
+  - `test_run_distributed_ps_connect_timeout_includes_custom_service_type_context`
+- Updated existing connect-timeout assertions (run-config, runner-config, and
+  direct distributed runner tests) to assert enriched default context:
+  - worker: `connect worker-<index> via worker ...`
+  - ps: `connect ps-<index> via ps ...`
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1989,6 +2005,8 @@
 282. `cargo test --workspace -q` ✅ (post distributed-runner discover timeout custom service-type regression full workspace rerun)
 283. `cargo test -p monolith-training -q` ✅ (post distributed-runner register timeout custom service-type regressions)
 284. `cargo test --workspace -q` ✅ (post distributed-runner register timeout custom service-type regressions full workspace rerun)
+285. `cargo test -p monolith-training -q` ✅ (post connect-timeout diagnostic enrichment with service-type context + regression expansion)
+286. `cargo test --workspace -q` ✅ (post connect-timeout diagnostic enrichment with service-type context full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
