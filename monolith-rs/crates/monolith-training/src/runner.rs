@@ -101,6 +101,12 @@ impl DistributedRunConfig {
         if self.barrier_timeout_ms <= 0 {
             anyhow::bail!("distributed config requires barrier_timeout_ms > 0");
         }
+        if self.discovery_operation_timeout.is_zero() {
+            anyhow::bail!("distributed config requires discovery_operation_timeout > 0");
+        }
+        if self.discovery_cleanup_timeout.is_zero() {
+            anyhow::bail!("distributed config requires discovery_cleanup_timeout > 0");
+        }
         Ok(())
     }
 }
@@ -1726,6 +1732,32 @@ mod tests {
         assert_eq!(cfg.discovery_operation_timeout, Duration::from_millis(4321));
         assert_eq!(cfg.discovery_cleanup_timeout, Duration::from_millis(123));
         assert!(matches!(cfg.role, Role::Worker));
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_zero_discovery_operation_timeout() {
+        let cfg = DistributedRunConfig {
+            discovery_operation_timeout: Duration::from_millis(0),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("distributed config requires discovery_operation_timeout > 0"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_zero_discovery_cleanup_timeout() {
+        let cfg = DistributedRunConfig {
+            discovery_cleanup_timeout: Duration::from_millis(0),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("distributed config requires discovery_cleanup_timeout > 0"),
+            "unexpected validation error: {err}"
+        );
     }
 
     #[test]
