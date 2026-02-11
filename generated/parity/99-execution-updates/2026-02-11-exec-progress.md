@@ -735,6 +735,7 @@
 86. `cargo test -p monolith-training -q` ✅ (post typed barrier-layer error mapping and timeout/config regression coverage)
 87. `cargo test --workspace -q` ✅ (post typed barrier-layer mapping and latest distributed/runtime PS client hardening)
 88. `cargo test -p monolith-training -q` ✅ (post PsBarrier direct-connect convenience API + connect guard regression)
+89. `cargo test --workspace -q` ✅ (post PsBarrier connect convenience API and latest barrier/distributed PS hardening)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
