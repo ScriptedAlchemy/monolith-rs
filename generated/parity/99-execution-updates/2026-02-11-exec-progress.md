@@ -1757,6 +1757,21 @@
 - Ensures malformed empty discovery service-type configuration is rejected
   consistently across CLI assembly and both runtime config entrypoint layers.
 
+### 158) Parameter-sync interval validation when replication targets are configured
+- Added distributed config validation to reject zero parameter-sync interval
+  when parameter-sync replication targets are configured:
+  - `parameter_sync_targets` non-empty requires `parameter_sync_interval > 0`
+- Added CLI distributed-config builder validation:
+  - rejects `--parameter-sync-interval-ms=0` when any
+    `--parameter-sync-target` is provided.
+- Added regression coverage:
+  - CLI:
+    - `test_build_distributed_run_config_rejects_zero_parameter_sync_interval_with_targets`
+  - distributed config unit:
+    - `test_distributed_config_validate_rejects_zero_parameter_sync_interval_when_targets_configured`
+- Prevents runtime panic risk from invalid zero replication interval in
+  parameter-sync task setup paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2049,6 +2064,8 @@
 289. `cargo test -p monolith-cli -q && cargo test -p monolith-training -q` ✅ (post non-empty discovery service-type validation across CLI and runtime configs)
 290. `cargo test --workspace -q` ⚠️ env-sensitive failure in `native_training::env_utils::tests::test_get_zk_auth_data_none` due inherited `ZK_AUTH`.
 291. `unset ZK_AUTH && cargo test --workspace -q` ✅ (post non-empty discovery service-type validation across CLI/runtime configs full workspace rerun)
+292. `cargo test -p monolith-cli -q && cargo test -p monolith-training -q` ✅ (post parameter-sync interval validation when targets are configured)
+293. `unset ZK_AUTH && cargo test --workspace -q` ✅ (post parameter-sync interval validation full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
