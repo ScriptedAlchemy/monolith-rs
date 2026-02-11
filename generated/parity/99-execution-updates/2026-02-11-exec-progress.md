@@ -697,6 +697,17 @@
   using a counting discovery backend to verify heartbeat increments stop after
   PS task cancellation.
 
+### 65) Local-cluster start/stop lifecycle guard semantics
+- Hardened `distributed::LocalCluster` role lifecycle behavior:
+  - `start()` now rejects reentrant starts when any PS/worker role is already
+    running.
+  - `stop()` now rejects calls when cluster roles are already fully stopped.
+- Added regression coverage:
+  - `test_local_cluster_start_is_not_reentrant`
+  - `test_local_cluster_stop_requires_running_cluster`
+  ensuring lifecycle misuse is surfaced as typed invalid-configuration errors
+  rather than silently no-oping.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -796,6 +807,7 @@
 96. `cargo test --workspace -q` ✅ (post run/runner-config distributed runtime tuning propagation and full workspace regression rerun)
 97. `cargo test -p monolith-training -q` ✅ (post cancellable PS discovery heartbeat lifecycle management in distributed runner)
 98. `cargo test --workspace -q` ✅ (post runner heartbeat lifecycle cancellation refactor and full workspace regression rerun)
+99. `cargo test -p monolith-training -q` ✅ (post local-cluster start/stop lifecycle guard semantics and regression tests)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
