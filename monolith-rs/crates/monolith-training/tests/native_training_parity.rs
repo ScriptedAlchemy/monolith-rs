@@ -2591,6 +2591,102 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_c
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_preserves_worker_register_failure_with_default_service_type_cleanup_context(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(FailingRegisterWithFailingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("forced register failure"),
+        "worker register failure should remain primary via RunConfig default service type: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "worker register-failure diagnostics via RunConfig default service type should include cleanup issue context: {msg}"
+    );
+    assert!(
+        msg.contains("deregister worker-0 from worker") && msg.contains("forced deregister failure"),
+        "worker register-failure cleanup context via RunConfig default service type should include worker deregister failure diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-0 via worker") && msg.contains("forced disconnect failure"),
+        "worker register-failure cleanup context via RunConfig default service type should include worker disconnect failure diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_default_service_type_cleanup_context(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(FailingRegisterWithFailingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("forced register failure"),
+        "ps register failure should remain primary via RunConfig default service type: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "ps register-failure diagnostics via RunConfig default service type should include cleanup issue context: {msg}"
+    );
+    assert!(
+        msg.contains("deregister ps-0 from ps") && msg.contains("forced deregister failure"),
+        "ps register-failure cleanup context via RunConfig default service type should include ps deregister failure diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect ps-0 via ps") && msg.contains("forced disconnect failure"),
+        "ps register-failure cleanup context via RunConfig default service type should include ps disconnect failure diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_surfaces_deregister_timeout_with_custom_service_type_after_success(
 ) {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -8140,6 +8236,100 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_failure_wit
         msg.contains("disconnect ps-0 via parameter_server_custom")
             && msg.contains("forced disconnect failure"),
         "ps register-failure cleanup context via RunnerConfig should include custom ps service-type disconnect failure diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_worker_register_failure_with_default_service_type_cleanup_context(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(FailingRegisterWithFailingCleanupFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("forced register failure"),
+        "worker register failure should remain primary via RunnerConfig default service type: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "worker register-failure diagnostics via RunnerConfig default service type should include cleanup issue context: {msg}"
+    );
+    assert!(
+        msg.contains("deregister worker-0 from worker") && msg.contains("forced deregister failure"),
+        "worker register-failure cleanup context via RunnerConfig default service type should include worker deregister failure diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-0 via worker") && msg.contains("forced disconnect failure"),
+        "worker register-failure cleanup context via RunnerConfig default service type should include worker disconnect failure diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_ps_register_failure_with_default_service_type_cleanup_context(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(FailingRegisterWithFailingCleanupFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("forced register failure"),
+        "ps register failure should remain primary via RunnerConfig default service type: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "ps register-failure diagnostics via RunnerConfig default service type should include cleanup issue context: {msg}"
+    );
+    assert!(
+        msg.contains("deregister ps-0 from ps") && msg.contains("forced deregister failure"),
+        "ps register-failure cleanup context via RunnerConfig default service type should include ps deregister failure diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect ps-0 via ps") && msg.contains("forced disconnect failure"),
+        "ps register-failure cleanup context via RunnerConfig default service type should include ps disconnect failure diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
