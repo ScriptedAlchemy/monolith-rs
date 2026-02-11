@@ -366,8 +366,55 @@ async fn distributed_runner_from_run_config_honors_discover_timeout_controls() {
     );
     let msg = res.unwrap().unwrap_err().to_string();
     assert!(
-        msg.contains("Timed out during discovery operation: discover worker-0 after 20ms"),
+        msg.contains("Timed out during discovery operation: discover worker-0 for ps after 20ms"),
         "run-config timeout controls should propagate into discover timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_propagates_discover_service_type_into_timeout_diagnostics(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingDiscoverFromRunConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when discover blocks"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains(
+            "Timed out during discovery operation: discover worker-0 for parameter_server_custom after 20ms"
+        ),
+        "custom run-config ps service type should propagate into discover timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
@@ -409,7 +456,7 @@ async fn distributed_runner_from_run_config_propagates_discover_retry_controls()
     );
     let msg = res.unwrap().unwrap_err().to_string();
     assert!(
-        msg.contains("Timed out during discovery operation: discover worker-0 after 20ms"),
+        msg.contains("Timed out during discovery operation: discover worker-0 for ps after 20ms"),
         "discover timeout diagnostics should include configured operation timeout: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
@@ -1694,8 +1741,55 @@ async fn distributed_runner_from_runner_config_honors_discover_timeout_controls(
     );
     let msg = res.unwrap().unwrap_err().to_string();
     assert!(
-        msg.contains("Timed out during discovery operation: discover worker-0 after 20ms"),
+        msg.contains("Timed out during discovery operation: discover worker-0 for ps after 20ms"),
         "runner-config timeout controls should propagate into discover timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_propagates_discover_service_type_into_timeout_diagnostics(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingDiscoverFromRunConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when discover blocks"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains(
+            "Timed out during discovery operation: discover worker-0 for parameter_server_custom after 20ms"
+        ),
+        "custom runner-config ps service type should propagate into discover timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
@@ -1737,7 +1831,7 @@ async fn distributed_runner_from_runner_config_propagates_discover_retry_control
     );
     let msg = res.unwrap().unwrap_err().to_string();
     assert!(
-        msg.contains("Timed out during discovery operation: discover worker-0 after 20ms"),
+        msg.contains("Timed out during discovery operation: discover worker-0 for ps after 20ms"),
         "discover timeout diagnostics should include configured operation timeout: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);

@@ -558,7 +558,10 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         let mut max_raw_ps_observed: usize = 0;
         let mut max_usable_ps_observed: usize = 0;
         for attempt in 0..=cfg.connect_retries {
-            let discover_op = format!("discover {service_id}");
+            let discover_op = format!(
+                "discover {service_id} for {}",
+                cfg.discovery_service_type_ps
+            );
             let ps_services = match await_discovery_operation(
                 &discover_op,
                 cfg.discovery_operation_timeout,
@@ -2644,7 +2647,7 @@ mod tests {
             "discover operation timeouts should still consume retry budget, got: {msg}"
         );
         assert!(
-            msg.contains("last discovery error: Timed out during discovery operation: discover worker-0"),
+            msg.contains("last discovery error: Timed out during discovery operation: discover worker-0 for ps"),
             "expected timeout operation context in worker discovery diagnostics, got: {msg}"
         );
         assert_eq!(
@@ -3262,7 +3265,7 @@ mod tests {
         );
         let msg = res.unwrap().unwrap_err().to_string();
         assert!(
-            msg.contains("last discovery error: Timed out during discovery operation: discover worker-0"),
+            msg.contains("last discovery error: Timed out during discovery operation: discover worker-0 for ps"),
             "expected discover timeout context in worker timeout diagnostics: {msg}"
         );
         assert!(
