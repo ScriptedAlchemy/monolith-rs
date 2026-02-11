@@ -54,24 +54,20 @@ impl Barrier for InMemoryBarrier {
 
 /// Barrier backed by the PS `Barrier` RPC.
 pub struct PsBarrier {
-    client: tokio::sync::Mutex<PsClient>,
+    client: PsClient,
     timeout_ms: i64,
 }
 
 impl PsBarrier {
     pub fn new(client: PsClient, timeout_ms: i64) -> Self {
-        Self {
-            client: tokio::sync::Mutex::new(client),
-            timeout_ms,
-        }
+        Self { client, timeout_ms }
     }
 }
 
 #[async_trait::async_trait]
 impl Barrier for PsBarrier {
     async fn wait(&self, barrier_id: &str, worker_id: i32, num_workers: i32) -> BarrierResult<()> {
-        let client = self.client.lock().await;
-        client
+        self.client
             .barrier(barrier_id, worker_id, num_workers, self.timeout_ms)
             .await?;
         Ok(())
@@ -80,3 +76,52 @@ impl Barrier for PsBarrier {
 
 /// Convenience alias for shared barrier implementations.
 pub type SharedBarrier = Arc<dyn Barrier>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::distributed_ps::{serve_ps, PsServer};
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn test_in_memory_barrier_waits_for_all_workers() {
+        let barrier = Arc::new(InMemoryBarrier::new(2));
+        let b0 = barrier.clone();
+        let b1 = barrier.clone();
+
+        let (r0, r1) = tokio::join!(
+            async move { b0.wait("s0", 0, 2).await },
+            async move { b1.wait("s0", 1, 2).await }
+        );
+        assert!(r0.is_ok());
+        assert!(r1.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_ps_barrier_allows_parallel_waits() {
+        let bind = std::net::TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr]).await.unwrap();
+        let barrier = Arc::new(PsBarrier::new(client, 500));
+        let b0 = barrier.clone();
+        let b1 = barrier.clone();
+
+        let (r0, r1) = tokio::join!(
+            async move { b0.wait("parallel", 0, 2).await },
+            async move { b1.wait("parallel", 1, 2).await }
+        );
+        assert!(r0.is_ok());
+        assert!(r1.is_ok());
+
+        server.abort();
+    }
+}
