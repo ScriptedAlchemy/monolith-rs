@@ -647,7 +647,8 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
                 match (last_ordering_issue, last_discovery_error.as_deref()) {
                     (Some(issue), Some(discovery_error)) => {
                         return Err(anyhow::anyhow!(
-                            "Timed out waiting for PS discovery: got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last ordering issue: {:?}; last discovery error: {})",
+                            "Timed out waiting for PS discovery (service type: {}): got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last ordering issue: {:?}; last discovery error: {})",
+                            cfg.discovery_service_type_ps,
                             addrs.len(),
                             cfg.num_ps,
                             attempts_made,
@@ -659,7 +660,8 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
                     }
                     (Some(issue), None) => {
                         return Err(anyhow::anyhow!(
-                            "Timed out waiting for PS discovery: got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last ordering issue: {:?})",
+                            "Timed out waiting for PS discovery (service type: {}): got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last ordering issue: {:?})",
+                            cfg.discovery_service_type_ps,
                             addrs.len(),
                             cfg.num_ps,
                             attempts_made,
@@ -670,7 +672,8 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
                     }
                     (None, Some(discovery_error)) => {
                         return Err(anyhow::anyhow!(
-                            "Timed out waiting for PS discovery: got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last discovery error: {})",
+                            "Timed out waiting for PS discovery (service type: {}): got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last discovery error: {})",
+                            cfg.discovery_service_type_ps,
                             addrs.len(),
                             cfg.num_ps,
                             attempts_made,
@@ -681,7 +684,8 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
                     }
                     (None, None) => {
                         return Err(anyhow::anyhow!(
-                            "Timed out waiting for PS discovery: got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {})",
+                            "Timed out waiting for PS discovery (service type: {}): got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {})",
+                            cfg.discovery_service_type_ps,
                             addrs.len(),
                             cfg.num_ps,
                             attempts_made,
@@ -4042,6 +4046,49 @@ mod tests {
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker-role error should be preserved over cleanup timeout errors: {msg}"
+        );
+        assert!(
+            msg.contains("service type: ps"),
+            "worker-discovery timeout diagnostics should include default PS service-type context: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_error_with_custom_discovery_service_type_when_cleanup_steps_timeout(
+    ) {
+        let discovery = Arc::new(WorkerTimeoutWithHangingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(1500),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang even when cleanup steps time out with custom worker discovery service type"
+        );
+        let err = res.unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker-role error should be preserved over cleanup timeout errors with custom worker discovery service type: {msg}"
+        );
+        assert!(
+            msg.contains("service type: parameter_server_custom"),
+            "worker-discovery timeout diagnostics should include configured custom PS service-type context: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(discovery.deregister_count(), 1);
