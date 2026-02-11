@@ -988,6 +988,7 @@
 125. `cargo test -p monolith-training -q` ✅ (post distributed runner cleanup hardening for worker registration failure path)
 126. `cargo test --workspace -q` ✅ (post distributed runner cleanup hardening for worker registration failure path and full workspace rerun)
 127. `cargo test -p monolith-training -q` ✅ (post worker discovery timeout diagnostic retention hardening across retry attempts)
+128. `cargo test --workspace -q` ✅ (post worker discovery timeout diagnostic retention hardening and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
