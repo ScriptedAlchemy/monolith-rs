@@ -1222,6 +1222,18 @@
 - Added regression:
   - `test_run_distributed_surfaces_disconnect_timeout_after_success`.
 
+### 115) Discovery-cleanup timeout wrapper + worker-error precedence coverage
+- Introduced bounded cleanup helper for distributed runner teardown:
+  - `await_discovery_cleanup(...)` wraps discovery cleanup ops
+    (`deregister`/`disconnect`) with timeout and explicit timeout error context.
+- Added cleanup-timeout regressions:
+  - connect-failure path with blocking disconnect does not hang and preserves
+    primary connect error (`test_run_distributed_connect_failure_does_not_hang_when_disconnect_blocks`),
+  - post-success deregister timeout surfaces explicit cleanup timeout while still
+    attempting disconnect (`test_run_distributed_surfaces_deregister_timeout_after_success`),
+  - role-error precedence is preserved even when both cleanup steps time out
+    (`test_run_distributed_preserves_worker_error_when_cleanup_steps_timeout`).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1420,6 +1432,10 @@
 195. `cargo test --workspace -q` ✅ (post combined cleanup-failure semantics hardening in distributed runner and full workspace rerun)
 196. `cargo test -p monolith-training -q` ✅ (post disconnect-timeout cleanup regression after successful worker completion)
 197. `cargo test --workspace -q` ✅ (post disconnect-timeout cleanup regression after successful worker completion and full workspace rerun)
+198. `cargo test -p monolith-training -q` ✅ (post worker-error precedence regression when cleanup steps time out)
+199. `cargo test --workspace -q` ✅ (post worker-error precedence regression when cleanup steps time out and full workspace rerun)
+200. `cargo test -p monolith-training -q` ✅ (post discovery-cleanup timeout wrapper + disconnect-timeout success-path regression additions)
+201. `cargo test --workspace -q` ✅ (post discovery-cleanup timeout wrapper + disconnect-timeout success-path regression additions and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
