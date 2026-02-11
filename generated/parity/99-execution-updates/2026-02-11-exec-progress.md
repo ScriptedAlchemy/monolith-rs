@@ -2133,6 +2133,18 @@
   - existing duplicate normalization regressions continue validating
     case-insensitive scheme/host duplicate rejection semantics.
 
+### 179) Integration entrypoints now assert case-insensitive parameter-sync scheme acceptance path reaches runtime discovery semantics
+- Extended native-training integration parity suite to verify that mixed-case
+  `http://` parameter-sync targets are accepted by both entrypoint layers
+  (`RunConfig` and `RunnerConfig`) and do not fail early in distributed-config
+  validation.
+- New integration regressions assert the resulting runtime path reaches worker
+  PS discovery timeout handling (proof that validation accepted endpoint syntax):
+  - `distributed_runner_from_run_config_accepts_case_insensitive_http_scheme_parameter_sync_target`
+  - `distributed_runner_from_runner_config_accepts_case_insensitive_http_scheme_parameter_sync_target`
+- Locks in end-to-end parity for case-insensitive scheme handling across config
+  normalization + runtime entrypoint wiring.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2467,6 +2479,8 @@
 331. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post case-insensitive parameter-sync target uniqueness normalization full workspace rerun under ambient ZK auth env)
 332. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post case-insensitive HTTP/HTTPS scheme recognition before parameter-sync endpoint auto-prefixing across CLI/runtime validation layers)
 333. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post case-insensitive parameter-sync endpoint scheme recognition full workspace rerun under ambient ZK auth env)
+334. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post native-training integration coverage expansion for case-insensitive parameter-sync scheme acceptance through RunConfig/RunnerConfig entrypoints)
+335. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post integration parity expansion for case-insensitive parameter-sync scheme acceptance full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

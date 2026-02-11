@@ -1290,6 +1290,49 @@ async fn distributed_runner_from_run_config_rejects_empty_parameter_sync_target_
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_accepts_case_insensitive_http_scheme_parameter_sync_target(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["HtTp://127.0.0.1:8500".to_string()],
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang while validating case-insensitive parameter-sync target schemes"
+    );
+    let err = res.unwrap().unwrap_err().to_string();
+    assert!(
+        err.contains("Timed out waiting for PS discovery"),
+        "case-insensitive parameter-sync target scheme should pass config validation and reach worker discovery path: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_whitespace_padded_parameter_sync_target_entry(
 ) {
     use monolith_training::discovery::InMemoryDiscovery;
@@ -4049,6 +4092,48 @@ async fn distributed_runner_from_runner_config_rejects_empty_parameter_sync_targ
     assert!(
         err.contains("distributed config requires non-empty parameter_sync_targets entries"),
         "empty runner-config parameter-sync target entry should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_accepts_case_insensitive_http_scheme_parameter_sync_target(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["HtTp://127.0.0.1:8500".to_string()],
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang while validating case-insensitive parameter-sync target schemes"
+    );
+    let err = res.unwrap().unwrap_err().to_string();
+    assert!(
+        err.contains("Timed out waiting for PS discovery"),
+        "case-insensitive parameter-sync target scheme should pass config validation and reach worker discovery path: {err}"
     );
 }
 
