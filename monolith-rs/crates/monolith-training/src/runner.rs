@@ -429,6 +429,10 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         max_usable_ps_observed = max_usable_ps_observed.max(addrs.len());
         if let Some(issue) = ordering_issue {
             last_ordering_issue = Some(issue);
+        } else if !addrs.is_empty() {
+            // If ordering recovered and we have at least one usable endpoint,
+            // clear previously latched ordering inconsistency diagnostics.
+            last_ordering_issue = None;
         }
 
         if addrs.len() >= cfg.num_ps {
@@ -895,6 +899,63 @@ mod tests {
         }
     }
 
+    struct SequencedOrderingIssueThenPartialSuccessDiscovery {
+        calls: AtomicUsize,
+    }
+
+    impl SequencedOrderingIssueThenPartialSuccessDiscovery {
+        fn new() -> Self {
+            Self {
+                calls: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for SequencedOrderingIssueThenPartialSuccessDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            let n = self.calls.fetch_add(1, Ordering::SeqCst);
+            if n == 0 {
+                let mut ps0 = ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 10001);
+                ps0 = ps0.with_metadata("index", "0");
+                let ps1 = ServiceInfo::new("ps-1", "ps-1", "ps", "127.0.0.1", 10002);
+                Ok(vec![ps0, ps1]) // mixed metadata => ordering issue
+            } else {
+                Ok(vec![ServiceInfo::new(
+                    "ps-0",
+                    "ps-0",
+                    "ps",
+                    "127.0.0.1",
+                    10001,
+                )]) // usable but insufficient count
+            }
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            Ok(())
+        }
+    }
+
     #[async_trait::async_trait]
     impl ServiceDiscoveryAsync for SequencedPartialPsDiscovery {
         async fn connect(&self) -> DiscoveryResult<()> {
@@ -1306,6 +1367,32 @@ mod tests {
         assert!(
             msg.contains("max raw observed: 1"),
             "expected successful discover attempt to contribute to max observed diagnostics, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_clears_stale_ordering_issue_after_usable_discovery() {
+        let discovery = Arc::new(SequencedOrderingIssueThenPartialSuccessDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 2,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 1,
+            retry_backoff_ms: 1,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg)
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            !msg.contains("MixedIndexMetadataPresence"),
+            "stale ordering issue should be cleared after usable discovery, got: {msg}"
+        );
+        assert!(
+            msg.contains("max usable observed: 1"),
+            "expected usable discovery state to be reflected in diagnostics, got: {msg}"
         );
     }
 
