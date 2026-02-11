@@ -912,6 +912,16 @@
   stop, making stop/drop interaction deterministic and avoiding redundant abort
   calls.
 
+### 85) Worker timeout diagnostics now include max observed PS count
+- Enhanced worker discovery timeout diagnostics to track and report
+  `max observed` PS count across retries.
+- This helps distinguish:
+  - total discovery failure (`max observed: 0`),
+  - partial cluster visibility (e.g., `max observed: 1` when `num_ps=2`),
+  even when the final attempt returns fewer services.
+- Added async regression
+  `test_run_worker_role_timeout_reports_max_observed_ps_count`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1051,6 +1061,7 @@
 136. `cargo test --workspace -q` ✅ (post ParameterSync replicator drop-safety lifecycle guard and full workspace rerun)
 137. `cargo test -p monolith-training -q` ✅ (post one-shot join-handle ownership refinement for ParameterSync replicator task stop/drop lifecycle)
 138. `cargo test --workspace -q` ✅ (post one-shot join-handle ownership refinement for ParameterSync replicator task stop/drop lifecycle and full workspace rerun)
+139. `cargo test -p monolith-training -q` ✅ (post worker timeout diagnostics enhancement reporting max observed PS count across retries)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
