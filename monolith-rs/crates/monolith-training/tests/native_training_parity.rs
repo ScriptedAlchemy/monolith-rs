@@ -4963,6 +4963,56 @@ async fn distributed_runner_from_run_config_propagates_worker_service_type_into_
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_propagates_worker_service_type_and_index_into_connect_timeout_diagnostics(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingConnectAndCleanupFromRunConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 3,
+        num_ps: 1,
+        num_workers: 4,
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when indexed custom-worker connect and cleanup disconnect block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out during discovery operation: connect worker-3 via trainer_custom after 20ms"),
+        "worker service type/index from RunConfig should propagate into connect-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "custom worker/index connect-timeout diagnostics should include cleanup issue context via RunConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-3 via trainer_custom"),
+        "custom worker/index connect-timeout cleanup context via RunConfig should include worker disconnect timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_preserves_ps_connect_timeout_when_cleanup_blocks() {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
     use std::sync::Arc;
@@ -5104,6 +5154,56 @@ async fn distributed_runner_from_run_config_propagates_ps_service_type_into_conn
             "Timed out during discovery cleanup: disconnect ps-0 via parameter_server_custom"
         ),
         "custom ps connect-timeout cleanup context via RunConfig should include ps disconnect timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_propagates_ps_service_type_and_index_into_connect_timeout_diagnostics(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingConnectAndCleanupFromRunConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 2,
+        num_ps: 3,
+        num_workers: 1,
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Ps,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when indexed custom-ps connect and cleanup disconnect block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out during discovery operation: connect ps-2 via parameter_server_custom after 20ms"),
+        "ps service type/index from RunConfig should propagate into connect-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "custom ps/index connect-timeout diagnostics should include cleanup issue context via RunConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect ps-2 via parameter_server_custom"),
+        "custom ps/index connect-timeout cleanup context via RunConfig should include ps disconnect timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
@@ -7179,6 +7279,55 @@ async fn distributed_runner_from_runner_config_propagates_worker_service_type_in
 }
 
 #[tokio::test]
+async fn distributed_runner_from_runner_config_propagates_worker_service_type_and_index_into_connect_timeout_diagnostics(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingConnectAndCleanupFromRunConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 3,
+        num_ps: 1,
+        num_workers: 4,
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when indexed custom-worker connect and cleanup disconnect block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out during discovery operation: connect worker-3 via trainer_custom after 20ms"),
+        "worker service type/index from RunnerConfig should propagate into connect-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "custom worker/index connect-timeout diagnostics should include cleanup issue context via RunnerConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-3 via trainer_custom"),
+        "custom worker/index connect-timeout cleanup context via RunnerConfig should include worker disconnect timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_runner_config_propagates_barrier_timeout_controls() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_runner_config, Role};
@@ -7381,6 +7530,57 @@ async fn distributed_runner_from_runner_config_propagates_ps_service_type_into_c
             "Timed out during discovery cleanup: disconnect ps-0 via parameter_server_custom"
         ),
         "custom ps connect-timeout cleanup context via RunnerConfig should include ps disconnect timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_propagates_ps_service_type_and_index_into_connect_timeout_diagnostics(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingConnectAndCleanupFromRunConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 2,
+        num_ps: 3,
+        num_workers: 1,
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Ps,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when indexed custom-ps connect and cleanup disconnect block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out during discovery operation: connect ps-2 via parameter_server_custom after 20ms"),
+        "ps service type/index from RunnerConfig should propagate into connect-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "custom ps/index connect-timeout diagnostics should include cleanup issue context via RunnerConfig when cleanup also blocks: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: disconnect ps-2 via parameter_server_custom"
+        ),
+        "custom ps/index connect-timeout cleanup context via RunnerConfig should include ps disconnect timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
