@@ -638,6 +638,14 @@
   ensuring callers can distinguish timeout/configuration failures from generic
   RPC failures.
 
+### 59) PS barrier direct-connect convenience API
+- Added `PsBarrier::connect(addrs, timeout_ms) -> PsResult<PsBarrier>` to build
+  PS-backed barriers directly from shard address lists.
+- Keeps existing `PsBarrier::new(PsClient, timeout_ms)` path unchanged while
+  simplifying runner/bootstrap call sites that only have addresses.
+- Added regression `test_ps_barrier_connect_requires_addresses` to verify
+  connect-time config guard behavior remains typed (`PsError::InvalidConfig`).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -726,6 +734,7 @@
 85. `cargo test --workspace -q` ✅ (post latest PS client barrier/health/stats and lookup index hardening updates)
 86. `cargo test -p monolith-training -q` ✅ (post typed barrier-layer error mapping and timeout/config regression coverage)
 87. `cargo test --workspace -q` ✅ (post typed barrier-layer mapping and latest distributed/runtime PS client hardening)
+88. `cargo test -p monolith-training -q` ✅ (post PsBarrier direct-connect convenience API + connect guard regression)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
