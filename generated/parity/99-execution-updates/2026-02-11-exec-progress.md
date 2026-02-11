@@ -616,6 +616,7 @@
 68. `cargo test -p monolith-training -q` ✅ (post batched PS per-entry dim validation + parallel batch fanout)
 69. `cargo test --workspace -q` ✅ (post batched PS per-entry validation hardening and regression coverage)
 70. `cargo test -p monolith-training -q` ✅ (post local-cluster released-barrier pruning + lagging-worker safety regression)
+71. `cargo test --workspace -q` ✅ (post local-cluster released-barrier pruning and latest distributed/runtime parity hardening)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
