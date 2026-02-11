@@ -459,6 +459,7 @@
 46. `cargo test -p monolith-training -q` ✅ (post PS barrier semantics hardening)
 47. `cargo test --workspace -q` ✅ (post PS barrier consistency + stats parity updates)
 48. `cargo test -p monolith-training -q` ✅ (post generation-based PS barrier state + duplicate-worker guard)
+49. `cargo test --workspace -q` ✅ (post generation-based PS barrier state and duplicate-worker timeout cleanup semantics)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
