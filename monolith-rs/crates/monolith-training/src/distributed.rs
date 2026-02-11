@@ -5,7 +5,7 @@
 //! integration with actual distributed training infrastructure.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use thiserror::Error;
 
@@ -31,6 +31,27 @@ pub enum DistributedError {
 
 /// Result type for distributed operations.
 pub type DistributedResult<T> = Result<T, DistributedError>;
+
+/// Outcome of a local-cluster barrier synchronization call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BarrierStatus {
+    /// This worker has arrived at the barrier, but not all workers are present yet.
+    Waiting {
+        /// Barrier epoch (uses worker step for ordering).
+        epoch: u64,
+        /// Number of workers currently waiting at this epoch.
+        arrived: usize,
+        /// Total number of workers required to release the barrier.
+        required: usize,
+    },
+    /// All workers reached the barrier for this epoch and it has been released.
+    Released {
+        /// Barrier epoch (uses worker step for ordering).
+        epoch: u64,
+        /// Number of participants that released this barrier.
+        participants: usize,
+    },
+}
 
 /// Configuration for a distributed training cluster.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -370,6 +391,11 @@ impl Worker {
     /// In a real implementation, this would perform an all-reduce or similar
     /// synchronization operation.
     pub fn sync_barrier(&self) -> DistributedResult<()> {
+        if !self.running {
+            return Err(DistributedError::CommunicationError(
+                "Worker is not running".to_string(),
+            ));
+        }
         tracing::debug!(
             "Worker {} waiting at sync barrier (step {})",
             self.worker_index,
@@ -390,6 +416,7 @@ pub struct LocalCluster {
     parameter_servers: Vec<ParameterServer>,
     workers: Vec<Worker>,
     learning_rate: f32,
+    barrier_waiters: HashMap<u64, HashSet<usize>>,
 }
 
 impl LocalCluster {
@@ -405,6 +432,7 @@ impl LocalCluster {
             parameter_servers,
             workers,
             learning_rate,
+            barrier_waiters: HashMap::new(),
         })
     }
 
@@ -427,6 +455,7 @@ impl LocalCluster {
         for ps in &mut self.parameter_servers {
             ps.stop()?;
         }
+        self.barrier_waiters.clear();
         Ok(())
     }
 
@@ -499,6 +528,44 @@ impl LocalCluster {
     /// Returns total configured number of parameter servers.
     pub fn num_ps(&self) -> usize {
         self.config.num_ps()
+    }
+
+    /// Non-blocking barrier synchronization for local worker coordination.
+    ///
+    /// Each worker calls this method when it reaches a synchronization point.
+    /// The barrier epoch is derived from the caller's current step. The method
+    /// returns [`BarrierStatus::Waiting`] until all workers have arrived at the
+    /// same epoch, then returns [`BarrierStatus::Released`] for the last caller.
+    pub fn sync_barrier(&mut self, worker_index: usize) -> DistributedResult<BarrierStatus> {
+        let worker = self.workers.get(worker_index).ok_or_else(|| {
+            DistributedError::InvalidConfiguration(format!(
+                "Worker index {} out of range",
+                worker_index
+            ))
+        })?;
+        worker.sync_barrier()?;
+        let epoch = worker.current_step();
+        let required = self.workers.len();
+
+        let arrived = {
+            let waiters = self.barrier_waiters.entry(epoch).or_default();
+            waiters.insert(worker_index);
+            waiters.len()
+        };
+
+        if arrived >= required {
+            self.barrier_waiters.remove(&epoch);
+            Ok(BarrierStatus::Released {
+                epoch,
+                participants: required,
+            })
+        } else {
+            Ok(BarrierStatus::Waiting {
+                epoch,
+                arrived,
+                required,
+            })
+        }
     }
 }
 
@@ -605,8 +672,14 @@ mod tests {
         worker.step().unwrap();
         assert_eq!(worker.current_step(), 2);
 
+        // Barrier works while running.
+        worker.sync_barrier().unwrap();
+
         worker.stop().unwrap();
         assert!(!worker.is_running());
+
+        // Barrier fails once stopped.
+        assert!(worker.sync_barrier().is_err());
     }
 
     #[test]
@@ -658,5 +731,52 @@ mod tests {
         let grads: HashMap<String, Vec<f32>> = HashMap::new();
         let err = cluster.train_step(5, &grads).unwrap_err();
         assert!(matches!(err, DistributedError::InvalidConfiguration(_)));
+    }
+
+    #[test]
+    fn test_local_cluster_barrier_release() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000)],
+            vec![make_addr(6000), make_addr(6001)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
+        cluster.start().unwrap();
+
+        // Epoch 0 barrier: first caller waits, second caller releases.
+        let first = cluster.sync_barrier(0).unwrap();
+        assert_eq!(
+            first,
+            BarrierStatus::Waiting {
+                epoch: 0,
+                arrived: 1,
+                required: 2
+            }
+        );
+        let second = cluster.sync_barrier(1).unwrap();
+        assert_eq!(
+            second,
+            BarrierStatus::Released {
+                epoch: 0,
+                participants: 2
+            }
+        );
+
+        // Advance both workers to step 1 and verify next barrier epoch.
+        let grads: HashMap<String, Vec<f32>> = HashMap::new();
+        cluster.train_step(0, &grads).unwrap();
+        cluster.train_step(1, &grads).unwrap();
+
+        let first = cluster.sync_barrier(0).unwrap();
+        assert!(matches!(first, BarrierStatus::Waiting { epoch: 1, .. }));
+        let second = cluster.sync_barrier(1).unwrap();
+        assert_eq!(
+            second,
+            BarrierStatus::Released {
+                epoch: 1,
+                participants: 2
+            }
+        );
     }
 }
