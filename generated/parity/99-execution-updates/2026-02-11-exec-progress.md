@@ -63,6 +63,11 @@
   - added discovery factory selection (`local/primus/consul/mlp`),
   - added context-style discovery guard with automatic `close()`,
   - added tests mirroring Python runner_utils discovery selection behavior.
+- Added chief/non-chief restore synchronization helper:
+  - chief performs checkpoint copy from `restore_dir`,
+  - non-chief polls for synced checkpoint/monolith checkpoint artifacts with timeout handling.
+- Added integration parity tests under `monolith-training/tests/runner_utils_parity.rs`
+  for run-config merge + discovery selection + restore synchronization flow.
 
 ## Validation evidence (commands run)
 
@@ -71,6 +76,7 @@
 3. `cargo test -p monolith-examples --bin stock_prediction test_model_forward -q` ✅  
 4. `cargo test --workspace -q` ✅
 5. `cargo test -p monolith-training -q` ✅ (re-run after each native-training change)
+6. `cargo test --workspace -q` ✅ (post-native-training parity update verification)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
