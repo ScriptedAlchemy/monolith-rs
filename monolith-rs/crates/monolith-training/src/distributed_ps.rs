@@ -36,7 +36,7 @@ use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use futures::future::try_join_all;
+use futures::future::{join_all, try_join_all};
 use parking_lot::RwLock;
 use thiserror::Error;
 use tokio::sync::{Mutex as TokioMutex, Notify};
@@ -758,7 +758,7 @@ impl PsClient {
     }
 
     async fn lookup_response(
-        &mut self,
+        &self,
         table_name: &str,
         fids: &[i64],
         dim_size: usize,
@@ -866,7 +866,7 @@ impl PsClient {
     }
 
     async fn apply_gradients_response(
-        &mut self,
+        &self,
         table_name: &str,
         fids: &[i64],
         gradients: &[f32],
@@ -968,23 +968,42 @@ impl PsClient {
     /// Each request entry is processed with the same semantics as [`Self::lookup`],
     /// and failures are encoded in per-entry response status codes.
     pub async fn batch_lookup(&mut self, request: BatchLookupRequest) -> PsResult<BatchLookupResponse> {
-        let mut responses = Vec::with_capacity(request.requests.len());
-        for req in request.requests {
-            match self
-                .lookup_response(&req.table_name, &req.fids, req.dim_size as usize, req.create_if_missing)
+        let this: &PsClient = self;
+        let futures = request.requests.into_iter().map(|req| async move {
+            if req.dim_size <= 0 {
+                return LookupResponse {
+                    status_code: 1,
+                    error_message: PsError::InvalidConfig(
+                        "dim_size must be greater than zero".to_string(),
+                    )
+                    .to_string(),
+                    embeddings: Vec::new(),
+                    found: Vec::new(),
+                    num_found: 0,
+                    num_initialized: 0,
+                };
+            }
+            match this
+                .lookup_response(
+                    &req.table_name,
+                    &req.fids,
+                    req.dim_size as usize,
+                    req.create_if_missing,
+                )
                 .await
             {
-                Ok(resp) => responses.push(resp),
-                Err(e) => responses.push(LookupResponse {
+                Ok(resp) => resp,
+                Err(e) => LookupResponse {
                     status_code: 1,
                     error_message: e.to_string(),
                     embeddings: Vec::new(),
                     found: Vec::new(),
                     num_found: 0,
                     num_initialized: 0,
-                }),
+                },
             }
-        }
+        });
+        let responses = join_all(futures).await;
         Ok(BatchLookupResponse { responses })
     }
 
@@ -996,9 +1015,20 @@ impl PsClient {
         &mut self,
         request: BatchApplyGradientsRequest,
     ) -> PsResult<BatchApplyGradientsResponse> {
-        let mut responses = Vec::with_capacity(request.requests.len());
-        for req in request.requests {
-            match self
+        let this: &PsClient = self;
+        let futures = request.requests.into_iter().map(|req| async move {
+            if req.dim_size <= 0 {
+                return ApplyGradientsResponse {
+                    status_code: 1,
+                    error_message: PsError::InvalidConfig(
+                        "dim_size must be greater than zero".to_string(),
+                    )
+                    .to_string(),
+                    num_updated: 0,
+                    num_not_found: 0,
+                };
+            }
+            match this
                 .apply_gradients_response(
                     &req.table_name,
                     &req.fids,
@@ -1009,15 +1039,16 @@ impl PsClient {
                 )
                 .await
             {
-                Ok(resp) => responses.push(resp),
-                Err(e) => responses.push(ApplyGradientsResponse {
+                Ok(resp) => resp,
+                Err(e) => ApplyGradientsResponse {
                     status_code: 1,
                     error_message: e.to_string(),
                     num_updated: 0,
                     num_not_found: 0,
-                }),
+                },
             }
-        }
+        });
+        let responses = join_all(futures).await;
         Ok(BatchApplyGradientsResponse { responses })
     }
 
@@ -1926,6 +1957,107 @@ mod tests {
         assert_eq!(second_resp.found, vec![true, true, true]);
         assert_eq!(second_resp.num_found, 3);
         assert_eq!(second_resp.num_initialized, 0);
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_batch_lookup_validates_dim_size_per_entry() {
+        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let mut client = PsClient::connect(&[&addr]).await.unwrap();
+
+        let resp = client
+            .batch_lookup(BatchLookupRequest {
+                requests: vec![
+                    LookupRequest {
+                        table_name: "dim".to_string(),
+                        fids: vec![1],
+                        dim_size: 0,
+                        create_if_missing: true,
+                        timeout_ms: 1000,
+                    },
+                    LookupRequest {
+                        table_name: "dim".to_string(),
+                        fids: vec![2],
+                        dim_size: 2,
+                        create_if_missing: true,
+                        timeout_ms: 1000,
+                    },
+                ],
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(resp.responses.len(), 2);
+        assert_eq!(resp.responses[0].status_code, 1);
+        assert!(
+            resp.responses[0]
+                .error_message
+                .contains("dim_size must be greater than zero")
+        );
+        assert_eq!(resp.responses[1].status_code, 0);
+        assert_eq!(resp.responses[1].embeddings.len(), 2);
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_batch_apply_validates_dim_size_per_entry() {
+        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let mut client = PsClient::connect(&[&addr]).await.unwrap();
+
+        // Initialize valid table entry so the second apply request can update it.
+        client.lookup("dim_apply", &[9], 2, true).await.unwrap();
+
+        let resp = client
+            .batch_apply_gradients(BatchApplyGradientsRequest {
+                requests: vec![
+                    ApplyGradientsRequest {
+                        table_name: "dim_apply".to_string(),
+                        fids: vec![9],
+                        gradients: vec![1.0, 2.0],
+                        dim_size: -1,
+                        learning_rate: 0.1,
+                        global_step: 1,
+                        timeout_ms: 1000,
+                    },
+                    ApplyGradientsRequest {
+                        table_name: "dim_apply".to_string(),
+                        fids: vec![9],
+                        gradients: vec![1.0, 2.0],
+                        dim_size: 2,
+                        learning_rate: 0.1,
+                        global_step: 1,
+                        timeout_ms: 1000,
+                    },
+                ],
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(resp.responses.len(), 2);
+        assert_eq!(resp.responses[0].status_code, 1);
+        assert!(
+            resp.responses[0]
+                .error_message
+                .contains("dim_size must be greater than zero")
+        );
+        assert_eq!(resp.responses[1].status_code, 0);
+        assert_eq!(resp.responses[1].num_updated, 1);
 
         server.abort();
     }
