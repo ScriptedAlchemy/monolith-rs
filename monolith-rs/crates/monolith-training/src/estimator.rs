@@ -631,6 +631,21 @@ impl<M: ModelFn> Estimator<M> {
             .await
             .map_err(|e| EstimatorError::Distributed(e.to_string()))
     }
+
+    /// Runs distributed runtime orchestration directly from RunConfig.
+    pub async fn run_distributed_runtime_from_run_config<
+        D: crate::discovery::ServiceDiscoveryAsync + 'static + ?Sized,
+    >(
+        discovery: Arc<D>,
+        run_conf: &crate::run_config::RunConfig,
+        base: Option<crate::run_config::RunnerConfig>,
+        role: crate::runner::Role,
+        bind_addr: std::net::SocketAddr,
+    ) -> EstimatorResult<()> {
+        crate::runner::run_distributed_from_run_config(discovery, run_conf, base, role, bind_addr)
+            .await
+            .map_err(|e| EstimatorError::Distributed(e.to_string()))
+    }
 }
 
 #[cfg(test)]
@@ -830,6 +845,47 @@ all_model_checkpoint_paths: "model.ckpt-30"
             "127.0.0.1:0".parse().unwrap(),
         )
         .await;
+        assert!(worker_res.is_ok(), "worker failed: {worker_res:?}");
+        ps_task.abort();
+    }
+
+    #[tokio::test]
+    async fn test_estimator_run_distributed_runtime_from_run_config_smoke() {
+        use crate::discovery::InMemoryDiscovery;
+        use crate::run_config::RunConfig;
+        use crate::runner::Role;
+
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let run = RunConfig {
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            ..RunConfig::default()
+        };
+
+        let discovery_bg = Arc::clone(&discovery);
+        let run_bg = run.clone();
+        let ps_task = tokio::spawn(async move {
+            Estimator::<ConstantModelFn>::run_distributed_runtime_from_run_config(
+                discovery_bg,
+                &run_bg,
+                None,
+                Role::Ps,
+                "127.0.0.1:0".parse().unwrap(),
+            )
+            .await
+        });
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let worker_res =
+            Estimator::<ConstantModelFn>::run_distributed_runtime_from_run_config(
+                Arc::clone(&discovery),
+                &run,
+                None,
+                Role::Worker,
+                "127.0.0.1:0".parse().unwrap(),
+            )
+            .await;
         assert!(worker_res.is_ok(), "worker failed: {worker_res:?}");
         ps_task.abort();
     }
