@@ -35,6 +35,8 @@
 //! ```
 
 use std::collections::HashMap;
+#[cfg(any(feature = "zookeeper", feature = "consul", test))]
+use std::future::Future;
 use std::sync::{Arc, Mutex, RwLock};
 use thiserror::Error;
 use tokio::sync::broadcast::{self, Receiver, Sender};
@@ -271,6 +273,73 @@ impl ServiceDiscoveryAsync for InMemoryDiscovery {
     async fn deregister_async(&self, service_id: &str) -> Result<()> {
         self.deregister(service_id)
     }
+}
+
+#[cfg(any(feature = "zookeeper", feature = "consul", test))]
+fn spawn_watch_poll_loop<F, Fut>(
+    sender: Sender<DiscoveryEvent>,
+    backend: &'static str,
+    poll_interval: std::time::Duration,
+    mut poll_discover: F,
+) -> tokio::task::JoinHandle<()>
+where
+    F: FnMut() -> Fut + Send + 'static,
+    Fut: Future<Output = Result<Vec<ServiceInfo>>> + Send + 'static,
+{
+    tokio::spawn(async move {
+        let mut prev: HashMap<String, ServiceInfo> = HashMap::new();
+        loop {
+            // If no receivers are subscribed anymore, stop the poller to avoid
+            // leaking long-lived background tasks.
+            if sender.receiver_count() == 0 {
+                break;
+            }
+
+            let next_list = match poll_discover().await {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::debug!(
+                        backend = backend,
+                        error = %e,
+                        "Discovery watch poll discover failed"
+                    );
+                    tokio::time::sleep(poll_interval).await;
+                    continue;
+                }
+            };
+
+            let mut next: HashMap<String, ServiceInfo> = HashMap::new();
+            for s in next_list {
+                next.insert(s.id.clone(), s);
+            }
+
+            let mut should_stop = false;
+            for (id, s) in next.iter() {
+                if !prev.contains_key(id)
+                    && sender.send(DiscoveryEvent::ServiceAdded(s.clone())).is_err()
+                {
+                    should_stop = true;
+                    break;
+                }
+            }
+            if !should_stop {
+                for id in prev.keys() {
+                    if !next.contains_key(id)
+                        && sender.send(DiscoveryEvent::ServiceRemoved(id.clone())).is_err()
+                    {
+                        should_stop = true;
+                        break;
+                    }
+                }
+            }
+            if should_stop {
+                break;
+            }
+
+            prev = next;
+            tokio::time::sleep(poll_interval).await;
+        }
+    })
 }
 
 /// In-memory service discovery implementation for testing.
@@ -752,38 +821,17 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
 
         let svc_type = service_type.to_string();
         let this = Arc::new(self.clone_for_watch());
-        tokio::spawn(async move {
-            let mut prev: HashMap<String, ServiceInfo> = HashMap::new();
-            loop {
-                let next_list = match this.discover_async(&svc_type).await {
-                    Ok(v) => v,
-                    Err(e) => {
-                        tracing::debug!(error = %e, "ZK watch poll discover failed");
-                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                        continue;
-                    }
-                };
-
-                let mut next: HashMap<String, ServiceInfo> = HashMap::new();
-                for s in next_list {
-                    next.insert(s.id.clone(), s);
-                }
-
-                for (id, s) in next.iter() {
-                    if !prev.contains_key(id) {
-                        let _ = sender.send(DiscoveryEvent::ServiceAdded(s.clone()));
-                    }
-                }
-                for id in prev.keys() {
-                    if !next.contains_key(id) {
-                        let _ = sender.send(DiscoveryEvent::ServiceRemoved(id.clone()));
-                    }
-                }
-
-                prev = next;
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-            }
-        });
+        let sender_for_poll = sender.clone();
+        spawn_watch_poll_loop(
+            sender_for_poll,
+            "zk",
+            std::time::Duration::from_secs(1),
+            move || {
+                let this = Arc::clone(&this);
+                let svc_type = svc_type.clone();
+                async move { this.discover_async(&svc_type).await }
+            },
+        );
 
         Ok(rx)
     }
@@ -1091,38 +1139,17 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
 
         let svc_type = service_type.to_string();
         let this = Arc::new(self.clone_for_watch());
-        tokio::spawn(async move {
-            let mut prev: HashMap<String, ServiceInfo> = HashMap::new();
-            loop {
-                let next_list = match this.discover_async(&svc_type).await {
-                    Ok(v) => v,
-                    Err(e) => {
-                        tracing::debug!(error = %e, "Consul watch poll discover failed");
-                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                        continue;
-                    }
-                };
-
-                let mut next: HashMap<String, ServiceInfo> = HashMap::new();
-                for s in next_list {
-                    next.insert(s.id.clone(), s);
-                }
-
-                for (id, s) in next.iter() {
-                    if !prev.contains_key(id) {
-                        let _ = sender.send(DiscoveryEvent::ServiceAdded(s.clone()));
-                    }
-                }
-                for id in prev.keys() {
-                    if !next.contains_key(id) {
-                        let _ = sender.send(DiscoveryEvent::ServiceRemoved(id.clone()));
-                    }
-                }
-
-                prev = next;
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-            }
-        });
+        let sender_for_poll = sender.clone();
+        spawn_watch_poll_loop(
+            sender_for_poll,
+            "consul",
+            std::time::Duration::from_secs(1),
+            move || {
+                let this = Arc::clone(&this);
+                let svc_type = svc_type.clone();
+                async move { this.discover_async(&svc_type).await }
+            },
+        );
 
         Ok(rx)
     }
@@ -1423,6 +1450,90 @@ mod tests {
             }
             _ => panic!("Expected ServiceUpdated event"),
         }
+    }
+
+    #[tokio::test]
+    async fn test_spawn_watch_poll_loop_emits_added_and_removed_events() {
+        let (sender, _) = tokio::sync::broadcast::channel(16);
+        let mut rx = sender.subscribe();
+        let poll_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let poll_calls_for_loop = std::sync::Arc::clone(&poll_calls);
+
+        let handle = spawn_watch_poll_loop(
+            sender,
+            "test",
+            std::time::Duration::from_millis(5),
+            move || {
+                let call = poll_calls_for_loop.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                async move {
+                    if call == 0 {
+                        Ok(vec![ServiceInfo::new(
+                            "ps-0",
+                            "ps-0",
+                            "ps",
+                            "127.0.0.1",
+                            5000,
+                        )])
+                    } else {
+                        Ok(Vec::new())
+                    }
+                }
+            },
+        );
+
+        let added = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceAdded")
+            .expect("watch channel closed unexpectedly");
+        match added {
+            DiscoveryEvent::ServiceAdded(s) => assert_eq!(s.id, "ps-0"),
+            other => panic!("expected ServiceAdded, got {other:?}"),
+        }
+
+        let removed = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        match removed {
+            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "ps-0"),
+            other => panic!("expected ServiceRemoved, got {other:?}"),
+        }
+
+        drop(rx);
+        tokio::time::timeout(std::time::Duration::from_millis(200), handle)
+            .await
+            .expect("watch loop should stop when no receivers")
+            .expect("watch task join failed");
+    }
+
+    #[tokio::test]
+    async fn test_spawn_watch_poll_loop_stops_after_receivers_drop() {
+        let (sender, _) = tokio::sync::broadcast::channel(16);
+        let rx = sender.subscribe();
+        let poll_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let poll_calls_for_loop = std::sync::Arc::clone(&poll_calls);
+
+        let handle = spawn_watch_poll_loop(
+            sender,
+            "test",
+            std::time::Duration::from_millis(5),
+            move || {
+                poll_calls_for_loop.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                async move { Ok(Vec::new()) }
+            },
+        );
+
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        assert!(
+            poll_calls.load(std::sync::atomic::Ordering::SeqCst) > 0,
+            "watch poll loop should execute while receiver is alive"
+        );
+
+        drop(rx);
+        tokio::time::timeout(std::time::Duration::from_millis(200), handle)
+            .await
+            .expect("watch loop should stop when receiver is dropped")
+            .expect("watch task join failed");
     }
 
     #[test]
