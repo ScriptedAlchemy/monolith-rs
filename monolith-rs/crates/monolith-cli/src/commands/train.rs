@@ -283,6 +283,21 @@ impl TrainCommand {
         {
             anyhow::bail!("--parameter-sync-target entries must not have leading/trailing whitespace");
         }
+        for target in &self.parameter_sync_targets {
+            let endpoint_target =
+                if target.starts_with("http://") || target.starts_with("https://") {
+                    target.clone()
+                } else {
+                    format!("http://{target}")
+                };
+            tonic::transport::Endpoint::from_shared(endpoint_target).map_err(|e| {
+                anyhow::anyhow!(
+                    "--parameter-sync-target contains invalid endpoint `{}`: {}",
+                    target,
+                    e
+                )
+            })?;
+        }
         let mut seen_parameter_sync_targets =
             HashSet::with_capacity(self.parameter_sync_targets.len());
         if self
@@ -982,6 +997,18 @@ mod tests {
         assert!(
             err.contains("--parameter-sync-target entries must not have leading/trailing whitespace"),
             "unexpected parameter-sync target whitespace validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_invalid_parameter_sync_target_endpoint() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec!["http://".to_string()];
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--parameter-sync-target contains invalid endpoint `http://`"),
+            "unexpected parameter-sync target endpoint validation error: {err}"
         );
     }
 

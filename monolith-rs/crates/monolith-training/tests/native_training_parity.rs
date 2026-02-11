@@ -1290,6 +1290,38 @@ async fn distributed_runner_from_run_config_rejects_whitespace_padded_parameter_
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_rejects_invalid_parameter_sync_target_endpoint() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["http://".to_string()],
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("distributed config has invalid parameter_sync_targets entry `http://`"),
+        "invalid run-config parameter-sync target endpoint should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_duplicate_parameter_sync_target_entry() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -3946,6 +3978,38 @@ async fn distributed_runner_from_runner_config_rejects_whitespace_padded_paramet
             "distributed config requires parameter_sync_targets entries without leading/trailing whitespace"
         ),
         "whitespace-padded runner-config parameter-sync target entry should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_invalid_parameter_sync_target_endpoint() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["http://".to_string()],
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("distributed config has invalid parameter_sync_targets entry `http://`"),
+        "invalid runner-config parameter-sync target endpoint should be rejected by distributed config validation: {err}"
     );
 }
 

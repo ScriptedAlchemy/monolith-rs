@@ -2070,6 +2070,22 @@
   - native-training integration tests (RunConfig + RunnerConfig): reject
     normalized duplicate targets before runtime execution.
 
+### 175) Strict parameter-sync endpoint format validation at CLI/runtime boundaries
+- Added explicit endpoint syntax validation for every parameter-sync target in:
+  - distributed runtime validation (`DistributedRunConfig::validate`)
+  - CLI distributed config builder (`TrainCommand::build_distributed_run_config`)
+- Validation now canonicalizes implicit host:port targets to `http://...` and
+  then checks URI validity through `tonic::transport::Endpoint::from_shared`,
+  surfacing deterministic config errors before runtime replication starts.
+- Rejects malformed entries like `http://` early with clear diagnostics:
+  - runtime: `distributed config has invalid parameter_sync_targets entry ...`
+  - CLI: `--parameter-sync-target contains invalid endpoint ...`
+- Added parity coverage:
+  - runner unit test for invalid parameter-sync endpoint entry
+  - CLI unit test for invalid `--parameter-sync-target` endpoint
+  - integration tests (RunConfig + RunnerConfig) verifying malformed endpoint
+    rejection through distributed runner entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2396,6 +2412,8 @@
 323. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post worker service-id discovery-timeout diagnostic enrichment full workspace rerun under ambient ZK auth env)
 324. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post parameter-sync target uniqueness normalization for optional http-prefixes across CLI/runtime validation layers)
 325. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post parameter-sync target http-prefix normalization full workspace rerun under ambient ZK auth env)
+326. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post strict parameter-sync endpoint syntax validation and malformed-target regression expansion)
+327. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post strict parameter-sync endpoint syntax validation full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

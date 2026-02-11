@@ -177,6 +177,21 @@ impl DistributedRunConfig {
                 "distributed config requires parameter_sync_targets entries without leading/trailing whitespace"
             );
         }
+        for target in &self.parameter_sync_targets {
+            let endpoint_target =
+                if target.starts_with("http://") || target.starts_with("https://") {
+                    target.clone()
+                } else {
+                    format!("http://{target}")
+                };
+            tonic::transport::Endpoint::from_shared(endpoint_target).map_err(|e| {
+                anyhow::anyhow!(
+                    "distributed config has invalid parameter_sync_targets entry `{}`: {}",
+                    target,
+                    e
+                )
+            })?;
+        }
         let mut seen_parameter_sync_targets =
             HashSet::with_capacity(self.parameter_sync_targets.len());
         if self
@@ -2215,6 +2230,19 @@ mod tests {
             err.contains(
                 "distributed config requires parameter_sync_targets entries without leading/trailing whitespace"
             ),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_invalid_parameter_sync_target_endpoint() {
+        let cfg = DistributedRunConfig {
+            parameter_sync_targets: vec!["http://".to_string()],
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("distributed config has invalid parameter_sync_targets entry `http://`"),
             "unexpected validation error: {err}"
         );
     }
