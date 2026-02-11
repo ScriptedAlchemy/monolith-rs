@@ -329,6 +329,12 @@
 - Exported helper at crate root for runtime callsites.
 - Added unit + integration smoke coverage for run-config driven PS/worker flows.
 
+### 30) Estimator distributed runtime helper directly from `RunConfig`
+- Added `Estimator::run_distributed_runtime_from_run_config(...)`:
+  - routes through run-config distributed runner entrypoint,
+  - preserves estimator-level distributed error mapping.
+- Added estimator-level async smoke coverage for run-config driven PS/worker flow.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -366,6 +372,7 @@
 33. `cargo test -p monolith-training -q` ✅ (post `monolith_discovery_from_run_config` helper integration)
 34. `cargo test -p monolith-training -q` ✅ (post initialized estimator constructor from run config)
 35. `cargo test -p monolith-training -q` ✅ (post run-config distributed runner entrypoint)
+36. `cargo test -p monolith-training -q` ✅ (post estimator run-config distributed runtime helper)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
