@@ -545,8 +545,11 @@ impl MlpServiceDiscovery {
             return Ok(HashMap::new());
         }
         let mut out = HashMap::new();
-        for name in ["ps", "worker", "chief"] {
-            out.insert(name.to_string(), self.query(name)?);
+        for name in self.env.all_roles.keys() {
+            let lower = name.to_lowercase();
+            if matches!(lower.as_str(), "ps" | "worker" | "chief") {
+                out.insert(lower.clone(), self.query(&lower)?);
+            }
         }
         Ok(out)
     }
@@ -835,6 +838,7 @@ mod tests {
         "MLP_CHIEF_0_PRIMARY_HOST",
         "MLP_CHIEF_0_HOST",
         "MLP_CHIEF_0_PORT",
+        "MLP_TRAINER_NUM",
     ];
 
     fn install_default_mlp_env() -> EnvSnapshot {
@@ -858,6 +862,26 @@ mod tests {
                 ("MLP_CHIEF_0_PRIMARY_HOST", "chief0"),
                 ("MLP_CHIEF_0_HOST", "chief0"),
                 ("MLP_CHIEF_0_PORT", "4444"),
+            ],
+            MLP_MANAGED_KEYS,
+        )
+    }
+
+    fn install_mlp_env_without_chief() -> EnvSnapshot {
+        EnvSnapshot::install(
+            &[
+                ("MLP_ROLE", "worker"),
+                ("MLP_ROLE_INDEX", "0"),
+                ("MLP_HOST", "worker0"),
+                ("MLP_WORKER_NUM", "1"),
+                ("MLP_PS_NUM", "1"),
+                ("MLP_TRAINER_NUM", "2"),
+                ("MLP_WORKER_0_PRIMARY_HOST", "worker0"),
+                ("MLP_WORKER_0_HOST", "worker0"),
+                ("MLP_WORKER_0_PORT", "2222"),
+                ("MLP_PS_0_PRIMARY_HOST", "ps0"),
+                ("MLP_PS_0_HOST", "ps0"),
+                ("MLP_PS_0_PORT", "3333"),
             ],
             MLP_MANAGED_KEYS,
         )
@@ -942,5 +966,24 @@ mod tests {
         PyServiceDiscovery::register(&d, "worker", 1, "worker1:2223").unwrap();
         PyServiceDiscovery::deregister(&d, "worker", 1, "worker1:2223").unwrap();
         assert!(d.query("worker").unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_mlp_query_all_only_includes_supported_configured_roles() {
+        let _guard = MLP_ENV_TEST_MUTEX.lock().unwrap();
+        let _env = install_mlp_env_without_chief();
+
+        let d = MlpServiceDiscovery::new();
+        let all = d.query_all().unwrap();
+        assert!(all.contains_key("worker"));
+        assert!(all.contains_key("ps"));
+        assert!(
+            !all.contains_key("chief"),
+            "chief should be omitted when not configured"
+        );
+        assert!(
+            !all.contains_key("trainer"),
+            "unsupported role names should not be included"
+        );
     }
 }
