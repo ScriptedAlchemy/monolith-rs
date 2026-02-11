@@ -224,6 +224,12 @@ impl TrainCommand {
         if self.dim == 0 {
             anyhow::bail!("--dim must be > 0 in distributed mode");
         }
+        if self.discovery_service_type_ps.trim().is_empty() {
+            anyhow::bail!("--discovery-service-type-ps must be non-empty");
+        }
+        if self.discovery_service_type_worker.trim().is_empty() {
+            anyhow::bail!("--discovery-service-type-worker must be non-empty");
+        }
 
         let bind_addr: SocketAddr = self
             .bind_addr
@@ -704,6 +710,30 @@ mod tests {
         assert!(
             err.contains("--dim must be > 0 in distributed mode"),
             "unexpected dim validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_empty_ps_service_type() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.discovery_service_type_ps = "   ".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--discovery-service-type-ps must be non-empty"),
+            "unexpected ps service-type validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_empty_worker_service_type() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.discovery_service_type_worker = "".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--discovery-service-type-worker must be non-empty"),
+            "unexpected worker service-type validation error: {err}"
         );
     }
 

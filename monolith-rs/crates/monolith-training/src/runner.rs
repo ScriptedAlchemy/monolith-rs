@@ -107,6 +107,12 @@ impl DistributedRunConfig {
         if self.discovery_cleanup_timeout.is_zero() {
             anyhow::bail!("distributed config requires discovery_cleanup_timeout > 0");
         }
+        if self.discovery_service_type_ps.trim().is_empty() {
+            anyhow::bail!("distributed config requires non-empty discovery_service_type_ps");
+        }
+        if self.discovery_service_type_worker.trim().is_empty() {
+            anyhow::bail!("distributed config requires non-empty discovery_service_type_worker");
+        }
         Ok(())
     }
 }
@@ -1887,6 +1893,32 @@ mod tests {
         let err = cfg.validate().unwrap_err().to_string();
         assert!(
             err.contains("distributed config requires discovery_cleanup_timeout > 0"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_empty_ps_service_type() {
+        let cfg = DistributedRunConfig {
+            discovery_service_type_ps: "   ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("distributed config requires non-empty discovery_service_type_ps"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_empty_worker_service_type() {
+        let cfg = DistributedRunConfig {
+            discovery_service_type_worker: "".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("distributed config requires non-empty discovery_service_type_worker"),
             "unexpected validation error: {err}"
         );
     }
