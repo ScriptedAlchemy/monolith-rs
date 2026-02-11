@@ -15,6 +15,7 @@ use std::time::{Duration, Instant};
 use crate::native_training::service_discovery::{
     ConsulServiceDiscovery, ServiceDiscovery as NativeServiceDiscovery, ServiceDiscoveryType,
 };
+use crate::native_training::env_utils::generate_psm_from_uuid;
 use crate::py_discovery::{MlpServiceDiscovery, PyServiceDiscovery, TfConfigServiceDiscovery};
 use crate::run_config::RunnerConfig;
 use monolith_proto::monolith::native_training::monolith_checkpoint_state::HashTableType;
@@ -292,8 +293,16 @@ pub fn monolith_discovery(
     runner_conf: &RunnerConfig,
     psm: Option<&str>,
 ) -> Result<MonolithDiscoveryGuard, RunnerUtilsError> {
+    let resolved_psm = if matches!(runner_conf.discovery_type, ServiceDiscoveryType::Consul)
+        && psm.is_none()
+    {
+        Some(generate_psm_from_uuid(&runner_conf.deep_insight_name))
+    } else {
+        psm.map(|s| s.to_string())
+    };
+
     Ok(MonolithDiscoveryGuard {
-        discovery: get_discovery(runner_conf, psm)?,
+        discovery: get_discovery(runner_conf, resolved_psm.as_deref())?,
     })
 }
 
@@ -604,6 +613,19 @@ all_model_checkpoint_paths: "model.ckpt-30"
         )
         .unwrap_err();
         assert!(matches!(err, RunnerUtilsError::RestoreSyncTimeout { .. }));
+    }
+
+    #[test]
+    fn test_monolith_discovery_consul_auto_psm() {
+        let rc = RunnerConfig {
+            is_local: false,
+            discovery_type: ServiceDiscoveryType::Consul,
+            deep_insight_name: "uuid-like-job".to_string(),
+            ..RunnerConfig::default()
+        };
+        let guard = monolith_discovery(&rc, None).unwrap();
+        let d = guard.discovery().expect("consul discovery");
+        assert_eq!(d.kind(), "consul");
     }
 
     #[test]

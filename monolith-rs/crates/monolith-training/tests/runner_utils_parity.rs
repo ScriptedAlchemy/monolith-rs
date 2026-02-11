@@ -74,6 +74,18 @@ fn test_monolith_discovery_local_returns_none() {
 }
 
 #[test]
+fn test_monolith_discovery_consul_auto_psm() {
+    let rc = RunnerConfig {
+        is_local: false,
+        discovery_type: ServiceDiscoveryType::Consul,
+        deep_insight_name: "job-uuid".to_string(),
+        ..RunnerConfig::default()
+    };
+    let guard = monolith_discovery(&rc, None).unwrap();
+    assert_eq!(guard.discovery().unwrap().kind(), "consul");
+}
+
+#[test]
 fn test_prepare_restore_checkpoint_chief_then_worker() {
     let tmp = tempdir().unwrap();
     let restore_dir = tmp.path().join("restore");
