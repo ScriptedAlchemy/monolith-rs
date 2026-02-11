@@ -806,6 +806,17 @@
   `test_run_distributed_rejects_invalid_runtime_config` to assert immediate
   typed failure on invalid distributed launch configuration.
 
+### 75) Typed PS discovery ordering diagnostics in worker retry loop
+- Refactored PS address ordering helper to return typed ordering outcomes:
+  - `PsAddrOrderError::MissingOrGappedIndexSet`
+  - `PsAddrOrderError::ConflictingDuplicateIndex`
+  - `PsAddrOrderError::MixedIndexMetadataPresence`
+  - `PsAddrOrderError::InvalidIndexMetadata`
+- Worker discovery retry loop now preserves and surfaces the latest ordering
+  issue in timeout errors for improved runtime diagnostics instead of returning
+  opaque “got 0 expected N” messages in metadata-inconsistent states.
+- Updated ordering regressions to assert explicit typed errors.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -925,6 +936,7 @@
 116. `cargo test --workspace -q` ✅ (post strict mixed/invalid PS index-metadata consistency gating and full workspace regression rerun)
 117. `cargo test -p monolith-training -q` ✅ (post distributed runtime config preflight validation guard and invalid-config regression)
 118. `cargo test --workspace -q` ✅ (post distributed runtime preflight validation guard and full workspace regression rerun)
+119. `cargo test -p monolith-training -q` ✅ (post typed PS discovery ordering diagnostics and retry-time ordering-issue propagation)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
