@@ -1875,4 +1875,58 @@ mod tests {
 
         server.abort();
     }
+
+    #[tokio::test]
+    async fn test_ps_client_batch_lookup_preserves_duplicate_found_flags() {
+        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let mut client = PsClient::connect(&[&addr]).await.unwrap();
+
+        // First lookup initializes missing IDs and should report all as newly initialized.
+        let first = client
+            .batch_lookup(BatchLookupRequest {
+                requests: vec![LookupRequest {
+                    table_name: "dup".to_string(),
+                    fids: vec![10, 10, 11],
+                    dim_size: 2,
+                    create_if_missing: true,
+                    timeout_ms: 1000,
+                }],
+            })
+            .await
+            .unwrap();
+        assert_eq!(first.responses.len(), 1);
+        let first_resp = &first.responses[0];
+        assert_eq!(first_resp.status_code, 0);
+        assert_eq!(first_resp.found, vec![false, false, false]);
+        assert_eq!(first_resp.num_found, 0);
+        assert_eq!(first_resp.num_initialized, 3);
+
+        // Second lookup should see all IDs (including duplicates) as found.
+        let second = client
+            .batch_lookup(BatchLookupRequest {
+                requests: vec![LookupRequest {
+                    table_name: "dup".to_string(),
+                    fids: vec![10, 10, 11],
+                    dim_size: 2,
+                    create_if_missing: false,
+                    timeout_ms: 1000,
+                }],
+            })
+            .await
+            .unwrap();
+        let second_resp = &second.responses[0];
+        assert_eq!(second_resp.status_code, 0);
+        assert_eq!(second_resp.found, vec![true, true, true]);
+        assert_eq!(second_resp.num_found, 3);
+        assert_eq!(second_resp.num_initialized, 0);
+
+        server.abort();
+    }
 }
