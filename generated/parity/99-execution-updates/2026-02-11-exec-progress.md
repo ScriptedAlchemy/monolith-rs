@@ -198,6 +198,17 @@
 - Added assertion coverage ensuring worker service entries are removed from
   discovery after worker completion in runner smoke tests.
 
+### 16) RunConfig/RunnerConfig → EstimatorConfig integration
+- Added direct config bridge helpers:
+  - `RunConfig::to_estimator_config()`
+  - `RunnerConfig::to_estimator_config()`
+- Added `Estimator::from_runner_config(...)` constructor for runtime wiring parity.
+- Mapping includes:
+  - `model_dir`,
+  - `log_step_count_steps`,
+  - `warm_start_from` derived from `restore_ckpt` when set.
+- Added tests for both run/runner config bridges and estimator construction from runner config.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -219,6 +230,7 @@
 17. `cargo test -p monolith-training -q` ✅ (post RunnerConfig-driven distributed runner entrypoint)
 18. `cargo test -p monolith-training -q` ✅ (post `EstimatorSpec` parity surface + tests)
 19. `cargo test -p monolith-training -q` ✅ (post distributed runner cleanup lifecycle updates)
+20. `cargo test -p monolith-training -q` ✅ (post run/runner → estimator config bridge additions)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
