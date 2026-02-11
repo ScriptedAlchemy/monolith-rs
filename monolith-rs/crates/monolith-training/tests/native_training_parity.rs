@@ -207,6 +207,69 @@ async fn distributed_runner_from_run_config_smoke() {
     ps_task.abort();
 }
 
+#[tokio::test]
+async fn distributed_runner_from_run_config_propagates_barrier_timeout_controls() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 2,
+        barrier_timeout_ms: 40,
+        connect_retries: 50,
+        retry_backoff_ms: 10,
+        ..RunConfig::default()
+    };
+
+    let discovery_bg = Arc::clone(&discovery);
+    let run_bg = run.clone();
+    let ps_task = tokio::spawn(async move {
+        run_distributed_from_run_config(
+            discovery_bg,
+            &run_bg,
+            None,
+            Role::Ps,
+            "127.0.0.1:0".parse().unwrap(),
+        )
+        .await
+    });
+
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let started = Instant::now();
+    let worker_res = tokio::time::timeout(
+        Duration::from_millis(1500),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    ps_task.abort();
+
+    assert!(
+        worker_res.is_ok(),
+        "worker run should return promptly when barrier timeout is configured"
+    );
+    let elapsed = started.elapsed();
+    let msg = worker_res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Barrier timeout"),
+        "worker should fail with barrier timeout when only one of two workers runs: {msg}"
+    );
+    assert!(
+        elapsed < Duration::from_millis(700),
+        "barrier_timeout_ms from RunConfig should bound worker barrier wait duration (elapsed: {:?})",
+        elapsed
+    );
+}
+
 struct HangingDiscoverFromRunConfigDiscovery {
     connect_count: AtomicUsize,
     disconnect_count: AtomicUsize,
@@ -1108,6 +1171,68 @@ async fn distributed_runner_from_runner_config_preserves_connect_timeout_when_cl
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_propagates_barrier_timeout_controls() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 2,
+        barrier_timeout_ms: 40,
+        connect_retries: 50,
+        retry_backoff_ms: 10,
+        ..RunnerConfig::default()
+    };
+
+    let discovery_bg = Arc::clone(&discovery);
+    let runner_bg = runner.clone();
+    let ps_task = tokio::spawn(async move {
+        run_distributed_from_runner_config(
+            discovery_bg,
+            &runner_bg,
+            Role::Ps,
+            "127.0.0.1:0".parse().unwrap(),
+        )
+        .await
+    });
+
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let started = Instant::now();
+    let worker_res = tokio::time::timeout(
+        Duration::from_millis(1500),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    ps_task.abort();
+
+    assert!(
+        worker_res.is_ok(),
+        "worker run should return promptly when barrier timeout is configured"
+    );
+    let elapsed = started.elapsed();
+    let msg = worker_res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Barrier timeout"),
+        "worker should fail with barrier timeout when only one of two workers runs: {msg}"
+    );
+    assert!(
+        elapsed < Duration::from_millis(700),
+        "barrier_timeout_ms from RunnerConfig should bound worker barrier wait duration (elapsed: {:?})",
+        elapsed
+    );
 }
 
 #[tokio::test]
