@@ -1498,6 +1498,19 @@
   backoff-duration propagation from both config entrypoints into runtime retry
   behavior.
 
+### 138) Custom discovery service-type propagation integration coverage
+- Added service-type focused integration regressions:
+  - `distributed_runner_from_run_config_propagates_custom_service_type_fields`
+  - `distributed_runner_from_runner_config_propagates_custom_service_type_fields`
+- Introduced recording discovery backend to capture runtime service-type usage
+  across registration and discovery operations.
+- Validates across both config entrypoints that:
+  - worker registration uses `discovery_service_type_worker`,
+  - worker discovery queries `discovery_service_type_ps`,
+  - PS registration uses `discovery_service_type_ps`.
+- Ensures config-level custom service-type controls are propagated end-to-end
+  into runtime discovery lifecycle calls.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1749,6 +1762,8 @@
 248. `cargo test --workspace -q` ✅ (post discover-retry propagation integration regressions across run/runner config entrypoints full workspace rerun)
 249. `cargo test -p monolith-training -q` ✅ (post retry-backoff propagation integration regressions across run/runner config entrypoints)
 250. `cargo test --workspace -q` ✅ (post retry-backoff propagation integration regressions across run/runner config entrypoints full workspace rerun)
+251. `cargo test -p monolith-training -q` ✅ (post custom discovery service-type propagation integration regressions across run/runner config entrypoints)
+252. `cargo test --workspace -q` ✅ (post custom discovery service-type propagation integration regressions across run/runner config entrypoints full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
