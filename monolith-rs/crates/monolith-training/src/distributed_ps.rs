@@ -31,14 +31,14 @@
 //! client.apply_gradients("user_embeddings", &[1, 2, 1], &gradients, 32, 0.01).await?;
 //! ```
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use parking_lot::RwLock;
 use thiserror::Error;
-use tokio::sync::Barrier as TokioBarrier;
+use tokio::sync::{Mutex as TokioMutex, Notify};
 use tonic::{Request, Response, Status};
 
 use crate::parameter_sync_replicator::DirtyTracker;
@@ -312,7 +312,13 @@ pub async fn serve_ps(
 struct BarrierState {
     num_workers: i32,
     arrived: AtomicI64,
-    barrier: TokioBarrier,
+    state: TokioMutex<BarrierRoundState>,
+    notify: Notify,
+}
+
+struct BarrierRoundState {
+    generation: u64,
+    arrived_workers: HashSet<i32>,
 }
 
 impl PsServer {
@@ -500,7 +506,11 @@ impl ParameterServerTraining for PsServerHandle {
                     Arc::new(BarrierState {
                         num_workers: req.num_workers,
                         arrived: AtomicI64::new(0),
-                        barrier: TokioBarrier::new(req.num_workers as usize),
+                        state: TokioMutex::new(BarrierRoundState {
+                            generation: 0,
+                            arrived_workers: HashSet::new(),
+                        }),
+                        notify: Notify::new(),
                     })
                 })
                 .clone()
@@ -517,31 +527,74 @@ impl ParameterServerTraining for PsServerHandle {
             }));
         }
 
-        barrier_state.arrived.fetch_add(1, Ordering::SeqCst);
+        let generation = {
+            let mut state = barrier_state.state.lock().await;
+            if !state.arrived_workers.insert(req.worker_id) {
+                return Ok(Response::new(BarrierResponse {
+                    status_code: 1,
+                    error_message: format!(
+                        "Worker {} already arrived for barrier {}",
+                        req.worker_id, req.barrier_id
+                    ),
+                    num_arrived: state.arrived_workers.len() as i32,
+                }));
+            }
+            barrier_state
+                .arrived
+                .store(state.arrived_workers.len() as i64, Ordering::SeqCst);
 
-        // Wait at barrier with timeout
+            if state.arrived_workers.len() == barrier_state.num_workers as usize {
+                state.generation += 1;
+                state.arrived_workers.clear();
+                barrier_state.arrived.store(0, Ordering::SeqCst);
+                drop(state);
+                barrier_state.notify.notify_waiters();
+                return Ok(Response::new(BarrierResponse {
+                    status_code: 0,
+                    error_message: String::new(),
+                    num_arrived: barrier_state.num_workers,
+                }));
+            }
+            state.generation
+        };
+
+        // Wait until this barrier generation releases or timeout.
         let timeout = Duration::from_millis(req.timeout_ms as u64);
-        match tokio::time::timeout(timeout, barrier_state.barrier.wait()).await {
-            Ok(wait_result) => {
-                if wait_result.is_leader() {
-                    barrier_state.arrived.store(0, Ordering::SeqCst);
+        let wait_result = tokio::time::timeout(timeout, async {
+            loop {
+                {
+                    let state = barrier_state.state.lock().await;
+                    if state.generation > generation {
+                        return;
+                    }
                 }
-                Ok(Response::new(BarrierResponse {
+                barrier_state.notify.notified().await;
+            }
+        })
+        .await;
+
+        match wait_result {
+            Ok(()) => Ok(Response::new(BarrierResponse {
                 status_code: 0,
                 error_message: String::new(),
-                    num_arrived: barrier_state.num_workers,
-                }))
-            }
+                num_arrived: barrier_state.num_workers,
+            })),
             Err(_) => {
-                let _ = barrier_state.arrived.fetch_update(
-                    Ordering::SeqCst,
-                    Ordering::SeqCst,
-                    |v| Some(v.saturating_sub(1)),
-                );
+                let mut state = barrier_state.state.lock().await;
+                if state.generation > generation {
+                    return Ok(Response::new(BarrierResponse {
+                        status_code: 0,
+                        error_message: String::new(),
+                        num_arrived: barrier_state.num_workers,
+                    }));
+                }
+                state.arrived_workers.remove(&req.worker_id);
+                let remaining = state.arrived_workers.len() as i32;
+                barrier_state.arrived.store(remaining as i64, Ordering::SeqCst);
                 Ok(Response::new(BarrierResponse {
                     status_code: 1,
                     error_message: "Barrier timeout".to_string(),
-                    num_arrived: barrier_state.arrived.load(Ordering::SeqCst) as i32,
+                    num_arrived: remaining,
                 }))
             }
         }
@@ -1092,15 +1145,19 @@ mod tests {
         let ps = PsServer::new(0, 2);
         let handle = PsServerHandle(ps);
 
-        let req = BarrierRequest {
+        let req0 = BarrierRequest {
             barrier_id: "b0".to_string(),
             worker_id: 0,
             num_workers: 2,
             timeout_ms: 200,
         };
+        let req1 = BarrierRequest {
+            worker_id: 1,
+            ..req0.clone()
+        };
         let (r1, r2) = tokio::join!(
-            handle.barrier(Request::new(req.clone())),
-            handle.barrier(Request::new(req.clone()))
+            handle.barrier(Request::new(req0.clone())),
+            handle.barrier(Request::new(req1.clone()))
         );
         let r1 = r1.unwrap().into_inner();
         let r2 = r2.unwrap().into_inner();
@@ -1111,8 +1168,8 @@ mod tests {
 
         // Reuse same barrier id for next round; should still work.
         let (r3, r4) = tokio::join!(
-            handle.barrier(Request::new(req.clone())),
-            handle.barrier(Request::new(req))
+            handle.barrier(Request::new(req0)),
+            handle.barrier(Request::new(req1))
         );
         assert_eq!(r3.unwrap().into_inner().status_code, 0);
         assert_eq!(r4.unwrap().into_inner().status_code, 0);
@@ -1149,5 +1206,83 @@ mod tests {
             .into_inner();
         assert_eq!(bad.status_code, 1);
         assert!(bad.error_message.contains("expects num_workers=1"));
+    }
+
+    #[tokio::test]
+    async fn test_ps_server_barrier_duplicate_worker_rejected() {
+        let ps = PsServer::new(0, 2);
+        let handle = PsServerHandle(ps);
+
+        let req = BarrierRequest {
+            barrier_id: "bdup".to_string(),
+            worker_id: 0,
+            num_workers: 2,
+            timeout_ms: 300,
+        };
+        let first = {
+            let handle_bg = handle.clone();
+            let req_bg = req.clone();
+            tokio::spawn(async move { handle_bg.barrier(Request::new(req_bg)).await })
+        };
+        tokio::time::sleep(Duration::from_millis(30)).await;
+
+        let dup = handle
+            .barrier(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(dup.status_code, 1);
+        assert!(dup.error_message.contains("already arrived"));
+
+        let peer = handle
+            .barrier(Request::new(BarrierRequest {
+                barrier_id: "bdup".to_string(),
+                worker_id: 1,
+                num_workers: 2,
+                timeout_ms: 300,
+            }))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(peer.status_code, 0);
+
+        let first = first.await.unwrap().unwrap().into_inner();
+        assert_eq!(first.status_code, 0);
+    }
+
+    #[tokio::test]
+    async fn test_ps_server_barrier_timeout_cleanup_allows_retry() {
+        let ps = PsServer::new(0, 2);
+        let handle = PsServerHandle(ps);
+
+        let timeout = handle
+            .barrier(Request::new(BarrierRequest {
+                barrier_id: "btimeout".to_string(),
+                worker_id: 0,
+                num_workers: 2,
+                timeout_ms: 20,
+            }))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(timeout.status_code, 1);
+        assert_eq!(timeout.num_arrived, 0);
+
+        let req0 = BarrierRequest {
+            barrier_id: "btimeout".to_string(),
+            worker_id: 0,
+            num_workers: 2,
+            timeout_ms: 200,
+        };
+        let req1 = BarrierRequest {
+            worker_id: 1,
+            ..req0.clone()
+        };
+        let (r1, r2) = tokio::join!(
+            handle.barrier(Request::new(req0)),
+            handle.barrier(Request::new(req1))
+        );
+        assert_eq!(r1.unwrap().into_inner().status_code, 0);
+        assert_eq!(r2.unwrap().into_inner().status_code, 0);
     }
 }
