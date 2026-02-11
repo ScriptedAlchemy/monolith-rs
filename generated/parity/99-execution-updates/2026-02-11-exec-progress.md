@@ -2842,6 +2842,18 @@
 - Result: connect-timeout diagnostics now have explicit service-type+index parity
   across runner + RunConfig + RunnerConfig paths.
 
+### 219) Default-service indexed connect-timeout diagnostics parity expanded
+- Added runner-level indexed default-service connect-timeout regressions:
+  - `test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_default_service_type_and_index`
+  - `test_run_distributed_ps_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_default_service_type_and_index`
+- New assertions verify default-service non-zero index timeout diagnostics preserve:
+  - worker path: `connect/disconnect worker-3 via worker`
+  - ps path: `connect/disconnect ps-2 via ps`
+  while keeping connect-timeout precedence and appended role-error cleanup
+  context.
+- Result: runner-level connect-timeout diagnostics now have complete
+  default/custom + indexed parity for worker and ps paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3272,6 +3284,9 @@
 427. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post custom-service indexed connect-timeout diagnostics parity expansion)
 428. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post custom-service indexed connect-timeout diagnostics parity compatibility verification)
 429. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post custom-service indexed connect-timeout diagnostics parity expansion full workspace rerun under ambient ZK auth env)
+430. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post default-service indexed connect-timeout diagnostics parity expansion at runner level)
+431. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post default-service indexed connect-timeout diagnostics parity compatibility verification)
+432. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post default-service indexed connect-timeout diagnostics parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
