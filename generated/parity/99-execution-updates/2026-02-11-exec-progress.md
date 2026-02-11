@@ -2876,6 +2876,27 @@
 - Result: connect-timeout error-precedence semantics now cover both cleanup-timeout
   and cleanup-failure paths across runner + RunConfig + RunnerConfig entrypoints.
 
+### 221) Register-timeout + cleanup-failure precedence parity expanded
+- Added runner-level regressions for blocked register + failing cleanup:
+  - `test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_fails`
+  - `test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_fails_with_custom_service_type_and_index`
+- Added dedicated failing-cleanup register-timeout integration mock:
+  - `HangingRegisterWithFailingCleanupFromConfigDiscovery`
+  (register blocks to trigger operation timeout while deregister/disconnect fail).
+- Added RunConfig integration regressions:
+  - `distributed_runner_from_run_config_preserves_register_timeout_with_disconnect_failure_context`
+  - `distributed_runner_from_run_config_preserves_ps_register_timeout_with_disconnect_failure_context`
+- Added RunnerConfig integration regressions:
+  - `distributed_runner_from_runner_config_preserves_register_timeout_with_disconnect_failure_context`
+  - `distributed_runner_from_runner_config_preserves_ps_register_timeout_with_disconnect_failure_context`
+- New assertions verify:
+  - primary register-timeout error remains authoritative,
+  - role-error cleanup issue context is appended,
+  - cleanup diagnostics include explicit deregister/disconnect failure operation
+    context with propagated custom service type and non-zero role index.
+- Result: register-timeout parity now covers both cleanup-timeout and
+  cleanup-failure branches across runner + RunConfig + RunnerConfig entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3312,6 +3333,9 @@
 433. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post connect-timeout + disconnect-failure precedence parity expansion across runner/config entrypoints)
 434. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post connect-timeout + disconnect-failure precedence parity compatibility verification)
 435. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post connect-timeout + disconnect-failure precedence parity expansion full workspace rerun under ambient ZK auth env)
+436. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post register-timeout + cleanup-failure precedence parity expansion across runner/config entrypoints)
+437. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post register-timeout + cleanup-failure precedence parity compatibility verification)
+438. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post register-timeout + cleanup-failure precedence parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
