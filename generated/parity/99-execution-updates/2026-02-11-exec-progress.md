@@ -1043,6 +1043,28 @@
   - `test_mlp_register_rejects_unexpected_host`
   - `test_mlp_query_requires_non_empty_name`.
 
+### 96) MLP discovery close semantics parity
+- Extended `py_discovery::MlpServiceDiscovery` lifecycle behavior to mirror
+  Python `close()` semantics:
+  - added internal closed-state guard,
+  - `close()` now clears runtime filters and transitions discovery into
+    no-op/empty-query mode.
+- Post-close behavior now mirrors Python-style inert discovery:
+  - `register` / `deregister` become no-op success,
+  - `query` / `query_all` return empty maps,
+  - `server_type()` / `addr()` return `None`.
+- Added regression:
+  - `test_mlp_close_disables_discovery_and_clears_filters`.
+
+### 97) Workspace test-lane stability hardening (`model_registry`)
+- Addressed intermittent workspace failure in
+  `model_registry::tests::test_register_duplicate_error_message`
+  caused by global registry cross-test interference.
+- Added test-level serialization lock for model-registry unit tests in
+  `monolith-core/src/model_registry.rs` to prevent concurrent
+  `clear_registry_for_test()` races.
+- This preserves behavior while making the workspace test lane deterministic.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1204,6 +1226,9 @@
 158. `cargo test --workspace -q` ✅ (post ZK registration-thread lock cleanup and full workspace regression rerun)
 159. `cargo test -p monolith-training -q` ✅ (post MLP discovery parity expansion and host/query/filter regression coverage)
 160. `cargo test --workspace -q` ✅ (post MLP discovery parity expansion and full workspace regression rerun)
+161. `cargo test -p monolith-training -q` ✅ (post MLP discovery close-semantics lifecycle parity and close-state regression)
+162. `cargo test -p monolith-core -q` ✅ (post model-registry test serialization lock against global-state races)
+163. `cargo test --workspace -q` ✅ (post model-registry test-race stabilization and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
