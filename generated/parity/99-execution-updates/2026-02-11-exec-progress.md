@@ -2573,6 +2573,25 @@
   default/custom service-type matrices for runner, RunConfig, and RunnerConfig
   entrypoints.
 
+### 206) Register-failure role-error cleanup diagnostics now explicitly validated for default/custom service-type runner paths
+- Strengthened existing runner registration-failure regressions:
+  - `test_run_distributed_disconnects_when_worker_registration_fails`
+  - `test_run_distributed_disconnects_when_ps_registration_fails`
+  with explicit assertions for:
+  - primary register failure preservation,
+  - appended role-error cleanup issue context,
+  - concrete deregister operation/failure diagnostics.
+- Added new runner regressions for custom service-type registration-failure
+  cleanup diagnostics:
+  - `test_run_distributed_worker_registration_failure_includes_custom_service_type_cleanup_context`
+  - `test_run_distributed_ps_registration_failure_includes_custom_service_type_cleanup_context`
+- New assertions verify cleanup diagnostics include service-type-specific
+  operation context (`trainer_custom`, `parameter_server_custom`) when register
+  fails and deregister cleanup reports failure.
+- Result: register-failure role-error cleanup diagnostics now have explicit
+  default/custom runner-level parity guarantees, matching the broader discovery
+  lifecycle error-context hardening strategy.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2969,6 +2988,8 @@
 393. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post worker-timeout cleanup-failure parity expansion for custom service/index paths full workspace rerun under ambient ZK auth env)
 394. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post default worker-timeout cleanup-failure integration parity expansion for run/runner entrypoints)
 395. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post default worker-timeout cleanup-failure integration parity expansion full workspace rerun under ambient ZK auth env)
+396. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post register-failure cleanup-context parity assertion expansion for default/custom runner service-type paths)
+397. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post register-failure cleanup-context parity assertion expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

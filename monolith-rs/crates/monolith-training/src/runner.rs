@@ -3997,6 +3997,19 @@ mod tests {
 
         let res = run_distributed(Arc::clone(&discovery), cfg).await;
         assert!(res.is_err(), "expected worker registration failure");
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("forced register failure"),
+            "worker register failure should remain primary when cleanup also fails: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "worker register-failure diagnostics should include cleanup issue context: {msg}"
+        );
+        assert!(
+            msg.contains("deregister worker-0 from worker") && msg.contains("missing"),
+            "worker register-failure cleanup diagnostics should include worker deregister operation/failure context: {msg}"
+        );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(
             discovery.disconnect_count(),
@@ -4024,6 +4037,19 @@ mod tests {
 
         let res = run_distributed(Arc::clone(&discovery), cfg).await;
         assert!(res.is_err(), "expected ps registration failure");
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("forced register failure"),
+            "ps register failure should remain primary when cleanup also fails: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "ps register-failure diagnostics should include cleanup issue context: {msg}"
+        );
+        assert!(
+            msg.contains("deregister ps-0 from ps") && msg.contains("missing"),
+            "ps register-failure cleanup diagnostics should include ps deregister operation/failure context: {msg}"
+        );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(
             discovery.disconnect_count(),
@@ -4035,6 +4061,76 @@ mod tests {
             1,
             "deregister should still be attempted on ps registration failure"
         );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_worker_registration_failure_includes_custom_service_type_cleanup_context(
+    ) {
+        let discovery = Arc::new(FailingRegisterDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(res.is_err(), "expected worker registration failure");
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("forced register failure"),
+            "worker register failure should remain primary with custom service type: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "worker register-failure diagnostics should include cleanup issue context with custom service type: {msg}"
+        );
+        assert!(
+            msg.contains("deregister worker-0 from trainer_custom")
+                && msg.contains("missing"),
+            "worker register-failure cleanup diagnostics should include custom worker service-type deregister operation/failure context: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_ps_registration_failure_includes_custom_service_type_cleanup_context(
+    ) {
+        let discovery = Arc::new(FailingRegisterDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(res.is_err(), "expected ps registration failure");
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("forced register failure"),
+            "ps register failure should remain primary with custom service type: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "ps register-failure diagnostics should include cleanup issue context with custom service type: {msg}"
+        );
+        assert!(
+            msg.contains("deregister ps-0 from parameter_server_custom")
+                && msg.contains("missing"),
+            "ps register-failure cleanup diagnostics should include custom ps service-type deregister operation/failure context: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
     }
 
     #[tokio::test]
