@@ -952,6 +952,19 @@ mod tests {
     }
 
     #[test]
+    fn consul_close_state_is_shared_across_clones() {
+        let c = Arc::new(FakeConsul::new(vec![]));
+        let d1 = ConsulServiceDiscovery::new("unique_id")
+            .with_retry_time_secs(0.0)
+            .with_client(c);
+        let d2 = d1.clone();
+
+        d1.close().unwrap();
+        let err = d2.query_all().unwrap_err();
+        assert!(err.to_string().contains("closed"));
+    }
+
+    #[test]
     fn tf_config_service_discovery_matches_python_test() {
         let tf_conf = serde_json::json!({
           "cluster": {
