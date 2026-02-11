@@ -694,6 +694,11 @@ pub struct PsClient {
 impl PsClient {
     /// Connects to multiple PS instances.
     pub async fn connect(addrs: &[&str]) -> PsResult<Self> {
+        if addrs.is_empty() {
+            return Err(PsError::InvalidConfig(
+                "at least one PS address is required".to_string(),
+            ));
+        }
         let mut clients = Vec::with_capacity(addrs.len());
 
         for addr in addrs {
@@ -720,6 +725,9 @@ impl PsClient {
         dim_size: usize,
         create_if_missing: bool,
     ) -> PsResult<Vec<f32>> {
+        if self.clients.is_empty() {
+            return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
+        }
         if fids.is_empty() {
             return Ok(Vec::new());
         }
@@ -805,6 +813,9 @@ impl PsClient {
         learning_rate: f32,
         global_step: i64,
     ) -> PsResult<(i32, i32)> {
+        if self.clients.is_empty() {
+            return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
+        }
         if fids.is_empty() {
             return Ok((0, 0));
         }
@@ -877,6 +888,9 @@ impl PsClient {
         num_workers: i32,
         timeout_ms: i64,
     ) -> PsResult<()> {
+        if self.clients.is_empty() {
+            return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
+        }
         // Use first PS for barrier coordination
         let request = BarrierRequest {
             barrier_id: barrier_id.to_string(),
@@ -1366,5 +1380,21 @@ mod tests {
 
         h0.abort();
         h1.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_connect_requires_addresses() {
+        let res = PsClient::connect(&[]).await;
+        assert!(matches!(res, Err(PsError::InvalidConfig(_))));
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_lookup_errors_without_clients() {
+        let mut client = PsClient {
+            clients: Vec::new(),
+            num_shards: 0,
+        };
+        let err = client.lookup("emb", &[1], 2, true).await.unwrap_err();
+        assert!(matches!(err, PsError::InvalidConfig(_)));
     }
 }
