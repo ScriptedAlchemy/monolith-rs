@@ -1449,6 +1449,19 @@
 - Completes worker register timeout-precedence integration coverage across both
   run-config and runner-config entrypoints.
 
+### 134) PS register-timeout precedence integration coverage across config entrypoints
+- Added PS-role integration regressions for both config-driven entrypoints:
+  - `distributed_runner_from_run_config_preserves_ps_register_timeout_when_cleanup_blocks`
+  - `distributed_runner_from_runner_config_preserves_ps_register_timeout_when_cleanup_blocks`
+- Uses backend with blocked `register_async` and blocked cleanup operations
+  (`deregister_async` + `disconnect`) to validate:
+  - runtime non-hanging behavior in PS role setup failure path,
+  - PS register timeout remains the primary surfaced error (with configured
+    duration context),
+  - cleanup attempts still execute.
+- Completes setup-timeout precedence integration matrix for worker + PS register
+  flows across run-config and runner-config entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1692,6 +1705,8 @@
 240. `cargo test --workspace -q` ✅ (post run-config register-timeout precedence integration regression under blocked cleanup full workspace rerun)
 241. `cargo test -p monolith-training -q` ✅ (post runner-config register-timeout precedence integration regression under blocked cleanup)
 242. `cargo test --workspace -q` ✅ (post runner-config register-timeout precedence integration regression under blocked cleanup full workspace rerun)
+243. `cargo test -p monolith-training -q` ✅ (post PS register-timeout precedence integration regressions across run/runner config entrypoints)
+244. `cargo test --workspace -q` ✅ (post PS register-timeout precedence integration regressions across run/runner config entrypoints full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
