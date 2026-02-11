@@ -1324,6 +1324,17 @@
 - Expanded parity regressions to assert timeout field merge/override visibility
   and runner mapping correctness.
 
+### 123) Distributed timeout configuration validation hardening
+- Strengthened `DistributedRunConfig::validate()` to reject invalid timeout
+  configurations:
+  - `discovery_operation_timeout == 0`,
+  - `discovery_cleanup_timeout == 0`.
+- Added validation regressions:
+  - `test_distributed_config_validate_rejects_zero_discovery_operation_timeout`
+  - `test_distributed_config_validate_rejects_zero_discovery_cleanup_timeout`
+- Ensures invalid timeout config fails fast before runtime discovery orchestration
+  starts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1543,6 +1554,8 @@
 216. `cargo test -p monolith-training -q` ✅ (post run-config/runner-config discovery-timeout field propagation and mapping regressions)
 217. `cargo test -p monolith-cli -q` ✅ (post run-config timeout-field expansion compatibility check against CLI command surfaces)
 218. `cargo test --workspace -q` ✅ (post run-config/runner-config discovery-timeout field propagation full workspace rerun)
+219. `cargo test -p monolith-training -q` ✅ (post distributed timeout validation guards and zero-timeout validation regressions)
+220. `cargo test --workspace -q` ✅ (post distributed timeout validation guards and zero-timeout validation regressions full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
