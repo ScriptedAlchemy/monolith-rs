@@ -587,6 +587,17 @@
 - Addresses intermittent workspace-test flakiness observed in
   `path_utils::tests::test_get_libops_path_points_to_file`.
 
+### 54) Lock-free PS barrier wrapper concurrency parity
+- Refactored `PsBarrier` to store `PsClient` directly instead of wrapping it in
+  `tokio::sync::Mutex<PsClient>`.
+- Because `PsClient` request APIs are now immutable (`&self`), barrier waits no
+  longer require serializing all callers through a client mutex.
+- Added barrier-layer tests in `barrier.rs`:
+  - `test_in_memory_barrier_waits_for_all_workers`
+  - `test_ps_barrier_allows_parallel_waits`
+  validating concurrent wait behavior for both in-memory and PS-backed barrier
+  implementations.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -666,6 +677,7 @@
 76. `cargo test -p monolith-training -q` ✅ (post PsBarrier immutable-client wrapper alignment)
 77. `cargo test -p monolith-core -q` ✅ (post path_utils source-path and env-race hardening)
 78. `cargo test --workspace -q` ✅ (post path_utils robustness fix and full workspace regression)
+79. `cargo test -p monolith-training -q` ✅ (post lock-free PsBarrier wrapper refactor and barrier-layer concurrency tests)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
