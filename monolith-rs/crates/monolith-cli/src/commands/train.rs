@@ -308,7 +308,12 @@ impl TrainCommand {
             .parameter_sync_targets
             .iter()
             .any(|target| {
-                let canonical = target.strip_prefix("http://").unwrap_or(target);
+                let canonical = target
+                    .get(..7)
+                    .filter(|prefix| prefix.eq_ignore_ascii_case("http://"))
+                    .map(|_| &target[7..])
+                    .unwrap_or(target)
+                    .to_ascii_lowercase();
                 !seen_parameter_sync_targets.insert(canonical)
             })
         {
@@ -1060,6 +1065,22 @@ mod tests {
         assert!(
             err.contains("--parameter-sync-target entries must be unique"),
             "unexpected parameter-sync target normalization uniqueness validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_duplicate_parameter_sync_target_entry_after_case_insensitive_http_prefix_and_host_normalization(
+    ) {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec![
+            "EXAMPLE.com:8500".to_string(),
+            "HtTp://example.COM:8500".to_string(),
+        ];
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--parameter-sync-target entries must be unique"),
+            "unexpected parameter-sync target case-insensitive normalization uniqueness validation error: {err}"
         );
     }
 

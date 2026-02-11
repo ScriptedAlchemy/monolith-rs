@@ -2101,6 +2101,23 @@
   - native-training integration (RunConfig + RunnerConfig): rejects
     case-insensitive identical PS/worker service type pairs.
 
+### 177) Parameter-sync target uniqueness now normalizes case-variant `http://` prefixes and host casing
+- Strengthened duplicate-target detection to avoid case-based bypasses:
+  - `EXAMPLE.com:8500`
+  - `HtTp://example.COM:8500`
+  are now treated as the same canonical target.
+- Applied in both validation entrypoints:
+  - runtime distributed validation (`DistributedRunConfig::validate`)
+  - CLI distributed config builder (`TrainCommand::build_distributed_run_config`)
+- Canonicalization now:
+  - strips `http://` prefix case-insensitively,
+  - compares normalized targets case-insensitively.
+- Added regression coverage:
+  - runner unit: rejects duplicates after case-insensitive HTTP-prefix/host normalization
+  - CLI unit: rejects duplicate `--parameter-sync-target` entries with case variants
+  - native-training integration (RunConfig + RunnerConfig): rejects normalized
+    case-variant duplicate parameter-sync targets.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2431,6 +2448,8 @@
 327. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post strict parameter-sync endpoint syntax validation full workspace rerun under ambient ZK auth env)
 328. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post case-insensitive discovery service-type distinctness normalization across CLI/runtime validation layers)
 329. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post case-insensitive discovery service-type distinctness normalization full workspace rerun under ambient ZK auth env)
+330. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post case-insensitive http-prefix/host normalization for parameter-sync target uniqueness across CLI/runtime validation layers)
+331. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post case-insensitive parameter-sync target uniqueness normalization full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

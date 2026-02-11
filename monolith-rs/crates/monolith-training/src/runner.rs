@@ -202,7 +202,12 @@ impl DistributedRunConfig {
             .parameter_sync_targets
             .iter()
             .any(|target| {
-                let canonical = target.strip_prefix("http://").unwrap_or(target);
+                let canonical = target
+                    .get(..7)
+                    .filter(|prefix| prefix.eq_ignore_ascii_case("http://"))
+                    .map(|_| &target[7..])
+                    .unwrap_or(target)
+                    .to_ascii_lowercase();
                 !seen_parameter_sync_targets.insert(canonical)
             })
         {
@@ -2291,6 +2296,23 @@ mod tests {
             parameter_sync_targets: vec![
                 "127.0.0.1:8500".to_string(),
                 "http://127.0.0.1:8500".to_string(),
+            ],
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("distributed config requires unique parameter_sync_targets entries"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_duplicate_parameter_sync_target_entries_after_case_insensitive_http_prefix_and_host_normalization(
+    ) {
+        let cfg = DistributedRunConfig {
+            parameter_sync_targets: vec![
+                "EXAMPLE.com:8500".to_string(),
+                "HtTp://example.COM:8500".to_string(),
             ],
             ..DistributedRunConfig::default()
         };
