@@ -5,7 +5,8 @@ use monolith_training::{
     RunConfig, RunnerConfig,
 };
 use std::fs;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::Mutex;
 use tempfile::tempdir;
 
 #[test]
@@ -409,6 +410,71 @@ async fn distributed_runner_from_run_config_propagates_retry_backoff_controls() 
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
 }
 
+#[tokio::test]
+async fn distributed_runner_from_run_config_propagates_custom_service_type_fields() {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(RecordingServiceTypePropagationDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let worker_res = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let worker_msg = worker_res.unwrap_err().to_string();
+    assert!(
+        worker_msg.contains("Timed out waiting for PS discovery"),
+        "worker run should fail in discover loop with empty discovery backend: {worker_msg}"
+    );
+
+    discovery.set_fail_register(true);
+    let ps_res = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let ps_msg = ps_res.unwrap_err().to_string();
+    assert!(
+        ps_msg.contains("forced register failure"),
+        "ps run should fail via forced register error to avoid server startup in service-type propagation test: {ps_msg}"
+    );
+
+    let registered = discovery.registered_types_snapshot();
+    assert!(
+        registered.contains(&"trainer_custom".to_string()),
+        "worker should register with custom worker service type: {registered:?}"
+    );
+    assert!(
+        registered.contains(&"parameter_server_custom".to_string()),
+        "ps should register with custom ps service type: {registered:?}"
+    );
+    let discovered = discovery.discovered_types_snapshot();
+    assert_eq!(
+        discovered,
+        vec!["parameter_server_custom".to_string()],
+        "worker discovery should query custom ps discovery service type"
+    );
+}
+
 struct HangingConnectAndCleanupFromRunConfigDiscovery {
     connect_count: AtomicUsize,
     disconnect_count: AtomicUsize,
@@ -614,6 +680,100 @@ impl ServiceDiscoveryAsync for EmptyDiscoverFromConfigDiscovery {
         _service_type: &str,
     ) -> monolith_training::discovery::Result<Vec<ServiceInfo>> {
         self.discover_count.fetch_add(1, Ordering::SeqCst);
+        Ok(Vec::new())
+    }
+
+    async fn watch_async(
+        &self,
+        _service_type: &str,
+    ) -> monolith_training::discovery::Result<tokio::sync::broadcast::Receiver<DiscoveryEvent>>
+    {
+        let (_tx, rx) = tokio::sync::broadcast::channel(1);
+        Ok(rx)
+    }
+
+    async fn deregister_async(&self, _service_id: &str) -> monolith_training::discovery::Result<()> {
+        self.deregister_count.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+}
+
+struct RecordingServiceTypePropagationDiscovery {
+    connect_count: AtomicUsize,
+    register_count: AtomicUsize,
+    discover_count: AtomicUsize,
+    disconnect_count: AtomicUsize,
+    deregister_count: AtomicUsize,
+    fail_register: AtomicBool,
+    registered_types: Mutex<Vec<String>>,
+    discovered_types: Mutex<Vec<String>>,
+}
+
+impl RecordingServiceTypePropagationDiscovery {
+    fn new() -> Self {
+        Self {
+            connect_count: AtomicUsize::new(0),
+            register_count: AtomicUsize::new(0),
+            discover_count: AtomicUsize::new(0),
+            disconnect_count: AtomicUsize::new(0),
+            deregister_count: AtomicUsize::new(0),
+            fail_register: AtomicBool::new(false),
+            registered_types: Mutex::new(Vec::new()),
+            discovered_types: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn set_fail_register(&self, should_fail: bool) {
+        self.fail_register.store(should_fail, Ordering::SeqCst);
+    }
+
+    fn registered_types_snapshot(&self) -> Vec<String> {
+        self.registered_types.lock().unwrap().clone()
+    }
+
+    fn discovered_types_snapshot(&self) -> Vec<String> {
+        self.discovered_types.lock().unwrap().clone()
+    }
+}
+
+#[async_trait::async_trait]
+impl ServiceDiscoveryAsync for RecordingServiceTypePropagationDiscovery {
+    async fn connect(&self) -> monolith_training::discovery::Result<()> {
+        self.connect_count.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn disconnect(&self) -> monolith_training::discovery::Result<()> {
+        self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn register_async(
+        &self,
+        service: ServiceInfo,
+    ) -> monolith_training::discovery::Result<()> {
+        self.register_count.fetch_add(1, Ordering::SeqCst);
+        self.registered_types
+            .lock()
+            .unwrap()
+            .push(service.service_type.clone());
+        if self.fail_register.load(Ordering::SeqCst) {
+            return Err(monolith_training::discovery::DiscoveryError::Internal(
+                "forced register failure".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    async fn discover_async(
+        &self,
+        service_type: &str,
+    ) -> monolith_training::discovery::Result<Vec<ServiceInfo>> {
+        self.discover_count.fetch_add(1, Ordering::SeqCst);
+        self.discovered_types
+            .lock()
+            .unwrap()
+            .push(service_type.to_string());
         Ok(Vec::new())
     }
 
@@ -892,6 +1052,70 @@ async fn distributed_runner_from_runner_config_propagates_retry_backoff_controls
     assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 3);
     assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_propagates_custom_service_type_fields() {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(RecordingServiceTypePropagationDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let worker_res = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let worker_msg = worker_res.unwrap_err().to_string();
+    assert!(
+        worker_msg.contains("Timed out waiting for PS discovery"),
+        "worker run should fail in discover loop with empty discovery backend: {worker_msg}"
+    );
+
+    discovery.set_fail_register(true);
+    let ps_res = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let ps_msg = ps_res.unwrap_err().to_string();
+    assert!(
+        ps_msg.contains("forced register failure"),
+        "ps run should fail via forced register error to avoid server startup in service-type propagation test: {ps_msg}"
+    );
+
+    let registered = discovery.registered_types_snapshot();
+    assert!(
+        registered.contains(&"trainer_custom".to_string()),
+        "worker should register with custom worker service type: {registered:?}"
+    );
+    assert!(
+        registered.contains(&"parameter_server_custom".to_string()),
+        "ps should register with custom ps service type: {registered:?}"
+    );
+    let discovered = discovery.discovered_types_snapshot();
+    assert_eq!(
+        discovered,
+        vec!["parameter_server_custom".to_string()],
+        "worker discovery should query custom ps discovery service type"
+    );
 }
 
 #[tokio::test]
