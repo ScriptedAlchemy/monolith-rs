@@ -117,6 +117,20 @@ impl ClusterConfig {
             ));
         }
 
+        let unique_ps: std::collections::HashSet<_> = self.ps_addrs.iter().collect();
+        if unique_ps.len() != self.ps_addrs.len() {
+            return Err(DistributedError::InvalidConfiguration(
+                "Parameter server addresses must be unique".to_string(),
+            ));
+        }
+
+        let unique_workers: std::collections::HashSet<_> = self.worker_addrs.iter().collect();
+        if unique_workers.len() != self.worker_addrs.len() {
+            return Err(DistributedError::InvalidConfiguration(
+                "Worker addresses must be unique".to_string(),
+            ));
+        }
+
         let max_index = if self.is_ps {
             self.ps_addrs.len()
         } else {
@@ -738,6 +752,24 @@ mod tests {
 
         // Invalid: task index out of range
         let config = ClusterConfig::new(vec![make_addr(5000)], vec![make_addr(6000)], 5, false);
+        assert!(config.validate().is_err());
+
+        // Invalid: duplicate PS addresses
+        let config = ClusterConfig::new(
+            vec![make_addr(5000), make_addr(5000)],
+            vec![make_addr(6000)],
+            0,
+            true,
+        );
+        assert!(config.validate().is_err());
+
+        // Invalid: duplicate worker addresses
+        let config = ClusterConfig::new(
+            vec![make_addr(5000)],
+            vec![make_addr(6000), make_addr(6000)],
+            0,
+            false,
+        );
         assert!(config.validate().is_err());
     }
 
