@@ -1381,6 +1381,19 @@
   - ensures setup-timeout primacy and non-hanging behavior across both worker
     and PS setup paths.
 
+### 128) CLI timeout input guardrails + distributed-config builder validation
+- Hardened train CLI distributed config builder with explicit input validation:
+  - rejects `--discovery-operation-timeout-ms=0`,
+  - rejects `--discovery-cleanup-timeout-ms=0`,
+  - returns actionable CLI-facing validation errors before runtime dispatch.
+- Expanded train-command builder test coverage:
+  - timeout field mapping and heartbeat behavior,
+  - non-distributed no-op path,
+  - invalid bind address path,
+  - zero-timeout rejection paths.
+- Keeps runtime validation intact while surfacing misconfiguration earlier at
+  CLI assembly boundaries.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1612,6 +1625,8 @@
 228. `cargo test --workspace -q` ✅ (post train distributed-config builder extraction + CLI mapping regressions full workspace rerun)
 229. `cargo test -p monolith-training -q` ✅ (post PS setup-timeout precedence regression for blocked cleanup path)
 230. `cargo test --workspace -q` ✅ (post PS setup-timeout precedence regression for blocked cleanup path full workspace rerun)
+231. `cargo test -p monolith-cli -q` ✅ (post CLI timeout input validation guardrails + builder regression expansion)
+232. `cargo test --workspace -q` ✅ (post CLI timeout input validation guardrails + builder regression expansion full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
