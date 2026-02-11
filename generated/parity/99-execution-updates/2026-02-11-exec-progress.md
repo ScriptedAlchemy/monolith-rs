@@ -2920,6 +2920,26 @@
   cleanup-failure parity coverage across runner + RunConfig + RunnerConfig
   entrypoints.
 
+### 223) Discover-timeout cleanup matrix parity completed
+- Expanded runner discover-timeout regressions to cover remaining matrix cells:
+  - `test_run_distributed_worker_discover_timeout_preserves_error_when_cleanup_times_out_with_default_service_type_and_index`
+  - `test_run_distributed_worker_discover_timeout_preserves_error_when_cleanup_fails_with_custom_service_type_and_index`
+- Expanded integration discover-timeout coverage across both config entrypoints:
+  - RunConfig:
+    - `distributed_runner_from_run_config_preserves_discover_timeout_with_default_service_type_and_index_when_cleanup_times_out`
+    - `distributed_runner_from_run_config_preserves_discover_timeout_with_custom_service_types_and_index_when_cleanup_fails`
+  - RunnerConfig:
+    - `distributed_runner_from_runner_config_preserves_discover_timeout_with_default_service_type_and_index_when_cleanup_times_out`
+    - `distributed_runner_from_runner_config_preserves_discover_timeout_with_custom_service_types_and_index_when_cleanup_fails`
+- New assertions complete the discover-timeout cleanup matrix by validating:
+  - default/custom PS service-type propagation in discovery-timeout diagnostics,
+  - default/custom worker service-type propagation in cleanup diagnostics,
+  - indexed worker identity propagation (`worker-2`, `worker-3`) across
+    operation timeout and cleanup timeout/failure contexts.
+- Result: discover-timeout diagnostics now have full default/custom ×
+  cleanup-timeout/cleanup-failure parity across runner + RunConfig +
+  RunnerConfig paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3362,6 +3382,9 @@
 439. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post discover-operation-timeout cleanup diagnostics parity expansion across runner/config entrypoints)
 440. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post discover-operation-timeout cleanup diagnostics parity compatibility verification)
 441. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post discover-operation-timeout cleanup diagnostics parity expansion full workspace rerun under ambient ZK auth env)
+442. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post discover-timeout cleanup matrix parity completion across runner/config entrypoints)
+443. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post discover-timeout cleanup matrix parity compatibility verification)
+444. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post discover-timeout cleanup matrix parity completion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
