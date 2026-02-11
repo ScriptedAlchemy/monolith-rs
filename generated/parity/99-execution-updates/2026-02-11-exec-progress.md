@@ -2471,6 +2471,25 @@
 - Result: runner-level timeout/error-precedence semantics now mirror existing
   worker-path guarantees for PS custom service-type connect-timeout cleanup flow.
 
+### 200) Discover-error role-failure cleanup diagnostics parity expanded with explicit last-discovery-error preservation
+- Added new runner mock + regression coverage for **discover returns error + cleanup hangs**:
+  - new mock: `WorkerDiscoverErrorWithHangingCleanupDiscovery`
+  - new regression:
+    - `test_run_distributed_preserves_worker_discover_failure_when_cleanup_steps_timeout`
+- Strengthened existing worker-timeout cleanup regressions to also assert discover
+  attempt accounting (`discover_count == 1`) in hanging-cleanup paths.
+- Added new config-entrypoint integration mock + regressions:
+  - new mock: `DiscoverErrorWithHangingCleanupFromConfigDiscovery`
+  - `distributed_runner_from_run_config_preserves_last_discover_error_when_cleanup_times_out`
+  - `distributed_runner_from_runner_config_preserves_last_discover_error_when_cleanup_times_out`
+- New assertions verify:
+  - worker-role timeout remains primary,
+  - `last discovery error` preserves forced discover failure details,
+  - role-error cleanup context is appended,
+  - both cleanup timeout operations are surfaced with explicit operation context.
+- Result: discover-error diagnostics now have explicit cleanup-timeout parity
+  across runner unit and RunConfig/RunnerConfig integration entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2854,6 +2873,9 @@
 380. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post post-success both-cleanup-failure diagnostic operation-context parity expansion full workspace rerun under ambient ZK auth env)
 381. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post runner-level PS connect-timeout+cleanup-timeout custom service-type parity regression addition)
 382. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post runner-level PS connect-timeout+cleanup-timeout custom service-type parity regression full workspace rerun under ambient ZK auth env)
+383. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post discover-error + hanging-cleanup parity expansion; includes fixup for worker timeout mock discover-count accounting)
+384. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post discover-error cleanup-timeout parity expansion compatibility verification)
+385. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post discover-error cleanup-timeout parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

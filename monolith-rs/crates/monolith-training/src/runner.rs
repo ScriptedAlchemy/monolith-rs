@@ -1295,6 +1295,7 @@ mod tests {
 
     struct WorkerTimeoutWithHangingCleanupDiscovery {
         connect_count: AtomicUsize,
+        discover_count: AtomicUsize,
         disconnect_count: AtomicUsize,
         deregister_count: AtomicUsize,
     }
@@ -1303,6 +1304,7 @@ mod tests {
         fn new() -> Self {
             Self {
                 connect_count: AtomicUsize::new(0),
+                discover_count: AtomicUsize::new(0),
                 disconnect_count: AtomicUsize::new(0),
                 deregister_count: AtomicUsize::new(0),
             }
@@ -1318,6 +1320,44 @@ mod tests {
 
         fn deregister_count(&self) -> usize {
             self.deregister_count.load(Ordering::SeqCst)
+        }
+
+        fn discover_count(&self) -> usize {
+            self.discover_count.load(Ordering::SeqCst)
+        }
+    }
+
+    struct WorkerDiscoverErrorWithHangingCleanupDiscovery {
+        connect_count: AtomicUsize,
+        discover_count: AtomicUsize,
+        disconnect_count: AtomicUsize,
+        deregister_count: AtomicUsize,
+    }
+
+    impl WorkerDiscoverErrorWithHangingCleanupDiscovery {
+        fn new() -> Self {
+            Self {
+                connect_count: AtomicUsize::new(0),
+                discover_count: AtomicUsize::new(0),
+                disconnect_count: AtomicUsize::new(0),
+                deregister_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn connect_count(&self) -> usize {
+            self.connect_count.load(Ordering::SeqCst)
+        }
+
+        fn disconnect_count(&self) -> usize {
+            self.disconnect_count.load(Ordering::SeqCst)
+        }
+
+        fn deregister_count(&self) -> usize {
+            self.deregister_count.load(Ordering::SeqCst)
+        }
+
+        fn discover_count(&self) -> usize {
+            self.discover_count.load(Ordering::SeqCst)
         }
     }
 
@@ -1689,6 +1729,47 @@ mod tests {
     }
 
     #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for WorkerDiscoverErrorWithHangingCleanupDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            self.connect_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+            std::future::pending::<()>().await;
+            #[allow(unreachable_code)]
+            Ok(())
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            self.discover_count.fetch_add(1, Ordering::SeqCst);
+            Err(crate::discovery::DiscoveryError::Internal(
+                "forced discover failure".to_string(),
+            ))
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            self.deregister_count.fetch_add(1, Ordering::SeqCst);
+            std::future::pending::<()>().await;
+            #[allow(unreachable_code)]
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
     impl ServiceDiscoveryAsync for HangingDiscoverDiscovery {
         async fn connect(&self) -> DiscoveryResult<()> {
             self.connect_count.fetch_add(1, Ordering::SeqCst);
@@ -1960,6 +2041,7 @@ mod tests {
         }
 
         async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            self.discover_count.fetch_add(1, Ordering::SeqCst);
             Ok(Vec::new())
         }
 
@@ -4933,6 +5015,58 @@ mod tests {
             "cleanup issue context should include disconnect timeout diagnostics: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_discover_failure_when_cleanup_steps_timeout()
+    {
+        let discovery = Arc::new(WorkerDiscoverErrorWithHangingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(1200),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when discover returns an error and cleanup steps time out"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker discover failure should still surface as worker-role timeout diagnostic: {msg}"
+        );
+        assert!(
+            msg.contains("last discovery error: Internal error: forced discover failure"),
+            "worker discover-failure diagnostics should preserve last discovery error details: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "discover failure diagnostics should include cleanup issue context when cleanup steps time out: {msg}"
+        );
+        assert!(
+            msg.contains("Timed out during discovery cleanup: deregister worker-0 from worker after 20ms"),
+            "discover failure cleanup issue context should include worker deregister-timeout diagnostics: {msg}"
+        );
+        assert!(
+            msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker after 20ms"),
+            "discover failure cleanup issue context should include worker disconnect-timeout diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
         assert_eq!(discovery.deregister_count(), 1);
         assert_eq!(discovery.disconnect_count(), 1);
     }
@@ -4988,6 +5122,7 @@ mod tests {
             "cleanup issue context should include worker disconnect timeout diagnostics with custom discovery service type: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
         assert_eq!(discovery.deregister_count(), 1);
         assert_eq!(discovery.disconnect_count(), 1);
     }
@@ -5034,6 +5169,7 @@ mod tests {
             elapsed
         );
         assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
         assert_eq!(discovery.deregister_count(), 1);
         assert_eq!(discovery.disconnect_count(), 1);
     }
