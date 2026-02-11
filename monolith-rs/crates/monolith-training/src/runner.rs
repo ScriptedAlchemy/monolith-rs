@@ -92,6 +92,10 @@ pub fn distributed_config_from_runner(
         num_ps: runner_conf.num_ps.max(1),
         num_workers: runner_conf.num_workers.max(1),
         bind_addr,
+        discovery_service_type_ps: runner_conf.discovery_service_type_ps.clone(),
+        discovery_service_type_worker: runner_conf.discovery_service_type_worker.clone(),
+        table_name: runner_conf.table_name.clone(),
+        dim: runner_conf.dim,
         connect_retries: runner_conf.connect_retries,
         retry_backoff_ms: runner_conf.retry_backoff_ms,
         barrier_timeout_ms: runner_conf.barrier_timeout_ms,
@@ -478,6 +482,10 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 5,
+            discovery_service_type_ps: "parameter_server".to_string(),
+            discovery_service_type_worker: "trainer".to_string(),
+            table_name: "item_emb".to_string(),
+            dim: 128,
             connect_retries: 11,
             retry_backoff_ms: 77,
             barrier_timeout_ms: 2222,
@@ -491,6 +499,10 @@ mod tests {
         assert_eq!(cfg.index, 2);
         assert_eq!(cfg.num_ps, 3);
         assert_eq!(cfg.num_workers, 5);
+        assert_eq!(cfg.discovery_service_type_ps, "parameter_server");
+        assert_eq!(cfg.discovery_service_type_worker, "trainer");
+        assert_eq!(cfg.table_name, "item_emb");
+        assert_eq!(cfg.dim, 128);
         assert_eq!(cfg.connect_retries, 11);
         assert_eq!(cfg.retry_backoff_ms, 77);
         assert_eq!(cfg.barrier_timeout_ms, 2222);

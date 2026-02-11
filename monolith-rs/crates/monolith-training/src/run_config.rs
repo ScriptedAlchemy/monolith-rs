@@ -36,9 +36,13 @@ pub struct RunnerConfig {
     pub barrier_timeout_ms: i64,
     pub log_step_count_steps: u64,
     pub discovery_type: ServiceDiscoveryType,
+    pub discovery_service_type_ps: String,
+    pub discovery_service_type_worker: String,
     pub tf_config: Option<String>,
     pub deep_insight_name: String,
     pub zk_server: String,
+    pub table_name: String,
+    pub dim: usize,
     pub enable_gpu_training: bool,
     pub embedding_prefetch_capacity: usize,
     pub enable_embedding_postpush: bool,
@@ -65,9 +69,13 @@ impl Default for RunnerConfig {
             barrier_timeout_ms: 10_000,
             log_step_count_steps: 100,
             discovery_type: ServiceDiscoveryType::Primus,
+            discovery_service_type_ps: "ps".to_string(),
+            discovery_service_type_worker: "worker".to_string(),
             tf_config: None,
             deep_insight_name: "monolith".to_string(),
             zk_server: "127.0.0.1:2181".to_string(),
+            table_name: "emb".to_string(),
+            dim: 64,
             enable_gpu_training: false,
             embedding_prefetch_capacity: 1,
             enable_embedding_postpush: true,
@@ -96,9 +104,13 @@ pub struct RunConfig {
     pub barrier_timeout_ms: i64,
     pub log_step_count_steps: u64,
     pub discovery_type: ServiceDiscoveryType,
+    pub discovery_service_type_ps: String,
+    pub discovery_service_type_worker: String,
     pub tf_config: Option<String>,
     pub deep_insight_name: String,
     pub zk_server: String,
+    pub table_name: String,
+    pub dim: usize,
     pub enable_gpu_training: bool,
     pub embedding_prefetch_capacity: usize,
     pub enable_embedding_postpush: bool,
@@ -124,9 +136,13 @@ impl Default for RunConfig {
             barrier_timeout_ms: 10_000,
             log_step_count_steps: 100,
             discovery_type: ServiceDiscoveryType::Primus,
+            discovery_service_type_ps: "ps".to_string(),
+            discovery_service_type_worker: "worker".to_string(),
             tf_config: None,
             deep_insight_name: "monolith".to_string(),
             zk_server: "127.0.0.1:2181".to_string(),
+            table_name: "emb".to_string(),
+            dim: 64,
             enable_gpu_training: false,
             embedding_prefetch_capacity: 0,
             enable_embedding_postpush: false,
@@ -174,8 +190,12 @@ impl RunConfig {
         merge_field!(tf_grpc_worker_cache_threads);
         merge_field!(monolith_grpc_worker_service_handler_multiplier);
         merge_field!(tf_config);
+        merge_field!(discovery_service_type_ps);
+        merge_field!(discovery_service_type_worker);
         merge_field!(deep_insight_name);
         merge_field!(zk_server);
+        merge_field!(table_name);
+        merge_field!(dim);
 
         if self.discovery_type != defaults.discovery_type && self.discovery_type != conf.discovery_type
         {
@@ -231,9 +251,13 @@ impl RunConfig {
         push_override!(barrier_timeout_ms);
         push_override!(log_step_count_steps);
         push_override!(discovery_type);
+        push_override!(discovery_service_type_ps);
+        push_override!(discovery_service_type_worker);
         push_override!(tf_config);
         push_override!(deep_insight_name);
         push_override!(zk_server);
+        push_override!(table_name);
+        push_override!(dim);
         push_override!(enable_gpu_training);
         push_override!(embedding_prefetch_capacity);
         push_override!(enable_embedding_postpush);
@@ -314,6 +338,10 @@ mod tests {
             connect_retries: 9,
             retry_backoff_ms: 88,
             barrier_timeout_ms: 4321,
+            discovery_service_type_ps: "parameter_server".to_string(),
+            discovery_service_type_worker: "trainer".to_string(),
+            table_name: "item_emb".to_string(),
+            dim: 128,
             ..RunConfig::default()
         };
         let base = RunnerConfig {
@@ -333,6 +361,10 @@ mod tests {
         assert_eq!(merged.connect_retries, 9);
         assert_eq!(merged.retry_backoff_ms, 88);
         assert_eq!(merged.barrier_timeout_ms, 4321);
+        assert_eq!(merged.discovery_service_type_ps, "parameter_server");
+        assert_eq!(merged.discovery_service_type_worker, "trainer");
+        assert_eq!(merged.table_name, "item_emb");
+        assert_eq!(merged.dim, 128);
     }
 
     #[test]
@@ -383,6 +415,9 @@ mod tests {
             connect_retries: 12,
             retry_backoff_ms: 345,
             barrier_timeout_ms: 9000,
+            discovery_service_type_ps: "parameter_server".to_string(),
+            table_name: "item_emb".to_string(),
+            dim: 256,
             ..RunConfig::default()
         };
         let overrides = rc.user_overrides();
@@ -398,6 +433,12 @@ mod tests {
         assert_eq!(overrides.get("connect_retries").unwrap(), &serde_json::json!(12));
         assert_eq!(overrides.get("retry_backoff_ms").unwrap(), &serde_json::json!(345));
         assert_eq!(overrides.get("barrier_timeout_ms").unwrap(), &serde_json::json!(9000));
+        assert_eq!(
+            overrides.get("discovery_service_type_ps").unwrap(),
+            &serde_json::json!("parameter_server")
+        );
+        assert_eq!(overrides.get("table_name").unwrap(), &serde_json::json!("item_emb"));
+        assert_eq!(overrides.get("dim").unwrap(), &serde_json::json!(256));
     }
 
     #[test]
