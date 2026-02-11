@@ -250,7 +250,18 @@ async fn stop_heartbeat_task(
         let _ = stop_tx.send(true);
     }
     if let Some(task) = heartbeat_task {
-        let _ = task.await;
+        let stop_timeout = Duration::from_millis(100);
+        match tokio::time::timeout(stop_timeout, task).await {
+            Ok(joined) => {
+                let _ = joined;
+            }
+            Err(_) => {
+                tracing::warn!(
+                    timeout_ms = stop_timeout.as_millis(),
+                    "Heartbeat task did not stop promptly; aborting"
+                );
+            }
+        }
     }
 }
 
@@ -891,6 +902,46 @@ mod tests {
             Self {
                 calls: AtomicUsize::new(0),
             }
+        }
+    }
+
+    struct HangingHeartbeatDiscovery;
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for HangingHeartbeatDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            tokio::time::sleep(Duration::from_millis(30)).await;
+            Ok(Vec::new())
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn heartbeat_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            std::future::pending::<()>().await;
+            #[allow(unreachable_code)]
+            Ok(())
         }
     }
 
@@ -1546,6 +1597,35 @@ mod tests {
         assert_eq!(
             stable, after_abort,
             "heartbeat task should stop after PS task cancellation"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_does_not_hang_when_heartbeat_blocks() {
+        let discovery = Arc::new(HangingHeartbeatDiscovery);
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: Some(Duration::from_millis(1)),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(300),
+            run_worker_role(discovery, "worker-0", cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "worker role should return even when heartbeat task blocks"
+        );
+        assert!(
+            res.unwrap().is_err(),
+            "worker should still fail due to PS discovery timeout"
         );
     }
 
