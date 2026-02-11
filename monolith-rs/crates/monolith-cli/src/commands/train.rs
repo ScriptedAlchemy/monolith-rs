@@ -235,6 +235,26 @@ impl TrainCommand {
                 "--parameter-sync-interval-ms must be > 0 when --parameter-sync-target is provided"
             );
         }
+        if self
+            .parameter_sync_targets
+            .iter()
+            .any(|target| target.trim().is_empty())
+        {
+            anyhow::bail!("--parameter-sync-target entries must be non-empty");
+        }
+        if !self.parameter_sync_targets.is_empty() && self.parameter_sync_model_name.trim().is_empty()
+        {
+            anyhow::bail!(
+                "--parameter-sync-model-name must be non-empty when --parameter-sync-target is provided"
+            );
+        }
+        if !self.parameter_sync_targets.is_empty()
+            && self.parameter_sync_signature_name.trim().is_empty()
+        {
+            anyhow::bail!(
+                "--parameter-sync-signature-name must be non-empty when --parameter-sync-target is provided"
+            );
+        }
 
         let bind_addr: SocketAddr = self
             .bind_addr
@@ -754,6 +774,48 @@ mod tests {
                 "--parameter-sync-interval-ms must be > 0 when --parameter-sync-target is provided"
             ),
             "unexpected parameter-sync-interval validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_empty_parameter_sync_target_entry() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec![" ".to_string()];
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--parameter-sync-target entries must be non-empty"),
+            "unexpected parameter-sync target validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_empty_parameter_sync_model_name_with_targets() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec!["127.0.0.1:8500".to_string()];
+        cmd.parameter_sync_model_name = " ".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "--parameter-sync-model-name must be non-empty when --parameter-sync-target is provided"
+            ),
+            "unexpected parameter-sync model-name validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_empty_parameter_sync_signature_name_with_targets() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec!["127.0.0.1:8500".to_string()];
+        cmd.parameter_sync_signature_name = "".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "--parameter-sync-signature-name must be non-empty when --parameter-sync-target is provided"
+            ),
+            "unexpected parameter-sync signature-name validation error: {err}"
         );
     }
 
