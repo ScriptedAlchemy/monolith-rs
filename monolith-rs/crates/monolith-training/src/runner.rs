@@ -121,7 +121,18 @@ pub fn distributed_config_from_runner(
     }
 }
 
-fn ordered_ps_addrs(ps_services: Vec<ServiceInfo>, required_num_ps: usize) -> Vec<String> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PsAddrOrderError {
+    MissingOrGappedIndexSet,
+    ConflictingDuplicateIndex,
+    MixedIndexMetadataPresence,
+    InvalidIndexMetadata,
+}
+
+fn ordered_ps_addrs(
+    ps_services: Vec<ServiceInfo>,
+    required_num_ps: usize,
+) -> Result<Vec<String>, PsAddrOrderError> {
     let mut saw_index_metadata = false;
     let mut saw_missing_index_metadata = false;
     let mut saw_invalid_index_metadata = false;
@@ -149,13 +160,17 @@ fn ordered_ps_addrs(ps_services: Vec<ServiceInfo>, required_num_ps: usize) -> Ve
         let mut addrs: Vec<String> = ps_services.into_iter().map(|s| s.address()).collect();
         addrs.sort();
         addrs.dedup();
-        return addrs;
+        return Ok(addrs);
     }
 
     if saw_missing_index_metadata || saw_invalid_index_metadata {
         // Mixed/invalid metadata is treated as inconsistent discovery state:
         // force caller retry instead of silently switching to address ordering.
-        return Vec::new();
+        return if saw_invalid_index_metadata {
+            Err(PsAddrOrderError::InvalidIndexMetadata)
+        } else {
+            Err(PsAddrOrderError::MixedIndexMetadataPresence)
+        };
     }
 
     let mut indexed: std::collections::BTreeMap<usize, String> = std::collections::BTreeMap::new();
@@ -174,7 +189,7 @@ fn ordered_ps_addrs(ps_services: Vec<ServiceInfo>, required_num_ps: usize) -> Ve
     if conflicting_index {
         // Multiple endpoints advertised the same shard index. Treat as
         // inconsistent discovery state and force worker retry.
-        return Vec::new();
+        return Err(PsAddrOrderError::ConflictingDuplicateIndex);
     }
 
     let mut ordered = Vec::with_capacity(required_num_ps);
@@ -183,11 +198,11 @@ fn ordered_ps_addrs(ps_services: Vec<ServiceInfo>, required_num_ps: usize) -> Ve
             // All services reported index metadata, but contiguous shard set
             // is incomplete. Force caller to retry discovery instead of
             // connecting with a gap (e.g. 0,2 without 1).
-            return Vec::new();
+            return Err(PsAddrOrderError::MissingOrGappedIndexSet);
         };
         ordered.push(addr.clone());
     }
-    ordered
+    Ok(ordered)
 }
 
 /// Run a PS or worker process using the provided discovery backend.
@@ -386,7 +401,10 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
             .await
             .unwrap_or_default();
 
-        let addrs = ordered_ps_addrs(ps_services, cfg.num_ps);
+        let (addrs, ordering_issue) = match ordered_ps_addrs(ps_services, cfg.num_ps) {
+            Ok(addrs) => (addrs, None),
+            Err(issue) => (Vec::new(), Some(issue)),
+        };
 
         if addrs.len() >= cfg.num_ps {
             ps_addrs = addrs;
@@ -394,11 +412,20 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         }
 
         if attempt == cfg.connect_retries {
-            anyhow::bail!(
-                "Timed out waiting for PS discovery: got {} expected {}",
-                addrs.len(),
-                cfg.num_ps
-            );
+            if let Some(issue) = ordering_issue {
+                anyhow::bail!(
+                    "Timed out waiting for PS discovery: got {} expected {} (last ordering issue: {:?})",
+                    addrs.len(),
+                    cfg.num_ps,
+                    issue
+                );
+            } else {
+                anyhow::bail!(
+                    "Timed out waiting for PS discovery: got {} expected {}",
+                    addrs.len(),
+                    cfg.num_ps
+                );
+            }
         }
 
         tokio::time::sleep(Duration::from_millis(cfg.retry_backoff_ms)).await;
@@ -558,7 +585,7 @@ mod tests {
         let mut ps0 = ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 20001);
         ps0 = ps0.with_metadata("index", "0");
 
-        let ordered = ordered_ps_addrs(vec![ps1, ps0], 2);
+        let ordered = ordered_ps_addrs(vec![ps1, ps0], 2).unwrap();
         assert_eq!(
             ordered,
             vec!["127.0.0.1:20001".to_string(), "127.0.0.1:10001".to_string()]
@@ -570,7 +597,7 @@ mod tests {
         let ps_b = ServiceInfo::new("ps-b", "ps-b", "ps", "127.0.0.1", 30001);
         let ps_a = ServiceInfo::new("ps-a", "ps-a", "ps", "127.0.0.1", 20001);
 
-        let ordered = ordered_ps_addrs(vec![ps_b, ps_a], 2);
+        let ordered = ordered_ps_addrs(vec![ps_b, ps_a], 2).unwrap();
         assert_eq!(
             ordered,
             vec!["127.0.0.1:20001".to_string(), "127.0.0.1:30001".to_string()]
@@ -585,10 +612,7 @@ mod tests {
         ps2 = ps2.with_metadata("index", "2");
 
         let ordered = ordered_ps_addrs(vec![ps0, ps2], 2);
-        assert!(
-            ordered.is_empty(),
-            "missing shard index should force discovery retry"
-        );
+        assert_eq!(ordered, Err(PsAddrOrderError::MissingOrGappedIndexSet));
     }
 
     #[test]
@@ -601,10 +625,7 @@ mod tests {
         ps1 = ps1.with_metadata("index", "1");
 
         let ordered = ordered_ps_addrs(vec![ps0_a, ps0_b, ps1], 2);
-        assert!(
-            ordered.is_empty(),
-            "conflicting duplicate index should force discovery retry"
-        );
+        assert_eq!(ordered, Err(PsAddrOrderError::ConflictingDuplicateIndex));
     }
 
     #[test]
@@ -614,10 +635,7 @@ mod tests {
         let ps1 = ServiceInfo::new("ps-1", "ps-1", "ps", "127.0.0.1", 20001);
 
         let ordered = ordered_ps_addrs(vec![ps0, ps1], 2);
-        assert!(
-            ordered.is_empty(),
-            "mixed index metadata should force discovery retry"
-        );
+        assert_eq!(ordered, Err(PsAddrOrderError::MixedIndexMetadataPresence));
     }
 
     #[test]
@@ -628,10 +646,7 @@ mod tests {
         ps1 = ps1.with_metadata("index", "1");
 
         let ordered = ordered_ps_addrs(vec![ps0, ps1], 2);
-        assert!(
-            ordered.is_empty(),
-            "invalid index metadata should force discovery retry"
-        );
+        assert_eq!(ordered, Err(PsAddrOrderError::InvalidIndexMetadata));
     }
 
     #[tokio::test]
