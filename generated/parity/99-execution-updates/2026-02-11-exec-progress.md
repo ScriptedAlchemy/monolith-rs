@@ -860,6 +860,7 @@
 105. `cargo test -p monolith-training -q` ✅ (post cluster-config duplicate-address validation hardening)
 106. `cargo test --workspace -q` ✅ (post cluster-config duplicate-address validation hardening and full workspace regression rerun)
 107. `cargo test -p monolith-training -q` ✅ (post deterministic PS discovery ordering by shard index metadata + fallback sorting coverage)
+108. `cargo test --workspace -q` ✅ (post deterministic PS discovery ordering by shard index metadata and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
