@@ -571,6 +571,12 @@
   - found/initialized counters and duplicate semantics for lookup,
   - explicit update/not-found counts and success status for apply.
 
+### 52) Barrier wrapper alignment with immutable PS client
+- Updated `PsBarrier` to use immutable lock-guard binding when calling
+  `PsClient::barrier(...)`, matching the refactored immutable `PsClient` API.
+- Keeps barrier call semantics unchanged while removing stale mutable-borrow
+  assumptions after client interface hardening.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -647,6 +653,7 @@
 72. `cargo test -p monolith-training -q` ✅ (post immutable/concurrency-friendly PS client API refactor + parallel immutable lookup test)
 73. `cargo test --workspace -q` ✅ (post immutable/concurrency-friendly PS client API refactor and caller cleanup)
 74. `cargo test -p monolith-training -q` ✅ (post detailed PS client lookup/apply response metadata API additions)
+76. `cargo test -p monolith-training -q` ✅ (post PsBarrier immutable-client wrapper alignment)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
