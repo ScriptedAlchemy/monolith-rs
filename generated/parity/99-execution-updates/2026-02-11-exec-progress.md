@@ -817,6 +817,15 @@
   opaque “got 0 expected N” messages in metadata-inconsistent states.
 - Updated ordering regressions to assert explicit typed errors.
 
+### 76) Worker timeout diagnostics regression coverage
+- Added async runtime regression
+  `test_run_worker_role_timeout_reports_ordering_issue`.
+- Test seeds discovery with mixed metadata presence (`index` on one PS, missing
+  on another) and verifies worker timeout includes explicit
+  `MixedIndexMetadataPresence` issue signal in the error string.
+- This validates the end-to-end diagnostic path (not just helper-level ordering
+  return values).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -938,6 +947,7 @@
 118. `cargo test --workspace -q` ✅ (post distributed runtime preflight validation guard and full workspace regression rerun)
 119. `cargo test -p monolith-training -q` ✅ (post typed PS discovery ordering diagnostics and retry-time ordering-issue propagation)
 120. `cargo test --workspace -q` ✅ (post typed PS discovery ordering diagnostics and full workspace regression rerun)
+121. `cargo test -p monolith-training -q` ✅ (post worker timeout diagnostics regression for mixed PS shard-index metadata inconsistency)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
