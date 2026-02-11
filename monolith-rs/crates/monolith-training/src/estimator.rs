@@ -369,6 +369,18 @@ impl<M: ModelFn> Estimator<M> {
         Ok(Self::from_runner_config(&runner, model_fn))
     }
 
+    /// Builds estimator from run config and applies runtime initialization in one call.
+    pub fn from_run_config_initialized(
+        run_conf: &crate::run_config::RunConfig,
+        base: Option<crate::run_config::RunnerConfig>,
+        model_fn: M,
+    ) -> EstimatorResult<(Self, Option<crate::runner_utils::CheckpointState>)> {
+        let runner = run_conf.to_runner_config(base)?;
+        let init_state = Self::initialize_runtime_from_runner_config(&runner)?;
+        let est = Self::from_runner_config(&runner, model_fn);
+        Ok((est, init_state))
+    }
+
     /// Applies runner post-init runtime behavior (env exports + restore sync).
     pub fn initialize_runtime_from_runner_config(
         runner_conf: &crate::run_config::RunnerConfig,
@@ -740,6 +752,42 @@ all_model_checkpoint_paths: "model.ckpt-30"
         );
         assert!(model_dir.join("restore_ckpt").exists());
         assert!(model_dir.join("monolith_checkpoint").exists());
+    }
+
+    #[test]
+    fn test_estimator_from_run_config_initialized() {
+        let tmp = tempfile::tempdir().unwrap();
+        let restore_dir = tmp.path().join("restore");
+        let model_dir = tmp.path().join("model");
+        std::fs::create_dir_all(&restore_dir).unwrap();
+        std::fs::create_dir_all(&model_dir).unwrap();
+        std::fs::write(
+            restore_dir.join("checkpoint"),
+            r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-30"
+"#,
+        )
+        .unwrap();
+
+        let run = crate::run_config::RunConfig {
+            is_local: true,
+            model_dir: model_dir.clone(),
+            restore_dir: Some(restore_dir),
+            restore_ckpt: Some("model.ckpt-30".to_string()),
+            ..crate::run_config::RunConfig::default()
+        };
+        let (estimator, st) =
+            Estimator::from_run_config_initialized(&run, None, ConstantModelFn::new(0.3)).unwrap();
+        let st = st.expect("restore state");
+        assert_eq!(
+            std::path::Path::new(&st.model_checkpoint_path)
+                .file_name()
+                .unwrap(),
+            "model.ckpt-30"
+        );
+        assert_eq!(estimator.config().model_dir, model_dir);
     }
 
     #[tokio::test]
