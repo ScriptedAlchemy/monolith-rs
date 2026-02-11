@@ -1682,6 +1682,15 @@
 - Complements integration coverage with a focused unit-level guard on worker
   discover timeout message fidelity.
 
+### 153) Distributed-runner discover timeout custom service-type regression
+- Added direct distributed-runner regression:
+  - `test_run_distributed_worker_discover_timeout_includes_custom_service_type_context`
+- Verifies end-to-end `run_distributed(...)` worker discover-timeout diagnostics
+  retain custom queried service-type context and preserve cleanup behavior
+  (`deregister` + `disconnect`) when discover blocks.
+- Complements worker-role unit coverage with top-level distributed entrypoint
+  coverage for custom service-type timeout message fidelity.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1963,6 +1972,8 @@
 278. `cargo test --workspace -q` ✅ (post discover-timeout diagnostic enrichment with queried service-type context full workspace rerun)
 279. `cargo test -p monolith-training -q` ✅ (post runner-level discover timeout service-type diagnostic regression)
 280. `cargo test --workspace -q` ✅ (post runner-level discover timeout service-type diagnostic regression full workspace rerun)
+281. `cargo test -p monolith-training -q` ✅ (post distributed-runner discover timeout custom service-type regression)
+282. `cargo test --workspace -q` ✅ (post distributed-runner discover timeout custom service-type regression full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
