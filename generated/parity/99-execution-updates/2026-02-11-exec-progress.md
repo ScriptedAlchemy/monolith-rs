@@ -1587,6 +1587,18 @@
 - Extends config-entrypoint propagation coverage beyond discovery/cleanup
   controls to include synchronization timeout semantics.
 
+### 145) Barrier-timeout input validation coverage across CLI/config entrypoints
+- Added validation coverage for invalid barrier-timeout inputs:
+  - train CLI distributed config builder now rejects `--barrier-timeout-ms <= 0`
+    with actionable CLI-facing error.
+  - Added CLI regression:
+    - `test_build_distributed_run_config_rejects_zero_barrier_timeout`
+  - Added run/runner config entrypoint integration regressions:
+    - `distributed_runner_from_run_config_rejects_zero_barrier_timeout`
+    - `distributed_runner_from_runner_config_rejects_zero_barrier_timeout`
+- Confirms invalid barrier-timeout values are rejected consistently across both
+  configuration assembly and distributed entrypoint runtime validation surfaces.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1852,6 +1864,8 @@
 262. `cargo test --workspace -q` ✅ (post register-path cleanup-timeout propagation integration regressions across run/runner config entrypoints full workspace rerun)
 263. `cargo test -p monolith-training -q` ✅ (post barrier-timeout propagation integration regressions across run/runner config entrypoints)
 264. `cargo test --workspace -q` ✅ (post barrier-timeout propagation integration regressions across run/runner config entrypoints full workspace rerun)
+265. `cargo test -p monolith-cli -q && cargo test -p monolith-training -q` ✅ (post barrier-timeout input validation coverage across CLI and config entrypoints)
+266. `cargo test --workspace -q` ✅ (post barrier-timeout input validation coverage across CLI and config entrypoints full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
