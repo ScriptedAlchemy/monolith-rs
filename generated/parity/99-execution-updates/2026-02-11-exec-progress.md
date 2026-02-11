@@ -68,6 +68,12 @@
   - non-chief polls for synced checkpoint/monolith checkpoint artifacts with timeout handling.
 - Added integration parity tests under `monolith-training/tests/runner_utils_parity.rs`
   for run-config merge + discovery selection + restore synchronization flow.
+- Data pipeline parity improvement in `monolith-data`:
+  - `TFRecordDataset::from_pattern` now supports:
+    - comma-separated glob/path specs,
+    - `@filelist` input with one path/glob per line,
+    - deterministic de-duplication + ordering.
+  - added regression tests for glob/csv/filelist/not-found behavior.
 
 ## Validation evidence (commands run)
 
@@ -77,6 +83,7 @@
 4. `cargo test --workspace -q` ✅
 5. `cargo test -p monolith-training -q` ✅ (re-run after each native-training change)
 6. `cargo test --workspace -q` ✅ (post-native-training parity update verification)
+7. `cargo test -p monolith-data -q` ✅ (post-pattern expansion regression run)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
