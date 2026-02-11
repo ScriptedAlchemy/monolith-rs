@@ -962,6 +962,7 @@
 121. `cargo test -p monolith-training -q` ✅ (post worker timeout diagnostics regression for mixed PS shard-index metadata inconsistency)
 122. `cargo test --workspace -q` ✅ (post worker timeout diagnostics regression and full workspace rerun)
 123. `cargo test -p monolith-training -q` ✅ (post ParameterSync replicator managed-task lifecycle cleanup and PS runner shutdown wiring)
+124. `cargo test --workspace -q` ✅ (post ParameterSync replicator managed-task lifecycle cleanup and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
