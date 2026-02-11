@@ -849,6 +849,17 @@
   failing discovery backend to assert cleanup calls happen even when
   registration fails before worker loop startup.
 
+### 79) Worker discovery timeout retains last ordering issue across retries
+- Hardened `run_worker_role(...)` retry loop to preserve the last observed
+  `PsAddrOrderError` across attempts rather than only reporting the final
+  attempt’s ordering result.
+- This prevents loss of diagnostics when an earlier attempt observed metadata
+  inconsistency but the final attempt simply returned an empty service list.
+- Added async regression
+  `test_run_worker_role_preserves_last_ordering_issue_across_retries` using a
+  sequenced discovery backend (inconsistent metadata first, empty results next)
+  to verify timeout messages retain `MixedIndexMetadataPresence`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -976,6 +987,7 @@
 124. `cargo test --workspace -q` ✅ (post ParameterSync replicator managed-task lifecycle cleanup and full workspace regression rerun)
 125. `cargo test -p monolith-training -q` ✅ (post distributed runner cleanup hardening for worker registration failure path)
 126. `cargo test --workspace -q` ✅ (post distributed runner cleanup hardening for worker registration failure path and full workspace rerun)
+127. `cargo test -p monolith-training -q` ✅ (post worker discovery timeout diagnostic retention hardening across retry attempts)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
