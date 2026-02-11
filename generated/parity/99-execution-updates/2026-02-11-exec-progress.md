@@ -2360,6 +2360,21 @@
 - Result: both single-step and multi-step post-success cleanup failures now
   consistently provide successful-role cleanup-context diagnostics.
 
+### 194) Default-service-type post-success cleanup timeout parity expanded for RunConfig/RunnerConfig integration paths
+- Added native-training integration regressions for successful worker run with
+  **default** discovery service types and blocked post-success cleanup:
+  - `distributed_runner_from_run_config_surfaces_deregister_timeout_after_success`
+  - `distributed_runner_from_run_config_surfaces_disconnect_timeout_after_success`
+  - `distributed_runner_from_runner_config_surfaces_deregister_timeout_after_success`
+  - `distributed_runner_from_runner_config_surfaces_disconnect_timeout_after_success`
+- New assertions verify for both run/runner entrypoints:
+  - default-service-type cleanup timeout diagnostics (`worker`) remain primary,
+  - appended successful-role cleanup issue context is present,
+  - connect/register/discover/deregister/disconnect call counts remain
+    deterministic and bounded.
+- Result: post-success cleanup-context parity coverage now spans both custom and
+  default discovery service-type configurations.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2728,6 +2743,9 @@
 365. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post successful-role disconnect-only cleanup context propagation hardening full workspace rerun under ambient ZK auth env)
 366. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post successful-role deregister-only cleanup context propagation hardening and related unit/integration parity assertion updates)
 367. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post successful-role deregister-only cleanup context propagation hardening full workspace rerun under ambient ZK auth env)
+368. `ZK_AUTH=user:pass cargo test -p monolith-training --test native_training_parity -q` ✅ (post default-service-type post-success cleanup timeout integration parity expansion for run/runner entrypoints)
+369. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post default-service-type post-success cleanup-timeout integration parity expansion targeted training/cli rerun)
+370. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post default-service-type post-success cleanup-timeout integration parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
