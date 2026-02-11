@@ -974,6 +974,19 @@
   - heartbeats are emitted during retry wait,
   - heartbeat count becomes stable after worker timeout exit (no leak).
 
+### 91) Discovery watch poller lifecycle cleanup
+- Refactored polling watch-loop logic into shared helper:
+  - `spawn_watch_poll_loop(...)`.
+- Updated ZK and Consul async watch implementations to use the shared poll-loop
+  helper while preserving existing add/remove event semantics.
+- Added deterministic poller shutdown behavior:
+  - watch task now exits when all broadcast receivers are dropped,
+  - send failures now trigger loop termination to avoid background task leaks.
+- Added async regressions:
+  - `test_spawn_watch_poll_loop_emits_added_and_removed_events`
+  - `test_spawn_watch_poll_loop_stops_after_receivers_drop`
+  validating both event emission and cleanup-on-unsubscribe behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1125,6 +1138,7 @@
 148. `cargo test --workspace -q` ✅ (post stale ordering-issue cleanup on usable rediscovery attempts and full workspace rerun)
 149. `cargo test -p monolith-training -q` ✅ (post worker heartbeat lifecycle cleanup + deterministic worker timeout heartbeat-task shutdown)
 150. `cargo test --workspace -q` ✅ (post worker heartbeat lifecycle cleanup and full workspace regression rerun)
+151. `cargo test -p monolith-training -q` ✅ (post discovery watch poller lifecycle cleanup and unsubscribe-stop regressions)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
