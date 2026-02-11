@@ -359,6 +359,16 @@ impl<M: ModelFn> Estimator<M> {
         Self::new(runner_conf.to_estimator_config(), model_fn)
     }
 
+    /// Builds estimator from runner config and applies runtime initialization.
+    pub fn from_runner_config_initialized(
+        runner_conf: &crate::run_config::RunnerConfig,
+        model_fn: M,
+    ) -> EstimatorResult<(Self, Option<crate::runner_utils::CheckpointState>)> {
+        let init_state = Self::initialize_runtime_from_runner_config(runner_conf)?;
+        let est = Self::from_runner_config(runner_conf, model_fn);
+        Ok((est, init_state))
+    }
+
     /// Creates an estimator from user-facing run config (plus optional runner base overrides).
     pub fn from_run_config(
         run_conf: &crate::run_config::RunConfig,
@@ -719,6 +729,43 @@ mod tests {
             std::env::var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER").unwrap(),
             "9"
         );
+    }
+
+    #[test]
+    fn test_estimator_from_runner_config_initialized() {
+        let tmp = tempfile::tempdir().unwrap();
+        let restore_dir = tmp.path().join("restore");
+        let model_dir = tmp.path().join("model");
+        std::fs::create_dir_all(&restore_dir).unwrap();
+        std::fs::create_dir_all(&model_dir).unwrap();
+        std::fs::write(
+            restore_dir.join("checkpoint"),
+            r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-30"
+"#,
+        )
+        .unwrap();
+
+        let runner = crate::run_config::RunnerConfig {
+            is_local: true,
+            model_dir: model_dir.clone(),
+            restore_dir: Some(restore_dir),
+            restore_ckpt: Some("model.ckpt-30".to_string()),
+            ..crate::run_config::RunnerConfig::default()
+        };
+        let (estimator, st) =
+            Estimator::from_runner_config_initialized(&runner, ConstantModelFn::new(0.3)).unwrap();
+        let st = st.expect("restore state");
+        assert_eq!(
+            std::path::Path::new(&st.model_checkpoint_path)
+                .file_name()
+                .unwrap(),
+            "model.ckpt-30"
+        );
+        assert_eq!(estimator.config().model_dir, model_dir);
+        assert!(model_dir.join("restore_ckpt").exists());
     }
 
     #[test]
