@@ -408,6 +408,113 @@ async fn distributed_runner_from_run_config_preserves_connect_timeout_when_clean
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
 }
 
+struct HangingRegisterAndCleanupFromConfigDiscovery {
+    connect_count: AtomicUsize,
+    register_count: AtomicUsize,
+    disconnect_count: AtomicUsize,
+    deregister_count: AtomicUsize,
+}
+
+impl HangingRegisterAndCleanupFromConfigDiscovery {
+    fn new() -> Self {
+        Self {
+            connect_count: AtomicUsize::new(0),
+            register_count: AtomicUsize::new(0),
+            disconnect_count: AtomicUsize::new(0),
+            deregister_count: AtomicUsize::new(0),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl ServiceDiscoveryAsync for HangingRegisterAndCleanupFromConfigDiscovery {
+    async fn connect(&self) -> monolith_training::discovery::Result<()> {
+        self.connect_count.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn disconnect(&self) -> monolith_training::discovery::Result<()> {
+        self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+        std::future::pending::<()>().await;
+        #[allow(unreachable_code)]
+        Ok(())
+    }
+
+    async fn register_async(
+        &self,
+        _service: ServiceInfo,
+    ) -> monolith_training::discovery::Result<()> {
+        self.register_count.fetch_add(1, Ordering::SeqCst);
+        std::future::pending::<()>().await;
+        #[allow(unreachable_code)]
+        Ok(())
+    }
+
+    async fn discover_async(
+        &self,
+        _service_type: &str,
+    ) -> monolith_training::discovery::Result<Vec<ServiceInfo>> {
+        Ok(Vec::new())
+    }
+
+    async fn watch_async(
+        &self,
+        _service_type: &str,
+    ) -> monolith_training::discovery::Result<tokio::sync::broadcast::Receiver<DiscoveryEvent>>
+    {
+        let (_tx, rx) = tokio::sync::broadcast::channel(1);
+        Ok(rx)
+    }
+
+    async fn deregister_async(&self, _service_id: &str) -> monolith_training::discovery::Result<()> {
+        self.deregister_count.fetch_add(1, Ordering::SeqCst);
+        std::future::pending::<()>().await;
+        #[allow(unreachable_code)]
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_preserves_register_timeout_when_cleanup_blocks() {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingRegisterAndCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when register and cleanup block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out during discovery operation: register worker-0 after 20ms"),
+        "register timeout should remain primary over cleanup timeout when configured via RunConfig: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
 #[tokio::test]
 async fn distributed_runner_from_runner_config_preserves_connect_timeout_when_cleanup_blocks() {
     use monolith_training::runner::{run_distributed_from_runner_config, Role};
