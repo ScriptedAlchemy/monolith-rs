@@ -782,6 +782,18 @@
 - Expanded tests in `run_config.rs` and `runner.rs` to assert end-to-end field
   propagation and override visibility.
 
+### 73) Strict PS metadata-consistency gating during worker discovery
+- Hardened `ordered_ps_addrs(...)` metadata mode with stricter consistency
+  requirements:
+  - if **no** services provide `index` metadata: fallback to address-sorted mode.
+  - if metadata is present but **mixed missing**, **invalid parse**, or otherwise
+    incomplete/inconsistent: return empty and force discovery retry.
+- This prevents silently mixing metadata-ordered and address-ordered semantics in
+  unstable discovery windows.
+- Added regressions:
+  - `test_ordered_ps_addrs_rejects_mixed_index_metadata_presence`
+  - `test_ordered_ps_addrs_rejects_invalid_index_metadata`
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -897,6 +909,7 @@
 112. `cargo test --workspace -q` ✅ (post conflicting duplicate shard-index advertisement guard and full workspace regression rerun)
 113. `cargo test -p monolith-training -q` ✅ (post run/runner config propagation of discovery service-role names and table settings into distributed runtime config)
 114. `cargo test --workspace -q` ✅ (post run/runner config discovery-role + table/dim propagation updates and full workspace regression rerun)
+115. `cargo test -p monolith-training -q` ✅ (post strict mixed/invalid PS index-metadata consistency gating in worker discovery ordering)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
