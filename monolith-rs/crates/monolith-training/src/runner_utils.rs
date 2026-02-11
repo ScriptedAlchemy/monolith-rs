@@ -10,6 +10,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use crate::native_training::service_discovery::{
     ConsulServiceDiscovery, ServiceDiscovery as NativeServiceDiscovery, ServiceDiscoveryType,
@@ -37,6 +38,8 @@ pub enum RunnerUtilsError {
     UnsupportedDiscovery(String),
     #[error("Discovery error: {0}")]
     Discovery(String),
+    #[error("Timed out waiting for restore synchronization file: {path}")]
+    RestoreSyncTimeout { path: PathBuf },
 }
 
 /// Minimal subset of TensorFlow's `CheckpointState` used by the Python tests.
@@ -297,6 +300,41 @@ pub fn copy_checkpoint_from_restore_dir(
     Ok(dst_state)
 }
 
+/// Chief/non-chief restore synchronization behavior.
+///
+/// - chief: performs restore checkpoint copy immediately.
+/// - non-chief: waits until chief has written synchronization artifacts.
+pub fn prepare_restore_checkpoint(
+    restore_dir: &Path,
+    model_dir: &Path,
+    restore_ckpt: Option<&str>,
+    is_chief: bool,
+    timeout: Duration,
+    poll_interval: Duration,
+) -> Result<CheckpointState, RunnerUtilsError> {
+    if is_chief {
+        return copy_checkpoint_from_restore_dir(restore_dir, model_dir, restore_ckpt);
+    }
+
+    let checkpoint_file = model_dir.join("checkpoint");
+    let monolith_checkpoint_file = model_dir.join("monolith_checkpoint");
+    let deadline = Instant::now() + timeout;
+    loop {
+        if checkpoint_file.exists() && monolith_checkpoint_file.exists() {
+            let txt = fs::read_to_string(&checkpoint_file)?;
+            if let Some(st) = parse_checkpoint_pbtxt(&txt) {
+                return Ok(st);
+            }
+        }
+        if Instant::now() >= deadline {
+            return Err(RunnerUtilsError::RestoreSyncTimeout {
+                path: monolith_checkpoint_file,
+            });
+        }
+        std::thread::sleep(poll_interval);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -383,5 +421,62 @@ all_model_checkpoint_paths: "model.ckpt-0"
         };
         let discovery = get_discovery(&rc, Some("test_psm")).unwrap();
         assert_eq!(discovery.unwrap().kind(), "consul");
+    }
+
+    #[test]
+    fn test_prepare_restore_checkpoint_non_chief_waits_for_chief_sync() {
+        let tmp = tempdir().unwrap();
+        let restore_dir = tmp.path().join("restore");
+        let model_dir = tmp.path().join("model");
+        fs::create_dir_all(&restore_dir).unwrap();
+
+        let pbtxt = r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-30"
+"#;
+        fs::write(restore_dir.join("checkpoint"), pbtxt).unwrap();
+        fs::create_dir_all(&model_dir).unwrap();
+
+        let restore_dir_bg = restore_dir.clone();
+        let model_dir_bg = model_dir.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(100));
+            let _ = copy_checkpoint_from_restore_dir(&restore_dir_bg, &model_dir_bg, None);
+        });
+
+        let st = prepare_restore_checkpoint(
+            &restore_dir,
+            &model_dir,
+            None,
+            false,
+            Duration::from_secs(2),
+            Duration::from_millis(20),
+        )
+        .unwrap();
+        assert_eq!(
+            Path::new(&st.model_checkpoint_path).file_name().unwrap(),
+            "model.ckpt-61"
+        );
+    }
+
+    #[test]
+    fn test_prepare_restore_checkpoint_non_chief_timeout() {
+        let tmp = tempdir().unwrap();
+        let restore_dir = tmp.path().join("restore");
+        let model_dir = tmp.path().join("model");
+        fs::create_dir_all(&restore_dir).unwrap();
+        fs::create_dir_all(&model_dir).unwrap();
+
+        let err = prepare_restore_checkpoint(
+            &restore_dir,
+            &model_dir,
+            None,
+            false,
+            Duration::from_millis(150),
+            Duration::from_millis(20),
+        )
+        .unwrap_err();
+        assert!(matches!(err, RunnerUtilsError::RestoreSyncTimeout { .. }));
     }
 }
