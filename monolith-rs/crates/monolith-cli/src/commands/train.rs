@@ -212,6 +212,12 @@ impl TrainCommand {
         if !self.distributed {
             return Ok(None);
         }
+        if self.discovery_operation_timeout_ms == 0 {
+            anyhow::bail!("--discovery-operation-timeout-ms must be > 0");
+        }
+        if self.discovery_cleanup_timeout_ms == 0 {
+            anyhow::bail!("--discovery-cleanup-timeout-ms must be > 0");
+        }
 
         let bind_addr: SocketAddr = self
             .bind_addr
@@ -628,6 +634,30 @@ mod tests {
         assert!(
             err.contains("Invalid --bind-addr"),
             "unexpected bind-addr parse error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_zero_operation_timeout() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.discovery_operation_timeout_ms = 0;
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--discovery-operation-timeout-ms must be > 0"),
+            "unexpected timeout validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_zero_cleanup_timeout() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.discovery_cleanup_timeout_ms = 0;
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--discovery-cleanup-timeout-ms must be > 0"),
+            "unexpected timeout validation error: {err}"
         );
     }
 
