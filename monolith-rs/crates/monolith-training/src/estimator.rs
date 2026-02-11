@@ -285,6 +285,16 @@ impl<M: ModelFn> Estimator<M> {
         self.hooks.add(hook);
     }
 
+    fn resolve_train_target(&self, steps: Option<u64>, max_steps: Option<u64>) -> u64 {
+        let from_steps = steps.map(|s| self.global_step.saturating_add(s));
+        match (from_steps, max_steps) {
+            (Some(a), Some(b)) => a.min(b),
+            (Some(a), None) => a,
+            (None, Some(b)) => b,
+            (None, None) => self.config.train_steps.unwrap_or(u64::MAX),
+        }
+    }
+
     /// Runs training.
     ///
     /// # Returns
@@ -295,7 +305,20 @@ impl<M: ModelFn> Estimator<M> {
     ///
     /// Returns an error if training fails or a hook returns an error.
     pub fn train(&mut self) -> EstimatorResult<TrainResult> {
-        let max_steps = self.config.train_steps.unwrap_or(u64::MAX);
+        self.train_with_limits(None, None)
+    }
+
+    /// Runs training with Python-style `steps`/`max_steps` semantics.
+    ///
+    /// - `steps`: relative number of additional steps from current global step.
+    /// - `max_steps`: absolute global-step cap.
+    /// - if both are provided, training stops at `min(global_step + steps, max_steps)`.
+    pub fn train_with_limits(
+        &mut self,
+        steps: Option<u64>,
+        max_steps: Option<u64>,
+    ) -> EstimatorResult<TrainResult> {
+        let max_steps = self.resolve_train_target(steps, max_steps);
         let mut stopped_early = false;
         let mut last_metrics: Option<Metrics> = None;
 
@@ -353,7 +376,12 @@ impl<M: ModelFn> Estimator<M> {
     ///
     /// Returns an error if evaluation fails.
     pub fn evaluate(&mut self) -> EstimatorResult<EvalResult> {
-        let eval_steps = self.config.eval_steps.unwrap_or(1);
+        self.evaluate_with_steps(None)
+    }
+
+    /// Runs evaluation with an optional step override.
+    pub fn evaluate_with_steps(&mut self, steps: Option<u64>) -> EstimatorResult<EvalResult> {
+        let eval_steps = steps.or(self.config.eval_steps).unwrap_or(1);
         let mut recorder = MetricsRecorder::new();
 
         tracing::info!("Starting evaluation for {} steps", eval_steps);
@@ -435,15 +463,12 @@ impl<M: ModelFn> Estimator<M> {
         num_evals: u64,
     ) -> EstimatorResult<(TrainResult, EvalResult)> {
         let mut last_eval: Option<EvalResult> = None;
-        let original_train_steps = self.config.train_steps;
+        let mut last_train: Option<TrainResult> = None;
 
         for eval_num in 0..num_evals {
-            // Set train steps for this round
-            let target_step = (eval_num + 1) * train_steps_per_eval;
-            self.config.train_steps = Some(target_step);
-
-            // Train
-            let train_result = self.train()?;
+            // Train one relative slice per round.
+            let train_result = self.train_with_limits(Some(train_steps_per_eval), None)?;
+            last_train = Some(train_result.clone());
 
             // Evaluate
             let eval_result = self.evaluate()?;
@@ -460,14 +485,11 @@ impl<M: ModelFn> Estimator<M> {
             }
         }
 
-        // Restore original config
-        self.config.train_steps = original_train_steps;
-
-        let final_train = TrainResult {
+        let final_train = last_train.unwrap_or(TrainResult {
             global_step: self.global_step,
             final_metrics: self.metrics_recorder.aggregate(self.global_step).into(),
             stopped_early: false,
-        };
+        });
 
         let final_eval = last_eval
             .ok_or_else(|| EstimatorError::Evaluation("No evaluation was performed".to_string()))?;
@@ -545,6 +567,51 @@ mod tests {
 
         let result = estimator.evaluate().unwrap();
         assert_eq!(result.eval_steps, 10);
+        assert!((result.metrics.loss - 0.5).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_estimator_train_with_limits_relative_steps() {
+        let config = EstimatorConfig::new(PathBuf::from("/tmp/model"));
+        let model_fn = ConstantModelFn::new(0.5);
+        let mut estimator = Estimator::new(config, model_fn);
+
+        let r1 = estimator.train_with_limits(Some(3), None).unwrap();
+        assert_eq!(r1.global_step, 3);
+        let r2 = estimator.train_with_limits(Some(2), None).unwrap();
+        assert_eq!(r2.global_step, 5);
+    }
+
+    #[test]
+    fn test_estimator_train_with_limits_max_steps_absolute() {
+        let config = EstimatorConfig::new(PathBuf::from("/tmp/model"));
+        let model_fn = ConstantModelFn::new(0.5);
+        let mut estimator = Estimator::new(config, model_fn);
+
+        estimator.train_with_limits(Some(5), None).unwrap();
+        let r = estimator.train_with_limits(None, Some(7)).unwrap();
+        assert_eq!(r.global_step, 7);
+    }
+
+    #[test]
+    fn test_estimator_train_with_limits_steps_and_max_steps() {
+        let config = EstimatorConfig::new(PathBuf::from("/tmp/model"));
+        let model_fn = ConstantModelFn::new(0.5);
+        let mut estimator = Estimator::new(config, model_fn);
+
+        estimator.train_with_limits(Some(5), None).unwrap();
+        let r = estimator.train_with_limits(Some(10), Some(12)).unwrap();
+        assert_eq!(r.global_step, 12);
+    }
+
+    #[test]
+    fn test_estimator_evaluate_with_steps_override() {
+        let config = EstimatorConfig::new(PathBuf::from("/tmp/model")).with_eval_steps(10);
+        let model_fn = ConstantModelFn::new(0.5);
+        let mut estimator = Estimator::new(config, model_fn);
+
+        let result = estimator.evaluate_with_steps(Some(3)).unwrap();
+        assert_eq!(result.eval_steps, 3);
         assert!((result.metrics.loss - 0.5).abs() < 1e-10);
     }
 
