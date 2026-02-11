@@ -305,9 +305,10 @@ where
     match tokio::time::timeout(timeout, fut).await {
         Ok(res) => res.map_err(anyhow::Error::from),
         Err(_) => Err(anyhow::anyhow!(
-            "Timed out during discovery cleanup: {} {}",
+            "Timed out during discovery cleanup: {} {} after {}ms",
             op_name,
-            service_id
+            service_id,
+            timeout.as_millis()
         )),
     }
 }
@@ -324,9 +325,10 @@ where
     match tokio::time::timeout(timeout, fut).await {
         Ok(res) => res.map_err(anyhow::Error::from),
         Err(_) => Err(anyhow::anyhow!(
-            "Timed out during discovery operation: {} {}",
+            "Timed out during discovery operation: {} {} after {}ms",
             op_name,
-            service_id
+            service_id,
+            timeout.as_millis()
         )),
     }
 }
@@ -2933,6 +2935,10 @@ mod tests {
             msg.contains("Timed out during discovery operation: connect worker-0"),
             "unexpected connect-timeout error: {msg}"
         );
+        assert!(
+            msg.contains("after 200ms"),
+            "connect-timeout diagnostics should include configured timeout duration: {msg}"
+        );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(
             discovery.disconnect_count(),
@@ -2967,6 +2973,10 @@ mod tests {
             msg.contains("Timed out during discovery operation: register worker-0"),
             "unexpected worker register-timeout error: {msg}"
         );
+        assert!(
+            msg.contains("after 200ms"),
+            "register-timeout diagnostics should include configured timeout duration: {msg}"
+        );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(discovery.deregister_count(), 1);
         assert_eq!(discovery.disconnect_count(), 1);
@@ -2998,6 +3008,10 @@ mod tests {
         assert!(
             msg.contains("Timed out during discovery operation: register ps-0"),
             "unexpected ps register-timeout error: {msg}"
+        );
+        assert!(
+            msg.contains("after 200ms"),
+            "register-timeout diagnostics should include configured timeout duration: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(discovery.deregister_count(), 1);
@@ -3031,6 +3045,10 @@ mod tests {
         assert!(
             msg.contains("last discovery error: Timed out during discovery operation: discover worker-0"),
             "expected discover timeout context in worker timeout diagnostics: {msg}"
+        );
+        assert!(
+            msg.contains("after 20ms"),
+            "discover-timeout diagnostics should include configured timeout duration: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(discovery.discover_count(), 1);
@@ -3174,6 +3192,10 @@ mod tests {
             msg.contains("Timed out during discovery cleanup: deregister worker-0"),
             "unexpected error: {msg}"
         );
+        assert!(
+            msg.contains("after 200ms"),
+            "cleanup-timeout diagnostics should include configured timeout duration: {msg}"
+        );
         assert_eq!(discovery.deregister_count(), 1);
         assert_eq!(
             discovery.disconnect_count(),
@@ -3259,6 +3281,10 @@ mod tests {
         assert!(
             msg.contains("Timed out during discovery cleanup: disconnect worker-0"),
             "unexpected error: {msg}"
+        );
+        assert!(
+            msg.contains("after 200ms"),
+            "cleanup-timeout diagnostics should include configured timeout duration: {msg}"
         );
         assert_eq!(discovery.deregister_count(), 1);
         assert_eq!(
