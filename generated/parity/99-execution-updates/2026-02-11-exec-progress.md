@@ -188,6 +188,16 @@
   - returns explicit mode-change error on mismatched mode updates.
 - Added regression tests for defaults, allowed replace updates, and forbidden mode mutation.
 
+### 15) Distributed runner lifecycle cleanup parity
+- Improved distributed orchestration cleanup semantics in `runner::run_distributed(...)`:
+  - role startup errors now preserve cleanup attempts,
+  - worker/ps registrations are explicitly deregistered on normal completion,
+  - discovery disconnect is consistently attempted after role execution.
+- Upgraded registration flow to propagate discovery registration errors
+  instead of silently ignoring them.
+- Added assertion coverage ensuring worker service entries are removed from
+  discovery after worker completion in runner smoke tests.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -208,6 +218,7 @@
 16. `cargo test -p monolith-training -q` ✅ (post estimator `steps/max_steps` parity API updates)
 17. `cargo test -p monolith-training -q` ✅ (post RunnerConfig-driven distributed runner entrypoint)
 18. `cargo test -p monolith-training -q` ✅ (post `EstimatorSpec` parity surface + tests)
+19. `cargo test -p monolith-training -q` ✅ (post distributed runner cleanup lifecycle updates)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
