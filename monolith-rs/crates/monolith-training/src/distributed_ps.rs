@@ -274,6 +274,9 @@ pub struct PsServer {
     /// Request counters.
     lookup_count: AtomicI64,
     apply_count: AtomicI64,
+    /// Aggregate request latencies in microseconds.
+    lookup_latency_us_total: AtomicI64,
+    apply_latency_us_total: AtomicI64,
     /// Barrier state for synchronization.
     barriers: RwLock<HashMap<String, Arc<BarrierState>>>,
     /// Optional dirty tracker for ParameterSync replication.
@@ -322,6 +325,8 @@ impl PsServer {
             start_time: Instant::now(),
             lookup_count: AtomicI64::new(0),
             apply_count: AtomicI64::new(0),
+            lookup_latency_us_total: AtomicI64::new(0),
+            apply_latency_us_total: AtomicI64::new(0),
             barriers: RwLock::new(HashMap::new()),
             dirty_tracker: RwLock::new(None),
         })
@@ -371,6 +376,7 @@ impl ParameterServerTraining for PsServerHandle {
         &self,
         request: Request<LookupRequest>,
     ) -> Result<Response<LookupResponse>, Status> {
+        let started = Instant::now();
         let req = request.into_inner();
         let dim_size = if req.dim_size > 0 {
             req.dim_size as usize
@@ -401,6 +407,9 @@ impl ParameterServerTraining for PsServerHandle {
         let num_initialized = found.iter().filter(|&&f| !f).count() as i32;
 
         self.lookup_count.fetch_add(1, Ordering::Relaxed);
+        let elapsed_us = started.elapsed().as_micros().max(1) as i64;
+        self.lookup_latency_us_total
+            .fetch_add(elapsed_us, Ordering::Relaxed);
 
         Ok(Response::new(LookupResponse {
             status_code: 0,
@@ -416,6 +425,7 @@ impl ParameterServerTraining for PsServerHandle {
         &self,
         request: Request<ApplyGradientsRequest>,
     ) -> Result<Response<ApplyGradientsResponse>, Status> {
+        let started = Instant::now();
         let req = request.into_inner();
         let dim_size = if req.dim_size > 0 {
             req.dim_size as usize
@@ -452,6 +462,9 @@ impl ParameterServerTraining for PsServerHandle {
         }
 
         self.apply_count.fetch_add(1, Ordering::Relaxed);
+        let elapsed_us = started.elapsed().as_micros().max(1) as i64;
+        self.apply_latency_us_total
+            .fetch_add(elapsed_us, Ordering::Relaxed);
 
         Ok(Response::new(ApplyGradientsResponse {
             status_code: 0,
@@ -533,15 +546,30 @@ impl ParameterServerTraining for PsServerHandle {
             }
         }
 
+        let lookup_count = self.lookup_count.load(Ordering::Relaxed);
+        let apply_count = self.apply_count.load(Ordering::Relaxed);
+        let lookup_latency_total = self.lookup_latency_us_total.load(Ordering::Relaxed);
+        let apply_latency_total = self.apply_latency_us_total.load(Ordering::Relaxed);
+        let avg_lookup_latency_us = if lookup_count > 0 {
+            lookup_latency_total / lookup_count
+        } else {
+            0
+        };
+        let avg_apply_latency_us = if apply_count > 0 {
+            apply_latency_total / apply_count
+        } else {
+            0
+        };
+
         Ok(Response::new(GetStatsResponse {
             shard_id: self.shard_id,
             total_embeddings,
             memory_bytes,
             table_stats,
-            lookup_count: self.lookup_count.load(Ordering::Relaxed),
-            apply_gradients_count: self.apply_count.load(Ordering::Relaxed),
-            avg_lookup_latency_us: 0, // TODO: track latency
-            avg_apply_latency_us: 0,
+            lookup_count,
+            apply_gradients_count: apply_count,
+            avg_lookup_latency_us,
+            avg_apply_latency_us,
         }))
     }
 }
@@ -854,6 +882,10 @@ pub fn get_shard_for_id(fid: i64, num_shards: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use monolith_proto::monolith::ps_training::{
+        ApplyGradientsRequest, GetStatsRequest, LookupRequest,
+    };
+    use tonic::Request;
 
     #[test]
     fn test_dedup_ids() {
@@ -944,5 +976,49 @@ mod tests {
         assert_eq!(get_shard_for_id(3, 3), 0);
         assert_eq!(get_shard_for_id(-1, 3), 2); // floormod(-1, 3) = 2
         assert_eq!(get_shard_for_id(100, 0), 0); // edge case
+    }
+
+    #[tokio::test]
+    async fn test_ps_server_stats_tracks_average_latency() {
+        let ps = PsServer::new(0, 2);
+        let handle = PsServerHandle(ps.clone());
+
+        let _ = handle
+            .lookup(Request::new(LookupRequest {
+                table_name: "latency_table".to_string(),
+                fids: vec![1, 2],
+                dim_size: 2,
+                create_if_missing: true,
+                timeout_ms: 1000,
+            }))
+            .await
+            .unwrap();
+
+        let _ = handle
+            .apply_gradients(Request::new(ApplyGradientsRequest {
+                table_name: "latency_table".to_string(),
+                fids: vec![1],
+                gradients: vec![0.1, 0.2],
+                dim_size: 2,
+                learning_rate: 0.5,
+                global_step: 1,
+                timeout_ms: 1000,
+            }))
+            .await
+            .unwrap();
+
+        let stats = handle
+            .get_stats(Request::new(GetStatsRequest {
+                include_table_stats: true,
+            }))
+            .await
+            .unwrap()
+            .into_inner();
+
+        assert_eq!(stats.lookup_count, 1);
+        assert_eq!(stats.apply_gradients_count, 1);
+        assert!(stats.avg_lookup_latency_us >= 1);
+        assert!(stats.avg_apply_latency_us >= 1);
+        assert!(stats.total_embeddings >= 2);
     }
 }
