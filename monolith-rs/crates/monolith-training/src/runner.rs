@@ -177,11 +177,15 @@ impl DistributedRunConfig {
                 "distributed config requires parameter_sync_targets entries without leading/trailing whitespace"
             );
         }
-        let mut seen_parameter_sync_targets = HashSet::with_capacity(self.parameter_sync_targets.len());
+        let mut seen_parameter_sync_targets =
+            HashSet::with_capacity(self.parameter_sync_targets.len());
         if self
             .parameter_sync_targets
             .iter()
-            .any(|target| !seen_parameter_sync_targets.insert(target))
+            .any(|target| {
+                let canonical = target.strip_prefix("http://").unwrap_or(target);
+                !seen_parameter_sync_targets.insert(canonical)
+            })
         {
             anyhow::bail!("distributed config requires unique parameter_sync_targets entries");
         }
@@ -2221,6 +2225,23 @@ mod tests {
             parameter_sync_targets: vec![
                 "127.0.0.1:8500".to_string(),
                 "127.0.0.1:8500".to_string(),
+            ],
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("distributed config requires unique parameter_sync_targets entries"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_duplicate_parameter_sync_target_entries_after_http_prefix_normalization(
+    ) {
+        let cfg = DistributedRunConfig {
+            parameter_sync_targets: vec![
+                "127.0.0.1:8500".to_string(),
+                "http://127.0.0.1:8500".to_string(),
             ],
             ..DistributedRunConfig::default()
         };

@@ -2053,6 +2053,23 @@
   to the failing worker identity while preserving existing error-precedence
   semantics.
 
+### 174) Parameter-sync target uniqueness now normalizes optional `http://` prefix
+- Tightened distributed config/CLI parameter-sync target uniqueness semantics to
+  treat these as equivalent duplicates:
+  - `127.0.0.1:8500`
+  - `http://127.0.0.1:8500`
+- Applied canonicalization in both entrypoints:
+  - runtime distributed validation (`DistributedRunConfig::validate`)
+  - CLI config builder validation (`TrainCommand::build_distributed_run_config`)
+- Preserved existing uniqueness error surfaces while preventing duplicate
+  replication fanout caused by mixed explicit-vs-implicit HTTP URL notation.
+- Added regression coverage at all layers:
+  - runner unit test: rejects duplicates after `http://` normalization
+  - CLI unit test: rejects `--parameter-sync-target` duplicates after
+    `http://` normalization
+  - native-training integration tests (RunConfig + RunnerConfig): reject
+    normalized duplicate targets before runtime execution.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2377,6 +2394,8 @@
 321. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post unique parameter-sync target validation parity full workspace rerun under ambient ZK auth env)
 322. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker service-id enrichment in PS discovery-timeout diagnostics + run/runner index propagation regressions)
 323. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post worker service-id discovery-timeout diagnostic enrichment full workspace rerun under ambient ZK auth env)
+324. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post parameter-sync target uniqueness normalization for optional http-prefixes across CLI/runtime validation layers)
+325. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post parameter-sync target http-prefix normalization full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

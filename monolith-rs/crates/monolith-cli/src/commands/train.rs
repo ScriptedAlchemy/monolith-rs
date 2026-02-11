@@ -283,11 +283,15 @@ impl TrainCommand {
         {
             anyhow::bail!("--parameter-sync-target entries must not have leading/trailing whitespace");
         }
-        let mut seen_parameter_sync_targets = HashSet::with_capacity(self.parameter_sync_targets.len());
+        let mut seen_parameter_sync_targets =
+            HashSet::with_capacity(self.parameter_sync_targets.len());
         if self
             .parameter_sync_targets
             .iter()
-            .any(|target| !seen_parameter_sync_targets.insert(target))
+            .any(|target| {
+                let canonical = target.strip_prefix("http://").unwrap_or(target);
+                !seen_parameter_sync_targets.insert(canonical)
+            })
         {
             anyhow::bail!("--parameter-sync-target entries must be unique");
         }
@@ -993,6 +997,22 @@ mod tests {
         assert!(
             err.contains("--parameter-sync-target entries must be unique"),
             "unexpected parameter-sync target uniqueness validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_duplicate_parameter_sync_target_entry_after_http_prefix_normalization(
+    ) {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec![
+            "127.0.0.1:8500".to_string(),
+            "http://127.0.0.1:8500".to_string(),
+        ];
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--parameter-sync-target entries must be unique"),
+            "unexpected parameter-sync target normalization uniqueness validation error: {err}"
         );
     }
 
