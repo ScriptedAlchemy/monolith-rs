@@ -357,13 +357,21 @@ impl MonolithDiscoveryGuard {
             .ok_or(RunnerUtilsError::LocalModeNoDiscovery)?;
         d.query(name)
     }
+
+    /// Closes the underlying discovery backend and detaches it from this guard.
+    ///
+    /// Safe to call multiple times; subsequent calls are no-ops.
+    pub fn close(&mut self) -> Result<(), RunnerUtilsError> {
+        if let Some(d) = self.discovery.take() {
+            d.close()?;
+        }
+        Ok(())
+    }
 }
 
 impl Drop for MonolithDiscoveryGuard {
     fn drop(&mut self) {
-        if let Some(d) = &self.discovery {
-            let _ = d.close();
-        }
+        let _ = self.close();
     }
 }
 

@@ -159,6 +159,37 @@ fn test_monolith_discovery_guard_query_primus() {
 }
 
 #[test]
+fn test_monolith_discovery_guard_manual_close_is_idempotent() {
+    let tf_config = serde_json::json!({
+      "cluster": {
+        "chief": ["chief:2222"],
+        "ps": ["ps0:2222"],
+        "worker": ["worker0:2222"]
+      },
+      "task": {"type": "worker", "index": 0}
+    })
+    .to_string();
+    let rc = RunnerConfig {
+        is_local: false,
+        discovery_type: ServiceDiscoveryType::Primus,
+        tf_config: Some(tf_config),
+        ..RunnerConfig::default()
+    };
+    let mut guard = monolith_discovery(&rc, None).unwrap();
+    assert_eq!(guard.kind(), Some("tf_config"));
+
+    guard.close().unwrap();
+    assert_eq!(guard.kind(), None);
+    assert!(matches!(
+        guard.query("ps"),
+        Err(monolith_training::RunnerUtilsError::LocalModeNoDiscovery)
+    ));
+
+    // Explicit close remains idempotent for lifecycle parity with repeated teardown calls.
+    guard.close().unwrap();
+}
+
+#[test]
 fn test_monolith_discovery_guard_local_register_error() {
     let rc = RunnerConfig {
         is_local: true,
