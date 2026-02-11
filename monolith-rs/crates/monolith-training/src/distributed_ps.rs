@@ -1164,12 +1164,20 @@ impl PsClient {
         self.num_shards
     }
 
+    /// Performs health check against default coordinator shard (index 0).
+    pub async fn health_check(&self, component: impl Into<String>) -> PsResult<HealthCheckResponse> {
+        self.health_check_shard(0, component).await
+    }
+
     /// Performs health check against one PS shard.
     pub async fn health_check_shard(
         &self,
         shard_id: usize,
         component: impl Into<String>,
     ) -> PsResult<HealthCheckResponse> {
+        if self.clients.is_empty() {
+            return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
+        }
         let mut client = self
             .clients
             .get(shard_id)
@@ -1213,6 +1221,9 @@ impl PsClient {
         shard_id: usize,
         include_table_stats: bool,
     ) -> PsResult<GetStatsResponse> {
+        if self.clients.is_empty() {
+            return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
+        }
         let mut client = self
             .clients
             .get(shard_id)
@@ -1223,6 +1234,11 @@ impl PsClient {
             .await?
             .into_inner();
         Ok(response)
+    }
+
+    /// Gets stats from default coordinator shard (index 0).
+    pub async fn get_stats(&self, include_table_stats: bool) -> PsResult<GetStatsResponse> {
+        self.get_stats_shard(0, include_table_stats).await
     }
 
     /// Gets stats from all PS shards in parallel.
@@ -1945,6 +1961,31 @@ mod tests {
         assert!(stats.lookup_count >= 1);
         assert!(stats.total_embeddings >= 2);
         assert!(!stats.table_stats.is_empty());
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_default_health_and_stats_methods() {
+        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr]).await.unwrap();
+        let health = client.health_check("ps").await.unwrap();
+        assert_eq!(
+            health.status,
+            monolith_proto::monolith::ps_training::health_check_response::Status::Healthy as i32
+        );
+
+        let _ = client.lookup("emb", &[1], 2, true).await.unwrap();
+        let stats = client.get_stats(false).await.unwrap();
+        assert_eq!(stats.shard_id, 0);
+        assert!(stats.lookup_count >= 1);
+
         server.abort();
     }
 
