@@ -2460,6 +2460,17 @@
   operation-level context for both primary and secondary cleanup failures across
   default/custom run/runner entrypoint paths.
 
+### 199) Runner-level PS connect-timeout+cleanup-timeout parity reinforced with explicit custom-service diagnostics
+- Added new runner unit regression:
+  - `test_run_distributed_ps_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_custom_service_type`
+- Coverage guarantees:
+  - primary connect-timeout remains dominant for PS role,
+  - appended cleanup issue context is present,
+  - cleanup timeout diagnostics include explicit custom PS service-type operation
+    context (`disconnect ps-0 via parameter_server_custom`).
+- Result: runner-level timeout/error-precedence semantics now mirror existing
+  worker-path guarantees for PS custom service-type connect-timeout cleanup flow.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2841,6 +2852,8 @@
 378. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post PS connect-failure cleanup diagnostics parity expansion full workspace rerun under ambient ZK auth env)
 379. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post post-success both-cleanup-failure diagnostic operation-context parity expansion across default/custom integration paths)
 380. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post post-success both-cleanup-failure diagnostic operation-context parity expansion full workspace rerun under ambient ZK auth env)
+381. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post runner-level PS connect-timeout+cleanup-timeout custom service-type parity regression addition)
+382. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post runner-level PS connect-timeout+cleanup-timeout custom service-type parity regression full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
