@@ -948,6 +948,7 @@
 119. `cargo test -p monolith-training -q` ✅ (post typed PS discovery ordering diagnostics and retry-time ordering-issue propagation)
 120. `cargo test --workspace -q` ✅ (post typed PS discovery ordering diagnostics and full workspace regression rerun)
 121. `cargo test -p monolith-training -q` ✅ (post worker timeout diagnostics regression for mixed PS shard-index metadata inconsistency)
+122. `cargo test --workspace -q` ✅ (post worker timeout diagnostics regression and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
