@@ -1462,6 +1462,17 @@
 - Completes setup-timeout precedence integration matrix for worker + PS register
   flows across run-config and runner-config entrypoints.
 
+### 135) Runner-config discover-timeout propagation integration coverage
+- Added runner-config entrypoint discover-timeout regression:
+  - `distributed_runner_from_runner_config_honors_discover_timeout_controls`
+- Uses blocking worker discover backend to validate through
+  `run_distributed_from_runner_config(...)` that:
+  - configured operation timeout propagates to discover operation diagnostics,
+  - runtime remains non-hanging,
+  - cleanup attempts still execute after discover timeout.
+- Complements existing run-config discover-timeout integration coverage for
+  entrypoint parity completeness.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1707,6 +1718,8 @@
 242. `cargo test --workspace -q` ✅ (post runner-config register-timeout precedence integration regression under blocked cleanup full workspace rerun)
 243. `cargo test -p monolith-training -q` ✅ (post PS register-timeout precedence integration regressions across run/runner config entrypoints)
 244. `cargo test --workspace -q` ✅ (post PS register-timeout precedence integration regressions across run/runner config entrypoints full workspace rerun)
+245. `cargo test -p monolith-training -q` ✅ (post runner-config discover-timeout propagation integration regression)
+246. `cargo test --workspace -q` ✅ (post runner-config discover-timeout propagation integration regression full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
