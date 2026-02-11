@@ -322,6 +322,13 @@
   - restore synchronization side effects via initialized constructor path,
   - estimator config propagation from run config values.
 
+### 29) Distributed runner entrypoint directly from `RunConfig`
+- Added `runner::run_distributed_from_run_config(...)`:
+  - applies RunConfig→RunnerConfig merge semantics,
+  - dispatches through existing runner-config distributed entrypoint.
+- Exported helper at crate root for runtime callsites.
+- Added unit + integration smoke coverage for run-config driven PS/worker flows.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -358,6 +365,7 @@
 32. `cargo test --workspace -q` ✅ (post latest runner/discovery and estimator runtime parity updates)
 33. `cargo test -p monolith-training -q` ✅ (post `monolith_discovery_from_run_config` helper integration)
 34. `cargo test -p monolith-training -q` ✅ (post initialized estimator constructor from run config)
+35. `cargo test -p monolith-training -q` ✅ (post run-config distributed runner entrypoint)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
