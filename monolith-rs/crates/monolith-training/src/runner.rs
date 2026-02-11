@@ -719,7 +719,8 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
                 match (last_ordering_issue, last_discovery_error.as_deref()) {
                     (Some(issue), Some(discovery_error)) => {
                         return Err(anyhow::anyhow!(
-                            "Timed out waiting for PS discovery (service type: {}): got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last ordering issue: {:?}; last discovery error: {})",
+                            "Timed out waiting for PS discovery for {} (service type: {}): got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last ordering issue: {:?}; last discovery error: {})",
+                            service_id,
                             cfg.discovery_service_type_ps,
                             addrs.len(),
                             cfg.num_ps,
@@ -732,7 +733,8 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
                     }
                     (Some(issue), None) => {
                         return Err(anyhow::anyhow!(
-                            "Timed out waiting for PS discovery (service type: {}): got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last ordering issue: {:?})",
+                            "Timed out waiting for PS discovery for {} (service type: {}): got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last ordering issue: {:?})",
+                            service_id,
                             cfg.discovery_service_type_ps,
                             addrs.len(),
                             cfg.num_ps,
@@ -744,7 +746,8 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
                     }
                     (None, Some(discovery_error)) => {
                         return Err(anyhow::anyhow!(
-                            "Timed out waiting for PS discovery (service type: {}): got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last discovery error: {})",
+                            "Timed out waiting for PS discovery for {} (service type: {}): got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {}; last discovery error: {})",
+                            service_id,
                             cfg.discovery_service_type_ps,
                             addrs.len(),
                             cfg.num_ps,
@@ -756,7 +759,8 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
                     }
                     (None, None) => {
                         return Err(anyhow::anyhow!(
-                            "Timed out waiting for PS discovery (service type: {}): got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {})",
+                            "Timed out waiting for PS discovery for {} (service type: {}): got {} expected {} (attempts: {}; max raw observed: {}; max usable observed: {})",
+                            service_id,
                             cfg.discovery_service_type_ps,
                             addrs.len(),
                             cfg.num_ps,
@@ -4316,6 +4320,10 @@ mod tests {
             msg.contains("service type: ps"),
             "worker-discovery timeout diagnostics should include default PS service-type context: {msg}"
         );
+        assert!(
+            msg.contains("for worker-0"),
+            "worker-discovery timeout diagnostics should include worker service-id context: {msg}"
+        );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(discovery.deregister_count(), 1);
         assert_eq!(discovery.disconnect_count(), 1);
@@ -4355,6 +4363,10 @@ mod tests {
             msg.contains("service type: parameter_server_custom"),
             "worker-discovery timeout diagnostics should include configured custom PS service-type context: {msg}"
         );
+        assert!(
+            msg.contains("for worker-0"),
+            "worker-discovery timeout diagnostics should include worker service-id context with custom discover service type: {msg}"
+        );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(discovery.deregister_count(), 1);
         assert_eq!(discovery.disconnect_count(), 1);
@@ -4389,6 +4401,10 @@ mod tests {
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker-role error should still be preserved: {msg}"
+        );
+        assert!(
+            msg.contains("for worker-0"),
+            "worker-discovery timeout diagnostics should include worker service-id context: {msg}"
         );
 
         let elapsed = started.elapsed();

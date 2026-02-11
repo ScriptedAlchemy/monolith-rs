@@ -567,6 +567,10 @@ async fn distributed_runner_from_run_config_preserves_worker_discovery_error_whe
         "worker discovery timeout diagnostics should include default PS service-type context when invoked from RunConfig entrypoint: {msg}"
     );
     assert!(
+        msg.contains("for worker-0"),
+        "worker discovery timeout diagnostics should include worker service-id context when invoked from RunConfig entrypoint: {msg}"
+    );
+    assert!(
         elapsed < Duration::from_millis(260),
         "cleanup timeout from RunConfig should bound blocked worker-cleanup duration after discovery failure (elapsed: {:?})",
         elapsed
@@ -622,8 +626,61 @@ async fn distributed_runner_from_run_config_propagates_custom_discover_service_t
         msg.contains("service type: parameter_server_custom"),
         "worker discovery timeout diagnostics should include configured custom PS service type via RunConfig: {msg}"
     );
+    assert!(
+        msg.contains("for worker-0"),
+        "worker discovery timeout diagnostics should include worker service-id context for custom PS service type via RunConfig: {msg}"
+    );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_propagates_worker_index_into_ps_discovery_timeout_diagnostics(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 3,
+        num_ps: 1,
+        num_workers: 4,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when PS discovery remains empty for worker index propagation diagnostics"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "worker discovery should fail with discovery timeout when no PS endpoints are returned: {msg}"
+    );
+    assert!(
+        msg.contains("for worker-3"),
+        "worker index from RunConfig should propagate into worker discovery timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
@@ -3138,6 +3195,10 @@ async fn distributed_runner_from_runner_config_preserves_worker_discovery_error_
         "worker discovery timeout diagnostics should include default PS service-type context when invoked from RunnerConfig entrypoint: {msg}"
     );
     assert!(
+        msg.contains("for worker-0"),
+        "worker discovery timeout diagnostics should include worker service-id context when invoked from RunnerConfig entrypoint: {msg}"
+    );
+    assert!(
         elapsed < Duration::from_millis(260),
         "cleanup timeout from RunnerConfig should bound blocked worker-cleanup duration after discovery failure (elapsed: {:?})",
         elapsed
@@ -3192,8 +3253,60 @@ async fn distributed_runner_from_runner_config_propagates_custom_discover_servic
         msg.contains("service type: parameter_server_custom"),
         "worker discovery timeout diagnostics should include configured custom PS service type via RunnerConfig: {msg}"
     );
+    assert!(
+        msg.contains("for worker-0"),
+        "worker discovery timeout diagnostics should include worker service-id context for custom PS service type via RunnerConfig: {msg}"
+    );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_propagates_worker_index_into_ps_discovery_timeout_diagnostics(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 4,
+        num_ps: 1,
+        num_workers: 5,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when PS discovery remains empty for worker index propagation diagnostics"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "worker discovery should fail with discovery timeout when no PS endpoints are returned: {msg}"
+    );
+    assert!(
+        msg.contains("for worker-4"),
+        "worker index from RunnerConfig should propagate into worker discovery timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);

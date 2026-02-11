@@ -2036,6 +2036,23 @@
 - Prevents duplicate online push fanout caused by repeated target endpoints and
   guarantees deterministic one-target-one-push replication intent.
 
+### 173) Worker discovery-timeout diagnostics now include worker service-id context
+- Enhanced worker fallback discovery-timeout diagnostics to include worker
+  service id (`worker-{index}`) alongside discovery service-type context:
+  - `Timed out waiting for PS discovery for worker-<index> (service type: <...>): ...`
+- Updated distributed runner tests to assert service-id context in worker
+  discovery-timeout paths (default/custom discovery service types and blocked
+  cleanup variants).
+- Expanded native-training integration parity coverage:
+  - strengthened existing run/runner worker-discovery timeout regressions to
+    assert `for worker-0` context,
+  - added explicit worker-index propagation regressions:
+    - `distributed_runner_from_run_config_propagates_worker_index_into_ps_discovery_timeout_diagnostics`
+    - `distributed_runner_from_runner_config_propagates_worker_index_into_ps_discovery_timeout_diagnostics`
+- Improves timeout diagnosability by tying fallback discovery failures directly
+  to the failing worker identity while preserving existing error-precedence
+  semantics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2358,6 +2375,8 @@
 319. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post whitespace-padded parameter-sync metadata validation full workspace rerun under ambient ZK auth env)
 320. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post unique parameter-sync target validation parity across CLI/runtime entrypoints)
 321. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post unique parameter-sync target validation parity full workspace rerun under ambient ZK auth env)
+322. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker service-id enrichment in PS discovery-timeout diagnostics + run/runner index propagation regressions)
+323. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post worker service-id discovery-timeout diagnostic enrichment full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
