@@ -1039,6 +1039,7 @@
 133. `cargo test -p monolith-training -q` ✅ (post combined ordering+discovery timeout diagnostics regression coverage)
 134. `cargo test --workspace -q` ✅ (post combined ordering+discovery timeout diagnostics regression coverage and full workspace rerun)
 135. `cargo test -p monolith-training -q` ✅ (post ParameterSync replicator drop-safety lifecycle guard and regression coverage)
+136. `cargo test --workspace -q` ✅ (post ParameterSync replicator drop-safety lifecycle guard and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
