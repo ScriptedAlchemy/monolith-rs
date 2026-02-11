@@ -708,6 +708,18 @@
   ensuring lifecycle misuse is surfaced as typed invalid-configuration errors
   rather than silently no-oping.
 
+### 66) Local PS/worker lifecycle guard parity hardening
+- Removed remaining "stub" lifecycle semantics from `distributed` local role
+  implementations by enforcing explicit start/stop state checks:
+  - `ParameterServer::start()` now rejects reentrant starts.
+  - `ParameterServer::stop()` now rejects stop-when-stopped calls.
+  - `Worker::start()` now rejects reentrant starts.
+  - `Worker::stop()` now rejects stop-when-stopped calls.
+- Added regression coverage:
+  - `test_parameter_server_lifecycle_guards`
+  - `test_worker_lifecycle_guards`
+  to validate typed invalid-configuration behavior for lifecycle misuse.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -809,6 +821,7 @@
 98. `cargo test --workspace -q` ✅ (post runner heartbeat lifecycle cancellation refactor and full workspace regression rerun)
 99. `cargo test -p monolith-training -q` ✅ (post local-cluster start/stop lifecycle guard semantics and regression tests)
 100. `cargo test --workspace -q` ✅ (post local-cluster lifecycle guard semantics and full workspace regression rerun)
+101. `cargo test -p monolith-training -q` ✅ (post local PS/worker lifecycle guard parity hardening and new regression coverage)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
