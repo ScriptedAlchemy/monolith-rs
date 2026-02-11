@@ -260,6 +260,9 @@ impl TrainCommand {
         if self.table_name.trim().is_empty() {
             anyhow::bail!("--table-name must be non-empty in distributed mode");
         }
+        if self.table_name.trim() != self.table_name {
+            anyhow::bail!("--table-name must not have leading/trailing whitespace");
+        }
         if !self.parameter_sync_targets.is_empty() && self.parameter_sync_interval_ms == 0 {
             anyhow::bail!(
                 "--parameter-sync-interval-ms must be > 0 when --parameter-sync-target is provided"
@@ -894,6 +897,18 @@ mod tests {
         assert!(
             err.contains("--table-name must be non-empty in distributed mode"),
             "unexpected table-name validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_whitespace_padded_table_name() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.table_name = " emb ".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--table-name must not have leading/trailing whitespace"),
+            "unexpected table-name whitespace validation error: {err}"
         );
     }
 

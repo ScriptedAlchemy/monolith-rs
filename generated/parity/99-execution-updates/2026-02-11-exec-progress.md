@@ -1980,6 +1980,23 @@
 - Prevents subtle discovery mismatches caused by whitespace-tainted service-type
   keys while preserving explicit, actionable validation diagnostics.
 
+### 170) Whitespace-normalized distributed table-name validation parity
+- Added distributed runtime validation to reject table names with
+  leading/trailing whitespace:
+  - `table_name.trim() != table_name` is now rejected.
+- Added CLI distributed-config builder parity check rejecting
+  whitespace-padded `--table-name`.
+- Added regression coverage:
+  - CLI unit:
+    - `test_build_distributed_run_config_rejects_whitespace_padded_table_name`
+  - distributed config unit:
+    - `test_distributed_config_validate_rejects_whitespace_padded_table_name`
+  - native-training integration parity:
+    - `distributed_runner_from_run_config_rejects_whitespace_padded_table_name`
+    - `distributed_runner_from_runner_config_rejects_whitespace_padded_table_name`
+- Prevents subtle table-name key mismatches between lookup/apply calls and PS
+  table initialization caused by accidental whitespace in distributed configs.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2296,6 +2313,8 @@
 313. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post distinct PS/worker discovery service-type validation full workspace rerun under ambient ZK auth env)
 314. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post whitespace-padded discovery service-type validation parity across CLI/runtime entrypoints)
 315. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post whitespace-padded discovery service-type validation full workspace rerun under ambient ZK auth env)
+316. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post whitespace-padded distributed table-name validation parity across CLI/runtime entrypoints)
+317. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post whitespace-padded distributed table-name validation full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

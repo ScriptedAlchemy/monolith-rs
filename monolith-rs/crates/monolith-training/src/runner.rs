@@ -148,6 +148,11 @@ impl DistributedRunConfig {
         if self.table_name.trim().is_empty() {
             anyhow::bail!("distributed config requires non-empty table_name");
         }
+        if self.table_name.trim() != self.table_name {
+            anyhow::bail!(
+                "distributed config requires table_name without leading/trailing whitespace"
+            );
+        }
         if !self.parameter_sync_targets.is_empty() && self.parameter_sync_interval.is_zero() {
             anyhow::bail!(
                 "distributed config requires parameter_sync_interval > 0 when parameter_sync_targets are configured"
@@ -2112,6 +2117,19 @@ mod tests {
         let err = cfg.validate().unwrap_err().to_string();
         assert!(
             err.contains("distributed config requires non-empty table_name"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_whitespace_padded_table_name() {
+        let cfg = DistributedRunConfig {
+            table_name: " emb ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("distributed config requires table_name without leading/trailing whitespace"),
             "unexpected validation error: {err}"
         );
     }
