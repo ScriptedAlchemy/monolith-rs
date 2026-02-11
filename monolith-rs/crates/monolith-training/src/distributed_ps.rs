@@ -725,6 +725,11 @@ impl PsClient {
         dim_size: usize,
         create_if_missing: bool,
     ) -> PsResult<Vec<f32>> {
+        if dim_size == 0 {
+            return Err(PsError::InvalidConfig(
+                "dim_size must be greater than zero".to_string(),
+            ));
+        }
         if self.clients.is_empty() {
             return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
         }
@@ -813,11 +818,23 @@ impl PsClient {
         learning_rate: f32,
         global_step: i64,
     ) -> PsResult<(i32, i32)> {
-        if self.clients.is_empty() {
-            return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
+        if dim_size == 0 {
+            return Err(PsError::InvalidConfig(
+                "dim_size must be greater than zero".to_string(),
+            ));
         }
         if fids.is_empty() {
             return Ok((0, 0));
+        }
+        let expected = fids.len() * dim_size;
+        if gradients.len() != expected {
+            return Err(PsError::DimensionMismatch {
+                expected,
+                actual: gradients.len(),
+            });
+        }
+        if self.clients.is_empty() {
+            return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
         }
 
         // Step 1: Aggregate gradients for duplicate IDs
@@ -888,6 +905,17 @@ impl PsClient {
         num_workers: i32,
         timeout_ms: i64,
     ) -> PsResult<()> {
+        if num_workers <= 0 {
+            return Err(PsError::InvalidConfig(
+                "num_workers must be greater than zero".to_string(),
+            ));
+        }
+        if worker_id < 0 || worker_id >= num_workers {
+            return Err(PsError::InvalidConfig(format!(
+                "worker_id {} out of range for num_workers={}",
+                worker_id, num_workers
+            )));
+        }
         if self.clients.is_empty() {
             return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
         }
@@ -1395,6 +1423,49 @@ mod tests {
             num_shards: 0,
         };
         let err = client.lookup("emb", &[1], 2, true).await.unwrap_err();
+        assert!(matches!(err, PsError::InvalidConfig(_)));
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_lookup_rejects_zero_dim() {
+        let mut client = PsClient {
+            clients: Vec::new(),
+            num_shards: 0,
+        };
+        // Set one dummy shard to bypass no-client guard and validate dim check first.
+        client.num_shards = 1;
+        let err = client.lookup("emb", &[1], 0, true).await.unwrap_err();
+        assert!(matches!(err, PsError::InvalidConfig(_)));
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_apply_rejects_gradient_size_mismatch() {
+        let mut client = PsClient {
+            clients: Vec::new(),
+            num_shards: 0,
+        };
+        client.num_shards = 1;
+        let err = client
+            .apply_gradients("emb", &[1, 2], &[0.1, 0.2, 0.3], 2, 0.1, 1)
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            PsError::DimensionMismatch {
+                expected: 4,
+                actual: 3
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_barrier_rejects_invalid_worker_range() {
+        let mut client = PsClient {
+            clients: Vec::new(),
+            num_shards: 0,
+        };
+        client.num_shards = 1;
+        let err = client.barrier("b", 2, 2, 100).await.unwrap_err();
         assert!(matches!(err, PsError::InvalidConfig(_)));
     }
 }
