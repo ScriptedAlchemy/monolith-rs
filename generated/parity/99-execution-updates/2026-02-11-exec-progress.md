@@ -3072,6 +3072,19 @@
   indexed default-service parity across runner + RunConfig + RunnerConfig
   entrypoints.
 
+### 231) Runner worker register-timeout cleanup-failure indexed default parity added
+- Added runner-level regression:
+  - `test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_fails_with_default_service_type_and_index`
+- New assertions verify indexed default-worker register-timeout diagnostics
+  preserve:
+  - operation-timeout context (`register worker-2 as worker`),
+  - cleanup issue aggregation context,
+  - cleanup-failure operation diagnostics with indexed default-worker identity
+    (`deregister/disconnect worker-2 ... worker` + forced failures).
+- Result: runner-level register-timeout + cleanup-failure diagnostics now
+  include explicit indexed default-worker parity, aligning with existing
+  indexed default PS and integration-level coverage.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3538,6 +3551,9 @@
 463. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post register-timeout cleanup-timeout indexed-default parity completion across runner/config entrypoints)
 464. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post register-timeout cleanup-timeout indexed-default parity compatibility verification)
 465. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post register-timeout cleanup-timeout indexed-default parity completion full workspace rerun under ambient ZK auth env)
+466. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner-only worker register-timeout cleanup-failure indexed-default parity addition)
+467. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post runner-only worker register-timeout cleanup-failure indexed-default compatibility verification)
+468. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post runner-only worker register-timeout cleanup-failure indexed-default parity addition full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

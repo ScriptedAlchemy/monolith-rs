@@ -5976,6 +5976,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_fails_with_default_service_type_and_index(
+    ) {
+        let discovery = Arc::new(HangingRegisterWithFailingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 2,
+            num_ps: 1,
+            num_workers: 3,
+            discovery_operation_timeout: Duration::from_millis(20),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(700),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when indexed default-worker register is blocked and cleanup fails"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery operation: register worker-2 as worker after 20ms"),
+            "indexed default-worker register timeout should remain primary over cleanup-failure diagnostics: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "indexed default-worker register-timeout failures should include cleanup issue context when cleanup fails: {msg}"
+        );
+        assert!(
+            msg.contains("deregister worker-2 from worker")
+                && msg.contains("forced deregister failure"),
+            "indexed default-worker register-timeout cleanup issue context should include default-service-type/index deregister-failure diagnostics: {msg}"
+        );
+        assert!(
+            msg.contains("disconnect worker-2 via worker")
+                && msg.contains("forced disconnect failure"),
+            "indexed default-worker register-timeout cleanup issue context should include default-service-type/index disconnect-failure diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_times_out() {
         let discovery = Arc::new(HangingRegisterWithHangingCleanupDiscovery::new());
         let cfg = DistributedRunConfig {
