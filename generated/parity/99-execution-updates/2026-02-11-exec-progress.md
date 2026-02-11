@@ -154,6 +154,21 @@
   (`initialize_restore_checkpoint_from_runner`) so runtime entrypoints can
   apply export semantics even when restore sync is a no-op.
 
+### 12) Estimator train/eval API parity for step controls
+- Enhanced `monolith-training::estimator::Estimator` with Python-like step control semantics:
+  - added `train_with_limits(steps, max_steps)`:
+    - `steps` interpreted as relative additional steps,
+    - `max_steps` interpreted as absolute global-step cap,
+    - when both are provided uses `min(global_step + steps, max_steps)`.
+  - added `evaluate_with_steps(steps)` to override configured eval step count.
+  - `train()` / `evaluate()` now delegate to these explicit helpers.
+  - `train_and_evaluate()` now performs per-round relative training slices without mutating config.
+- Added regression tests covering:
+  - relative training slices,
+  - absolute max-step caps,
+  - combined `steps + max_steps` behavior,
+  - explicit eval-step overrides.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -171,6 +186,7 @@
 13. `cargo test -p monolith-training -q` ✅ (post RunnerConfig env-export parity updates)
 14. `cargo test -p monolith-training -q` ✅ (post runtime wiring of env-export helper)
 15. `cargo test --workspace -q` ✅ (post latest runner-config + runner-utils parity updates)
+16. `cargo test -p monolith-training -q` ✅ (post estimator `steps/max_steps` parity API updates)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
