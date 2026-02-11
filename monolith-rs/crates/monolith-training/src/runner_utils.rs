@@ -660,7 +660,40 @@ mod tests {
     use super::*;
     use crate::native_training::service_discovery::ServiceDiscoveryType;
     use crate::run_config::RunnerConfig;
+    use std::sync::Mutex;
     use tempfile::tempdir;
+
+    static MLP_ENV_TEST_MUTEX: Mutex<()> = Mutex::new(());
+
+    struct EnvSnapshot {
+        saved: Vec<(String, Option<String>)>,
+    }
+
+    impl EnvSnapshot {
+        fn install(vars: &[(&str, &str)], managed_keys: &[&str]) -> Self {
+            let mut saved = Vec::with_capacity(managed_keys.len());
+            for key in managed_keys {
+                saved.push(((*key).to_string(), std::env::var(key).ok()));
+                std::env::remove_var(key);
+            }
+            for (k, v) in vars {
+                std::env::set_var(k, v);
+            }
+            Self { saved }
+        }
+    }
+
+    impl Drop for EnvSnapshot {
+        fn drop(&mut self) {
+            for (k, v) in &self.saved {
+                if let Some(v) = v {
+                    std::env::set_var(k, v);
+                } else {
+                    std::env::remove_var(k);
+                }
+            }
+        }
+    }
 
     #[test]
     fn test_copy_checkpoint_from_restore_dir() {
@@ -897,6 +930,45 @@ all_model_checkpoint_paths: "model.ckpt-30"
         let guard = monolith_discovery(&rc, None).unwrap();
         let d = guard.discovery().expect("consul discovery");
         assert_eq!(d.kind(), "consul");
+    }
+
+    #[test]
+    fn test_monolith_discovery_guard_mlp_close_is_idempotent() {
+        let _env_lock = MLP_ENV_TEST_MUTEX.lock().unwrap();
+        let _env = EnvSnapshot::install(
+            &[
+                ("MLP_ROLE", "worker"),
+                ("MLP_ROLE_INDEX", "0"),
+                ("MLP_WORKER_NUM", "1"),
+                ("MLP_WORKER_0_PRIMARY_HOST", "worker0"),
+                ("MLP_WORKER_0_HOST", "worker0"),
+                ("MLP_WORKER_0_PORT", "2222"),
+            ],
+            &[
+                "MLP_ROLE",
+                "MLP_ROLE_INDEX",
+                "MLP_WORKER_NUM",
+                "MLP_WORKER_0_PRIMARY_HOST",
+                "MLP_WORKER_0_HOST",
+                "MLP_WORKER_0_PORT",
+            ],
+        );
+
+        let rc = RunnerConfig {
+            is_local: false,
+            discovery_type: ServiceDiscoveryType::Mlp,
+            ..RunnerConfig::default()
+        };
+        let mut guard = monolith_discovery(&rc, None).unwrap();
+        assert_eq!(guard.kind(), Some("mlp"));
+        let workers = guard.query("worker").unwrap();
+        assert_eq!(workers.get(&0).unwrap(), "worker0:2222");
+
+        guard.close().unwrap();
+        guard.close().unwrap();
+        assert_eq!(guard.kind(), None);
+        let err = guard.query("worker").unwrap_err();
+        assert!(matches!(err, RunnerUtilsError::LocalModeNoDiscovery));
     }
 
     #[test]
