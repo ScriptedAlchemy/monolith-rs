@@ -2176,6 +2176,24 @@
   - native-training integration (RunConfig + RunnerConfig): unsupported-scheme
     rejection through distributed entrypoint paths.
 
+### 182) Parameter-sync endpoint canonicalization now rejects userinfo and normalizes default ports for uniqueness
+- Hardened endpoint canonicalization rules in both validation entrypoints:
+  - reject endpoints containing userinfo (e.g. `http://user@host:port`),
+  - normalize implicit default ports for duplicate detection:
+    - `http://host` == `http://host:80`
+    - `https://host` == `https://host:443`.
+- Applied in:
+  - runtime distributed validation (`DistributedRunConfig::validate`)
+  - CLI distributed config builder (`TrainCommand::build_distributed_run_config`)
+- Added comprehensive regressions:
+  - runner + CLI unit tests:
+    - userinfo rejection
+    - HTTP default-port duplicate normalization
+    - HTTPS default-port duplicate normalization
+  - native-training integration tests (RunConfig + RunnerConfig):
+    - userinfo rejection
+    - HTTP default-port duplicate normalization rejection.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2516,6 +2534,8 @@
 337. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post authority-only parameter-sync endpoint validation + trailing-slash-normalized uniqueness full workspace rerun under ambient ZK auth env)
 338. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post explicit http/https-only parameter-sync scheme validation hardening across CLI/runtime layers)
 339. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post explicit http/https-only parameter-sync scheme validation full workspace rerun under ambient ZK auth env)
+340. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post userinfo rejection + default-port normalization canonicalization hardening for parameter-sync endpoints across CLI/runtime layers)
+341. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post userinfo rejection + default-port normalization parameter-sync endpoint canonicalization full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

@@ -230,6 +230,12 @@ impl DistributedRunConfig {
                     target
                 )
             })?;
+            if authority.as_str().contains('@') {
+                anyhow::bail!(
+                    "distributed config has invalid parameter_sync_targets entry `{}`: endpoint must not include userinfo",
+                    target
+                );
+            }
             let scheme = parsed_uri
                 .scheme_str()
                 .unwrap_or("http")
@@ -240,8 +246,13 @@ impl DistributedRunConfig {
                     target
                 );
             }
-            let canonical_endpoint =
-                format!("{scheme}://{}", authority.as_str().to_ascii_lowercase());
+            let default_port = if scheme == "https" { 443 } else { 80 };
+            let canonical_authority = if authority.port_u16().is_some() {
+                authority.as_str().to_ascii_lowercase()
+            } else {
+                format!("{}:{default_port}", authority.as_str().to_ascii_lowercase())
+            };
+            let canonical_endpoint = format!("{scheme}://{canonical_authority}");
             if !seen_parameter_sync_targets.insert(canonical_endpoint) {
                 anyhow::bail!("distributed config requires unique parameter_sync_targets entries");
             }
@@ -2335,6 +2346,19 @@ mod tests {
     }
 
     #[test]
+    fn test_distributed_config_validate_rejects_parameter_sync_target_endpoint_with_userinfo() {
+        let cfg = DistributedRunConfig {
+            parameter_sync_targets: vec!["http://user@127.0.0.1:8500".to_string()],
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("endpoint must not include userinfo"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_distributed_config_validate_accepts_case_insensitive_http_scheme_parameter_sync_target(
     ) {
         let cfg = DistributedRunConfig {
@@ -2386,6 +2410,40 @@ mod tests {
             parameter_sync_targets: vec![
                 "127.0.0.1:8500".to_string(),
                 "http://127.0.0.1:8500/".to_string(),
+            ],
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("distributed config requires unique parameter_sync_targets entries"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_duplicate_parameter_sync_target_entries_after_http_default_port_normalization(
+    ) {
+        let cfg = DistributedRunConfig {
+            parameter_sync_targets: vec![
+                "127.0.0.1".to_string(),
+                "http://127.0.0.1:80".to_string(),
+            ],
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("distributed config requires unique parameter_sync_targets entries"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_duplicate_parameter_sync_target_entries_after_https_default_port_normalization(
+    ) {
+        let cfg = DistributedRunConfig {
+            parameter_sync_targets: vec![
+                "https://127.0.0.1".to_string(),
+                "https://127.0.0.1:443".to_string(),
             ],
             ..DistributedRunConfig::default()
         };

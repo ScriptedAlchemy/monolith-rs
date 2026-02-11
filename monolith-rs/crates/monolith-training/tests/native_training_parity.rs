@@ -1466,6 +1466,39 @@ async fn distributed_runner_from_run_config_rejects_parameter_sync_target_endpoi
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_rejects_parameter_sync_target_endpoint_with_userinfo()
+{
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["http://user@127.0.0.1:8500".to_string()],
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("endpoint must not include userinfo"),
+        "run-config parameter-sync target with userinfo should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_duplicate_parameter_sync_target_entry() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -1569,6 +1602,42 @@ async fn distributed_runner_from_run_config_rejects_duplicate_parameter_sync_tar
     assert!(
         err.contains("distributed config requires unique parameter_sync_targets entries"),
         "duplicate run-config parameter-sync target entries after trailing-slash normalization should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_rejects_duplicate_parameter_sync_target_entry_after_http_default_port_normalization(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec![
+            "127.0.0.1".to_string(),
+            "http://127.0.0.1:80".to_string(),
+        ],
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("distributed config requires unique parameter_sync_targets entries"),
+        "duplicate run-config parameter-sync target entries after http default-port normalization should be rejected by distributed config validation: {err}"
     );
 }
 
@@ -4373,6 +4442,39 @@ async fn distributed_runner_from_runner_config_rejects_parameter_sync_target_end
 }
 
 #[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_parameter_sync_target_endpoint_with_userinfo(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["http://user@127.0.0.1:8500".to_string()],
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("endpoint must not include userinfo"),
+        "runner-config parameter-sync target with userinfo should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_runner_config_rejects_duplicate_parameter_sync_target_entry() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_runner_config, Role};
@@ -4476,6 +4578,42 @@ async fn distributed_runner_from_runner_config_rejects_duplicate_parameter_sync_
     assert!(
         err.contains("distributed config requires unique parameter_sync_targets entries"),
         "duplicate runner-config parameter-sync target entries after trailing-slash normalization should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_duplicate_parameter_sync_target_entry_after_http_default_port_normalization(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec![
+            "127.0.0.1".to_string(),
+            "http://127.0.0.1:80".to_string(),
+        ],
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("distributed config requires unique parameter_sync_targets entries"),
+        "duplicate runner-config parameter-sync target entries after http default-port normalization should be rejected by distributed config validation: {err}"
     );
 }
 

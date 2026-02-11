@@ -336,6 +336,12 @@ impl TrainCommand {
                     target
                 )
             })?;
+            if authority.as_str().contains('@') {
+                anyhow::bail!(
+                    "--parameter-sync-target contains invalid endpoint `{}`: endpoint must not include userinfo",
+                    target
+                );
+            }
             let scheme = parsed_uri
                 .scheme_str()
                 .unwrap_or("http")
@@ -346,8 +352,13 @@ impl TrainCommand {
                     target
                 );
             }
-            let canonical_endpoint =
-                format!("{scheme}://{}", authority.as_str().to_ascii_lowercase());
+            let default_port = if scheme == "https" { 443 } else { 80 };
+            let canonical_authority = if authority.port_u16().is_some() {
+                authority.as_str().to_ascii_lowercase()
+            } else {
+                format!("{}:{default_port}", authority.as_str().to_ascii_lowercase())
+            };
+            let canonical_endpoint = format!("{scheme}://{canonical_authority}");
             if !seen_parameter_sync_targets.insert(canonical_endpoint) {
                 anyhow::bail!("--parameter-sync-target entries must be unique");
             }
@@ -1097,6 +1108,18 @@ mod tests {
     }
 
     #[test]
+    fn test_build_distributed_run_config_rejects_parameter_sync_target_endpoint_with_userinfo() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec!["http://user@127.0.0.1:8500".to_string()];
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("endpoint must not include userinfo"),
+            "unexpected parameter-sync target userinfo validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_build_distributed_run_config_accepts_case_insensitive_http_scheme_parameter_sync_target(
     ) {
         let mut cmd = test_cmd_defaults();
@@ -1153,6 +1176,38 @@ mod tests {
         assert!(
             err.contains("--parameter-sync-target entries must be unique"),
             "unexpected parameter-sync target trailing-slash normalization uniqueness validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_duplicate_parameter_sync_target_entry_after_http_default_port_normalization(
+    ) {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec![
+            "127.0.0.1".to_string(),
+            "http://127.0.0.1:80".to_string(),
+        ];
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--parameter-sync-target entries must be unique"),
+            "unexpected parameter-sync target http default-port normalization uniqueness validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_duplicate_parameter_sync_target_entry_after_https_default_port_normalization(
+    ) {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec![
+            "https://127.0.0.1".to_string(),
+            "https://127.0.0.1:443".to_string(),
+        ];
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--parameter-sync-target entries must be unique"),
+            "unexpected parameter-sync target https default-port normalization uniqueness validation error: {err}"
         );
     }
 
