@@ -3,7 +3,7 @@ use monolith_training::{
     get_checkpoint_state_with_restore_override, get_discovery,
     get_discovery_from_run_config,
     initialize_restore_checkpoint_from_runner, monolith_discovery, prepare_restore_checkpoint,
-    RunConfig, RunnerConfig, RunnerMode,
+    monolith_discovery_from_run_config, RunConfig, RunnerConfig, RunnerMode,
 };
 use std::fs;
 use std::path::Path;
@@ -62,6 +62,28 @@ fn test_get_discovery_from_run_config_primus() {
         .unwrap()
         .expect("discovery");
     assert_eq!(d.kind(), "tf_config");
+}
+
+#[test]
+fn test_monolith_discovery_from_run_config_primus() {
+    let tf_config = serde_json::json!({
+      "cluster": {
+        "chief": ["chief:2222"],
+        "ps": ["ps0:2222"],
+        "worker": ["worker0:2222"]
+      },
+      "task": {"type": "worker", "index": 0}
+    })
+    .to_string();
+    let run = RunConfig {
+        is_local: false,
+        discovery_type: ServiceDiscoveryType::Primus,
+        tf_config: Some(tf_config),
+        ..RunConfig::default()
+    };
+    let guard = monolith_discovery_from_run_config(&run, None, None).unwrap();
+    assert_eq!(guard.kind(), Some("tf_config"));
+    assert_eq!(guard.query("ps").unwrap().get(&0).unwrap(), "ps0:2222");
 }
 
 #[test]

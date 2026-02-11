@@ -428,6 +428,18 @@ pub fn monolith_discovery(
     })
 }
 
+/// Builds a discovery guard directly from [`RunConfig`], applying merge semantics first.
+pub fn monolith_discovery_from_run_config(
+    run_conf: &crate::run_config::RunConfig,
+    base: Option<RunnerConfig>,
+    psm: Option<&str>,
+) -> Result<MonolithDiscoveryGuard, RunnerUtilsError> {
+    let runner = run_conf
+        .to_runner_config(base)
+        .map_err(|e| RunnerUtilsError::Discovery(e.to_string()))?;
+    monolith_discovery(&runner, psm)
+}
+
 /// Copy a `checkpoint` file from `restore_dir` into `model_dir` and write a `restore_ckpt` marker.
 ///
 /// Mirrors the behavior in Python's `RunnerConfig._copy_ckpt_file()` as used by
@@ -848,6 +860,27 @@ all_model_checkpoint_paths: "model.ckpt-30"
         let guard = monolith_discovery(&rc, None).unwrap();
         let d = guard.discovery().expect("consul discovery");
         assert_eq!(d.kind(), "consul");
+    }
+
+    #[test]
+    fn test_monolith_discovery_from_run_config() {
+        let tf_config = serde_json::json!({
+          "cluster": {
+            "chief": ["host0:2222"],
+            "ps": ["host1:2222"],
+            "worker": ["host2:2222"]
+          },
+          "task": {"type": "worker", "index": 0}
+        })
+        .to_string();
+        let run = crate::run_config::RunConfig {
+            is_local: false,
+            discovery_type: ServiceDiscoveryType::Primus,
+            tf_config: Some(tf_config),
+            ..crate::run_config::RunConfig::default()
+        };
+        let guard = monolith_discovery_from_run_config(&run, None, None).unwrap();
+        assert_eq!(guard.kind(), Some("tf_config"));
     }
 
     #[test]
