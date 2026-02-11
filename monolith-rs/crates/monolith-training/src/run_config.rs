@@ -23,9 +23,12 @@ pub type Result<T> = std::result::Result<T, RunConfigError>;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RunnerConfig {
     pub is_local: bool,
+    pub index: usize,
     pub num_ps: usize,
     pub num_workers: usize,
     pub model_dir: PathBuf,
+    pub restore_dir: Option<PathBuf>,
+    pub restore_ckpt: Option<String>,
     pub log_step_count_steps: u64,
     pub discovery_type: ServiceDiscoveryType,
     pub tf_config: Option<String>,
@@ -42,9 +45,12 @@ impl Default for RunnerConfig {
     fn default() -> Self {
         Self {
             is_local: true,
+            index: 0,
             num_ps: 0,
             num_workers: 1,
             model_dir: PathBuf::from("./model"),
+            restore_dir: None,
+            restore_ckpt: None,
             log_step_count_steps: 100,
             discovery_type: ServiceDiscoveryType::Primus,
             tf_config: None,
@@ -63,9 +69,12 @@ impl Default for RunnerConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RunConfig {
     pub is_local: bool,
+    pub index: usize,
     pub num_ps: usize,
     pub num_workers: usize,
     pub model_dir: PathBuf,
+    pub restore_dir: Option<PathBuf>,
+    pub restore_ckpt: Option<String>,
     pub log_step_count_steps: u64,
     pub discovery_type: ServiceDiscoveryType,
     pub tf_config: Option<String>,
@@ -81,9 +90,12 @@ impl Default for RunConfig {
     fn default() -> Self {
         Self {
             is_local: true,
+            index: 0,
             num_ps: 0,
             num_workers: 1,
             model_dir: PathBuf::from("./model"),
+            restore_dir: None,
+            restore_ckpt: None,
             log_step_count_steps: 100,
             discovery_type: ServiceDiscoveryType::Primus,
             tf_config: None,
@@ -116,9 +128,12 @@ impl RunConfig {
         }
 
         merge_field!(is_local);
+        merge_field!(index);
         merge_field!(num_ps);
         merge_field!(num_workers);
         merge_field!(model_dir);
+        merge_field!(restore_dir);
+        merge_field!(restore_ckpt);
         merge_field!(log_step_count_steps);
         merge_field!(enable_gpu_training);
         merge_field!(embedding_prefetch_capacity);
@@ -168,9 +183,12 @@ impl RunConfig {
         }
 
         push_override!(is_local);
+        push_override!(index);
         push_override!(num_ps);
         push_override!(num_workers);
         push_override!(model_dir);
+        push_override!(restore_dir);
+        push_override!(restore_ckpt);
         push_override!(log_step_count_steps);
         push_override!(discovery_type);
         push_override!(tf_config);
@@ -205,18 +223,25 @@ mod tests {
     #[test]
     fn test_run_config_merge_overrides_explicit_values() {
         let rc = RunConfig {
+            index: 3,
             num_ps: 2,
             num_workers: 5,
+            restore_dir: Some(PathBuf::from("/tmp/restore")),
+            restore_ckpt: Some("model.ckpt-10".to_string()),
             ..RunConfig::default()
         };
         let base = RunnerConfig {
+            index: 0,
             num_ps: 1,
             num_workers: 1,
             ..RunnerConfig::default()
         };
         let merged = rc.to_runner_config(Some(base)).unwrap();
+        assert_eq!(merged.index, 3);
         assert_eq!(merged.num_ps, 2);
         assert_eq!(merged.num_workers, 5);
+        assert_eq!(merged.restore_dir, Some(PathBuf::from("/tmp/restore")));
+        assert_eq!(merged.restore_ckpt, Some("model.ckpt-10".to_string()));
     }
 
     #[test]

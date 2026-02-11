@@ -447,6 +447,32 @@ pub fn prepare_restore_checkpoint(
     }
 }
 
+/// RunnerConfig-driven restore initialization helper.
+///
+/// Mirrors Python `RunnerConfig.__post_init__` restore behavior:
+/// - if `restore_dir` is not set, do nothing,
+/// - chief role performs copy immediately,
+/// - non-chief waits for synchronized checkpoint artifacts.
+pub fn initialize_restore_checkpoint_from_runner(
+    runner_conf: &RunnerConfig,
+    timeout: Duration,
+    poll_interval: Duration,
+) -> Result<Option<CheckpointState>, RunnerUtilsError> {
+    let Some(restore_dir) = runner_conf.restore_dir.as_ref() else {
+        return Ok(None);
+    };
+    let is_chief = runner_conf.is_local || runner_conf.index == 0;
+    let st = prepare_restore_checkpoint(
+        restore_dir,
+        &runner_conf.model_dir,
+        runner_conf.restore_ckpt.as_deref(),
+        is_chief,
+        timeout,
+        poll_interval,
+    )?;
+    Ok(Some(st))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -741,5 +767,74 @@ all_model_checkpoint_paths: "model.ckpt-30"
         )
         .unwrap_err();
         assert!(matches!(err, RunnerUtilsError::ReadCheckpointFailed));
+    }
+
+    #[test]
+    fn test_initialize_restore_checkpoint_from_runner_none_when_restore_missing() {
+        let rc = RunnerConfig {
+            restore_dir: None,
+            ..RunnerConfig::default()
+        };
+        let st =
+            initialize_restore_checkpoint_from_runner(&rc, Duration::from_secs(1), Duration::from_millis(1))
+                .unwrap();
+        assert!(st.is_none());
+    }
+
+    #[test]
+    fn test_initialize_restore_checkpoint_from_runner_worker_waits_for_chief() {
+        let tmp = tempdir().unwrap();
+        let restore_dir = tmp.path().join("restore");
+        let model_dir = tmp.path().join("model");
+        fs::create_dir_all(&restore_dir).unwrap();
+        fs::create_dir_all(&model_dir).unwrap();
+        fs::write(
+            restore_dir.join("checkpoint"),
+            r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-30"
+"#,
+        )
+        .unwrap();
+
+        let chief = RunnerConfig {
+            is_local: false,
+            index: 0,
+            model_dir: model_dir.clone(),
+            restore_dir: Some(restore_dir.clone()),
+            restore_ckpt: Some("model.ckpt-30".to_string()),
+            ..RunnerConfig::default()
+        };
+        let worker = RunnerConfig {
+            is_local: false,
+            index: 1,
+            model_dir: model_dir.clone(),
+            restore_dir: Some(restore_dir.clone()),
+            restore_ckpt: Some("model.ckpt-30".to_string()),
+            ..RunnerConfig::default()
+        };
+
+        let chief_bg = chief.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(50));
+            let _ = initialize_restore_checkpoint_from_runner(
+                &chief_bg,
+                Duration::from_secs(1),
+                Duration::from_millis(10),
+            );
+        });
+
+        let st = initialize_restore_checkpoint_from_runner(
+            &worker,
+            Duration::from_secs(2),
+            Duration::from_millis(10),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            Path::new(&st.model_checkpoint_path).file_name().unwrap(),
+            "model.ckpt-30"
+        );
     }
 }

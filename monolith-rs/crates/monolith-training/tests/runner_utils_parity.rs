@@ -1,7 +1,8 @@
 use monolith_training::native_training::service_discovery::ServiceDiscoveryType;
 use monolith_training::{
-    get_checkpoint_state_with_restore_override, get_discovery, monolith_discovery,
-    prepare_restore_checkpoint, RunConfig, RunnerConfig, RunnerMode,
+    get_checkpoint_state_with_restore_override, get_discovery,
+    initialize_restore_checkpoint_from_runner, monolith_discovery, prepare_restore_checkpoint,
+    RunConfig, RunnerConfig, RunnerMode,
 };
 use std::fs;
 use std::path::Path;
@@ -151,6 +152,45 @@ all_model_checkpoint_paths: "model.ckpt-30"
         RunnerMode::Predict,
         1,
         Duration::from_millis(1),
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        Path::new(&st.model_checkpoint_path).file_name().unwrap(),
+        "model.ckpt-30"
+    );
+}
+
+#[test]
+fn test_runner_config_restore_init_chief_path() {
+    let tmp = tempdir().unwrap();
+    let restore_dir = tmp.path().join("restore");
+    let model_dir = tmp.path().join("model");
+    fs::create_dir_all(&restore_dir).unwrap();
+    fs::create_dir_all(&model_dir).unwrap();
+    fs::write(
+        restore_dir.join("checkpoint"),
+        r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-30"
+"#,
+    )
+    .unwrap();
+
+    let rc = RunnerConfig {
+        is_local: false,
+        index: 0,
+        model_dir: model_dir.clone(),
+        restore_dir: Some(restore_dir),
+        restore_ckpt: Some("model.ckpt-30".to_string()),
+        ..RunnerConfig::default()
+    };
+
+    let st = initialize_restore_checkpoint_from_runner(
+        &rc,
+        Duration::from_secs(1),
+        Duration::from_millis(10),
     )
     .unwrap()
     .unwrap();
