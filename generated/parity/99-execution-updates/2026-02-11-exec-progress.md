@@ -395,6 +395,7 @@
 37. `cargo test --workspace -q` ✅ (post latest estimator/runner run-config convenience API additions)
 38. `cargo test -p monolith-training -q` ✅ (post run-config restore initialization helper parity APIs)
 39. `cargo test -p monolith-training -q` ✅ (post initialized estimator constructor from runner config)
+40. `cargo test --workspace -q` ✅ (post latest run-config restore init and runner-config initializer parity updates)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
