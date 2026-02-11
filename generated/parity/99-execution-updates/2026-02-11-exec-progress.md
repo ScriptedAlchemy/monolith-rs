@@ -1020,6 +1020,29 @@
   - `zk_close_is_idempotent_after_deregister`
   to validate close/deregister lifecycle remains safe and idempotent.
 
+### 95) MLP discovery parity expansion (env shape + host validation)
+- Expanded `py_discovery::MlpServiceDiscovery` and env parsing parity:
+  - `MlpEnv` now captures:
+    - `MLP_ROLE`,
+    - `MLP_ROLE_INDEX`,
+    - optional `MLP_HOST`,
+    - role replica counts (`MLP_<ROLE>_NUM`).
+  - Added `MlpServiceDiscovery` helper surface:
+    - `server_type()`,
+    - `index()`,
+    - `addr()`,
+    - `query_all()`,
+    - `deregister_all()`.
+- Hardened Python-style validation in register/deregister paths:
+  - explicit role-existence checks,
+  - non-empty query name guard,
+  - host allowlist validation (local aliases + role hosts + current role host candidates),
+  - existing port consistency check retained.
+- Added regression coverage:
+  - `test_mlp_service_discovery_query_all_and_filters`
+  - `test_mlp_register_rejects_unexpected_host`
+  - `test_mlp_query_requires_non_empty_name`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1179,6 +1202,8 @@
 156. `cargo test --workspace -q` ✅ (post bounded consul replacement-retry hardening and full workspace regression rerun)
 157. `cargo test -p monolith-training -q` ✅ (post ZK registration-thread lock cleanup and close-idempotence regression)
 158. `cargo test --workspace -q` ✅ (post ZK registration-thread lock cleanup and full workspace regression rerun)
+159. `cargo test -p monolith-training -q` ✅ (post MLP discovery parity expansion and host/query/filter regression coverage)
+160. `cargo test --workspace -q` ✅ (post MLP discovery parity expansion and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
