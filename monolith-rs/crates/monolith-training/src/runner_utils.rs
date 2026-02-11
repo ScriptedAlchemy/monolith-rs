@@ -398,6 +398,18 @@ pub fn get_discovery(
     Ok(Some(discovery))
 }
 
+/// Select discovery backend directly from [`RunConfig`], applying merge semantics first.
+pub fn get_discovery_from_run_config(
+    run_conf: &crate::run_config::RunConfig,
+    base: Option<RunnerConfig>,
+    psm: Option<&str>,
+) -> Result<Option<RunnerDiscovery>, RunnerUtilsError> {
+    let runner = run_conf
+        .to_runner_config(base)
+        .map_err(|e| RunnerUtilsError::Discovery(e.to_string()))?;
+    get_discovery(&runner, psm)
+}
+
 /// Builds a discovery guard; discovery will be closed automatically on drop.
 pub fn monolith_discovery(
     runner_conf: &RunnerConfig,
@@ -689,6 +701,29 @@ all_model_checkpoint_paths: "model.ckpt-0"
         };
         let discovery = get_discovery(&rc, Some("test_psm")).unwrap();
         assert_eq!(discovery.unwrap().kind(), "consul");
+    }
+
+    #[test]
+    fn test_get_discovery_from_run_config() {
+        let tf_config = serde_json::json!({
+          "cluster": {
+            "chief": ["host0:2222"],
+            "ps": ["host1:2222"],
+            "worker": ["host2:2222"]
+          },
+          "task": {"type": "worker", "index": 0}
+        })
+        .to_string();
+        let run = crate::run_config::RunConfig {
+            is_local: false,
+            discovery_type: ServiceDiscoveryType::Primus,
+            tf_config: Some(tf_config),
+            ..crate::run_config::RunConfig::default()
+        };
+        let d = get_discovery_from_run_config(&run, None, None)
+            .unwrap()
+            .expect("discovery");
+        assert_eq!(d.kind(), "tf_config");
     }
 
     #[test]
