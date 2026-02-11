@@ -405,7 +405,8 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     let mut ps_addrs: Vec<String> = Vec::new();
     let mut last_ordering_issue: Option<PsAddrOrderError> = None;
     let mut last_discovery_error: Option<String> = None;
-    let mut max_ps_observed: usize = 0;
+    let mut max_raw_ps_observed: usize = 0;
+    let mut max_usable_ps_observed: usize = 0;
     for attempt in 0..=cfg.connect_retries {
         let ps_services = match discovery.discover_async(&cfg.discovery_service_type_ps).await {
             Ok(services) => services,
@@ -414,12 +415,13 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
                 Vec::new()
             }
         };
+        max_raw_ps_observed = max_raw_ps_observed.max(ps_services.len());
 
         let (addrs, ordering_issue) = match ordered_ps_addrs(ps_services, cfg.num_ps) {
             Ok(addrs) => (addrs, None),
             Err(issue) => (Vec::new(), Some(issue)),
         };
-        max_ps_observed = max_ps_observed.max(addrs.len());
+        max_usable_ps_observed = max_usable_ps_observed.max(addrs.len());
         if let Some(issue) = ordering_issue {
             last_ordering_issue = Some(issue);
         }
@@ -433,38 +435,42 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
             match (last_ordering_issue, last_discovery_error.as_deref()) {
                 (Some(issue), Some(discovery_error)) => {
                     anyhow::bail!(
-                        "Timed out waiting for PS discovery: got {} expected {} (max observed: {}; last ordering issue: {:?}; last discovery error: {})",
+                        "Timed out waiting for PS discovery: got {} expected {} (max raw observed: {}; max usable observed: {}; last ordering issue: {:?}; last discovery error: {})",
                         addrs.len(),
                         cfg.num_ps,
-                        max_ps_observed,
+                        max_raw_ps_observed,
+                        max_usable_ps_observed,
                         issue,
                         discovery_error
                     );
                 }
                 (Some(issue), None) => {
                     anyhow::bail!(
-                        "Timed out waiting for PS discovery: got {} expected {} (max observed: {}; last ordering issue: {:?})",
+                        "Timed out waiting for PS discovery: got {} expected {} (max raw observed: {}; max usable observed: {}; last ordering issue: {:?})",
                         addrs.len(),
                         cfg.num_ps,
-                        max_ps_observed,
+                        max_raw_ps_observed,
+                        max_usable_ps_observed,
                         issue
                     );
                 }
                 (None, Some(discovery_error)) => {
                     anyhow::bail!(
-                        "Timed out waiting for PS discovery: got {} expected {} (max observed: {}; last discovery error: {})",
+                        "Timed out waiting for PS discovery: got {} expected {} (max raw observed: {}; max usable observed: {}; last discovery error: {})",
                         addrs.len(),
                         cfg.num_ps,
-                        max_ps_observed,
+                        max_raw_ps_observed,
+                        max_usable_ps_observed,
                         discovery_error
                     );
                 }
                 (None, None) => {
                     anyhow::bail!(
-                        "Timed out waiting for PS discovery: got {} expected {} (max observed: {})",
+                        "Timed out waiting for PS discovery: got {} expected {} (max raw observed: {}; max usable observed: {})",
                         addrs.len(),
                         cfg.num_ps,
-                        max_ps_observed
+                        max_raw_ps_observed,
+                        max_usable_ps_observed
                     );
                 }
             }
@@ -1158,8 +1164,38 @@ mod tests {
             .unwrap_err();
         let msg = err.to_string();
         assert!(
-            msg.contains("max observed: 1"),
+            msg.contains("max raw observed: 1"),
             "expected timeout to report max observed ps count, got: {msg}"
+        );
+        assert!(
+            msg.contains("max usable observed: 1"),
+            "expected timeout to report max usable ps count, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_reports_raw_vs_usable_observed_counts() {
+        let discovery = Arc::new(SequencedDiscoverDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 2,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 1,
+            retry_backoff_ms: 1,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg)
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("max raw observed: 2"),
+            "expected raw observed count to include inconsistent endpoints, got: {msg}"
+        );
+        assert!(
+            msg.contains("max usable observed: 0"),
+            "expected usable observed count to remain zero under ordering inconsistency, got: {msg}"
         );
     }
 
