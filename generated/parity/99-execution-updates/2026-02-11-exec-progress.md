@@ -577,6 +577,16 @@
 - Keeps barrier call semantics unchanged while removing stale mutable-borrow
   assumptions after client interface hardening.
 
+### 53) `monolith-core` path_utils test/runtime robustness hardening
+- Hardened `find_main()` source-file canonicalization:
+  - resolves `file!()` across both crate-relative and workspace-relative forms
+    before canonicalization, reducing dependency on process working directory.
+- Added deterministic env-var mutation isolation in `path_utils` tests using a
+  shared test mutex, preventing racy `MONOLITH_MAIN_DIR` mutations across
+  parallel test execution.
+- Addresses intermittent workspace-test flakiness observed in
+  `path_utils::tests::test_get_libops_path_points_to_file`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -654,6 +664,8 @@
 73. `cargo test --workspace -q` ✅ (post immutable/concurrency-friendly PS client API refactor and caller cleanup)
 74. `cargo test -p monolith-training -q` ✅ (post detailed PS client lookup/apply response metadata API additions)
 76. `cargo test -p monolith-training -q` ✅ (post PsBarrier immutable-client wrapper alignment)
+77. `cargo test -p monolith-core -q` ✅ (post path_utils source-path and env-race hardening)
+78. `cargo test --workspace -q` ✅ (post path_utils robustness fix and full workspace regression)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
