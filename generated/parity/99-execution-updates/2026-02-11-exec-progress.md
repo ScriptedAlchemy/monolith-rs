@@ -1720,6 +1720,19 @@
   - worker: `connect worker-<index> via worker ...`
   - ps: `connect ps-<index> via ps ...`
 
+### 156) Cleanup-timeout diagnostic enrichment with service-type context
+- Refactored discovery cleanup timeout diagnostics to support full cleanup
+  operation descriptors.
+- Cleanup timeout diagnostics now include service-type context:
+  - `deregister <service_id> from <service_type>`
+  - `disconnect <service_id> via <service_type>`
+- Added focused cleanup regressions for custom worker service type after
+  successful worker role completion:
+  - `test_run_distributed_surfaces_deregister_timeout_with_custom_service_type_after_success`
+  - `test_run_distributed_surfaces_disconnect_timeout_with_custom_service_type_after_success`
+- Updated existing cleanup-timeout assertions to require enriched default
+  context (`from worker` / `via worker`) in post-success cleanup timeout paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2007,6 +2020,8 @@
 284. `cargo test --workspace -q` ✅ (post distributed-runner register timeout custom service-type regressions full workspace rerun)
 285. `cargo test -p monolith-training -q` ✅ (post connect-timeout diagnostic enrichment with service-type context + regression expansion)
 286. `cargo test --workspace -q` ✅ (post connect-timeout diagnostic enrichment with service-type context full workspace rerun)
+287. `cargo test -p monolith-training -q` ✅ (post cleanup-timeout diagnostic enrichment with service-type context + custom cleanup regressions)
+288. `cargo test --workspace -q` ✅ (post cleanup-timeout diagnostic enrichment with service-type context full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
