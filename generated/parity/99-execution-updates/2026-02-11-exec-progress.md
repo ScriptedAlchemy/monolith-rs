@@ -975,6 +975,7 @@
 123. `cargo test -p monolith-training -q` ✅ (post ParameterSync replicator managed-task lifecycle cleanup and PS runner shutdown wiring)
 124. `cargo test --workspace -q` ✅ (post ParameterSync replicator managed-task lifecycle cleanup and full workspace regression rerun)
 125. `cargo test -p monolith-training -q` ✅ (post distributed runner cleanup hardening for worker registration failure path)
+126. `cargo test --workspace -q` ✅ (post distributed runner cleanup hardening for worker registration failure path and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
