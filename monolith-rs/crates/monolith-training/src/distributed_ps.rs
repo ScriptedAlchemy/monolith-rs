@@ -436,6 +436,10 @@ impl ParameterServerTraining for PsServerHandle {
         // Validate gradient size
         let expected_size = req.fids.len() * dim_size;
         if req.gradients.len() != expected_size {
+            self.apply_count.fetch_add(1, Ordering::Relaxed);
+            let elapsed_us = started.elapsed().as_micros().max(1) as i64;
+            self.apply_latency_us_total
+                .fetch_add(elapsed_us, Ordering::Relaxed);
             return Ok(Response::new(ApplyGradientsResponse {
                 status_code: 1,
                 error_message: format!(
@@ -1020,5 +1024,36 @@ mod tests {
         assert!(stats.avg_lookup_latency_us >= 1);
         assert!(stats.avg_apply_latency_us >= 1);
         assert!(stats.total_embeddings >= 2);
+    }
+
+    #[tokio::test]
+    async fn test_ps_server_stats_counts_failed_apply_requests() {
+        let ps = PsServer::new(0, 2);
+        let handle = PsServerHandle(ps);
+
+        let bad = handle
+            .apply_gradients(Request::new(ApplyGradientsRequest {
+                table_name: "latency_table".to_string(),
+                fids: vec![1],
+                gradients: vec![0.1], // wrong dim (expected 2)
+                dim_size: 2,
+                learning_rate: 0.5,
+                global_step: 1,
+                timeout_ms: 1000,
+            }))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(bad.status_code, 1);
+
+        let stats = handle
+            .get_stats(Request::new(GetStatsRequest {
+                include_table_stats: false,
+            }))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(stats.apply_gradients_count, 1);
+        assert!(stats.avg_apply_latency_us >= 1);
     }
 }
