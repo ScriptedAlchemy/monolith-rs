@@ -153,6 +153,10 @@ pub struct TrainCommand {
     #[arg(long, default_value = "500")]
     pub retry_backoff_ms: u64,
 
+    /// Worker barrier timeout in milliseconds.
+    #[arg(long, default_value = "10000")]
+    pub barrier_timeout_ms: i64,
+
     /// Disable discovery heartbeat task (if backend supports it).
     #[arg(long, default_value = "false")]
     pub disable_heartbeat: bool,
@@ -254,6 +258,7 @@ impl TrainCommand {
                 dim: self.dim,
                 connect_retries: self.connect_retries,
                 retry_backoff_ms: self.retry_backoff_ms,
+                barrier_timeout_ms: self.barrier_timeout_ms,
                 heartbeat_interval,
                 parameter_sync_targets: self.parameter_sync_targets.clone(),
                 parameter_sync_interval: std::time::Duration::from_millis(
@@ -524,6 +529,7 @@ mod tests {
             dim: 64,
             connect_retries: 6,
             retry_backoff_ms: 500,
+            barrier_timeout_ms: 10_000,
             disable_heartbeat: false,
             heartbeat_interval_secs: 10,
             parameter_sync_targets: Vec::new(),
@@ -582,6 +588,7 @@ mod tests {
             dim: 64,
             connect_retries: 6,
             retry_backoff_ms: 500,
+            barrier_timeout_ms: 10_000,
             disable_heartbeat: false,
             heartbeat_interval_secs: 10,
             parameter_sync_targets: Vec::new(),
