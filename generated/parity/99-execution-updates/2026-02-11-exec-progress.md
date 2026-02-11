@@ -741,6 +741,17 @@
 - Extended `test_cluster_config_validation` with explicit duplicate-address
   negative cases for both PS and worker lists.
 
+### 69) Deterministic PS discovery ordering by shard metadata
+- Hardened worker-side PS discovery address selection in `runner.rs`:
+  - introduced `ordered_ps_addrs(...)` helper,
+  - prefers discovery metadata `index` to build shard-ordered PS address lists,
+  - falls back to address-sort ordering when index metadata is missing/invalid.
+- This ensures client shard ordering aligns with advertised PS shard indices in
+  multi-PS deployments, improving distributed runtime determinism.
+- Added unit coverage:
+  - `test_ordered_ps_addrs_prefers_discovery_index_metadata`
+  - `test_ordered_ps_addrs_falls_back_to_address_sort_without_index`
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -848,6 +859,7 @@
 104. `cargo test --workspace -q` ✅ (post local-cluster running-state enforcement for register/train operations and full workspace regression rerun)
 105. `cargo test -p monolith-training -q` ✅ (post cluster-config duplicate-address validation hardening)
 106. `cargo test --workspace -q` ✅ (post cluster-config duplicate-address validation hardening and full workspace regression rerun)
+107. `cargo test -p monolith-training -q` ✅ (post deterministic PS discovery ordering by shard index metadata + fallback sorting coverage)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
