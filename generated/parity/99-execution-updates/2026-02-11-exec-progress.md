@@ -1115,6 +1115,14 @@
 - Added regression:
   - `consul_close_is_idempotent_and_blocks_operations`.
 
+### 103) Consul query_all close-state consistency guard
+- Hardened `ConsulServiceDiscovery::query_all()` to honor close-state
+  consistently with other operations.
+- After `close()`, direct `query_all()` calls now fail with explicit closed-state
+  error (previously only `register/query/deregister` were guarded).
+- Extended regression:
+  - `consul_close_is_idempotent_and_blocks_operations`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1289,6 +1297,8 @@
 171. `cargo test --workspace -q` ✅ (post runner-utils MLP guard close-lifecycle regression addition and full workspace rerun)
 172. `cargo test -p monolith-training -q` ✅ (post Consul closed-state lifecycle guard hardening)
 173. `cargo test --workspace -q` ✅ (post Consul closed-state lifecycle guard hardening and full workspace regression rerun)
+174. `cargo test -p monolith-training -q` ✅ (post Consul query_all close-state consistency guard)
+175. `cargo test --workspace -q` ✅ (post Consul query_all close-state consistency guard and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
