@@ -1045,6 +1045,40 @@ mod tests {
         }
     }
 
+    struct FailingRegisterWithHangingCleanupDiscovery {
+        connect_count: AtomicUsize,
+        register_count: AtomicUsize,
+        disconnect_count: AtomicUsize,
+        deregister_count: AtomicUsize,
+    }
+
+    impl FailingRegisterWithHangingCleanupDiscovery {
+        fn new() -> Self {
+            Self {
+                connect_count: AtomicUsize::new(0),
+                register_count: AtomicUsize::new(0),
+                disconnect_count: AtomicUsize::new(0),
+                deregister_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn connect_count(&self) -> usize {
+            self.connect_count.load(Ordering::SeqCst)
+        }
+
+        fn register_count(&self) -> usize {
+            self.register_count.load(Ordering::SeqCst)
+        }
+
+        fn disconnect_count(&self) -> usize {
+            self.disconnect_count.load(Ordering::SeqCst)
+        }
+
+        fn deregister_count(&self) -> usize {
+            self.deregister_count.load(Ordering::SeqCst)
+        }
+    }
+
     struct FailingConnectDiscovery {
         connect_count: AtomicUsize,
         disconnect_count: AtomicUsize,
@@ -1536,6 +1570,47 @@ mod tests {
             Err(crate::discovery::DiscoveryError::NotFound(
                 "missing".to_string(),
             ))
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for FailingRegisterWithHangingCleanupDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            self.connect_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+            std::future::pending::<()>().await;
+            #[allow(unreachable_code)]
+            Ok(())
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            self.register_count.fetch_add(1, Ordering::SeqCst);
+            Err(crate::discovery::DiscoveryError::Internal(
+                "forced register failure".to_string(),
+            ))
+        }
+
+        async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            Ok(Vec::new())
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            self.deregister_count.fetch_add(1, Ordering::SeqCst);
+            std::future::pending::<()>().await;
+            #[allow(unreachable_code)]
+            Ok(())
         }
     }
 
@@ -4131,6 +4206,106 @@ mod tests {
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(discovery.disconnect_count(), 1);
         assert_eq!(discovery.deregister_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_register_failure_when_cleanup_steps_timeout() {
+        let discovery = Arc::new(FailingRegisterWithHangingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(900),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when worker register fails and cleanup steps block"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("forced register failure"),
+            "worker register failure should remain primary when cleanup steps time out: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "worker register-failure diagnostics should include cleanup issue context when cleanup steps time out: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: deregister worker-0 from worker after 20ms"
+            ),
+            "worker register-failure cleanup diagnostics should include worker deregister-timeout context: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: disconnect worker-0 via worker after 20ms"
+            ),
+            "worker register-failure cleanup diagnostics should include worker disconnect-timeout context: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.register_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_ps_register_failure_with_custom_service_type_when_cleanup_steps_timeout(
+    ) {
+        let discovery = Arc::new(FailingRegisterWithHangingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(900),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when ps register fails and cleanup steps block"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("forced register failure"),
+            "ps register failure should remain primary when cleanup steps time out: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "ps register-failure diagnostics should include cleanup issue context when cleanup steps time out: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: deregister ps-0 from parameter_server_custom after 20ms"
+            ),
+            "ps register-failure cleanup diagnostics should include custom-service-type deregister-timeout context: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: disconnect ps-0 via parameter_server_custom after 20ms"
+            ),
+            "ps register-failure cleanup diagnostics should include custom-service-type disconnect-timeout context: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.register_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
     }
 
     #[tokio::test]
