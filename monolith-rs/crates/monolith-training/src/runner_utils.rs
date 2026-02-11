@@ -30,6 +30,8 @@ pub enum RunnerUtilsError {
     MissingCheckpoint(PathBuf),
     #[error("restore_ckpt {restore_ckpt} is not in checkpoint.all_model_checkpoint_paths")]
     RestoreCkptNotFound { restore_ckpt: String },
+    #[error("read ckpt error!")]
+    ReadCheckpointFailed,
     #[error("TF_CONFIG is required for Primus discovery")]
     MissingTfConfig,
     #[error("psm is required for Consul discovery")]
@@ -45,6 +47,20 @@ pub enum RunnerUtilsError {
 pub struct CheckpointState {
     pub model_checkpoint_path: String,
     pub all_model_checkpoint_paths: Vec<String>,
+}
+
+/// Mode marker used by checkpoint override logic.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunnerMode {
+    Train,
+    Eval,
+    Predict,
+}
+
+impl RunnerMode {
+    fn is_train(self) -> bool {
+        matches!(self, RunnerMode::Train)
+    }
 }
 
 /// Python-parity absolute path helper.
@@ -103,6 +119,72 @@ fn write_checkpoint_pbtxt(state: &CheckpointState) -> String {
         out.push_str(&format!("all_model_checkpoint_paths: \"{}\"\n", p));
     }
     out
+}
+
+/// Python-parity checkpoint query + restore override helper.
+///
+/// This mirrors the core behavior of Python's `gen_get_checkpoint_state()`:
+/// - retries reads when checkpoint file exists but parse returns `None`,
+/// - optionally overrides with `restore_ckpt` when allowed by mode/marker.
+pub fn get_checkpoint_state_with_restore_override(
+    model_dir: &Path,
+    latest_filename: &str,
+    restore_ckpt: Option<&str>,
+    mode: RunnerMode,
+    max_retries: usize,
+    retry_interval: Duration,
+) -> Result<Option<CheckpointState>, RunnerUtilsError> {
+    let latest_file = model_dir.join(latest_filename);
+    let mut state = None;
+    for _ in 0..=max_retries {
+        if latest_file.exists() {
+            let txt = fs::read_to_string(&latest_file)?;
+            state = parse_checkpoint_pbtxt(&txt);
+            if state.is_some() {
+                break;
+            }
+            std::thread::sleep(retry_interval);
+        } else {
+            return Ok(None);
+        }
+    }
+
+    let mut state = state.ok_or(RunnerUtilsError::ReadCheckpointFailed)?;
+
+    if latest_filename == "checkpoint" {
+        if let Some(restore_ckpt) = restore_ckpt {
+            let restore_base = Path::new(restore_ckpt)
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or(restore_ckpt);
+            let restore_path = Path::new(&state.model_checkpoint_path)
+                .parent()
+                .map(|p| p.join(restore_base))
+                .unwrap_or_else(|| PathBuf::from(restore_base));
+            let restore_path = restore_path.to_string_lossy().to_string();
+            let has_restore = state
+                .all_model_checkpoint_paths
+                .iter()
+                .any(|p| p == &restore_path);
+
+            if has_restore {
+                let restore_marker = model_dir.join("restore_ckpt");
+                let should_apply = if mode.is_train() {
+                    !restore_marker.exists()
+                } else {
+                    true
+                };
+                if should_apply && state.model_checkpoint_path != restore_path {
+                    state.model_checkpoint_path = restore_path.clone();
+                    state.all_model_checkpoint_paths = vec![restore_path.clone()];
+                    fs::write(&latest_file, write_checkpoint_pbtxt(&state))?;
+                    fs::write(restore_marker, restore_path)?;
+                }
+            }
+        }
+    }
+
+    Ok(Some(state))
 }
 
 /// Discovery backends produced by [`get_discovery`].
@@ -522,5 +604,120 @@ all_model_checkpoint_paths: "model.ckpt-30"
         )
         .unwrap_err();
         assert!(matches!(err, RunnerUtilsError::RestoreSyncTimeout { .. }));
+    }
+
+    #[test]
+    fn test_get_checkpoint_state_with_restore_override_train() {
+        let tmp = tempdir().unwrap();
+        let model_dir = tmp.path().join("model");
+        fs::create_dir_all(&model_dir).unwrap();
+        fs::write(
+            model_dir.join("checkpoint"),
+            r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-30"
+"#,
+        )
+        .unwrap();
+
+        let st = get_checkpoint_state_with_restore_override(
+            &model_dir,
+            "checkpoint",
+            Some("model.ckpt-30"),
+            RunnerMode::Train,
+            1,
+            Duration::from_millis(1),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            Path::new(&st.model_checkpoint_path).file_name().unwrap(),
+            "model.ckpt-30"
+        );
+        assert!(model_dir.join("restore_ckpt").exists());
+    }
+
+    #[test]
+    fn test_get_checkpoint_state_with_restore_override_train_marker_blocks() {
+        let tmp = tempdir().unwrap();
+        let model_dir = tmp.path().join("model");
+        fs::create_dir_all(&model_dir).unwrap();
+        fs::write(
+            model_dir.join("checkpoint"),
+            r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-30"
+"#,
+        )
+        .unwrap();
+        fs::write(model_dir.join("restore_ckpt"), "model.ckpt-30").unwrap();
+
+        let st = get_checkpoint_state_with_restore_override(
+            &model_dir,
+            "checkpoint",
+            Some("model.ckpt-30"),
+            RunnerMode::Train,
+            1,
+            Duration::from_millis(1),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            Path::new(&st.model_checkpoint_path).file_name().unwrap(),
+            "model.ckpt-61"
+        );
+    }
+
+    #[test]
+    fn test_get_checkpoint_state_with_restore_override_eval_always_applies() {
+        let tmp = tempdir().unwrap();
+        let model_dir = tmp.path().join("model");
+        fs::create_dir_all(&model_dir).unwrap();
+        fs::write(
+            model_dir.join("checkpoint"),
+            r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-30"
+"#,
+        )
+        .unwrap();
+        fs::write(model_dir.join("restore_ckpt"), "model.ckpt-30").unwrap();
+
+        let st = get_checkpoint_state_with_restore_override(
+            &model_dir,
+            "checkpoint",
+            Some("model.ckpt-30"),
+            RunnerMode::Eval,
+            1,
+            Duration::from_millis(1),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            Path::new(&st.model_checkpoint_path).file_name().unwrap(),
+            "model.ckpt-30"
+        );
+    }
+
+    #[test]
+    fn test_get_checkpoint_state_with_restore_override_read_error() {
+        let tmp = tempdir().unwrap();
+        let model_dir = tmp.path().join("model");
+        fs::create_dir_all(&model_dir).unwrap();
+        fs::write(model_dir.join("checkpoint"), "not a checkpoint state").unwrap();
+
+        let err = get_checkpoint_state_with_restore_override(
+            &model_dir,
+            "checkpoint",
+            Some("model.ckpt-30"),
+            RunnerMode::Train,
+            1,
+            Duration::from_millis(1),
+        )
+        .unwrap_err();
+        assert!(matches!(err, RunnerUtilsError::ReadCheckpointFailed));
     }
 }
