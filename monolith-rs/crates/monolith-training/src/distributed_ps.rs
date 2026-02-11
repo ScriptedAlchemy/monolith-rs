@@ -47,6 +47,7 @@ use monolith_hash_table::{CuckooEmbeddingHashTable, EmbeddingHashTable, ZerosIni
 
 // Import generated proto types
 use monolith_proto::monolith::ps_training::{
+    BatchApplyGradientsRequest, BatchApplyGradientsResponse, BatchLookupRequest, BatchLookupResponse,
     parameter_server_training_client::ParameterServerTrainingClient,
     parameter_server_training_server::{ParameterServerTraining, ParameterServerTrainingServer},
     ApplyGradientsRequest, ApplyGradientsResponse, BarrierRequest, BarrierResponse,
@@ -725,6 +726,44 @@ impl PsClient {
         dim_size: usize,
         create_if_missing: bool,
     ) -> PsResult<Vec<f32>> {
+        let response = self
+            .lookup_response(table_name, fids, dim_size, create_if_missing)
+            .await?;
+        Ok(response.embeddings)
+    }
+
+    /// Applies gradients for the given FIDs.
+    ///
+    /// Handles gradient aggregation for duplicate IDs automatically.
+    pub async fn apply_gradients(
+        &mut self,
+        table_name: &str,
+        fids: &[i64],
+        gradients: &[f32],
+        dim_size: usize,
+        learning_rate: f32,
+        global_step: i64,
+    ) -> PsResult<(i32, i32)> {
+        let response = self
+            .apply_gradients_response(
+                table_name,
+                fids,
+                gradients,
+                dim_size,
+                learning_rate,
+                global_step,
+            )
+            .await?;
+        Ok((response.num_updated, response.num_not_found))
+    }
+
+    async fn lookup_response(
+        &mut self,
+        table_name: &str,
+        fids: &[i64],
+        dim_size: usize,
+        create_if_missing: bool,
+    ) -> PsResult<LookupResponse> {
         if dim_size == 0 {
             return Err(PsError::InvalidConfig(
                 "dim_size must be greater than zero".to_string(),
@@ -734,7 +773,14 @@ impl PsClient {
             return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
         }
         if fids.is_empty() {
-            return Ok(Vec::new());
+            return Ok(LookupResponse {
+                status_code: 0,
+                error_message: String::new(),
+                embeddings: Vec::new(),
+                found: Vec::new(),
+                num_found: 0,
+                num_initialized: 0,
+            });
         }
 
         // Step 1: Deduplicate and record original positions
@@ -744,7 +790,7 @@ impl PsClient {
         let shard_batches = route_to_shards(&unique_fids, self.num_shards);
 
         // Step 3: Parallel lookup from all shards
-        let mut shard_results: HashMap<usize, Vec<f32>> = HashMap::new();
+        let mut shard_results: HashMap<usize, (Vec<f32>, Vec<bool>)> = HashMap::new();
         let mut shard_fid_to_idx: HashMap<i64, usize> = HashMap::new();
         let mut lookup_futures = Vec::new();
         for (shard_id, shard_fids) in shard_batches.iter().enumerate() {
@@ -770,46 +816,56 @@ impl PsClient {
                 if response.status_code != 0 {
                     return Err(PsError::RpcError(Status::internal(response.error_message)));
                 }
-                Ok::<(usize, Vec<f32>), PsError>((shard_id, response.embeddings))
+                Ok::<(usize, Vec<f32>, Vec<bool>), PsError>((shard_id, response.embeddings, response.found))
             });
         }
         let lookup_outputs = try_join_all(lookup_futures).await?;
-        for (shard_id, embeddings) in lookup_outputs {
-            shard_results.insert(shard_id, embeddings);
+        for (shard_id, embeddings, found) in lookup_outputs {
+            shard_results.insert(shard_id, (embeddings, found));
         }
 
-        // Step 4: Reconstruct unique embeddings in order
+        // Step 4: Reconstruct unique embeddings/found in order
         let mut unique_embeddings = vec![0.0f32; unique_fids.len() * dim_size];
+        let mut unique_found = vec![false; unique_fids.len()];
         for (unique_idx, &fid) in unique_fids.iter().enumerate() {
             if let Some(&encoded) = shard_fid_to_idx.get(&fid) {
                 let shard_id = encoded / 1_000_000;
                 let local_idx = encoded % 1_000_000;
 
-                if let Some(shard_emb) = shard_results.get(&shard_id) {
+                if let Some((shard_emb, shard_found)) = shard_results.get(&shard_id) {
                     let src_start = local_idx * dim_size;
                     let dst_start = unique_idx * dim_size;
                     unique_embeddings[dst_start..dst_start + dim_size]
                         .copy_from_slice(&shard_emb[src_start..src_start + dim_size]);
+                    unique_found[unique_idx] = *shard_found.get(local_idx).unwrap_or(&false);
                 }
             }
         }
 
         // Step 5: Remap to original order (with duplicates)
-        let mut result = vec![0.0f32; fids.len() * dim_size];
+        let mut embeddings = vec![0.0f32; fids.len() * dim_size];
+        let mut found = vec![false; fids.len()];
         for (orig_idx, &unique_idx) in original_to_unique.iter().enumerate() {
             let src_start = unique_idx * dim_size;
             let dst_start = orig_idx * dim_size;
-            result[dst_start..dst_start + dim_size]
+            embeddings[dst_start..dst_start + dim_size]
                 .copy_from_slice(&unique_embeddings[src_start..src_start + dim_size]);
+            found[orig_idx] = unique_found[unique_idx];
         }
 
-        Ok(result)
+        let num_found = found.iter().filter(|&&v| v).count() as i32;
+        let num_initialized = found.len() as i32 - num_found;
+        Ok(LookupResponse {
+            status_code: 0,
+            error_message: String::new(),
+            embeddings,
+            found,
+            num_found,
+            num_initialized,
+        })
     }
 
-    /// Applies gradients for the given FIDs.
-    ///
-    /// Handles gradient aggregation for duplicate IDs automatically.
-    pub async fn apply_gradients(
+    async fn apply_gradients_response(
         &mut self,
         table_name: &str,
         fids: &[i64],
@@ -817,14 +873,19 @@ impl PsClient {
         dim_size: usize,
         learning_rate: f32,
         global_step: i64,
-    ) -> PsResult<(i32, i32)> {
+    ) -> PsResult<ApplyGradientsResponse> {
         if dim_size == 0 {
             return Err(PsError::InvalidConfig(
                 "dim_size must be greater than zero".to_string(),
             ));
         }
         if fids.is_empty() {
-            return Ok((0, 0));
+            return Ok(ApplyGradientsResponse {
+                status_code: 0,
+                error_message: String::new(),
+                num_updated: 0,
+                num_not_found: 0,
+            });
         }
         let expected = fids.len() * dim_size;
         if gradients.len() != expected {
@@ -894,7 +955,70 @@ impl PsClient {
             total_not_found += not_found;
         }
 
-        Ok((total_updated, total_not_found))
+        Ok(ApplyGradientsResponse {
+            status_code: 0,
+            error_message: String::new(),
+            num_updated: total_updated,
+            num_not_found: total_not_found,
+        })
+    }
+
+    /// Batched multi-table lookup helper.
+    ///
+    /// Each request entry is processed with the same semantics as [`Self::lookup`],
+    /// and failures are encoded in per-entry response status codes.
+    pub async fn batch_lookup(&mut self, request: BatchLookupRequest) -> PsResult<BatchLookupResponse> {
+        let mut responses = Vec::with_capacity(request.requests.len());
+        for req in request.requests {
+            match self
+                .lookup_response(&req.table_name, &req.fids, req.dim_size as usize, req.create_if_missing)
+                .await
+            {
+                Ok(resp) => responses.push(resp),
+                Err(e) => responses.push(LookupResponse {
+                    status_code: 1,
+                    error_message: e.to_string(),
+                    embeddings: Vec::new(),
+                    found: Vec::new(),
+                    num_found: 0,
+                    num_initialized: 0,
+                }),
+            }
+        }
+        Ok(BatchLookupResponse { responses })
+    }
+
+    /// Batched multi-table apply helper.
+    ///
+    /// Each request entry is processed with the same semantics as [`Self::apply_gradients`],
+    /// and failures are encoded in per-entry response status codes.
+    pub async fn batch_apply_gradients(
+        &mut self,
+        request: BatchApplyGradientsRequest,
+    ) -> PsResult<BatchApplyGradientsResponse> {
+        let mut responses = Vec::with_capacity(request.requests.len());
+        for req in request.requests {
+            match self
+                .apply_gradients_response(
+                    &req.table_name,
+                    &req.fids,
+                    &req.gradients,
+                    req.dim_size as usize,
+                    req.learning_rate,
+                    req.global_step,
+                )
+                .await
+            {
+                Ok(resp) => responses.push(resp),
+                Err(e) => responses.push(ApplyGradientsResponse {
+                    status_code: 1,
+                    error_message: e.to_string(),
+                    num_updated: 0,
+                    num_not_found: 0,
+                }),
+            }
+        }
+        Ok(BatchApplyGradientsResponse { responses })
     }
 
     /// Waits at a barrier for all workers.
@@ -1683,5 +1807,72 @@ mod tests {
             client.health_check_shard(0, "ps").await,
             Err(PsError::InvalidConfig(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_batch_lookup_and_apply() {
+        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let mut client = PsClient::connect(&[&addr]).await.unwrap();
+
+        let lookup_batch = BatchLookupRequest {
+            requests: vec![
+                LookupRequest {
+                    table_name: "t1".to_string(),
+                    fids: vec![1, 2],
+                    dim_size: 2,
+                    create_if_missing: true,
+                    timeout_ms: 1000,
+                },
+                LookupRequest {
+                    table_name: "t2".to_string(),
+                    fids: vec![3],
+                    dim_size: 2,
+                    create_if_missing: true,
+                    timeout_ms: 1000,
+                },
+            ],
+        };
+        let lookup_resp = client.batch_lookup(lookup_batch).await.unwrap();
+        assert_eq!(lookup_resp.responses.len(), 2);
+        assert!(lookup_resp.responses.iter().all(|r| r.status_code == 0));
+        assert_eq!(lookup_resp.responses[0].embeddings.len(), 4);
+        assert_eq!(lookup_resp.responses[1].embeddings.len(), 2);
+
+        let apply_batch = BatchApplyGradientsRequest {
+            requests: vec![
+                ApplyGradientsRequest {
+                    table_name: "t1".to_string(),
+                    fids: vec![1, 2],
+                    gradients: vec![1.0, 2.0, 3.0, 4.0],
+                    dim_size: 2,
+                    learning_rate: 0.5,
+                    global_step: 1,
+                    timeout_ms: 1000,
+                },
+                // Intentionally malformed gradient shape.
+                ApplyGradientsRequest {
+                    table_name: "t2".to_string(),
+                    fids: vec![3],
+                    gradients: vec![1.0],
+                    dim_size: 2,
+                    learning_rate: 0.5,
+                    global_step: 1,
+                    timeout_ms: 1000,
+                },
+            ],
+        };
+        let apply_resp = client.batch_apply_gradients(apply_batch).await.unwrap();
+        assert_eq!(apply_resp.responses.len(), 2);
+        assert_eq!(apply_resp.responses[0].status_code, 0);
+        assert_eq!(apply_resp.responses[1].status_code, 1);
+
+        server.abort();
     }
 }
