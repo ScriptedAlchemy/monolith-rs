@@ -595,6 +595,9 @@ mod tests {
     struct CountingDiscovery {
         services: std::sync::Mutex<HashMap<String, ServiceInfo>>,
         heartbeat_count: AtomicUsize,
+        connect_count: AtomicUsize,
+        disconnect_count: AtomicUsize,
+        deregister_count: AtomicUsize,
         events_tx: tokio::sync::broadcast::Sender<DiscoveryEvent>,
         discover_delay: Option<Duration>,
     }
@@ -605,6 +608,9 @@ mod tests {
             Self {
                 services: std::sync::Mutex::new(HashMap::new()),
                 heartbeat_count: AtomicUsize::new(0),
+                connect_count: AtomicUsize::new(0),
+                disconnect_count: AtomicUsize::new(0),
+                deregister_count: AtomicUsize::new(0),
                 events_tx,
                 discover_delay: None,
             }
@@ -618,6 +624,18 @@ mod tests {
 
         fn heartbeat_count(&self) -> usize {
             self.heartbeat_count.load(Ordering::SeqCst)
+        }
+
+        fn connect_count(&self) -> usize {
+            self.connect_count.load(Ordering::SeqCst)
+        }
+
+        fn disconnect_count(&self) -> usize {
+            self.disconnect_count.load(Ordering::SeqCst)
+        }
+
+        fn deregister_count(&self) -> usize {
+            self.deregister_count.load(Ordering::SeqCst)
         }
     }
 
@@ -825,10 +843,12 @@ mod tests {
     #[async_trait::async_trait]
     impl ServiceDiscoveryAsync for CountingDiscovery {
         async fn connect(&self) -> DiscoveryResult<()> {
+            self.connect_count.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }
 
         async fn disconnect(&self) -> DiscoveryResult<()> {
+            self.disconnect_count.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }
 
@@ -864,6 +884,7 @@ mod tests {
         }
 
         async fn deregister_async(&self, service_id: &str) -> DiscoveryResult<()> {
+            self.deregister_count.fetch_add(1, Ordering::SeqCst);
             self.services.lock().unwrap().remove(service_id);
             let _ = self
                 .events_tx
@@ -1959,6 +1980,47 @@ mod tests {
             discovery.deregister_count(),
             1,
             "deregister should still be attempted on ps registration failure"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_disconnects_when_worker_role_fails_after_registration() {
+        let discovery = Arc::new(CountingDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(
+            res.is_err(),
+            "expected worker role timeout with no discovered ps services"
+        );
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "unexpected worker timeout error: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should be called on worker role timeout failure"
+        );
+        assert_eq!(
+            discovery.deregister_count(),
+            1,
+            "deregister should be attempted on worker role timeout failure"
+        );
+        let workers = discovery.discover_async("worker").await.unwrap();
+        assert!(
+            workers.is_empty(),
+            "worker service should be removed during cleanup after role failure"
         );
     }
 
