@@ -459,12 +459,13 @@ impl ServiceDiscovery for ZkServiceDiscovery {
 
         // Spawn periodic re-registration thread (best-effort), mirroring Python.
         let key = (name.to_string(), index);
-        let mut threads = self.threads.lock().unwrap();
-        if threads.contains_key(&key) {
-            // Replace existing.
-            if let Some(old) = threads.remove(&key) {
-                old.stop_and_join();
-            }
+        let old = {
+            let mut threads = self.threads.lock().unwrap();
+            threads.remove(&key)
+        };
+        if let Some(old) = old {
+            // Replace existing without holding the shared map lock across join.
+            old.stop_and_join();
         }
 
         let ts = Arc::new(ZkRegThread::new());
@@ -528,7 +529,7 @@ impl ServiceDiscovery for ZkServiceDiscovery {
             let _ = last;
         });
         *ts.handle.lock().unwrap() = Some(h);
-        threads.insert(key, ts);
+        self.threads.lock().unwrap().insert(key, ts);
         Ok(())
     }
 
@@ -537,7 +538,8 @@ impl ServiceDiscovery for ZkServiceDiscovery {
         let _ = self.client.delete_recursive(&path);
 
         let key = (name.to_string(), index);
-        if let Some(ts) = self.threads.lock().unwrap().remove(&key) {
+        let removed = self.threads.lock().unwrap().remove(&key);
+        if let Some(ts) = removed {
             ts.stop_and_join();
         }
         Ok(())
@@ -567,10 +569,13 @@ impl ServiceDiscovery for ZkServiceDiscovery {
     }
 
     fn close(&self) -> Result<()> {
-        for ts in self.threads.lock().unwrap().values() {
+        let drained = {
+            let mut threads = self.threads.lock().unwrap();
+            threads.drain().map(|(_, ts)| ts).collect::<Vec<_>>()
+        };
+        for ts in drained {
             ts.stop_and_join();
         }
-        self.threads.lock().unwrap().clear();
         self.client.stop();
         self.client.close();
         Ok(())
@@ -1017,6 +1022,17 @@ mod tests {
             d.query("ps").unwrap(),
             BTreeMap::from([(0, "192.168.0.1:1001".to_string())])
         );
+        d.close().unwrap();
+    }
+
+    #[test]
+    fn zk_close_is_idempotent_after_deregister() {
+        let c = Arc::new(FakeZk::new());
+        let d =
+            ZkServiceDiscovery::new("test_model", Arc::clone(&c) as Arc<dyn ZkClientLike>).unwrap();
+        d.register("ps", 0, "192.168.0.1:1001").unwrap();
+        d.deregister("ps", 0, "192.168.0.1:1001").unwrap();
+        d.close().unwrap();
         d.close().unwrap();
     }
 }
