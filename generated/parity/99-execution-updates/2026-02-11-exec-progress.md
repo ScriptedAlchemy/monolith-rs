@@ -2984,6 +2984,26 @@
   default/custom service-type timeout/failure branches across runner + RunConfig
   + RunnerConfig paths.
 
+### 226) Discover-error cleanup matrix parity expanded for indexed defaults
+- Added runner-level discover-error regressions:
+  - `test_run_distributed_preserves_worker_discover_failure_with_default_service_type_and_index_when_cleanup_steps_timeout`
+  - `test_run_distributed_preserves_worker_discover_failure_with_default_service_type_and_index_when_cleanup_steps_fail`
+- Added RunConfig integration regressions:
+  - `distributed_runner_from_run_config_preserves_last_discover_error_with_default_service_type_and_index_when_cleanup_times_out`
+  - `distributed_runner_from_run_config_preserves_last_discover_error_with_default_service_type_and_index_when_cleanup_fails`
+- Added RunnerConfig integration regressions:
+  - `distributed_runner_from_runner_config_preserves_last_discover_error_with_default_service_type_and_index_when_cleanup_times_out`
+  - `distributed_runner_from_runner_config_preserves_last_discover_error_with_default_service_type_and_index_when_cleanup_fails`
+- New assertions verify indexed default-service discover-error diagnostics
+  preserve:
+  - worker index propagation (`worker-2`) in role-error context,
+  - last discover error propagation (`forced discover failure`),
+  - cleanup timeout/failure operation diagnostics for default worker service
+    type (`worker`) on deregister/disconnect steps.
+- Result: discover-error cleanup diagnostics now include explicit indexed
+  default-service parity coverage across runner + RunConfig + RunnerConfig
+  entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3435,6 +3455,9 @@
 448. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker-timeout cleanup matrix parity expansion across runner/config entrypoints)
 449. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post worker-timeout cleanup matrix parity compatibility verification)
 450. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post worker-timeout cleanup matrix parity expansion full workspace rerun under ambient ZK auth env)
+451. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post discover-error indexed-default cleanup matrix parity expansion across runner/config entrypoints)
+452. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post discover-error indexed-default cleanup matrix parity compatibility verification)
+453. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post discover-error indexed-default cleanup matrix parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
