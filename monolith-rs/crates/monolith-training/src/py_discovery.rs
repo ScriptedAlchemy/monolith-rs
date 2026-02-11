@@ -14,6 +14,7 @@ use crate::discovery::{DiscoveryError, Result};
 use crate::discovery::{ServiceDiscovery, ServiceDiscoveryAsync, ServiceInfo};
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 /// Python-style service discovery interface.
@@ -488,6 +489,7 @@ pub struct MlpServiceDiscovery {
     env: MlpEnv,
     // filters store entries like "ps:0" or "worker:3" (lowercase name)
     filters: Mutex<HashSet<String>>,
+    closed: AtomicBool,
 }
 
 impl MlpServiceDiscovery {
@@ -495,10 +497,14 @@ impl MlpServiceDiscovery {
         Self {
             env: MlpEnv::from_env(),
             filters: Mutex::new(HashSet::new()),
+            closed: AtomicBool::new(false),
         }
     }
 
     pub fn server_type(&self) -> Option<String> {
+        if self.closed.load(Ordering::SeqCst) {
+            return None;
+        }
         if self.env.role.is_empty() {
             None
         } else {
@@ -511,6 +517,9 @@ impl MlpServiceDiscovery {
     }
 
     pub fn addr(&self) -> Option<String> {
+        if self.closed.load(Ordering::SeqCst) {
+            return None;
+        }
         self.server_type()
             .and_then(|role| self.env.get_addr(&role, self.index(), true))
     }
@@ -520,6 +529,9 @@ impl MlpServiceDiscovery {
     }
 
     pub fn deregister_all(&self) {
+        if self.closed.load(Ordering::SeqCst) {
+            return;
+        }
         let mut filters = self.filters.lock().unwrap();
         for (name, num) in &self.env.all_roles {
             for idx in 0..*num {
@@ -529,6 +541,9 @@ impl MlpServiceDiscovery {
     }
 
     pub fn query_all(&self) -> Result<HashMap<String, HashMap<i32, String>>> {
+        if self.closed.load(Ordering::SeqCst) {
+            return Ok(HashMap::new());
+        }
         let mut out = HashMap::new();
         for name in ["ps", "worker", "chief"] {
             out.insert(name.to_string(), self.query(name)?);
@@ -612,6 +627,9 @@ impl Default for MlpServiceDiscovery {
 
 impl PyServiceDiscovery for MlpServiceDiscovery {
     fn register(&self, name: &str, index: i32, addr: &str) -> Result<()> {
+        if self.closed.load(Ordering::SeqCst) {
+            return Ok(());
+        }
         self.validate(name, index, addr)?;
         let mut filters = self.filters.lock().unwrap();
         filters.remove(&Self::key(name, index));
@@ -619,6 +637,9 @@ impl PyServiceDiscovery for MlpServiceDiscovery {
     }
 
     fn deregister(&self, name: &str, index: i32, addr: &str) -> Result<()> {
+        if self.closed.load(Ordering::SeqCst) {
+            return Ok(());
+        }
         self.validate(name, index, addr)?;
         let mut filters = self.filters.lock().unwrap();
         filters.insert(Self::key(name, index));
@@ -626,6 +647,9 @@ impl PyServiceDiscovery for MlpServiceDiscovery {
     }
 
     fn query(&self, name: &str) -> Result<HashMap<i32, String>> {
+        if self.closed.load(Ordering::SeqCst) {
+            return Ok(HashMap::new());
+        }
         if name.trim().is_empty() {
             return Err(DiscoveryError::ConfigError(
                 "name must be non-empty".to_string(),
@@ -651,6 +675,12 @@ impl PyServiceDiscovery for MlpServiceDiscovery {
         }
 
         Ok(out)
+    }
+
+    fn close(&self) -> Result<()> {
+        self.closed.store(true, Ordering::SeqCst);
+        self.filters.lock().unwrap().clear();
+        Ok(())
     }
 }
 
@@ -890,5 +920,27 @@ mod tests {
         let d = MlpServiceDiscovery::new();
         let err = d.query("").unwrap_err();
         assert!(err.to_string().contains("name must be non-empty"));
+    }
+
+    #[test]
+    fn test_mlp_close_disables_discovery_and_clears_filters() {
+        let _guard = MLP_ENV_TEST_MUTEX.lock().unwrap();
+        let _env = install_default_mlp_env();
+
+        let d = MlpServiceDiscovery::new();
+        assert!(!d.query("worker").unwrap().is_empty());
+        PyServiceDiscovery::deregister(&d, "worker", 1, "worker1:2223").unwrap();
+        assert_eq!(d.query("worker").unwrap().len(), 1);
+
+        PyServiceDiscovery::close(&d).unwrap();
+        assert!(d.server_type().is_none());
+        assert!(d.addr().is_none());
+        assert!(d.query("worker").unwrap().is_empty());
+        assert!(d.query_all().unwrap().is_empty());
+
+        // Post-close operations are no-op and should stay non-failing.
+        PyServiceDiscovery::register(&d, "worker", 1, "worker1:2223").unwrap();
+        PyServiceDiscovery::deregister(&d, "worker", 1, "worker1:2223").unwrap();
+        assert!(d.query("worker").unwrap().is_empty());
     }
 }
