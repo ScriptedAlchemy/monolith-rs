@@ -530,6 +530,20 @@
   - `test_ps_client_batch_apply_validates_dim_size_per_entry`
   ensuring invalid entries fail without aborting valid peer entries.
 
+### 49) Local cluster released-barrier lifecycle pruning
+- Added `LocalCluster::prune_released_barriers()` to prevent unbounded growth of
+  `released_barriers` across long-running training epochs.
+- Pruning policy preserves correctness for lagging workers:
+  - keep release markers for epochs `>= min(worker_step)` so a slow worker can
+    still observe already-released epochs,
+  - drop only epochs that all workers have advanced beyond.
+- `sync_barrier(...)` now performs prune-on-entry before release checks.
+- Added regression test
+  `test_local_cluster_prunes_released_barriers_after_all_workers_advance`
+  validating:
+  - lagging worker can still observe released epoch before it advances,
+  - obsolete epoch markers are eventually pruned once all workers move forward.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -601,6 +615,7 @@
 67. `cargo test --workspace -q` ✅ (post distributed/runtime + discovery lifecycle parity hardening)
 68. `cargo test -p monolith-training -q` ✅ (post batched PS per-entry dim validation + parallel batch fanout)
 69. `cargo test --workspace -q` ✅ (post batched PS per-entry validation hardening and regression coverage)
+70. `cargo test -p monolith-training -q` ✅ (post local-cluster released-barrier pruning + lagging-worker safety regression)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
