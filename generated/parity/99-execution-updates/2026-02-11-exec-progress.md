@@ -836,6 +836,7 @@
 101. `cargo test -p monolith-training -q` ✅ (post local PS/worker lifecycle guard parity hardening and new regression coverage)
 102. `cargo test --workspace -q` ✅ (post local PS/worker lifecycle guard parity hardening and full workspace regression rerun)
 103. `cargo test -p monolith-training -q` ✅ (post local-cluster running-state enforcement for register/train operations)
+104. `cargo test --workspace -q` ✅ (post local-cluster running-state enforcement for register/train operations and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
