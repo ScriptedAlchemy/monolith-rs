@@ -293,10 +293,7 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     tracing::info!(role = "worker", index = cfg.index, ps = ?ps_addrs, "Connecting to PS shards");
 
     let ps_client = PsClient::connect(&ps_addr_refs).await?;
-    let barrier: SharedBarrier = Arc::new(PsBarrier::new(
-        PsClient::connect(&ps_addr_refs).await?,
-        10_000,
-    ));
+    let barrier: SharedBarrier = Arc::new(PsBarrier::new(ps_client.clone(), 10_000));
 
     // Minimal "training loop" skeleton proving that:
     // - lookup works
