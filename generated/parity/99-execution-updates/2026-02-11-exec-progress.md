@@ -752,6 +752,15 @@
   - `test_ordered_ps_addrs_prefers_discovery_index_metadata`
   - `test_ordered_ps_addrs_falls_back_to_address_sort_without_index`
 
+### 70) Contiguous PS shard-index enforcement during worker discovery
+- Strengthened metadata-driven PS ordering to require a contiguous shard index
+  set for the expected worker configuration:
+  - when index metadata is present, worker discovery now requires shard indexes
+    `0..num_ps-1` before connecting.
+  - missing intermediate shard indexes (e.g. 0,2 without 1) now force retry
+    instead of silently connecting to a gapped shard set.
+- Added regression `test_ordered_ps_addrs_requires_contiguous_index_set`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -861,6 +870,7 @@
 106. `cargo test --workspace -q` ✅ (post cluster-config duplicate-address validation hardening and full workspace regression rerun)
 107. `cargo test -p monolith-training -q` ✅ (post deterministic PS discovery ordering by shard index metadata + fallback sorting coverage)
 108. `cargo test --workspace -q` ✅ (post deterministic PS discovery ordering by shard index metadata and full workspace regression rerun)
+109. `cargo test -p monolith-training -q` ✅ (post contiguous PS shard-index enforcement for metadata-based worker discovery ordering)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
