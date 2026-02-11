@@ -170,6 +170,7 @@
 12. `cargo test -p monolith-training -q` ✅ (post RunnerConfig restore-init parity helper updates)
 13. `cargo test -p monolith-training -q` ✅ (post RunnerConfig env-export parity updates)
 14. `cargo test -p monolith-training -q` ✅ (post runtime wiring of env-export helper)
+15. `cargo test --workspace -q` ✅ (post latest runner-config + runner-utils parity updates)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
