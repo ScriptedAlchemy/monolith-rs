@@ -404,11 +404,15 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
 
     let mut ps_addrs: Vec<String> = Vec::new();
     let mut last_ordering_issue: Option<PsAddrOrderError> = None;
+    let mut last_discovery_error: Option<String> = None;
     for attempt in 0..=cfg.connect_retries {
-        let ps_services = discovery
-            .discover_async(&cfg.discovery_service_type_ps)
-            .await
-            .unwrap_or_default();
+        let ps_services = match discovery.discover_async(&cfg.discovery_service_type_ps).await {
+            Ok(services) => services,
+            Err(e) => {
+                last_discovery_error = Some(e.to_string());
+                Vec::new()
+            }
+        };
 
         let (addrs, ordering_issue) = match ordered_ps_addrs(ps_services, cfg.num_ps) {
             Ok(addrs) => (addrs, None),
@@ -424,19 +428,39 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         }
 
         if attempt == cfg.connect_retries {
-            if let Some(issue) = last_ordering_issue {
-                anyhow::bail!(
-                    "Timed out waiting for PS discovery: got {} expected {} (last ordering issue: {:?})",
-                    addrs.len(),
-                    cfg.num_ps,
-                    issue
-                );
-            } else {
-                anyhow::bail!(
-                    "Timed out waiting for PS discovery: got {} expected {}",
-                    addrs.len(),
-                    cfg.num_ps
-                );
+            match (last_ordering_issue, last_discovery_error.as_deref()) {
+                (Some(issue), Some(discovery_error)) => {
+                    anyhow::bail!(
+                        "Timed out waiting for PS discovery: got {} expected {} (last ordering issue: {:?}; last discovery error: {})",
+                        addrs.len(),
+                        cfg.num_ps,
+                        issue,
+                        discovery_error
+                    );
+                }
+                (Some(issue), None) => {
+                    anyhow::bail!(
+                        "Timed out waiting for PS discovery: got {} expected {} (last ordering issue: {:?})",
+                        addrs.len(),
+                        cfg.num_ps,
+                        issue
+                    );
+                }
+                (None, Some(discovery_error)) => {
+                    anyhow::bail!(
+                        "Timed out waiting for PS discovery: got {} expected {} (last discovery error: {})",
+                        addrs.len(),
+                        cfg.num_ps,
+                        discovery_error
+                    );
+                }
+                (None, None) => {
+                    anyhow::bail!(
+                        "Timed out waiting for PS discovery: got {} expected {}",
+                        addrs.len(),
+                        cfg.num_ps
+                    );
+                }
             }
         }
 
@@ -682,6 +706,56 @@ mod tests {
         }
     }
 
+    struct SequencedDiscoverErrorDiscovery {
+        calls: AtomicUsize,
+    }
+
+    impl SequencedDiscoverErrorDiscovery {
+        fn new() -> Self {
+            Self {
+                calls: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for SequencedDiscoverErrorDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            let n = self.calls.fetch_add(1, Ordering::SeqCst);
+            if n == 0 {
+                Err(crate::discovery::DiscoveryError::Internal(
+                    "forced discover failure".to_string(),
+                ))
+            } else {
+                Ok(Vec::new())
+            }
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            Ok(())
+        }
+    }
+
     #[async_trait::async_trait]
     impl ServiceDiscoveryAsync for SequencedDiscoverDiscovery {
         async fn connect(&self) -> DiscoveryResult<()> {
@@ -903,6 +977,28 @@ mod tests {
         assert!(
             msg.contains("MixedIndexMetadataPresence"),
             "expected timeout to preserve last ordering issue, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_preserves_last_discovery_error_across_retries() {
+        let discovery = Arc::new(SequencedDiscoverErrorDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 1,
+            retry_backoff_ms: 1,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg)
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("forced discover failure"),
+            "expected timeout to preserve last discovery error, got: {msg}"
         );
     }
 
