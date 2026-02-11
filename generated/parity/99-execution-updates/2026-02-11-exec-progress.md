@@ -669,6 +669,22 @@
 - Updated train-command test fixture constructors to include the new field and
   keep compile/test parity coverage green.
 
+### 63) RunConfig/RunnerConfig distributed runtime tuning propagation
+- Added distributed runtime tuning fields to both config layers:
+  - `connect_retries`
+  - `retry_backoff_ms`
+  - `barrier_timeout_ms`
+- Extended `RunConfig::to_runner_config(...)` merge behavior and
+  `RunConfig::user_overrides()` metadata export to include these fields.
+- Updated `distributed_config_from_runner(...)` to propagate retry/backoff/barrier
+  timeout knobs into `DistributedRunConfig` instead of always using hardcoded
+  runner defaults.
+- Added/updated coverage:
+  - runner mapping test now verifies `connect_retries`, `retry_backoff_ms`,
+    and `barrier_timeout_ms` transfer correctly.
+  - run-config merge/user-overrides tests now assert explicit propagation and
+    override emission for all new distributed runtime tuning fields.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -764,6 +780,7 @@
 91. `cargo test --workspace -q` ✅ (post worker PS client reuse optimization and latest barrier/distributed/runtime updates)
 93. `cargo test -p monolith-cli -q` ✅ (post train CLI barrier-timeout flag plumbing for distributed runtime config)
 94. `cargo test --workspace -q` ✅ (post train CLI/distributed runner barrier-timeout parity wiring and full regression rerun)
+95. `cargo test -p monolith-training -q` ✅ (post run/runner-config propagation of distributed connect-retry/backoff/barrier-timeout fields)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
