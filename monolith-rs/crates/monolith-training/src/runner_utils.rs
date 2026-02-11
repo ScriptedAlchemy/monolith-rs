@@ -42,6 +42,8 @@ pub enum RunnerUtilsError {
     Discovery(String),
     #[error("Timed out waiting for restore synchronization file: {path}")]
     RestoreSyncTimeout { path: PathBuf },
+    #[error("No discovery backend available in local mode")]
+    LocalModeNoDiscovery,
 }
 
 /// Minimal subset of TensorFlow's `CheckpointState` used by the Python tests.
@@ -319,6 +321,39 @@ pub struct MonolithDiscoveryGuard {
 impl MonolithDiscoveryGuard {
     pub fn discovery(&self) -> Option<&RunnerDiscovery> {
         self.discovery.as_ref()
+    }
+
+    pub fn kind(&self) -> Option<&'static str> {
+        self.discovery.as_ref().map(|d| d.kind())
+    }
+
+    pub fn register(&self, name: &str, index: i32, addr: &str) -> Result<(), RunnerUtilsError> {
+        let d = self
+            .discovery
+            .as_ref()
+            .ok_or(RunnerUtilsError::LocalModeNoDiscovery)?;
+        d.register(name, index, addr)
+    }
+
+    pub fn deregister(
+        &self,
+        name: &str,
+        index: i32,
+        addr: &str,
+    ) -> Result<(), RunnerUtilsError> {
+        let d = self
+            .discovery
+            .as_ref()
+            .ok_or(RunnerUtilsError::LocalModeNoDiscovery)?;
+        d.deregister(name, index, addr)
+    }
+
+    pub fn query(&self, name: &str) -> Result<BTreeMap<i32, String>, RunnerUtilsError> {
+        let d = self
+            .discovery
+            .as_ref()
+            .ok_or(RunnerUtilsError::LocalModeNoDiscovery)?;
+        d.query(name)
     }
 }
 
@@ -729,6 +764,42 @@ all_model_checkpoint_paths: "model.ckpt-30"
         )
         .unwrap_err();
         assert!(matches!(err, RunnerUtilsError::RestoreSyncTimeout { .. }));
+    }
+
+    #[test]
+    fn test_monolith_discovery_guard_local_register_errors() {
+        let rc = RunnerConfig {
+            is_local: true,
+            ..RunnerConfig::default()
+        };
+        let guard = monolith_discovery(&rc, None).unwrap();
+        assert_eq!(guard.kind(), None);
+        let err = guard.register("ps", 0, "127.0.0.1:1000").unwrap_err();
+        assert!(matches!(err, RunnerUtilsError::LocalModeNoDiscovery));
+    }
+
+    #[test]
+    fn test_monolith_discovery_guard_primus_query() {
+        let tf_config = serde_json::json!({
+          "cluster": {
+            "chief": ["host0:2222"],
+            "ps": ["host1:2222", "host2:2222"],
+            "worker": ["host3:2222"]
+          },
+          "task": {"type": "worker", "index": 0}
+        })
+        .to_string();
+        let rc = RunnerConfig {
+            is_local: false,
+            discovery_type: ServiceDiscoveryType::Primus,
+            tf_config: Some(tf_config),
+            ..RunnerConfig::default()
+        };
+        let guard = monolith_discovery(&rc, None).unwrap();
+        assert_eq!(guard.kind(), Some("tf_config"));
+        let ps = guard.query("ps").unwrap();
+        assert_eq!(ps.get(&0).unwrap(), "host1:2222");
+        assert_eq!(ps.get(&1).unwrap(), "host2:2222");
     }
 
     #[test]
