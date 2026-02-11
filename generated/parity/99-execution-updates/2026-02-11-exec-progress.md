@@ -871,6 +871,7 @@
 107. `cargo test -p monolith-training -q` ✅ (post deterministic PS discovery ordering by shard index metadata + fallback sorting coverage)
 108. `cargo test --workspace -q` ✅ (post deterministic PS discovery ordering by shard index metadata and full workspace regression rerun)
 109. `cargo test -p monolith-training -q` ✅ (post contiguous PS shard-index enforcement for metadata-based worker discovery ordering)
+110. `cargo test --workspace -q` ✅ (post contiguous PS shard-index enforcement and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
