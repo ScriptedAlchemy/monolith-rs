@@ -1659,6 +1659,20 @@
   - worker: `register worker-0 as worker ...`
   - ps: `register ps-0 as ps ...`
 
+### 151) Discover-timeout diagnostic enrichment with queried service-type context
+- Extended worker discover timeout diagnostics to include queried discovery
+  service-type context:
+  - operation descriptor now emits
+    `discover <worker-id> for <discovery_service_type_ps>`.
+- Updated internal distributed-runner discover-timeout regressions to assert
+  default discover diagnostic form (`for ps`).
+- Added run/runner config integration regressions proving custom
+  `discovery_service_type_ps` propagation into discover-timeout diagnostics:
+  - `distributed_runner_from_run_config_propagates_discover_service_type_into_timeout_diagnostics`
+  - `distributed_runner_from_runner_config_propagates_discover_service_type_into_timeout_diagnostics`
+- Strengthens diagnostic parity by surfacing both caller identity and queried
+  service class during discover timeout failures.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1936,6 +1950,8 @@
 274. `cargo test --workspace -q` ✅ (post ps-index timeout diagnostic propagation integrations across run/runner config entrypoints full workspace rerun)
 275. `cargo test -p monolith-training -q` ✅ (post register-timeout diagnostic enrichment with service-type context + integration regressions)
 276. `cargo test --workspace -q` ✅ (post register-timeout diagnostic enrichment with service-type context full workspace rerun)
+277. `cargo test -p monolith-training -q` ✅ (post discover-timeout diagnostic enrichment with queried service-type context + integration regressions)
+278. `cargo test --workspace -q` ✅ (post discover-timeout diagnostic enrichment with queried service-type context full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
