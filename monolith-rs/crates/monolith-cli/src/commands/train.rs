@@ -208,6 +208,56 @@ pub enum DiscoveryBackend {
 }
 
 impl TrainCommand {
+    fn build_distributed_run_config(&self) -> Result<Option<DistributedRunConfig>> {
+        if !self.distributed {
+            return Ok(None);
+        }
+
+        let bind_addr: SocketAddr = self
+            .bind_addr
+            .parse()
+            .context("Invalid --bind-addr (expected host:port)")?;
+
+        let role = match self.role {
+            TrainRole::Ps => Role::Ps,
+            TrainRole::Worker => Role::Worker,
+        };
+
+        let heartbeat_interval = if self.disable_heartbeat || self.heartbeat_interval_secs == 0 {
+            None
+        } else {
+            Some(std::time::Duration::from_secs(self.heartbeat_interval_secs))
+        };
+
+        Ok(Some(DistributedRunConfig {
+            role,
+            index: self.index,
+            num_ps: self.num_ps,
+            num_workers: self.num_workers_cluster,
+            bind_addr,
+            discovery_service_type_ps: self.discovery_service_type_ps.clone(),
+            discovery_service_type_worker: self.discovery_service_type_worker.clone(),
+            table_name: self.table_name.clone(),
+            dim: self.dim,
+            connect_retries: self.connect_retries,
+            retry_backoff_ms: self.retry_backoff_ms,
+            barrier_timeout_ms: self.barrier_timeout_ms,
+            heartbeat_interval,
+            discovery_operation_timeout: std::time::Duration::from_millis(
+                self.discovery_operation_timeout_ms,
+            ),
+            discovery_cleanup_timeout: std::time::Duration::from_millis(
+                self.discovery_cleanup_timeout_ms,
+            ),
+            parameter_sync_targets: self.parameter_sync_targets.clone(),
+            parameter_sync_interval: std::time::Duration::from_millis(
+                self.parameter_sync_interval_ms,
+            ),
+            parameter_sync_model_name: self.parameter_sync_model_name.clone(),
+            parameter_sync_signature_name: self.parameter_sync_signature_name.clone(),
+        }))
+    }
+
     /// Execute the train command
     pub async fn run(&self) -> Result<()> {
         info!("Starting training...");
@@ -236,52 +286,7 @@ impl TrainCommand {
             self.batch_size, self.learning_rate, self.num_workers
         );
 
-        if self.distributed {
-            let bind_addr: SocketAddr = self
-                .bind_addr
-                .parse()
-                .context("Invalid --bind-addr (expected host:port)")?;
-
-            let role = match self.role {
-                TrainRole::Ps => Role::Ps,
-                TrainRole::Worker => Role::Worker,
-            };
-
-            let heartbeat_interval = if self.disable_heartbeat || self.heartbeat_interval_secs == 0
-            {
-                None
-            } else {
-                Some(std::time::Duration::from_secs(self.heartbeat_interval_secs))
-            };
-
-            let cfg = DistributedRunConfig {
-                role,
-                index: self.index,
-                num_ps: self.num_ps,
-                num_workers: self.num_workers_cluster,
-                bind_addr,
-                discovery_service_type_ps: self.discovery_service_type_ps.clone(),
-                discovery_service_type_worker: self.discovery_service_type_worker.clone(),
-                table_name: self.table_name.clone(),
-                dim: self.dim,
-                connect_retries: self.connect_retries,
-                retry_backoff_ms: self.retry_backoff_ms,
-                barrier_timeout_ms: self.barrier_timeout_ms,
-                heartbeat_interval,
-                discovery_operation_timeout: std::time::Duration::from_millis(
-                    self.discovery_operation_timeout_ms,
-                ),
-                discovery_cleanup_timeout: std::time::Duration::from_millis(
-                    self.discovery_cleanup_timeout_ms,
-                ),
-                parameter_sync_targets: self.parameter_sync_targets.clone(),
-                parameter_sync_interval: std::time::Duration::from_millis(
-                    self.parameter_sync_interval_ms,
-                ),
-                parameter_sync_model_name: self.parameter_sync_model_name.clone(),
-                parameter_sync_signature_name: self.parameter_sync_signature_name.clone(),
-            };
-
+        if let Some(cfg) = self.build_distributed_run_config()? {
             let discovery = self.build_discovery().await?;
             run_distributed(discovery, cfg).await?;
             info!("Distributed training completed successfully");
@@ -510,11 +515,11 @@ mod tests {
     use monolith_data::example::{add_feature, create_example};
     use monolith_data::TFRecordWriter;
     use std::fs::File;
+    use std::time::Duration;
     use tempfile::tempdir;
 
-    #[test]
-    fn test_train_command_defaults() {
-        let cmd = TrainCommand {
+    fn test_cmd_defaults() -> TrainCommand {
+        TrainCommand {
             model_dir: PathBuf::from("/tmp/model"),
             config_path: None,
             tfrecord_path: None,
@@ -552,11 +557,78 @@ mod tests {
             parameter_sync_interval_ms: 200,
             parameter_sync_model_name: "default".to_string(),
             parameter_sync_signature_name: "serving_default".to_string(),
-        };
+        }
+    }
+
+    #[test]
+    fn test_train_command_defaults() {
+        let cmd = test_cmd_defaults();
 
         assert_eq!(cmd.train_steps, 10000);
         assert_eq!(cmd.batch_size, 128);
         assert!(cmd.resume);
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_maps_timeout_and_heartbeat_fields() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.role = TrainRole::Ps;
+        cmd.index = 3;
+        cmd.num_ps = 2;
+        cmd.num_workers_cluster = 4;
+        cmd.bind_addr = "127.0.0.1:12345".to_string();
+        cmd.discovery_operation_timeout_ms = 1234;
+        cmd.discovery_cleanup_timeout_ms = 4321;
+        cmd.heartbeat_interval_secs = 7;
+        cmd.parameter_sync_targets = vec!["127.0.0.1:5100".to_string()];
+        cmd.parameter_sync_interval_ms = 345;
+
+        let cfg = cmd.build_distributed_run_config().unwrap().unwrap();
+        assert!(matches!(cfg.role, Role::Ps));
+        assert_eq!(cfg.index, 3);
+        assert_eq!(cfg.num_ps, 2);
+        assert_eq!(cfg.num_workers, 4);
+        assert_eq!(cfg.bind_addr.to_string(), "127.0.0.1:12345");
+        assert_eq!(cfg.discovery_operation_timeout, Duration::from_millis(1234));
+        assert_eq!(cfg.discovery_cleanup_timeout, Duration::from_millis(4321));
+        assert_eq!(cfg.heartbeat_interval, Some(Duration::from_secs(7)));
+        assert_eq!(cfg.parameter_sync_targets, vec!["127.0.0.1:5100".to_string()]);
+        assert_eq!(cfg.parameter_sync_interval, Duration::from_millis(345));
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_returns_none_for_non_distributed_mode() {
+        let cmd = test_cmd_defaults();
+        let cfg = cmd.build_distributed_run_config().unwrap();
+        assert!(cfg.is_none());
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_disables_heartbeat_when_requested() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.disable_heartbeat = true;
+        cmd.heartbeat_interval_secs = 9;
+        let cfg = cmd.build_distributed_run_config().unwrap().unwrap();
+        assert_eq!(cfg.heartbeat_interval, None);
+
+        cmd.disable_heartbeat = false;
+        cmd.heartbeat_interval_secs = 0;
+        let cfg = cmd.build_distributed_run_config().unwrap().unwrap();
+        assert_eq!(cfg.heartbeat_interval, None);
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_invalid_bind_addr() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.bind_addr = "bad-bind-addr".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("Invalid --bind-addr"),
+            "unexpected bind-addr parse error: {err}"
+        );
     }
 
     #[test]
