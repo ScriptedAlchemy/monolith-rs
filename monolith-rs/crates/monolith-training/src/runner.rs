@@ -92,6 +92,9 @@ pub fn distributed_config_from_runner(
         num_ps: runner_conf.num_ps.max(1),
         num_workers: runner_conf.num_workers.max(1),
         bind_addr,
+        connect_retries: runner_conf.connect_retries,
+        retry_backoff_ms: runner_conf.retry_backoff_ms,
+        barrier_timeout_ms: runner_conf.barrier_timeout_ms,
         ..DistributedRunConfig::default()
     }
 }
@@ -331,6 +334,9 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 5,
+            connect_retries: 11,
+            retry_backoff_ms: 77,
+            barrier_timeout_ms: 2222,
             ..RunnerConfig::default()
         };
         let cfg = distributed_config_from_runner(
@@ -341,7 +347,9 @@ mod tests {
         assert_eq!(cfg.index, 2);
         assert_eq!(cfg.num_ps, 3);
         assert_eq!(cfg.num_workers, 5);
-        assert_eq!(cfg.barrier_timeout_ms, 10_000);
+        assert_eq!(cfg.connect_retries, 11);
+        assert_eq!(cfg.retry_backoff_ms, 77);
+        assert_eq!(cfg.barrier_timeout_ms, 2222);
         assert!(matches!(cfg.role, Role::Worker));
     }
 

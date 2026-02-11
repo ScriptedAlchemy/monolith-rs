@@ -31,6 +31,9 @@ pub struct RunnerConfig {
     pub restore_ckpt: Option<String>,
     pub restore_sync_timeout_secs: u64,
     pub restore_sync_poll_interval_ms: u64,
+    pub connect_retries: usize,
+    pub retry_backoff_ms: u64,
+    pub barrier_timeout_ms: i64,
     pub log_step_count_steps: u64,
     pub discovery_type: ServiceDiscoveryType,
     pub tf_config: Option<String>,
@@ -57,6 +60,9 @@ impl Default for RunnerConfig {
             restore_ckpt: None,
             restore_sync_timeout_secs: 3600,
             restore_sync_poll_interval_ms: 30_000,
+            connect_retries: 6,
+            retry_backoff_ms: 500,
+            barrier_timeout_ms: 10_000,
             log_step_count_steps: 100,
             discovery_type: ServiceDiscoveryType::Primus,
             tf_config: None,
@@ -85,6 +91,9 @@ pub struct RunConfig {
     pub restore_ckpt: Option<String>,
     pub restore_sync_timeout_secs: u64,
     pub restore_sync_poll_interval_ms: u64,
+    pub connect_retries: usize,
+    pub retry_backoff_ms: u64,
+    pub barrier_timeout_ms: i64,
     pub log_step_count_steps: u64,
     pub discovery_type: ServiceDiscoveryType,
     pub tf_config: Option<String>,
@@ -110,6 +119,9 @@ impl Default for RunConfig {
             restore_ckpt: None,
             restore_sync_timeout_secs: 3600,
             restore_sync_poll_interval_ms: 30_000,
+            connect_retries: 6,
+            retry_backoff_ms: 500,
+            barrier_timeout_ms: 10_000,
             log_step_count_steps: 100,
             discovery_type: ServiceDiscoveryType::Primus,
             tf_config: None,
@@ -152,6 +164,9 @@ impl RunConfig {
         merge_field!(restore_ckpt);
         merge_field!(restore_sync_timeout_secs);
         merge_field!(restore_sync_poll_interval_ms);
+        merge_field!(connect_retries);
+        merge_field!(retry_backoff_ms);
+        merge_field!(barrier_timeout_ms);
         merge_field!(log_step_count_steps);
         merge_field!(enable_gpu_training);
         merge_field!(embedding_prefetch_capacity);
@@ -211,6 +226,9 @@ impl RunConfig {
         push_override!(restore_ckpt);
         push_override!(restore_sync_timeout_secs);
         push_override!(restore_sync_poll_interval_ms);
+        push_override!(connect_retries);
+        push_override!(retry_backoff_ms);
+        push_override!(barrier_timeout_ms);
         push_override!(log_step_count_steps);
         push_override!(discovery_type);
         push_override!(tf_config);
@@ -293,6 +311,9 @@ mod tests {
             restore_ckpt: Some("model.ckpt-10".to_string()),
             restore_sync_timeout_secs: 99,
             restore_sync_poll_interval_ms: 1234,
+            connect_retries: 9,
+            retry_backoff_ms: 88,
+            barrier_timeout_ms: 4321,
             ..RunConfig::default()
         };
         let base = RunnerConfig {
@@ -309,6 +330,9 @@ mod tests {
         assert_eq!(merged.restore_ckpt, Some("model.ckpt-10".to_string()));
         assert_eq!(merged.restore_sync_timeout_secs, 99);
         assert_eq!(merged.restore_sync_poll_interval_ms, 1234);
+        assert_eq!(merged.connect_retries, 9);
+        assert_eq!(merged.retry_backoff_ms, 88);
+        assert_eq!(merged.barrier_timeout_ms, 4321);
     }
 
     #[test]
@@ -356,6 +380,9 @@ mod tests {
             num_ps: 2,
             enable_parameter_sync: true,
             tf_grpc_worker_cache_threads: Some(8),
+            connect_retries: 12,
+            retry_backoff_ms: 345,
+            barrier_timeout_ms: 9000,
             ..RunConfig::default()
         };
         let overrides = rc.user_overrides();
@@ -368,6 +395,9 @@ mod tests {
             overrides.get("tf_grpc_worker_cache_threads").unwrap(),
             &serde_json::json!(8)
         );
+        assert_eq!(overrides.get("connect_retries").unwrap(), &serde_json::json!(12));
+        assert_eq!(overrides.get("retry_backoff_ms").unwrap(), &serde_json::json!(345));
+        assert_eq!(overrides.get("barrier_timeout_ms").unwrap(), &serde_json::json!(9000));
     }
 
     #[test]
