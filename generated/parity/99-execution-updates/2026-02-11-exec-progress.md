@@ -103,6 +103,20 @@
   - treats `hdfs:/...` paths as absolute (matching Python monkey-patched behavior),
   - retains native absolute-path checks for local filesystems.
 
+### 8) Runner checkpoint-state override/retry parity helper
+- Added `runner_utils::get_checkpoint_state_with_restore_override(...)` and `RunnerMode`:
+  - retries checkpoint-state reads when the checkpoint file exists but parse fails,
+  - returns `read ckpt error!` (`RunnerUtilsError::ReadCheckpointFailed`) after retry budget exhaustion,
+  - applies `restore_ckpt` override behavior for `latest_filename == "checkpoint"`:
+    - train mode only applies restore once when marker file is absent,
+    - non-train modes always apply restore override,
+    - writes updated `checkpoint` metadata and `restore_ckpt` marker when override is applied.
+- Added unit and integration parity tests covering:
+  - train-mode override,
+  - marker-protected train-mode behavior,
+  - non-train override behavior,
+  - parse/retry failure path.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -114,6 +128,7 @@
 7. `cargo test -p monolith-data -q` ✅ (post-pattern expansion regression run)
 8. `cargo test -p monolith-training -q` ✅ (post file_ops + prefetch + distributed barrier updates)
 9. `cargo test -p monolith-training -q` ✅ (post ZK discovery selection + `isabs` helper updates)
+10. `cargo test -p monolith-training -q` ✅ (post checkpoint-state override/retry parity helper)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
