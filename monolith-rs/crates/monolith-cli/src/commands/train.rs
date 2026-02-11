@@ -261,6 +261,7 @@ impl TrainCommand {
                 barrier_timeout_ms: self.barrier_timeout_ms,
                 heartbeat_interval,
                 discovery_operation_timeout: std::time::Duration::from_secs(5),
+                discovery_cleanup_timeout: std::time::Duration::from_millis(200),
                 parameter_sync_targets: self.parameter_sync_targets.clone(),
                 parameter_sync_interval: std::time::Duration::from_millis(
                     self.parameter_sync_interval_ms,

@@ -20,7 +20,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-const DISCOVERY_CLEANUP_TIMEOUT: Duration = Duration::from_millis(200);
+const DEFAULT_DISCOVERY_CLEANUP_TIMEOUT: Duration = Duration::from_millis(200);
 
 /// Helper for tests: bind to `127.0.0.1:0` and return the chosen address.
 async fn bind_ephemeral(
@@ -53,6 +53,7 @@ pub struct DistributedRunConfig {
     pub barrier_timeout_ms: i64,
     pub heartbeat_interval: Option<Duration>,
     pub discovery_operation_timeout: Duration,
+    pub discovery_cleanup_timeout: Duration,
     /// If set, periodically pushes updated embeddings to online serving via ParameterSync.
     pub parameter_sync_targets: Vec<String>,
     pub parameter_sync_interval: Duration,
@@ -77,6 +78,7 @@ impl Default for DistributedRunConfig {
             barrier_timeout_ms: 10_000,
             heartbeat_interval: Some(Duration::from_secs(10)),
             discovery_operation_timeout: Duration::from_secs(5),
+            discovery_cleanup_timeout: DEFAULT_DISCOVERY_CLEANUP_TIMEOUT,
             parameter_sync_targets: Vec::new(),
             parameter_sync_interval: Duration::from_millis(200),
             parameter_sync_model_name: "default".to_string(),
@@ -284,12 +286,13 @@ async fn stop_heartbeat_task(
 async fn await_discovery_cleanup<Fut>(
     service_id: &str,
     op_name: &'static str,
+    timeout: Duration,
     fut: Fut,
 ) -> anyhow::Result<()>
 where
     Fut: Future<Output = crate::discovery::Result<()>>,
 {
-    match tokio::time::timeout(DISCOVERY_CLEANUP_TIMEOUT, fut).await {
+    match tokio::time::timeout(timeout, fut).await {
         Ok(res) => res.map_err(anyhow::Error::from),
         Err(_) => Err(anyhow::anyhow!(
             "Timed out during discovery cleanup: {} {}",
@@ -324,6 +327,8 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     cfg: DistributedRunConfig,
 ) -> anyhow::Result<()> {
     cfg.validate()?;
+    let operation_timeout = cfg.discovery_operation_timeout;
+    let cleanup_timeout = cfg.discovery_cleanup_timeout;
     let (service_type, service_id) = match cfg.role {
         Role::Ps => (
             cfg.discovery_service_type_ps.clone(),
@@ -338,13 +343,19 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     if let Err(e) = await_discovery_operation(
         &service_id,
         "connect",
-        cfg.discovery_operation_timeout,
+        operation_timeout,
         discovery.connect(),
     )
     .await
     {
         if let Err(disconnect_err) =
-            await_discovery_cleanup(&service_id, "disconnect", discovery.disconnect()).await
+            await_discovery_cleanup(
+                &service_id,
+                "disconnect",
+                cleanup_timeout,
+                discovery.disconnect(),
+            )
+            .await
         {
             tracing::warn!(
                 error = %disconnect_err,
@@ -370,7 +381,7 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
             match await_discovery_operation(
                 &service_id,
                 "register",
-                cfg.discovery_operation_timeout,
+                operation_timeout,
                 discovery.register_async(service),
             )
             .await
@@ -381,11 +392,16 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         }
     };
 
-    let deregister_result =
-        await_discovery_cleanup(&service_id, "deregister", discovery.deregister_async(&service_id))
-            .await;
+    let deregister_result = await_discovery_cleanup(
+        &service_id,
+        "deregister",
+        cleanup_timeout,
+        discovery.deregister_async(&service_id),
+    )
+    .await;
     let disconnect_result =
-        await_discovery_cleanup(&service_id, "disconnect", discovery.disconnect()).await;
+        await_discovery_cleanup(&service_id, "disconnect", cleanup_timeout, discovery.disconnect())
+            .await;
 
     if let Err(e) = role_res {
         if let Err(de) = deregister_result {
@@ -3139,6 +3155,48 @@ mod tests {
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker-role error should be preserved over cleanup timeout errors: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_honors_configured_cleanup_timeout() {
+        let discovery = Arc::new(WorkerTimeoutWithHangingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let started = std::time::Instant::now();
+        let res = tokio::time::timeout(
+            Duration::from_millis(1200),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should return promptly when cleanup timeout is reduced"
+        );
+        let err = res.unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker-role error should still be preserved: {msg}"
+        );
+
+        let elapsed = started.elapsed();
+        assert!(
+            elapsed < Duration::from_millis(320),
+            "configured cleanup timeout should bound total cleanup delay (elapsed {:?})",
+            elapsed
         );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(discovery.deregister_count(), 1);
