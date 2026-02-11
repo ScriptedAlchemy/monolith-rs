@@ -144,6 +144,7 @@ pub struct ConsulServiceDiscovery {
     consul_id: String,
     client: Arc<dyn ConsulLike>,
     retry_time_secs: f64,
+    max_replace_retries: usize,
 }
 
 impl std::fmt::Debug for ConsulServiceDiscovery {
@@ -151,6 +152,7 @@ impl std::fmt::Debug for ConsulServiceDiscovery {
         f.debug_struct("ConsulServiceDiscovery")
             .field("consul_id", &self.consul_id)
             .field("retry_time_secs", &self.retry_time_secs)
+            .field("max_replace_retries", &self.max_replace_retries)
             .finish_non_exhaustive()
     }
 }
@@ -161,6 +163,7 @@ impl ConsulServiceDiscovery {
             consul_id: consul_id.into(),
             client: Arc::new(RealConsul::new()),
             retry_time_secs: 3.0,
+            max_replace_retries: 60,
         }
     }
 
@@ -171,6 +174,11 @@ impl ConsulServiceDiscovery {
 
     pub fn with_client(mut self, client: Arc<dyn ConsulLike>) -> Self {
         self.client = client;
+        self
+    }
+
+    pub fn with_max_replace_retries(mut self, retries: usize) -> Self {
+        self.max_replace_retries = retries.max(1);
         self
     }
 
@@ -203,9 +211,20 @@ impl ConsulServiceDiscovery {
 impl ServiceDiscovery for ConsulServiceDiscovery {
     fn register(&self, name: &str, index: i32, addr: &str) -> Result<()> {
         // Best-effort: deregister any existing address for the same (name, index).
+        let mut replace_retries = 0usize;
         loop {
             let map = self.query(name)?;
             if let Some(old) = map.get(&index).cloned() {
+                if old == addr {
+                    // Idempotent register: desired address is already visible.
+                    return Ok(());
+                }
+                replace_retries += 1;
+                if replace_retries > self.max_replace_retries {
+                    return Err(ServiceDiscoveryError::Other(format!(
+                        "Timed out clearing existing consul registration for {name}.{index}"
+                    )));
+                }
                 self.deregister(name, index, &old)?;
             } else {
                 break;
@@ -678,6 +697,20 @@ mod tests {
     }
 
     #[test]
+    fn consul_idempotent_registration_short_circuits_when_addr_already_visible() {
+        let c = Arc::new(FakeConsul::new(vec![]));
+        let d = ConsulServiceDiscovery::new("unique_id")
+            .with_retry_time_secs(0.0)
+            .with_client(c);
+        d.register("server", 0, "192.168.0.1:1001").unwrap();
+        d.register("server", 0, "192.168.0.1:1001").unwrap();
+        assert_eq!(
+            d.query("server").unwrap(),
+            BTreeMap::from([(0, "192.168.0.1:1001".to_string())])
+        );
+    }
+
+    #[test]
     fn consul_multi_names() {
         let c = Arc::new(FakeConsul::new(vec![]));
         let d = ConsulServiceDiscovery::new("unique_id").with_client(c);
@@ -729,6 +762,55 @@ mod tests {
         let d = ConsulServiceDiscovery::new("unique_id").with_client(c);
         let err = d.register("ps", 0, "192.168.0.1:1001").unwrap_err();
         assert_eq!(err.to_string(), "This machine is blacklisted by consul.");
+    }
+
+    #[test]
+    fn consul_register_times_out_when_old_registration_never_clears() {
+        #[derive(Debug)]
+        struct StickyLookupConsul;
+        impl ConsulLike for StickyLookupConsul {
+            fn lookup(
+                &self,
+                _name: &str,
+                _timeout_secs: u64,
+            ) -> std::io::Result<Vec<serde_json::Value>> {
+                let tags = serde_json::json!({
+                    "name": "ps",
+                    "index": "0",
+                    "ip": "192.168.0.99"
+                });
+                Ok(vec![serde_json::json!({
+                    "Host": "192.168.0.99",
+                    "Port": 1001,
+                    "Tags": tags
+                })])
+            }
+
+            fn register(
+                &self,
+                _name: &str,
+                _port: u16,
+                _tags: &HashMap<String, String>,
+            ) -> std::io::Result<()> {
+                Ok(())
+            }
+
+            fn deregister(&self, _name: &str, _port: u16) -> std::io::Result<()> {
+                // Simulate stale visibility / eventual consistency that never resolves.
+                Ok(())
+            }
+        }
+
+        let d = ConsulServiceDiscovery::new("unique_id")
+            .with_retry_time_secs(0.0)
+            .with_max_replace_retries(2)
+            .with_client(Arc::new(StickyLookupConsul));
+        let err = d.register("ps", 0, "192.168.0.1:1001").unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("Timed out clearing existing consul registration"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]
