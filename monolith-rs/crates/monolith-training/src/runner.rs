@@ -14,7 +14,7 @@ use crate::discovery::{ServiceDiscoveryAsync, ServiceInfo};
 use crate::distributed_ps::{PsClient, PsServer};
 use crate::parameter_sync_replicator::{DirtyTracker, ParameterSyncReplicator};
 use crate::run_config::RunnerConfig;
-use crate::runner_utils::initialize_restore_checkpoint_from_runner;
+use crate::runner_utils::initialize_restore_checkpoint_from_runner_defaults;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -158,11 +158,7 @@ pub async fn run_distributed_from_runner_config<D: ServiceDiscoveryAsync + 'stat
     role: Role,
     bind_addr: SocketAddr,
 ) -> anyhow::Result<()> {
-    let _ = initialize_restore_checkpoint_from_runner(
-        runner_conf,
-        Duration::from_secs(30),
-        Duration::from_millis(200),
-    )?;
+    let _ = initialize_restore_checkpoint_from_runner_defaults(runner_conf)?;
     let cfg = distributed_config_from_runner(runner_conf, role, bind_addr);
     run_distributed(discovery, cfg).await
 }

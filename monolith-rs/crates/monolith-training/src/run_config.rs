@@ -29,6 +29,8 @@ pub struct RunnerConfig {
     pub model_dir: PathBuf,
     pub restore_dir: Option<PathBuf>,
     pub restore_ckpt: Option<String>,
+    pub restore_sync_timeout_secs: u64,
+    pub restore_sync_poll_interval_ms: u64,
     pub log_step_count_steps: u64,
     pub discovery_type: ServiceDiscoveryType,
     pub tf_config: Option<String>,
@@ -53,6 +55,8 @@ impl Default for RunnerConfig {
             model_dir: PathBuf::from("./model"),
             restore_dir: None,
             restore_ckpt: None,
+            restore_sync_timeout_secs: 3600,
+            restore_sync_poll_interval_ms: 30_000,
             log_step_count_steps: 100,
             discovery_type: ServiceDiscoveryType::Primus,
             tf_config: None,
@@ -79,6 +83,8 @@ pub struct RunConfig {
     pub model_dir: PathBuf,
     pub restore_dir: Option<PathBuf>,
     pub restore_ckpt: Option<String>,
+    pub restore_sync_timeout_secs: u64,
+    pub restore_sync_poll_interval_ms: u64,
     pub log_step_count_steps: u64,
     pub discovery_type: ServiceDiscoveryType,
     pub tf_config: Option<String>,
@@ -102,6 +108,8 @@ impl Default for RunConfig {
             model_dir: PathBuf::from("./model"),
             restore_dir: None,
             restore_ckpt: None,
+            restore_sync_timeout_secs: 3600,
+            restore_sync_poll_interval_ms: 30_000,
             log_step_count_steps: 100,
             discovery_type: ServiceDiscoveryType::Primus,
             tf_config: None,
@@ -142,6 +150,8 @@ impl RunConfig {
         merge_field!(model_dir);
         merge_field!(restore_dir);
         merge_field!(restore_ckpt);
+        merge_field!(restore_sync_timeout_secs);
+        merge_field!(restore_sync_poll_interval_ms);
         merge_field!(log_step_count_steps);
         merge_field!(enable_gpu_training);
         merge_field!(embedding_prefetch_capacity);
@@ -199,6 +209,8 @@ impl RunConfig {
         push_override!(model_dir);
         push_override!(restore_dir);
         push_override!(restore_ckpt);
+        push_override!(restore_sync_timeout_secs);
+        push_override!(restore_sync_poll_interval_ms);
         push_override!(log_step_count_steps);
         push_override!(discovery_type);
         push_override!(tf_config);
@@ -279,6 +291,8 @@ mod tests {
             num_workers: 5,
             restore_dir: Some(PathBuf::from("/tmp/restore")),
             restore_ckpt: Some("model.ckpt-10".to_string()),
+            restore_sync_timeout_secs: 99,
+            restore_sync_poll_interval_ms: 1234,
             ..RunConfig::default()
         };
         let base = RunnerConfig {
@@ -293,6 +307,8 @@ mod tests {
         assert_eq!(merged.num_workers, 5);
         assert_eq!(merged.restore_dir, Some(PathBuf::from("/tmp/restore")));
         assert_eq!(merged.restore_ckpt, Some("model.ckpt-10".to_string()));
+        assert_eq!(merged.restore_sync_timeout_secs, 99);
+        assert_eq!(merged.restore_sync_poll_interval_ms, 1234);
     }
 
     #[test]

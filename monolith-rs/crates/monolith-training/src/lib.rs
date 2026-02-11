@@ -140,9 +140,9 @@ pub use runner::{
 };
 pub use runner_utils::{
     copy_checkpoint_from_restore_dir, get_checkpoint_state_with_restore_override, get_discovery,
-    initialize_restore_checkpoint_from_runner, isabs, monolith_discovery,
-    prepare_restore_checkpoint, CheckpointState, MonolithDiscoveryGuard, RunnerDiscovery,
-    RunnerMode, RunnerUtilsError,
+    initialize_restore_checkpoint_from_runner, initialize_restore_checkpoint_from_runner_defaults,
+    isabs, monolith_discovery, prepare_restore_checkpoint, CheckpointState,
+    MonolithDiscoveryGuard, RunnerDiscovery, RunnerMode, RunnerUtilsError,
 };
 
 /// Training configuration combining estimator and distributed settings.

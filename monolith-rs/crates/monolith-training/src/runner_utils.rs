@@ -550,6 +550,15 @@ pub fn initialize_restore_checkpoint_from_runner(
     Ok(Some(st))
 }
 
+/// Runner-config defaulted restore initialization.
+pub fn initialize_restore_checkpoint_from_runner_defaults(
+    runner_conf: &RunnerConfig,
+) -> Result<Option<CheckpointState>, RunnerUtilsError> {
+    let timeout = Duration::from_secs(runner_conf.restore_sync_timeout_secs.max(1));
+    let poll = Duration::from_millis(runner_conf.restore_sync_poll_interval_ms.max(1));
+    initialize_restore_checkpoint_from_runner(runner_conf, timeout, poll)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -991,5 +1000,17 @@ all_model_checkpoint_paths: "model.ckpt-30"
             Path::new(&st.model_checkpoint_path).file_name().unwrap(),
             "model.ckpt-30"
         );
+    }
+
+    #[test]
+    fn test_initialize_restore_checkpoint_from_runner_defaults() {
+        let rc = RunnerConfig {
+            restore_dir: None,
+            restore_sync_timeout_secs: 2,
+            restore_sync_poll_interval_ms: 50,
+            ..RunnerConfig::default()
+        };
+        let st = initialize_restore_checkpoint_from_runner_defaults(&rc).unwrap();
+        assert!(st.is_none());
     }
 }
