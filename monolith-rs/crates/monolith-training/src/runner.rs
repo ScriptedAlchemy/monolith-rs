@@ -729,6 +729,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_worker_role_timeout_reports_ordering_issue() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        discovery.connect().await.unwrap();
+
+        let mut ps0 = ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 10001);
+        ps0 = ps0.with_metadata("index", "0");
+        let ps1 = ServiceInfo::new("ps-1", "ps-1", "ps", "127.0.0.1", 10002);
+        discovery.register_async(ps0).await.unwrap();
+        discovery.register_async(ps1).await.unwrap();
+
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 2,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg)
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("MixedIndexMetadataPresence"));
+    }
+
+    #[tokio::test]
     async fn test_ps_heartbeat_task_stops_after_ps_task_abort() {
         let discovery = Arc::new(CountingDiscovery::new());
         let cfg = DistributedRunConfig {
