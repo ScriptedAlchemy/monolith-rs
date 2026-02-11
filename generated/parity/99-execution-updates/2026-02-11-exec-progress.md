@@ -263,6 +263,13 @@
 - Added async smoke coverage validating PS/worker distributed startup through the
   estimator-facing runtime helper.
 
+### 22) Native-training integration parity test expansion
+- Expanded `tests/native_training_parity.rs` with higher-level cross-module checks:
+  - estimator construction from `RunConfig` with warm-start propagation assertions,
+  - discovery roundtrip checks via `get_discovery` + `RunnerDiscovery::query` for Primus.
+- This complements unit-level tests by validating the newer estimator/runner/discovery
+  APIs through integration-level entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -290,6 +297,7 @@
 23. `cargo test -p monolith-training -q` ✅ (post estimator constructors from run/runner config)
 24. `cargo test -p monolith-training -q` ✅ (post configurable restore sync timing integration)
 25. `cargo test -p monolith-training -q` ✅ (post estimator distributed runtime helper)
+26. `cargo test -p monolith-training -q` ✅ (post native-training integration parity test expansion)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
