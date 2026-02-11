@@ -618,6 +618,14 @@
 - Added async regression `test_ps_client_default_health_and_stats_methods`
   validating default helper behavior and stats retrieval on live PS gRPC server.
 
+### 57) PS lookup reconstruction index-tracking hardening
+- Replaced ad-hoc encoded shard/local position bookkeeping in
+  `PsClient::lookup_response(...)` with explicit tuple mapping:
+  - from `HashMap<i64, usize>` encoded positions
+  - to `HashMap<i64, (usize, usize)>` explicit `(shard_id, local_idx)` tuples.
+- This removes potential encoded-position collision risks for very large
+  per-shard batches while keeping remap behavior unchanged.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -702,6 +710,7 @@
 81. `cargo test --workspace -q` ✅ (post shard-selectable barrier coordinator API and lock-free barrier wrapper updates)
 82. `cargo test -p monolith-training -q` ✅ (post default health/stats client helpers + shard no-client guard parity)
 83. `cargo test --workspace -q` ✅ (post default health/stats helper APIs and latest distributed/runtime parity updates)
+84. `cargo test -p monolith-training -q` ✅ (post tuple-based lookup shard/local position mapping hardening)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
