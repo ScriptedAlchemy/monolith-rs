@@ -403,6 +403,7 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     );
 
     let mut ps_addrs: Vec<String> = Vec::new();
+    let mut last_ordering_issue: Option<PsAddrOrderError> = None;
     for attempt in 0..=cfg.connect_retries {
         let ps_services = discovery
             .discover_async(&cfg.discovery_service_type_ps)
@@ -413,6 +414,9 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
             Ok(addrs) => (addrs, None),
             Err(issue) => (Vec::new(), Some(issue)),
         };
+        if let Some(issue) = ordering_issue {
+            last_ordering_issue = Some(issue);
+        }
 
         if addrs.len() >= cfg.num_ps {
             ps_addrs = addrs;
@@ -420,7 +424,7 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         }
 
         if attempt == cfg.connect_retries {
-            if let Some(issue) = ordering_issue {
+            if let Some(issue) = last_ordering_issue {
                 anyhow::bail!(
                     "Timed out waiting for PS discovery: got {} expected {} (last ordering issue: {:?})",
                     addrs.len(),
@@ -666,6 +670,57 @@ mod tests {
         );
     }
 
+    struct SequencedDiscoverDiscovery {
+        calls: AtomicUsize,
+    }
+
+    impl SequencedDiscoverDiscovery {
+        fn new() -> Self {
+            Self {
+                calls: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ServiceDiscoveryAsync for SequencedDiscoverDiscovery {
+        async fn connect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn disconnect(&self) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn register_async(&self, _service: ServiceInfo) -> DiscoveryResult<()> {
+            Ok(())
+        }
+
+        async fn discover_async(&self, _service_type: &str) -> DiscoveryResult<Vec<ServiceInfo>> {
+            let n = self.calls.fetch_add(1, Ordering::SeqCst);
+            if n == 0 {
+                let mut ps0 = ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 10001);
+                ps0 = ps0.with_metadata("index", "0");
+                let ps1 = ServiceInfo::new("ps-1", "ps-1", "ps", "127.0.0.1", 10002);
+                Ok(vec![ps0, ps1])
+            } else {
+                Ok(Vec::new())
+            }
+        }
+
+        async fn watch_async(
+            &self,
+            _service_type: &str,
+        ) -> DiscoveryResult<tokio::sync::broadcast::Receiver<DiscoveryEvent>> {
+            let (_tx, rx) = tokio::sync::broadcast::channel(1);
+            Ok(rx)
+        }
+
+        async fn deregister_async(&self, _service_id: &str) -> DiscoveryResult<()> {
+            Ok(())
+        }
+    }
+
     #[test]
     fn test_ordered_ps_addrs_falls_back_to_address_sort_without_index() {
         let ps_b = ServiceInfo::new("ps-b", "ps-b", "ps", "127.0.0.1", 30001);
@@ -827,6 +882,28 @@ mod tests {
             .unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("MixedIndexMetadataPresence"));
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_preserves_last_ordering_issue_across_retries() {
+        let discovery = Arc::new(SequencedDiscoverDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 2,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 1,
+            retry_backoff_ms: 1,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg)
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("MixedIndexMetadataPresence"),
+            "expected timeout to preserve last ordering issue, got: {msg}"
+        );
     }
 
     #[tokio::test]
