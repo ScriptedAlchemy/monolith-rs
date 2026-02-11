@@ -30,6 +30,7 @@ chrono = { version = "0.4", default-features = false, features = ["alloc"] }
 glob = { workspace = true }
 base64 = "0.22"
 tokio-stream = { workspace = true, features = ["net"] }
+futures = "0.3"
 
 # Optional dependencies for remote discovery backends.
 zookeeper-client = { version = "0.11", optional = true, features = ["tokio"] }

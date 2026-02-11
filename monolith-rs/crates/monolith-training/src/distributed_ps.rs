@@ -36,6 +36,7 @@ use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use futures::future::try_join_all;
 use parking_lot::RwLock;
 use thiserror::Error;
 use tokio::sync::{Mutex as TokioMutex, Notify};
@@ -732,17 +733,18 @@ impl PsClient {
         // Step 3: Parallel lookup from all shards
         let mut shard_results: HashMap<usize, Vec<f32>> = HashMap::new();
         let mut shard_fid_to_idx: HashMap<i64, usize> = HashMap::new();
-
+        let mut lookup_futures = Vec::new();
         for (shard_id, shard_fids) in shard_batches.iter().enumerate() {
             if shard_fids.is_empty() {
                 continue;
             }
 
-            // Track position in this shard's results
+            // Track position in this shard's results.
             for (local_idx, &fid) in shard_fids.iter().enumerate() {
                 shard_fid_to_idx.insert(fid, shard_id * 1_000_000 + local_idx);
             }
 
+            let mut client = self.clients[shard_id].clone();
             let request = LookupRequest {
                 table_name: table_name.to_string(),
                 fids: shard_fids.clone(),
@@ -750,17 +752,17 @@ impl PsClient {
                 create_if_missing,
                 timeout_ms: 5000,
             };
-
-            let response = self.clients[shard_id]
-                .lookup(Request::new(request))
-                .await?
-                .into_inner();
-
-            if response.status_code != 0 {
-                return Err(PsError::RpcError(Status::internal(response.error_message)));
-            }
-
-            shard_results.insert(shard_id, response.embeddings);
+            lookup_futures.push(async move {
+                let response = client.lookup(Request::new(request)).await?.into_inner();
+                if response.status_code != 0 {
+                    return Err(PsError::RpcError(Status::internal(response.error_message)));
+                }
+                Ok::<(usize, Vec<f32>), PsError>((shard_id, response.embeddings))
+            });
+        }
+        let lookup_outputs = try_join_all(lookup_futures).await?;
+        for (shard_id, embeddings) in lookup_outputs {
+            shard_results.insert(shard_id, embeddings);
         }
 
         // Step 4: Reconstruct unique embeddings in order
@@ -833,14 +835,13 @@ impl PsClient {
         }
 
         // Step 3: Parallel apply to all shards
-        let mut total_updated = 0i32;
-        let mut total_not_found = 0i32;
-
+        let mut apply_futures = Vec::new();
         for (shard_id, shard_fids) in shard_batches.into_iter().enumerate() {
             if shard_fids.is_empty() {
                 continue;
             }
 
+            let mut client = self.clients[shard_id].clone();
             let request = ApplyGradientsRequest {
                 table_name: table_name.to_string(),
                 fids: shard_fids,
@@ -850,18 +851,19 @@ impl PsClient {
                 global_step,
                 timeout_ms: 5000,
             };
-
-            let response = self.clients[shard_id]
-                .apply_gradients(Request::new(request))
-                .await?
-                .into_inner();
-
-            if response.status_code != 0 {
-                return Err(PsError::RpcError(Status::internal(response.error_message)));
-            }
-
-            total_updated += response.num_updated;
-            total_not_found += response.num_not_found;
+            apply_futures.push(async move {
+                let response = client.apply_gradients(Request::new(request)).await?.into_inner();
+                if response.status_code != 0 {
+                    return Err(PsError::RpcError(Status::internal(response.error_message)));
+                }
+                Ok::<(i32, i32), PsError>((response.num_updated, response.num_not_found))
+            });
+        }
+        let apply_outputs = try_join_all(apply_futures).await?;
+        let (mut total_updated, mut total_not_found) = (0i32, 0i32);
+        for (updated, not_found) in apply_outputs {
+            total_updated += updated;
+            total_not_found += not_found;
         }
 
         Ok((total_updated, total_not_found))
@@ -979,6 +981,7 @@ pub fn get_shard_for_id(fid: i64, num_shards: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::TcpListener;
     use monolith_proto::monolith::ps_training::{
         ApplyGradientsRequest, GetStatsRequest, LookupRequest,
     };
@@ -1313,5 +1316,55 @@ mod tests {
         );
         assert_eq!(r1.unwrap().into_inner().status_code, 0);
         assert_eq!(r2.unwrap().into_inner().status_code, 0);
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_lookup_and_apply_across_shards() {
+        let bind0 = TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap();
+        let bind1 = TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap();
+
+        let ps0 = PsServer::new(0, 2);
+        let ps1 = PsServer::new(1, 2);
+        let h0 = tokio::spawn(async move {
+            let _ = serve_ps(ps0, bind0).await;
+        });
+        let h1 = tokio::spawn(async move {
+            let _ = serve_ps(ps1, bind1).await;
+        });
+
+        tokio::time::sleep(Duration::from_millis(80)).await;
+
+        let addr0 = bind0.to_string();
+        let addr1 = bind1.to_string();
+        let mut client = PsClient::connect(&[&addr0, &addr1]).await.unwrap();
+
+        let initial = client.lookup("emb", &[0, 1, 2, 3], 2, true).await.unwrap();
+        assert_eq!(initial, vec![0.0; 8]);
+
+        let (updated, not_found) = client
+            .apply_gradients(
+                "emb",
+                &[0, 1, 0, 3],
+                &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+                2,
+                0.5,
+                1,
+            )
+            .await
+            .unwrap();
+        assert_eq!(updated, 3);
+        assert_eq!(not_found, 0);
+
+        let after = client.lookup("emb", &[0, 1, 3], 2, false).await.unwrap();
+        assert_eq!(after, vec![-3.0, -4.0, -1.5, -2.0, -3.5, -4.0]);
+
+        h0.abort();
+        h1.abort();
     }
 }
