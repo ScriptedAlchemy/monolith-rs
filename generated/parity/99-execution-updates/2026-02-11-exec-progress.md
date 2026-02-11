@@ -1359,6 +1359,15 @@
     time out,
   - cleanup attempts still execute once (count-based assertions).
 
+### 126) PS register timeout precedence hardened under blocked cleanup
+- Added PS-role counterpart regression for setup-timeout precedence when cleanup
+  operations also block:
+  - `test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_times_out`
+- Confirms parity invariants for PS setup path:
+  - runner does not hang under blocked register+deregister+disconnect,
+  - PS register timeout error remains primary even when cleanup times out,
+  - cleanup attempts still execute (count assertions).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1584,6 +1593,8 @@
 222. `cargo test --workspace -q` ✅ (post timeout-diagnostics duration context enrichment full workspace rerun)
 223. `cargo test -p monolith-training -q` ✅ (post blocked-cleanup precedence regressions for setup-stage connect/register timeout paths)
 224. `cargo test --workspace -q` ✅ (post blocked-cleanup precedence regressions for setup-stage connect/register timeout paths full workspace rerun)
+225. `cargo test -p monolith-training -q` ✅ (post PS register blocked-cleanup precedence regression addition)
+226. `cargo test --workspace -q` ✅ (post PS register blocked-cleanup precedence regression addition full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
