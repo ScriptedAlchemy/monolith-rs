@@ -1632,6 +1632,16 @@
 - Strengthens diagnostic parity by proving index propagation through config
   entrypoints into runtime timeout error contexts.
 
+### 149) PS-index timeout diagnostic propagation integration coverage
+- Added PS-index diagnostic propagation regressions:
+  - `distributed_runner_from_run_config_propagates_ps_index_into_connect_timeout_diagnostics`
+  - `distributed_runner_from_runner_config_propagates_ps_index_into_connect_timeout_diagnostics`
+- Uses blocked connect + blocked cleanup backend with non-zero ps indices to
+  verify that timeout diagnostics include `ps-<index>` service-id context from
+  run-config and runner-config entrypoints.
+- Extends diagnostic parity coverage to both role families (worker + ps) for
+  connect-timeout error attribution.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1905,6 +1915,8 @@
 270. `cargo test --workspace -q` ✅ (post distributed dim input validation coverage across CLI and config entrypoints full workspace rerun)
 271. `cargo test -p monolith-training -q` ✅ (post worker-index timeout diagnostic propagation integrations across run/runner config entrypoints)
 272. `cargo test --workspace -q` ✅ (post worker-index timeout diagnostic propagation integrations across run/runner config entrypoints full workspace rerun)
+273. `cargo test -p monolith-training -q` ✅ (post ps-index timeout diagnostic propagation integrations across run/runner config entrypoints)
+274. `cargo test --workspace -q` ✅ (post ps-index timeout diagnostic propagation integrations across run/runner config entrypoints full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
