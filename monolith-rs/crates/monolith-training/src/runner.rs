@@ -112,8 +112,8 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
         ),
     };
 
-    match cfg.role {
-        Role::Ps => run_ps_role(Arc::clone(&discovery), &service_id, service_type, cfg).await?,
+    let role_res: anyhow::Result<()> = match cfg.role {
+        Role::Ps => run_ps_role(Arc::clone(&discovery), &service_id, service_type, cfg).await,
         Role::Worker => {
             // Register worker address for parity (some backends rely on it for cluster formation).
             let mut service = ServiceInfo::new(
@@ -125,12 +125,26 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
             );
             service = service.with_metadata("addr", cfg.bind_addr.to_string());
             service = service.with_metadata("index", cfg.index.to_string());
-            let _ = discovery.register_async(service).await;
-            run_worker_role(Arc::clone(&discovery), &service_id, cfg).await?
+            discovery.register_async(service).await?;
+            run_worker_role(Arc::clone(&discovery), &service_id, cfg).await
         }
+    };
+
+    let deregister_result = discovery.deregister_async(&service_id).await;
+    let disconnect_result = discovery.disconnect().await;
+
+    if let Err(e) = role_res {
+        if let Err(de) = deregister_result {
+            tracing::warn!(service_id = %service_id, error = %de, "Failed to deregister service after role error");
+        }
+        if let Err(de) = disconnect_result {
+            tracing::warn!(service_id = %service_id, error = %de, "Failed to disconnect discovery after role error");
+        }
+        return Err(e);
     }
 
-    discovery.disconnect().await?;
+    deregister_result?;
+    disconnect_result?;
     Ok(())
 }
 
@@ -195,7 +209,7 @@ async fn run_ps_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     service = service.with_metadata("addr", actual_addr.to_string());
     service = service.with_metadata("index", cfg.index.to_string());
     service = service.with_metadata("allow_update", "true");
-    let _ = discovery.register_async(service).await;
+    discovery.register_async(service).await?;
 
     tracing::info!(
         role = "ps",
@@ -302,7 +316,7 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::discovery::InMemoryDiscovery;
+    use crate::discovery::{InMemoryDiscovery, ServiceDiscovery};
 
     #[test]
     fn test_distributed_config_from_runner_maps_fields() {
@@ -361,6 +375,10 @@ mod tests {
         )
         .await;
         assert!(worker_res.is_ok(), "worker failed: {worker_res:?}");
+        assert!(
+            discovery.discover("worker").unwrap().is_empty(),
+            "worker service should be deregistered after completion"
+        );
 
         ps_task.abort();
     }
