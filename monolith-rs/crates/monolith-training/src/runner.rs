@@ -47,6 +47,7 @@ pub struct DistributedRunConfig {
     pub dim: usize,
     pub connect_retries: usize,
     pub retry_backoff_ms: u64,
+    pub barrier_timeout_ms: i64,
     pub heartbeat_interval: Option<Duration>,
     /// If set, periodically pushes updated embeddings to online serving via ParameterSync.
     pub parameter_sync_targets: Vec<String>,
@@ -69,6 +70,7 @@ impl Default for DistributedRunConfig {
             dim: 64,
             connect_retries: 6,
             retry_backoff_ms: 500,
+            barrier_timeout_ms: 10_000,
             heartbeat_interval: Some(Duration::from_secs(10)),
             parameter_sync_targets: Vec::new(),
             parameter_sync_interval: Duration::from_millis(200),
@@ -293,7 +295,7 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     tracing::info!(role = "worker", index = cfg.index, ps = ?ps_addrs, "Connecting to PS shards");
 
     let ps_client = PsClient::connect(&ps_addr_refs).await?;
-    let barrier: SharedBarrier = Arc::new(PsBarrier::new(ps_client.clone(), 10_000));
+    let barrier: SharedBarrier = Arc::new(PsBarrier::new(ps_client.clone(), cfg.barrier_timeout_ms));
 
     // Minimal "training loop" skeleton proving that:
     // - lookup works
@@ -339,6 +341,7 @@ mod tests {
         assert_eq!(cfg.index, 2);
         assert_eq!(cfg.num_ps, 3);
         assert_eq!(cfg.num_workers, 5);
+        assert_eq!(cfg.barrier_timeout_ms, 10_000);
         assert!(matches!(cfg.role, Role::Worker));
     }
 
