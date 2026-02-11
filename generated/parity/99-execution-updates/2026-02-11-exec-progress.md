@@ -1547,6 +1547,20 @@
 - Confirms entrypoint-level timeout propagation includes invalid-value rejection
   semantics in addition to previously covered timeout and retry behavior.
 
+### 142) Cleanup-timeout propagation integration coverage across config entrypoints
+- Added cleanup-timeout focused integration regressions:
+  - `distributed_runner_from_run_config_honors_cleanup_timeout_with_blocked_cleanup`
+  - `distributed_runner_from_runner_config_honors_cleanup_timeout_with_blocked_cleanup`
+- Uses blocked connect + blocked cleanup disconnect backend with small configured
+  operation/cleanup timeouts to validate that:
+  - runtime remains non-hanging,
+  - operation timeout diagnostics reflect configured values,
+  - total elapsed runtime is bounded by configured cleanup timeout semantics
+    rather than drifting toward long/default cleanup waits.
+- Complements existing operation-timeout precedence and retry propagation tests
+  by adding direct elapsed-time evidence for cleanup-timeout propagation through
+  both config entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1806,6 +1820,8 @@
 256. `cargo test --workspace -q` ✅ (post PS connect-timeout precedence integration regressions across run/runner config entrypoints full workspace rerun)
 257. `cargo test -p monolith-training -q` ✅ (post zero-timeout validation integration regressions across run/runner config entrypoints)
 258. `cargo test --workspace -q` ✅ (post zero-timeout validation integration regressions across run/runner config entrypoints full workspace rerun)
+259. `cargo test -p monolith-training -q` ✅ (post cleanup-timeout propagation integration regressions across run/runner config entrypoints)
+260. `cargo test --workspace -q` ✅ (post cleanup-timeout propagation integration regressions across run/runner config entrypoints full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
