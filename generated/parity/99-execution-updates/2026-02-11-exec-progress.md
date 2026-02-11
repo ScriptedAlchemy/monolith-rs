@@ -1368,6 +1368,19 @@
   - PS register timeout error remains primary even when cleanup times out,
   - cleanup attempts still execute (count assertions).
 
+### 127) Train CLI distributed-config builder parity hardening
+- Refactored train command distributed config assembly into dedicated helper:
+  - `TrainCommand::build_distributed_run_config()`
+- Added focused unit coverage for CLI→runner config mapping semantics:
+  - timeout flag propagation (`operation`/`cleanup` ms),
+  - heartbeat enable/disable behavior,
+  - non-distributed early-none path,
+  - invalid bind-address validation behavior.
+- Added PS blocked-cleanup precedence counterpart regression:
+  - `test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_times_out`
+  - ensures setup-timeout primacy and non-hanging behavior across both worker
+    and PS setup paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1595,6 +1608,10 @@
 224. `cargo test --workspace -q` ✅ (post blocked-cleanup precedence regressions for setup-stage connect/register timeout paths full workspace rerun)
 225. `cargo test -p monolith-training -q` ✅ (post PS register blocked-cleanup precedence regression addition)
 226. `cargo test --workspace -q` ✅ (post PS register blocked-cleanup precedence regression addition full workspace rerun)
+227. `cargo test -p monolith-cli -q` ✅ (post train distributed-config builder extraction + CLI mapping regressions)
+228. `cargo test --workspace -q` ✅ (post train distributed-config builder extraction + CLI mapping regressions full workspace rerun)
+229. `cargo test -p monolith-training -q` ✅ (post PS setup-timeout precedence regression for blocked cleanup path)
+230. `cargo test --workspace -q` ✅ (post PS setup-timeout precedence regression for blocked cleanup path full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
