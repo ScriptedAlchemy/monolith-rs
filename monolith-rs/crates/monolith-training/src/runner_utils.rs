@@ -49,6 +49,15 @@ pub struct CheckpointState {
     pub all_model_checkpoint_paths: Vec<String>,
 }
 
+/// Python-parity absolute path helper.
+///
+/// In upstream Python code `os.path.isabs` is monkey-patched so that `hdfs:/...`
+/// is treated as absolute in addition to local filesystem absolute paths.
+pub fn isabs(path: impl AsRef<str>) -> bool {
+    let p = path.as_ref();
+    p.starts_with("hdfs:/") || Path::new(p).is_absolute()
+}
+
 fn parse_checkpoint_pbtxt(input: &str) -> Option<CheckpointState> {
     // Extremely small parser matching the pbtxt written by Python tests:
     // model_checkpoint_path: 'model.ckpt-61'
@@ -381,6 +390,13 @@ all_model_checkpoint_paths: "model.ckpt-0"
         assert!(model_dir.join("monolith_checkpoint").exists());
         assert!(model_dir.join("restore_ckpt").exists());
         assert!(model_dir.join("checkpoint").exists());
+    }
+
+    #[test]
+    fn test_isabs_supports_hdfs_scheme() {
+        assert!(isabs("hdfs:/tmp/model"));
+        assert!(isabs("/tmp/model"));
+        assert!(!isabs("relative/path"));
     }
 
     #[test]

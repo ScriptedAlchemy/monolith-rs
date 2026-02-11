@@ -136,7 +136,7 @@ pub use run_config::{
 };
 pub use runner::{run_distributed, DistributedRunConfig, Role};
 pub use runner_utils::{
-    copy_checkpoint_from_restore_dir, get_discovery, monolith_discovery,
+    copy_checkpoint_from_restore_dir, get_discovery, isabs, monolith_discovery,
     prepare_restore_checkpoint, CheckpointState, MonolithDiscoveryGuard, RunnerDiscovery,
     RunnerUtilsError,
 };
