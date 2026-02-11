@@ -1065,6 +1065,16 @@
   `clear_registry_for_test()` races.
 - This preserves behavior while making the workspace test lane deterministic.
 
+### 98) MLP `query_all` role-filter parity tightening
+- Refined `MlpServiceDiscovery::query_all()` so output includes only:
+  - configured roles from environment (`MLP_<ROLE>_NUM`), and
+  - supported service-discovery names (`ps`, `worker`, `chief`).
+- This removes previously emitted extra empty keys for unconfigured supported
+  roles (e.g. omitted `chief` when not configured) and ignores unsupported role
+  names even when present in env counts.
+- Added regression:
+  - `test_mlp_query_all_only_includes_supported_configured_roles`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1229,6 +1239,8 @@
 161. `cargo test -p monolith-training -q` ✅ (post MLP discovery close-semantics lifecycle parity and close-state regression)
 162. `cargo test -p monolith-core -q` ✅ (post model-registry test serialization lock against global-state races)
 163. `cargo test --workspace -q` ✅ (post model-registry test-race stabilization and full workspace regression rerun)
+164. `cargo test -p monolith-training -q` ✅ (post MLP query_all configured-role filtering parity tightening)
+165. `cargo test --workspace -q` ✅ (post MLP query_all configured-role filtering parity tightening and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
