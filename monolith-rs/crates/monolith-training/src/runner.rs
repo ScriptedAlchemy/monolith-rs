@@ -130,6 +130,16 @@ impl DistributedRunConfig {
         if self.discovery_service_type_worker.trim().is_empty() {
             anyhow::bail!("distributed config requires non-empty discovery_service_type_worker");
         }
+        if self.discovery_service_type_ps.trim() != self.discovery_service_type_ps {
+            anyhow::bail!(
+                "distributed config requires discovery_service_type_ps without leading/trailing whitespace"
+            );
+        }
+        if self.discovery_service_type_worker.trim() != self.discovery_service_type_worker {
+            anyhow::bail!(
+                "distributed config requires discovery_service_type_worker without leading/trailing whitespace"
+            );
+        }
         if self.discovery_service_type_ps.trim() == self.discovery_service_type_worker.trim() {
             anyhow::bail!(
                 "distributed config requires distinct discovery_service_type_ps and discovery_service_type_worker"
@@ -2035,6 +2045,21 @@ mod tests {
     }
 
     #[test]
+    fn test_distributed_config_validate_rejects_whitespace_padded_ps_service_type() {
+        let cfg = DistributedRunConfig {
+            discovery_service_type_ps: " ps ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "distributed config requires discovery_service_type_ps without leading/trailing whitespace"
+            ),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_distributed_config_validate_rejects_empty_worker_service_type() {
         let cfg = DistributedRunConfig {
             discovery_service_type_worker: "".to_string(),
@@ -2043,6 +2068,21 @@ mod tests {
         let err = cfg.validate().unwrap_err().to_string();
         assert!(
             err.contains("distributed config requires non-empty discovery_service_type_worker"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_whitespace_padded_worker_service_type() {
+        let cfg = DistributedRunConfig {
+            discovery_service_type_worker: " worker ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "distributed config requires discovery_service_type_worker without leading/trailing whitespace"
+            ),
             "unexpected validation error: {err}"
         );
     }

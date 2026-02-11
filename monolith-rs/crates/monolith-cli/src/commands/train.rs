@@ -242,6 +242,16 @@ impl TrainCommand {
         if self.discovery_service_type_worker.trim().is_empty() {
             anyhow::bail!("--discovery-service-type-worker must be non-empty");
         }
+        if self.discovery_service_type_ps.trim() != self.discovery_service_type_ps {
+            anyhow::bail!(
+                "--discovery-service-type-ps must not have leading/trailing whitespace"
+            );
+        }
+        if self.discovery_service_type_worker.trim() != self.discovery_service_type_worker {
+            anyhow::bail!(
+                "--discovery-service-type-worker must not have leading/trailing whitespace"
+            );
+        }
         if self.discovery_service_type_ps.trim() == self.discovery_service_type_worker.trim() {
             anyhow::bail!(
                 "--discovery-service-type-ps and --discovery-service-type-worker must be distinct"
@@ -823,6 +833,18 @@ mod tests {
     }
 
     #[test]
+    fn test_build_distributed_run_config_rejects_whitespace_padded_ps_service_type() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.discovery_service_type_ps = " ps ".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--discovery-service-type-ps must not have leading/trailing whitespace"),
+            "unexpected ps service-type whitespace validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_build_distributed_run_config_rejects_empty_worker_service_type() {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
@@ -831,6 +853,20 @@ mod tests {
         assert!(
             err.contains("--discovery-service-type-worker must be non-empty"),
             "unexpected worker service-type validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_whitespace_padded_worker_service_type() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.discovery_service_type_worker = " worker ".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "--discovery-service-type-worker must not have leading/trailing whitespace"
+            ),
+            "unexpected worker service-type whitespace validation error: {err}"
         );
     }
 

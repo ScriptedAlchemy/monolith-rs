@@ -1957,6 +1957,29 @@
 - Prevents ambiguous cluster advertisement/discovery where PS and worker entries
   share the same service type and can pollute worker PS discovery resolution.
 
+### 169) Whitespace-normalized discovery service-type validation parity
+- Added distributed runtime validation to reject discovery service types with
+  leading/trailing whitespace:
+  - `discovery_service_type_ps`
+  - `discovery_service_type_worker`
+- Added CLI distributed-config builder parity checks to reject:
+  - `--discovery-service-type-ps` with leading/trailing whitespace
+  - `--discovery-service-type-worker` with leading/trailing whitespace
+- Added regression coverage:
+  - CLI unit:
+    - `test_build_distributed_run_config_rejects_whitespace_padded_ps_service_type`
+    - `test_build_distributed_run_config_rejects_whitespace_padded_worker_service_type`
+  - distributed config unit:
+    - `test_distributed_config_validate_rejects_whitespace_padded_ps_service_type`
+    - `test_distributed_config_validate_rejects_whitespace_padded_worker_service_type`
+  - native-training integration parity:
+    - `distributed_runner_from_run_config_rejects_whitespace_padded_ps_service_type`
+    - `distributed_runner_from_run_config_rejects_whitespace_padded_worker_service_type`
+    - `distributed_runner_from_runner_config_rejects_whitespace_padded_ps_service_type`
+    - `distributed_runner_from_runner_config_rejects_whitespace_padded_worker_service_type`
+- Prevents subtle discovery mismatches caused by whitespace-tainted service-type
+  keys while preserving explicit, actionable validation diagnostics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2271,6 +2294,8 @@
 311. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post strict zero-count propagation and zero-size cluster validation full workspace rerun under ambient ZK auth env)
 312. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post distinct PS/worker discovery service-type validation parity across CLI/runtime entrypoints)
 313. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post distinct PS/worker discovery service-type validation full workspace rerun under ambient ZK auth env)
+314. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post whitespace-padded discovery service-type validation parity across CLI/runtime entrypoints)
+315. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post whitespace-padded discovery service-type validation full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
