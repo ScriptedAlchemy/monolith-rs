@@ -1,9 +1,11 @@
 use monolith_training::py_discovery::TfConfigServiceDiscovery;
+use monolith_training::discovery::{DiscoveryEvent, ServiceDiscoveryAsync, ServiceInfo};
 use monolith_training::{
     copy_checkpoint_from_restore_dir, get_discovery, ConstantModelFn, EntryError, Estimator,
     RunConfig, RunnerConfig,
 };
 use std::fs;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tempfile::tempdir;
 
 #[test]
@@ -202,6 +204,111 @@ async fn distributed_runner_from_run_config_smoke() {
     .await;
     assert!(worker_res.is_ok(), "worker failed: {worker_res:?}");
     ps_task.abort();
+}
+
+struct HangingDiscoverFromRunConfigDiscovery {
+    connect_count: AtomicUsize,
+    disconnect_count: AtomicUsize,
+    discover_count: AtomicUsize,
+    deregister_count: AtomicUsize,
+}
+
+impl HangingDiscoverFromRunConfigDiscovery {
+    fn new() -> Self {
+        Self {
+            connect_count: AtomicUsize::new(0),
+            disconnect_count: AtomicUsize::new(0),
+            discover_count: AtomicUsize::new(0),
+            deregister_count: AtomicUsize::new(0),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl ServiceDiscoveryAsync for HangingDiscoverFromRunConfigDiscovery {
+    async fn connect(&self) -> monolith_training::discovery::Result<()> {
+        self.connect_count.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn disconnect(&self) -> monolith_training::discovery::Result<()> {
+        self.disconnect_count.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn register_async(
+        &self,
+        _service: ServiceInfo,
+    ) -> monolith_training::discovery::Result<()> {
+        Ok(())
+    }
+
+    async fn discover_async(
+        &self,
+        _service_type: &str,
+    ) -> monolith_training::discovery::Result<Vec<ServiceInfo>> {
+        self.discover_count.fetch_add(1, Ordering::SeqCst);
+        std::future::pending::<()>().await;
+        #[allow(unreachable_code)]
+        Ok(Vec::new())
+    }
+
+    async fn watch_async(
+        &self,
+        _service_type: &str,
+    ) -> monolith_training::discovery::Result<tokio::sync::broadcast::Receiver<DiscoveryEvent>>
+    {
+        let (_tx, rx) = tokio::sync::broadcast::channel(1);
+        Ok(rx)
+    }
+
+    async fn deregister_async(&self, _service_id: &str) -> monolith_training::discovery::Result<()> {
+        self.deregister_count.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_honors_discover_timeout_controls() {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingDiscoverFromRunConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when discover blocks"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out during discovery operation: discover worker-0 after 20ms"),
+        "run-config timeout controls should propagate into discover timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
 }
 
 #[test]
