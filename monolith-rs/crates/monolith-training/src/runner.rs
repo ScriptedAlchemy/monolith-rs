@@ -173,8 +173,8 @@ pub fn distributed_config_from_runner(
     DistributedRunConfig {
         role,
         index: runner_conf.index,
-        num_ps: runner_conf.num_ps.max(1),
-        num_workers: runner_conf.num_workers.max(1),
+        num_ps: runner_conf.num_ps,
+        num_workers: runner_conf.num_workers,
         bind_addr,
         discovery_service_type_ps: runner_conf.discovery_service_type_ps.clone(),
         discovery_service_type_worker: runner_conf.discovery_service_type_worker.clone(),
@@ -1943,6 +1943,32 @@ mod tests {
         let err = cfg.validate().unwrap_err().to_string();
         assert!(
             err.contains("distributed config requires discovery_operation_timeout > 0"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_zero_num_ps() {
+        let cfg = DistributedRunConfig {
+            num_ps: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("distributed config requires num_ps > 0"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_zero_num_workers() {
+        let cfg = DistributedRunConfig {
+            num_workers: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("distributed config requires num_workers > 0"),
             "unexpected validation error: {err}"
         );
     }

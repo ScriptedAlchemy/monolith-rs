@@ -1920,6 +1920,25 @@
 - Prevents malformed empty table names from reaching PS lookup/apply paths and
   failing later in distributed worker execution loops.
 
+### 167) Strict zero-count propagation and validation for distributed cluster sizing
+- Removed silent coercion in `distributed_config_from_runner` that previously
+  transformed:
+  - `num_ps = 0` → `1`
+  - `num_workers = 0` → `1`
+- This now preserves configured values and allows shared distributed validation
+  to reject invalid cluster sizing deterministically.
+- Added/expanded regression coverage:
+  - distributed config unit:
+    - `test_distributed_config_validate_rejects_zero_num_ps`
+    - `test_distributed_config_validate_rejects_zero_num_workers`
+  - native-training integration parity:
+    - `distributed_runner_from_run_config_rejects_zero_num_ps`
+    - `distributed_runner_from_run_config_rejects_zero_num_workers`
+    - `distributed_runner_from_runner_config_rejects_zero_num_ps`
+    - `distributed_runner_from_runner_config_rejects_zero_num_workers`
+- Ensures run/runner-config entrypoints no longer mask malformed topology and
+  now align with CLI-level strict cluster-size validation semantics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2230,6 +2249,8 @@
 307. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post distributed role-index range validation parity full workspace rerun under ambient ZK auth env)
 308. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post non-empty distributed table-name validation parity across CLI/runtime config entrypoints)
 309. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post non-empty distributed table-name validation parity full workspace rerun under ambient ZK auth env)
+310. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post strict zero-count propagation in distributed config mapping + zero-size cluster validation regressions)
+311. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post strict zero-count propagation and zero-size cluster validation full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
