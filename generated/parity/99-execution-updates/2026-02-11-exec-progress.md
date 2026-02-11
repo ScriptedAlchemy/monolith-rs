@@ -1182,6 +1182,16 @@
 - Added regression:
   - `test_run_distributed_attempts_disconnect_when_deregister_fails_after_success`.
 
+### 111) Worker-timeout cleanup regression coverage after successful registration
+- Added distributed-runner regression for worker timeout path where service
+  registration already succeeded:
+  - validates timeout error surface,
+  - validates cleanup sequence still attempts both `deregister` and
+    `disconnect`,
+  - validates worker registration is removed from discovery state.
+- Added regression:
+  - `test_run_distributed_disconnects_when_worker_role_fails_after_registration`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1372,6 +1382,8 @@
 187. `cargo test --workspace -q` ✅ (post forced heartbeat-task abort on shutdown-timeout path and full workspace rerun)
 188. `cargo test -p monolith-training -q` ✅ (post disconnect-after-success lifecycle regression for deregister-failure path)
 189. `cargo test --workspace -q` ✅ (post disconnect-after-success lifecycle regression for deregister-failure path and full workspace rerun)
+190. `cargo test -p monolith-training -q` ✅ (post worker-timeout cleanup regression after successful registration)
+191. `cargo test --workspace -q` ✅ (post worker-timeout cleanup regression after successful registration and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
