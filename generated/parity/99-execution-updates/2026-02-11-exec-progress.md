@@ -435,6 +435,18 @@
   - empty-address connect rejection,
   - lookup behavior on an explicitly empty client instance.
 
+### 41) PS client early input validation parity
+- Added client-side validation before network fanout:
+  - `lookup` now rejects `dim_size == 0`,
+  - `apply_gradients` now rejects `dim_size == 0`,
+  - `apply_gradients` now validates gradient tensor length upfront and returns
+    `DimensionMismatch` instead of panicking downstream in aggregation paths,
+  - `barrier` now validates `num_workers > 0` and `worker_id` range before RPC.
+- Added regression tests for:
+  - zero-dim lookup rejection,
+  - gradient-size mismatch rejection in apply path,
+  - invalid worker-range rejection in barrier path.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -492,6 +504,7 @@
 53. `cargo test --workspace -q` ✅ (post PS client parallel fanout runtime implementation and end-to-end shard test)
 54. `cargo test -p monolith-training -q` ✅ (post PS client no-shard configuration guards)
 55. `cargo test --workspace -q` ✅ (post PS client no-shard guards and additional client edge-case tests)
+56. `cargo test -p monolith-training -q` ✅ (post PS client early input validation parity hardening)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
