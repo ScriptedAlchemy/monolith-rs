@@ -150,6 +150,9 @@
 - Added regression tests covering:
   - merge + user override visibility for these new fields,
   - concrete env var export behavior.
+- Wired env export application into config-driven runtime initialization
+  (`initialize_restore_checkpoint_from_runner`) so runtime entrypoints can
+  apply export semantics even when restore sync is a no-op.
 
 ## Validation evidence (commands run)
 
@@ -166,6 +169,7 @@
 11. `cargo test -p monolith-training -q` ✅ (post monolith_discovery Consul auto-psm behavior)
 12. `cargo test -p monolith-training -q` ✅ (post RunnerConfig restore-init parity helper updates)
 13. `cargo test -p monolith-training -q` ✅ (post RunnerConfig env-export parity updates)
+14. `cargo test -p monolith-training -q` ✅ (post runtime wiring of env-export helper)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
