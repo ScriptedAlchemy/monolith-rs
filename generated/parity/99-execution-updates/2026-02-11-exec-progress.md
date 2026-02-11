@@ -1074,6 +1074,7 @@
 139. `cargo test -p monolith-training -q` ✅ (post worker timeout diagnostics enhancement reporting max observed PS count across retries)
 140. `cargo test --workspace -q` ✅ (post worker timeout diagnostics enhancement reporting max observed PS count and full workspace rerun)
 141. `cargo test -p monolith-training -q` ✅ (post raw-vs-usable PS visibility diagnostics enhancement in worker discovery timeout path)
+142. `cargo test --workspace -q` ✅ (post raw-vs-usable PS visibility diagnostics enhancement and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
