@@ -860,6 +860,16 @@
   sequenced discovery backend (inconsistent metadata first, empty results next)
   to verify timeout messages retain `MixedIndexMetadataPresence`.
 
+### 80) PS registration failure cleanup regression coverage
+- Added async regression
+  `test_run_distributed_disconnects_when_ps_registration_fails`.
+- Uses the same failing discovery backend as worker registration-failure tests
+  to assert PS-role startup failures still execute common cleanup:
+  - `deregister_async` attempted,
+  - `disconnect` attempted.
+- Ensures role-specific registration error paths remain aligned with distributed
+  runner cleanup semantics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -989,6 +999,7 @@
 126. `cargo test --workspace -q` ✅ (post distributed runner cleanup hardening for worker registration failure path and full workspace rerun)
 127. `cargo test -p monolith-training -q` ✅ (post worker discovery timeout diagnostic retention hardening across retry attempts)
 128. `cargo test --workspace -q` ✅ (post worker discovery timeout diagnostic retention hardening and full workspace rerun)
+129. `cargo test -p monolith-training -q` ✅ (post PS registration-failure cleanup regression coverage)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
