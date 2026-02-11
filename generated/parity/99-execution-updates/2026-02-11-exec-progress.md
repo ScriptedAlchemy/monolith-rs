@@ -1130,6 +1130,15 @@
 - Added regression:
   - `consul_close_state_is_shared_across_clones`.
 
+### 105) Worker heartbeat success-path shutdown regression coverage
+- Extended runner heartbeat lifecycle coverage to validate worker success path:
+  - added delayed-discovery support in test discovery backend to ensure worker
+    heartbeat ticks while discovery waits,
+  - added regression that verifies heartbeat stops after worker completes
+    successfully (not just timeout path).
+- Added regression:
+  - `test_worker_heartbeat_task_stops_after_worker_success`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1308,6 +1317,8 @@
 175. `cargo test --workspace -q` ✅ (post Consul query_all close-state consistency guard and full workspace regression rerun)
 176. `cargo test -p monolith-training -q` ✅ (post Consul clone close-state parity regression)
 177. `cargo test --workspace -q` ✅ (post Consul clone close-state parity regression and full workspace regression rerun)
+178. `cargo test -p monolith-training -q` ✅ (post worker-success heartbeat lifecycle shutdown regression)
+179. `cargo test --workspace -q` ✅ (post worker-success heartbeat lifecycle shutdown regression and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
