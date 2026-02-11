@@ -365,6 +365,16 @@
   - timeout behavior when not all workers arrive,
   - successful blocking wait release when peers arrive.
 
+### 34) PS server latency stats parity
+- Implemented average latency tracking in `distributed_ps` server stats:
+  - added aggregate latency counters for lookup/apply RPC paths,
+  - computes `avg_lookup_latency_us` and `avg_apply_latency_us` from counters.
+- Wired latency measurement into lookup/apply handlers with microsecond granularity.
+- Added async regression test to validate:
+  - lookup/apply request counters,
+  - non-zero average latency fields,
+  - stats payload consistency after real RPC handler invocation.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -409,6 +419,7 @@
 40. `cargo test --workspace -q` ✅ (post latest run-config restore init and runner-config initializer parity updates)
 41. `cargo test -p monolith-training -q` ✅ (post local-cluster blocking barrier parity helper)
 42. `cargo test --workspace -q` ✅ (post local-cluster blocking barrier parity helper + repeated release semantics)
+43. `cargo test -p monolith-training -q` ✅ (post PS lookup/apply latency stats tracking)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
