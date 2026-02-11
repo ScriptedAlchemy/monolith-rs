@@ -409,6 +409,12 @@
   - timeout cleanup allowing subsequent successful retry round,
   - existing mismatch/reset semantics remain covered.
 
+### 38) PS barrier worker-id validation parity
+- Added explicit worker-id range validation for barrier requests:
+  - rejects `worker_id < 0` and `worker_id >= num_workers`.
+- Added regression test ensuring out-of-range worker IDs fail with clear
+  diagnostics and do not mutate barrier state.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -460,6 +466,7 @@
 47. `cargo test --workspace -q` ✅ (post PS barrier consistency + stats parity updates)
 48. `cargo test -p monolith-training -q` ✅ (post generation-based PS barrier state + duplicate-worker guard)
 49. `cargo test --workspace -q` ✅ (post generation-based PS barrier state and duplicate-worker timeout cleanup semantics)
+50. `cargo test -p monolith-training -q` ✅ (post PS barrier worker-id range validation)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
