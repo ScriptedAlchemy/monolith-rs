@@ -1139,6 +1139,7 @@
 149. `cargo test -p monolith-training -q` ✅ (post worker heartbeat lifecycle cleanup + deterministic worker timeout heartbeat-task shutdown)
 150. `cargo test --workspace -q` ✅ (post worker heartbeat lifecycle cleanup and full workspace regression rerun)
 151. `cargo test -p monolith-training -q` ✅ (post discovery watch poller lifecycle cleanup and unsubscribe-stop regressions)
+152. `cargo test --workspace -q` ✅ (post discovery watch poller lifecycle cleanup and full workspace regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
