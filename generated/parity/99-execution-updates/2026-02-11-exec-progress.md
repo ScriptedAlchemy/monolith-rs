@@ -1212,6 +1212,16 @@
   - `test_run_distributed_prefers_deregister_error_when_both_post_success_cleanup_steps_fail`
   - `test_run_distributed_returns_connect_error_when_connect_and_disconnect_fail`.
 
+### 114) Disconnect-timeout cleanup regression coverage after successful run
+- Added success-path cleanup regression where:
+  - worker role completes successfully,
+  - deregister succeeds,
+  - disconnect blocks and times out.
+- Verifies timeout error is surfaced with explicit cleanup context while
+  preserving deterministic cleanup call ordering/counters.
+- Added regression:
+  - `test_run_distributed_surfaces_disconnect_timeout_after_success`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1408,6 +1418,8 @@
 193. `cargo test --workspace -q` ✅ (post disconnect-failure propagation regression after successful worker completion and full workspace rerun)
 194. `cargo test -p monolith-training -q` ✅ (post combined cleanup-failure semantics hardening in distributed runner)
 195. `cargo test --workspace -q` ✅ (post combined cleanup-failure semantics hardening in distributed runner and full workspace rerun)
+196. `cargo test -p monolith-training -q` ✅ (post disconnect-timeout cleanup regression after successful worker completion)
+197. `cargo test --workspace -q` ✅ (post disconnect-timeout cleanup regression after successful worker completion and full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
