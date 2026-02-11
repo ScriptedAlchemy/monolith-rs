@@ -3020,6 +3020,25 @@
 - Result: worker-timeout cleanup-timeout diagnostics now have explicit indexed
   default-service parity across runner + RunConfig + RunnerConfig entrypoints.
 
+### 228) Connect-timeout cleanup-failure matrix parity expanded
+- Added runner-level connect-timeout cleanup-failure regressions:
+  - `test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_custom_service_type_and_index`
+  - `test_run_distributed_ps_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_default_service_type_and_index`
+- Added RunConfig integration regressions:
+  - `distributed_runner_from_run_config_preserves_default_connect_timeout_with_index_disconnect_failure_context`
+  - `distributed_runner_from_run_config_preserves_default_ps_connect_timeout_with_index_disconnect_failure_context`
+- Added RunnerConfig integration regressions:
+  - `distributed_runner_from_runner_config_preserves_default_connect_timeout_with_index_disconnect_failure_context`
+  - `distributed_runner_from_runner_config_preserves_default_ps_connect_timeout_with_index_disconnect_failure_context`
+- New assertions verify connect-timeout diagnostics preserve:
+  - indexed worker/ps identities (`worker-2`, `ps-2`),
+  - default/custom service-type propagation in operation-timeout context,
+  - appended cleanup issue context with explicit disconnect-failure operation
+    diagnostics.
+- Result: connect-timeout + disconnect-failure diagnostics now include explicit
+  default/custom indexed parity across runner + RunConfig + RunnerConfig
+  entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3477,6 +3496,9 @@
 454. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker-timeout cleanup-timeout indexed-default parity completion across runner/config entrypoints)
 455. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post worker-timeout cleanup-timeout indexed-default parity compatibility verification)
 456. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post worker-timeout cleanup-timeout indexed-default parity completion full workspace rerun under ambient ZK auth env)
+457. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post connect-timeout cleanup-failure matrix parity expansion across runner/config entrypoints)
+458. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post connect-timeout cleanup-failure matrix parity compatibility verification)
+459. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post connect-timeout cleanup-failure matrix parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
