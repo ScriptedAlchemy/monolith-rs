@@ -179,6 +179,15 @@
 - Added smoke coverage in both unit and integration tests for RunnerConfig-driven
   PS/worker distributed startup.
 
+### 14) EstimatorSpec parity surface
+- Added `EstimatorSpec` + `EstimatorSpecUpdate` to mirror Python estimator output API shape:
+  - fields include `label`, `pred`, `head_name`, `loss`, `optimizer`, `classification`,
+  - constructor defaults align with Python (`head_name/loss/optimizer=None`, `classification=true`).
+- Added `EstimatorSpec::replace(...)` parity helper with mode immutability enforcement:
+  - allows replacement only when requested mode equals existing mode,
+  - returns explicit mode-change error on mismatched mode updates.
+- Added regression tests for defaults, allowed replace updates, and forbidden mode mutation.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -198,6 +207,7 @@
 15. `cargo test --workspace -q` ✅ (post latest runner-config + runner-utils parity updates)
 16. `cargo test -p monolith-training -q` ✅ (post estimator `steps/max_steps` parity API updates)
 17. `cargo test -p monolith-training -q` ✅ (post RunnerConfig-driven distributed runner entrypoint)
+18. `cargo test -p monolith-training -q` ✅ (post `EstimatorSpec` parity surface + tests)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
