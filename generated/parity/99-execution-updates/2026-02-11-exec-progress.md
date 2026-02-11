@@ -632,6 +632,7 @@
 70. `cargo test -p monolith-training -q` ✅ (post local-cluster released-barrier pruning + lagging-worker safety regression)
 71. `cargo test --workspace -q` ✅ (post local-cluster released-barrier pruning and latest distributed/runtime parity hardening)
 72. `cargo test -p monolith-training -q` ✅ (post immutable/concurrency-friendly PS client API refactor + parallel immutable lookup test)
+73. `cargo test --workspace -q` ✅ (post immutable/concurrency-friendly PS client API refactor and caller cleanup)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
