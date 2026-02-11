@@ -292,7 +292,7 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     let ps_addr_refs: Vec<&str> = ps_addrs.iter().map(|s| s.as_str()).collect();
     tracing::info!(role = "worker", index = cfg.index, ps = ?ps_addrs, "Connecting to PS shards");
 
-    let mut ps_client = PsClient::connect(&ps_addr_refs).await?;
+    let ps_client = PsClient::connect(&ps_addr_refs).await?;
     let barrier: SharedBarrier = Arc::new(PsBarrier::new(
         PsClient::connect(&ps_addr_refs).await?,
         10_000,

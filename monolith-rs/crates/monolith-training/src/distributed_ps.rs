@@ -685,6 +685,7 @@ impl ParameterServerTraining for PsServerHandle {
 /// - Parallel fanout to multiple shards
 /// - Remapping results to original order
 /// - Gradient aggregation for duplicate IDs
+#[derive(Clone)]
 pub struct PsClient {
     /// gRPC clients for each PS shard.
     clients: Vec<ParameterServerTrainingClient<tonic::transport::Channel>>,
@@ -720,7 +721,7 @@ impl PsClient {
     ///
     /// Handles deduplication, shard routing, and remapping automatically.
     pub async fn lookup(
-        &mut self,
+        &self,
         table_name: &str,
         fids: &[i64],
         dim_size: usize,
@@ -736,7 +737,7 @@ impl PsClient {
     ///
     /// Handles gradient aggregation for duplicate IDs automatically.
     pub async fn apply_gradients(
-        &mut self,
+        &self,
         table_name: &str,
         fids: &[i64],
         gradients: &[f32],
@@ -967,8 +968,7 @@ impl PsClient {
     ///
     /// Each request entry is processed with the same semantics as [`Self::lookup`],
     /// and failures are encoded in per-entry response status codes.
-    pub async fn batch_lookup(&mut self, request: BatchLookupRequest) -> PsResult<BatchLookupResponse> {
-        let this: &PsClient = self;
+    pub async fn batch_lookup(&self, request: BatchLookupRequest) -> PsResult<BatchLookupResponse> {
         let futures = request.requests.into_iter().map(|req| async move {
             if req.dim_size <= 0 {
                 return LookupResponse {
@@ -983,7 +983,7 @@ impl PsClient {
                     num_initialized: 0,
                 };
             }
-            match this
+            match self
                 .lookup_response(
                     &req.table_name,
                     &req.fids,
@@ -1012,10 +1012,9 @@ impl PsClient {
     /// Each request entry is processed with the same semantics as [`Self::apply_gradients`],
     /// and failures are encoded in per-entry response status codes.
     pub async fn batch_apply_gradients(
-        &mut self,
+        &self,
         request: BatchApplyGradientsRequest,
     ) -> PsResult<BatchApplyGradientsResponse> {
-        let this: &PsClient = self;
         let futures = request.requests.into_iter().map(|req| async move {
             if req.dim_size <= 0 {
                 return ApplyGradientsResponse {
@@ -1028,7 +1027,7 @@ impl PsClient {
                     num_not_found: 0,
                 };
             }
-            match this
+            match self
                 .apply_gradients_response(
                     &req.table_name,
                     &req.fids,
@@ -1054,7 +1053,7 @@ impl PsClient {
 
     /// Waits at a barrier for all workers.
     pub async fn barrier(
-        &mut self,
+        &self,
         barrier_id: &str,
         worker_id: i32,
         num_workers: i32,
@@ -1087,7 +1086,8 @@ impl PsClient {
             timeout_ms,
         };
 
-        let response = self.clients[0]
+        let mut client = self.clients[0].clone();
+        let response = client
             .barrier(Request::new(request))
             .await?
             .into_inner();
@@ -1113,13 +1113,14 @@ impl PsClient {
 
     /// Performs health check against one PS shard.
     pub async fn health_check_shard(
-        &mut self,
+        &self,
         shard_id: usize,
         component: impl Into<String>,
     ) -> PsResult<HealthCheckResponse> {
-        let client = self
+        let mut client = self
             .clients
-            .get_mut(shard_id)
+            .get(shard_id)
+            .cloned()
             .ok_or_else(|| PsError::InvalidConfig(format!("invalid shard index: {}", shard_id)))?;
         let response = client
             .health_check(Request::new(HealthCheckRequest {
@@ -1132,7 +1133,7 @@ impl PsClient {
 
     /// Performs health checks against all shards in parallel.
     pub async fn health_check_all(
-        &mut self,
+        &self,
         component: impl Into<String>,
     ) -> PsResult<Vec<HealthCheckResponse>> {
         if self.clients.is_empty() {
@@ -1155,13 +1156,14 @@ impl PsClient {
 
     /// Gets stats from one PS shard.
     pub async fn get_stats_shard(
-        &mut self,
+        &self,
         shard_id: usize,
         include_table_stats: bool,
     ) -> PsResult<GetStatsResponse> {
-        let client = self
+        let mut client = self
             .clients
-            .get_mut(shard_id)
+            .get(shard_id)
+            .cloned()
             .ok_or_else(|| PsError::InvalidConfig(format!("invalid shard index: {}", shard_id)))?;
         let response = client
             .get_stats(Request::new(GetStatsRequest { include_table_stats }))
@@ -1171,7 +1173,7 @@ impl PsClient {
     }
 
     /// Gets stats from all PS shards in parallel.
-    pub async fn get_stats_all(&mut self, include_table_stats: bool) -> PsResult<Vec<GetStatsResponse>> {
+    pub async fn get_stats_all(&self, include_table_stats: bool) -> PsResult<Vec<GetStatsResponse>> {
         if self.clients.is_empty() {
             return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
         }
@@ -1626,7 +1628,7 @@ mod tests {
 
         let addr0 = bind0.to_string();
         let addr1 = bind1.to_string();
-        let mut client = PsClient::connect(&[&addr0, &addr1]).await.unwrap();
+        let client = PsClient::connect(&[&addr0, &addr1]).await.unwrap();
 
         let initial = client.lookup("emb", &[0, 1, 2, 3], 2, true).await.unwrap();
         assert_eq!(initial, vec![0.0; 8]);
@@ -1659,8 +1661,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_ps_client_supports_parallel_immutable_lookups() {
+        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr]).await.unwrap();
+        client.lookup("immut", &[1, 2], 2, true).await.unwrap();
+
+        let (left, right) = tokio::join!(
+            client.lookup("immut", &[1], 2, false),
+            client.lookup("immut", &[2], 2, false)
+        );
+        assert_eq!(left.unwrap(), vec![0.0, 0.0]);
+        assert_eq!(right.unwrap(), vec![0.0, 0.0]);
+
+        server.abort();
+    }
+
+    #[tokio::test]
     async fn test_ps_client_lookup_errors_without_clients() {
-        let mut client = PsClient {
+        let client = PsClient {
             clients: Vec::new(),
             num_shards: 0,
         };
@@ -1670,23 +1695,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_ps_client_lookup_rejects_zero_dim() {
-        let mut client = PsClient {
+        let client = PsClient {
             clients: Vec::new(),
-            num_shards: 0,
+            num_shards: 1,
         };
-        // Set one dummy shard to bypass no-client guard and validate dim check first.
-        client.num_shards = 1;
         let err = client.lookup("emb", &[1], 0, true).await.unwrap_err();
         assert!(matches!(err, PsError::InvalidConfig(_)));
     }
 
     #[tokio::test]
     async fn test_ps_client_apply_rejects_gradient_size_mismatch() {
-        let mut client = PsClient {
+        let client = PsClient {
             clients: Vec::new(),
-            num_shards: 0,
+            num_shards: 1,
         };
-        client.num_shards = 1;
         let err = client
             .apply_gradients("emb", &[1, 2], &[0.1, 0.2, 0.3], 2, 0.1, 1)
             .await
@@ -1702,18 +1724,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_ps_client_barrier_rejects_invalid_worker_range() {
-        let mut client = PsClient {
+        let client = PsClient {
             clients: Vec::new(),
-            num_shards: 0,
+            num_shards: 1,
         };
-        client.num_shards = 1;
         let err = client.barrier("b", 2, 2, 100).await.unwrap_err();
         assert!(matches!(err, PsError::InvalidConfig(_)));
     }
 
     #[tokio::test]
     async fn test_ps_client_barrier_rejects_non_positive_timeout() {
-        let mut client = PsClient {
+        let client = PsClient {
             clients: Vec::new(),
             num_shards: 0,
         };
@@ -1731,7 +1752,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let mut client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr]).await.unwrap();
         let err = client.barrier("bt", 0, 2, 20).await.unwrap_err();
         assert!(matches!(err, PsError::Timeout(_)));
         server.abort();
@@ -1747,7 +1768,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let mut client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr]).await.unwrap();
         // Initializes barrier "bm" with num_workers=1.
         client.barrier("bm", 0, 1, 200).await.unwrap();
         // Reusing same barrier id with incompatible num_workers should become InvalidConfig.
@@ -1766,7 +1787,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let mut client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr]).await.unwrap();
 
         let health = client.health_check_shard(0, "ps").await.unwrap();
         assert_eq!(
@@ -1806,7 +1827,7 @@ mod tests {
 
         let addr0 = bind0.to_string();
         let addr1 = bind1.to_string();
-        let mut client = PsClient::connect(&[&addr0, &addr1]).await.unwrap();
+        let client = PsClient::connect(&[&addr0, &addr1]).await.unwrap();
 
         let healths = client.health_check_all("ps").await.unwrap();
         assert_eq!(healths.len(), 2);
@@ -1826,7 +1847,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ps_client_stats_shard_index_validation() {
-        let mut client = PsClient {
+        let client = PsClient {
             clients: Vec::new(),
             num_shards: 0,
         };
@@ -1850,7 +1871,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let mut client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr]).await.unwrap();
 
         let lookup_batch = BatchLookupRequest {
             requests: vec![
@@ -1917,7 +1938,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let mut client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr]).await.unwrap();
 
         // First lookup initializes missing IDs and should report all as newly initialized.
         let first = client
@@ -1971,7 +1992,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let mut client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr]).await.unwrap();
 
         let resp = client
             .batch_lookup(BatchLookupRequest {
@@ -2018,7 +2039,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let mut client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr]).await.unwrap();
 
         // Initialize valid table entry so the second apply request can update it.
         client.lookup("dim_apply", &[9], 2, true).await.unwrap();
