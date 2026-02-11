@@ -676,7 +676,10 @@ pub async fn run_distributed<D: ServiceDiscoveryAsync + 'static + ?Sized>(
                 disconnect_err
             ));
         }
-        return Err(anyhow::Error::from(de));
+        return Err(anyhow::anyhow!(
+            "{} (discovery cleanup encountered issues after successful role completion)",
+            de
+        ));
     }
     if let Err(disconnect_err) = disconnect_result {
         return Err(anyhow::anyhow!(
@@ -4415,6 +4418,10 @@ mod tests {
             msg.contains("forced deregister failure"),
             "unexpected error: {msg}"
         );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after successful role completion"),
+            "deregister failure after successful role should include cleanup issue context: {msg}"
+        );
         assert_eq!(
             discovery.deregister_count(),
             1,
@@ -4459,6 +4466,10 @@ mod tests {
         assert!(
             msg.contains("Timed out during discovery cleanup: deregister worker-0 from worker"),
             "unexpected error: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after successful role completion"),
+            "deregister timeout after successful role should include cleanup issue context: {msg}"
         );
         assert!(
             msg.contains("after 200ms"),
@@ -4506,6 +4517,10 @@ mod tests {
         assert!(
             msg.contains("Timed out during discovery cleanup: deregister worker-0 from trainer_custom"),
             "deregister-timeout diagnostics should include custom service-type context: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after successful role completion"),
+            "custom deregister timeout after successful role should include cleanup issue context: {msg}"
         );
         assert!(
             msg.contains("after 200ms"),

@@ -2160,6 +2160,10 @@ async fn distributed_runner_from_run_config_surfaces_deregister_timeout_with_cus
         ),
         "deregister timeout diagnostics should include custom worker service type from RunConfig after successful worker run: {msg}"
     );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after successful role completion"),
+        "deregister-timeout diagnostics after successful worker run should include cleanup issue context via RunConfig: {msg}"
+    );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
@@ -6138,6 +6142,10 @@ async fn distributed_runner_from_runner_config_surfaces_deregister_timeout_with_
             "Timed out during discovery cleanup: deregister worker-0 from trainer_custom after 20ms"
         ),
         "deregister timeout diagnostics should include custom worker service type from RunnerConfig after successful worker run: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after successful role completion"),
+        "deregister-timeout diagnostics after successful worker run should include cleanup issue context via RunnerConfig: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);

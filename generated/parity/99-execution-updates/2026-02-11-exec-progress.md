@@ -2345,6 +2345,21 @@
   post-success-stage) now provide explicit cleanup-context framing while
   preserving primary error precedence.
 
+### 193) Successful-role deregister-only cleanup failures now include explicit cleanup issue context
+- Hardened `run_distributed` post-success cleanup branch for single-step
+  deregister failures/timeouts:
+  - when `deregister` fails/timeouts and `disconnect` succeeds, returned error
+    now appends explicit successful-role cleanup issue context.
+- Expanded runner unit assertions to require cleanup context for:
+  - deregister failure after successful worker run,
+  - deregister timeout after successful worker run,
+  - custom worker service-type deregister timeout after successful run.
+- Expanded native-training integration assertions (RunConfig + RunnerConfig)
+  for custom-service-type deregister-timeout-after-success paths to require
+  appended successful-role cleanup issue context.
+- Result: both single-step and multi-step post-success cleanup failures now
+  consistently provide successful-role cleanup-context diagnostics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2711,6 +2726,8 @@
 363. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post PS-role connect-failure cleanup parity expansion full workspace rerun under ambient ZK auth env)
 364. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post successful-role disconnect-only cleanup context propagation hardening and related unit/integration parity assertion updates)
 365. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post successful-role disconnect-only cleanup context propagation hardening full workspace rerun under ambient ZK auth env)
+366. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post successful-role deregister-only cleanup context propagation hardening and related unit/integration parity assertion updates)
+367. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post successful-role deregister-only cleanup context propagation hardening full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
