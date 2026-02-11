@@ -1284,6 +1284,20 @@
 - Updated train CLI distributed config wiring to include new cleanup timeout
   field for end-to-end config completeness.
 
+### 120) Worker discovery-query timeout resilience in retry loop
+- Generalized discovery operation timeout helper to support typed operation
+  results, then applied it to worker-side `discover_async` calls.
+- Worker discovery loop now bounds each discover attempt using
+  `discovery_operation_timeout` so blocked backends cannot hang retry logic.
+- Added blocking discover regressions:
+  - `test_run_worker_role_retries_when_discover_operation_times_out`
+  - `test_run_distributed_worker_discover_timeout_does_not_hang_and_cleans_up`
+- Coverage verifies:
+  - discover-operation timeouts are reflected in worker timeout diagnostics,
+  - retry budget still advances under discover timeouts,
+  - role-level cleanup (`deregister` + `disconnect`) still runs when discovery
+    operations block.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1496,6 +1510,8 @@
 209. `cargo test -p monolith-training -q` ✅ (post configurable discovery cleanup-timeout support and bounded-delay regression)
 210. `cargo test -p monolith-cli -q` ✅ (post CLI wiring for discovery cleanup-timeout field)
 211. `cargo test --workspace -q` ✅ (post configurable discovery cleanup-timeout support + CLI wiring full workspace rerun)
+212. `cargo test -p monolith-training -q` ✅ (post worker discover-operation timeout handling and retry-loop blocking regressions)
+213. `cargo test --workspace -q` ✅ (post worker discover-operation timeout handling and retry-loop blocking regressions full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
