@@ -221,6 +221,9 @@ impl TrainCommand {
         if self.barrier_timeout_ms <= 0 {
             anyhow::bail!("--barrier-timeout-ms must be > 0");
         }
+        if self.dim == 0 {
+            anyhow::bail!("--dim must be > 0 in distributed mode");
+        }
 
         let bind_addr: SocketAddr = self
             .bind_addr
@@ -689,6 +692,18 @@ mod tests {
         assert!(
             err.contains("--barrier-timeout-ms must be > 0"),
             "unexpected barrier-timeout validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_zero_dim() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.dim = 0;
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--dim must be > 0 in distributed mode"),
+            "unexpected dim validation error: {err}"
         );
     }
 
