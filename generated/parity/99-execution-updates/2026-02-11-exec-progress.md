@@ -2145,6 +2145,24 @@
 - Locks in end-to-end parity for case-insensitive scheme handling across config
   normalization + runtime entrypoint wiring.
 
+### 180) Parameter-sync endpoints now enforce authority-only URL shape and trailing-slash-normalized uniqueness
+- Tightened parameter-sync target normalization in CLI/runtime validation:
+  - endpoints must not include URL path/query payloads,
+  - uniqueness canonicalizes by normalized `scheme://authority` form.
+- Practical parity effects:
+  - rejects malformed/ambiguous endpoints like
+    `http://127.0.0.1:8500/v1?foo=bar`,
+  - treats `127.0.0.1:8500` and `http://127.0.0.1:8500/` as duplicates.
+- Applied across both entrypoint layers:
+  - runtime distributed validation (`DistributedRunConfig::validate`)
+  - CLI distributed config builder (`TrainCommand::build_distributed_run_config`)
+- Regression expansion:
+  - runner unit: reject path/query endpoints; reject duplicates after
+    trailing-slash normalization
+  - CLI unit: reject path/query endpoints; reject duplicates after trailing-slash normalization
+  - integration tests (RunConfig + RunnerConfig): reject path/query endpoints
+    and trailing-slash-normalized duplicate targets.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2481,6 +2499,8 @@
 333. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post case-insensitive parameter-sync endpoint scheme recognition full workspace rerun under ambient ZK auth env)
 334. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post native-training integration coverage expansion for case-insensitive parameter-sync scheme acceptance through RunConfig/RunnerConfig entrypoints)
 335. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post integration parity expansion for case-insensitive parameter-sync scheme acceptance full workspace rerun under ambient ZK auth env)
+336. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post authority-only parameter-sync endpoint validation + trailing-slash-normalized uniqueness hardening across CLI/runtime layers)
+337. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post authority-only parameter-sync endpoint validation + trailing-slash-normalized uniqueness full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

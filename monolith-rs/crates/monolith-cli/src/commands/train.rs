@@ -308,7 +308,35 @@ impl TrainCommand {
                     e
                 )
             })?;
-            if !seen_parameter_sync_targets.insert(endpoint_target.to_ascii_lowercase()) {
+            let parsed_uri: tonic::codegen::http::Uri =
+                endpoint_target.parse().map_err(|e| {
+                    anyhow::anyhow!(
+                        "--parameter-sync-target contains invalid endpoint `{}`: {}",
+                        target,
+                        e
+                    )
+                })?;
+            if parsed_uri.query().is_some()
+                || (parsed_uri.path() != "/" && !parsed_uri.path().is_empty())
+            {
+                anyhow::bail!(
+                    "--parameter-sync-target contains invalid endpoint `{}`: endpoint must not include a URL path or query",
+                    target
+                );
+            }
+            let authority = parsed_uri.authority().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "--parameter-sync-target contains invalid endpoint `{}`: endpoint is missing host:port authority",
+                    target
+                )
+            })?;
+            let scheme = parsed_uri
+                .scheme_str()
+                .unwrap_or("http")
+                .to_ascii_lowercase();
+            let canonical_endpoint =
+                format!("{scheme}://{}", authority.as_str().to_ascii_lowercase());
+            if !seen_parameter_sync_targets.insert(canonical_endpoint) {
                 anyhow::bail!("--parameter-sync-target entries must be unique");
             }
         }
@@ -1031,6 +1059,19 @@ mod tests {
     }
 
     #[test]
+    fn test_build_distributed_run_config_rejects_parameter_sync_target_endpoint_with_path_or_query(
+    ) {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec!["http://127.0.0.1:8500/v1?foo=bar".to_string()];
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("endpoint must not include a URL path or query"),
+            "unexpected parameter-sync target path/query validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_build_distributed_run_config_accepts_case_insensitive_http_scheme_parameter_sync_target(
     ) {
         let mut cmd = test_cmd_defaults();
@@ -1071,6 +1112,22 @@ mod tests {
         assert!(
             err.contains("--parameter-sync-target entries must be unique"),
             "unexpected parameter-sync target normalization uniqueness validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_duplicate_parameter_sync_target_entry_after_trailing_slash_normalization(
+    ) {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec![
+            "127.0.0.1:8500".to_string(),
+            "http://127.0.0.1:8500/".to_string(),
+        ];
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--parameter-sync-target entries must be unique"),
+            "unexpected parameter-sync target trailing-slash normalization uniqueness validation error: {err}"
         );
     }
 
