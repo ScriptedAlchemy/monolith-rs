@@ -491,6 +491,7 @@
 52. `cargo test -p monolith-training -q` ✅ (post PS client parallel shard fanout implementation)
 53. `cargo test --workspace -q` ✅ (post PS client parallel fanout runtime implementation and end-to-end shard test)
 54. `cargo test -p monolith-training -q` ✅ (post PS client no-shard configuration guards)
+55. `cargo test --workspace -q` ✅ (post PS client no-shard guards and additional client edge-case tests)
 
 ## Notes
 - This update specifically closes major TODO/stub surfaces in CLI runtime flows and restores a reliable Linux workspace test command.
