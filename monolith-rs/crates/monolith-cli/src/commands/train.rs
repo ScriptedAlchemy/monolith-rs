@@ -248,10 +248,20 @@ impl TrainCommand {
                 "--discovery-service-type-ps must not have leading/trailing whitespace"
             );
         }
+        if self.discovery_service_type_ps.chars().any(char::is_whitespace) {
+            anyhow::bail!("--discovery-service-type-ps must not contain whitespace");
+        }
         if self.discovery_service_type_worker.trim() != self.discovery_service_type_worker {
             anyhow::bail!(
                 "--discovery-service-type-worker must not have leading/trailing whitespace"
             );
+        }
+        if self
+            .discovery_service_type_worker
+            .chars()
+            .any(char::is_whitespace)
+        {
+            anyhow::bail!("--discovery-service-type-worker must not contain whitespace");
         }
         if self
             .discovery_service_type_ps
@@ -267,6 +277,9 @@ impl TrainCommand {
         }
         if self.table_name.trim() != self.table_name {
             anyhow::bail!("--table-name must not have leading/trailing whitespace");
+        }
+        if self.table_name.chars().any(char::is_whitespace) {
+            anyhow::bail!("--table-name must not contain whitespace");
         }
         if !self.parameter_sync_targets.is_empty() && self.parameter_sync_interval_ms == 0 {
             anyhow::bail!(
@@ -377,6 +390,13 @@ impl TrainCommand {
             );
         }
         if !self.parameter_sync_targets.is_empty()
+            && self.parameter_sync_model_name.chars().any(char::is_whitespace)
+        {
+            anyhow::bail!(
+                "--parameter-sync-model-name must not contain whitespace when --parameter-sync-target is provided"
+            );
+        }
+        if !self.parameter_sync_targets.is_empty()
             && self.parameter_sync_signature_name.trim().is_empty()
         {
             anyhow::bail!(
@@ -388,6 +408,16 @@ impl TrainCommand {
         {
             anyhow::bail!(
                 "--parameter-sync-signature-name must not have leading/trailing whitespace when --parameter-sync-target is provided"
+            );
+        }
+        if !self.parameter_sync_targets.is_empty()
+            && self
+                .parameter_sync_signature_name
+                .chars()
+                .any(char::is_whitespace)
+        {
+            anyhow::bail!(
+                "--parameter-sync-signature-name must not contain whitespace when --parameter-sync-target is provided"
             );
         }
 
@@ -950,6 +980,18 @@ mod tests {
     }
 
     #[test]
+    fn test_build_distributed_run_config_rejects_internal_whitespace_ps_service_type() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.discovery_service_type_ps = "ps cluster".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--discovery-service-type-ps must not contain whitespace"),
+            "unexpected ps service-type internal whitespace validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_build_distributed_run_config_rejects_empty_worker_service_type() {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
@@ -972,6 +1014,18 @@ mod tests {
                 "--discovery-service-type-worker must not have leading/trailing whitespace"
             ),
             "unexpected worker service-type whitespace validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_internal_whitespace_worker_service_type() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.discovery_service_type_worker = "worker cluster".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--discovery-service-type-worker must not contain whitespace"),
+            "unexpected worker service-type internal whitespace validation error: {err}"
         );
     }
 
@@ -1027,6 +1081,18 @@ mod tests {
         assert!(
             err.contains("--table-name must not have leading/trailing whitespace"),
             "unexpected table-name whitespace validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_internal_whitespace_table_name() {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.table_name = "my table".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains("--table-name must not contain whitespace"),
+            "unexpected table-name internal whitespace validation error: {err}"
         );
     }
 
@@ -1259,6 +1325,22 @@ mod tests {
     }
 
     #[test]
+    fn test_build_distributed_run_config_rejects_internal_whitespace_parameter_sync_model_name_with_targets(
+    ) {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec!["127.0.0.1:8500".to_string()];
+        cmd.parameter_sync_model_name = "my model".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "--parameter-sync-model-name must not contain whitespace when --parameter-sync-target is provided"
+            ),
+            "unexpected parameter-sync model-name internal whitespace validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_build_distributed_run_config_rejects_empty_parameter_sync_signature_name_with_targets() {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
@@ -1286,6 +1368,22 @@ mod tests {
                 "--parameter-sync-signature-name must not have leading/trailing whitespace when --parameter-sync-target is provided"
             ),
             "unexpected parameter-sync signature-name whitespace validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_distributed_run_config_rejects_internal_whitespace_parameter_sync_signature_name_with_targets(
+    ) {
+        let mut cmd = test_cmd_defaults();
+        cmd.distributed = true;
+        cmd.parameter_sync_targets = vec!["127.0.0.1:8500".to_string()];
+        cmd.parameter_sync_signature_name = "serving default".to_string();
+        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "--parameter-sync-signature-name must not contain whitespace when --parameter-sync-target is provided"
+            ),
+            "unexpected parameter-sync signature-name internal whitespace validation error: {err}"
         );
     }
 

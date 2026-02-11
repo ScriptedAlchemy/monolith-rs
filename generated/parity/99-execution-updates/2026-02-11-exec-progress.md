@@ -2202,6 +2202,23 @@
 - Ensures `https://host` and `https://host:443` are treated as duplicates
   end-to-end (not just in unit-level validation coverage).
 
+### 184) Strict internal-whitespace normalization across distributed service/table/sync-name identifiers
+- Added internal-whitespace rejection (not only trim checks) for distributed
+  identity fields:
+  - `discovery_service_type_ps`
+  - `discovery_service_type_worker`
+  - `table_name`
+  - `parameter_sync_model_name` (when parameter-sync targets configured)
+  - `parameter_sync_signature_name` (when parameter-sync targets configured)
+- Applied consistently at both entrypoint layers:
+  - runtime distributed validation (`DistributedRunConfig::validate`)
+  - CLI distributed config builder (`TrainCommand::build_distributed_run_config`)
+- Expanded parity regressions comprehensively:
+  - runner unit tests for each new internal-whitespace constraint,
+  - CLI unit tests for matching flag-level constraints,
+  - native-training integration tests for both RunConfig and RunnerConfig
+    entrypoints, covering service-type/table-name/model/signature internal-whitespace rejection.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -2546,6 +2563,8 @@
 341. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post userinfo rejection + default-port normalization parameter-sync endpoint canonicalization full workspace rerun under ambient ZK auth env)
 342. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post native-training integration parity expansion for https default-port duplicate normalization)
 343. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post native-training https default-port duplicate normalization integration parity expansion full workspace rerun under ambient ZK auth env)
+344. `ZK_AUTH=user:pass cargo test -p monolith-cli -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post strict internal-whitespace normalization for distributed service/table/parameter-sync identity fields across CLI/runtime validation layers)
+345. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post strict internal-whitespace normalization for distributed service/table/parameter-sync identity fields full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

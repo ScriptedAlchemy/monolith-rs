@@ -136,9 +136,27 @@ impl DistributedRunConfig {
                 "distributed config requires discovery_service_type_ps without leading/trailing whitespace"
             );
         }
+        if self
+            .discovery_service_type_ps
+            .chars()
+            .any(char::is_whitespace)
+        {
+            anyhow::bail!(
+                "distributed config requires discovery_service_type_ps without whitespace characters"
+            );
+        }
         if self.discovery_service_type_worker.trim() != self.discovery_service_type_worker {
             anyhow::bail!(
                 "distributed config requires discovery_service_type_worker without leading/trailing whitespace"
+            );
+        }
+        if self
+            .discovery_service_type_worker
+            .chars()
+            .any(char::is_whitespace)
+        {
+            anyhow::bail!(
+                "distributed config requires discovery_service_type_worker without whitespace characters"
             );
         }
         if self
@@ -157,6 +175,9 @@ impl DistributedRunConfig {
             anyhow::bail!(
                 "distributed config requires table_name without leading/trailing whitespace"
             );
+        }
+        if self.table_name.chars().any(char::is_whitespace) {
+            anyhow::bail!("distributed config requires table_name without whitespace characters");
         }
         if !self.parameter_sync_targets.is_empty() && self.parameter_sync_interval.is_zero() {
             anyhow::bail!(
@@ -271,6 +292,16 @@ impl DistributedRunConfig {
             );
         }
         if !self.parameter_sync_targets.is_empty()
+            && self
+                .parameter_sync_model_name
+                .chars()
+                .any(char::is_whitespace)
+        {
+            anyhow::bail!(
+                "distributed config requires parameter_sync_model_name without whitespace characters when parameter_sync_targets are configured"
+            );
+        }
+        if !self.parameter_sync_targets.is_empty()
             && self.parameter_sync_signature_name.trim().is_empty()
         {
             anyhow::bail!(
@@ -282,6 +313,16 @@ impl DistributedRunConfig {
         {
             anyhow::bail!(
                 "distributed config requires parameter_sync_signature_name without leading/trailing whitespace when parameter_sync_targets are configured"
+            );
+        }
+        if !self.parameter_sync_targets.is_empty()
+            && self
+                .parameter_sync_signature_name
+                .chars()
+                .any(char::is_whitespace)
+        {
+            anyhow::bail!(
+                "distributed config requires parameter_sync_signature_name without whitespace characters when parameter_sync_targets are configured"
             );
         }
         Ok(())
@@ -2173,6 +2214,21 @@ mod tests {
     }
 
     #[test]
+    fn test_distributed_config_validate_rejects_internal_whitespace_ps_service_type() {
+        let cfg = DistributedRunConfig {
+            discovery_service_type_ps: "ps cluster".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "distributed config requires discovery_service_type_ps without whitespace characters"
+            ),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_distributed_config_validate_rejects_empty_worker_service_type() {
         let cfg = DistributedRunConfig {
             discovery_service_type_worker: "".to_string(),
@@ -2195,6 +2251,21 @@ mod tests {
         assert!(
             err.contains(
                 "distributed config requires discovery_service_type_worker without leading/trailing whitespace"
+            ),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_internal_whitespace_worker_service_type() {
+        let cfg = DistributedRunConfig {
+            discovery_service_type_worker: "worker cluster".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "distributed config requires discovery_service_type_worker without whitespace characters"
             ),
             "unexpected validation error: {err}"
         );
@@ -2255,6 +2326,19 @@ mod tests {
         let err = cfg.validate().unwrap_err().to_string();
         assert!(
             err.contains("distributed config requires table_name without leading/trailing whitespace"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_internal_whitespace_table_name() {
+        let cfg = DistributedRunConfig {
+            table_name: "my table".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("distributed config requires table_name without whitespace characters"),
             "unexpected validation error: {err}"
         );
     }
@@ -2506,6 +2590,23 @@ mod tests {
     }
 
     #[test]
+    fn test_distributed_config_validate_rejects_internal_whitespace_parameter_sync_model_name_when_targets_configured(
+    ) {
+        let cfg = DistributedRunConfig {
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_model_name: "my model".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "distributed config requires parameter_sync_model_name without whitespace characters when parameter_sync_targets are configured"
+            ),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_distributed_config_validate_rejects_empty_parameter_sync_signature_when_targets_configured(
     ) {
         let cfg = DistributedRunConfig {
@@ -2534,6 +2635,23 @@ mod tests {
         assert!(
             err.contains(
                 "distributed config requires parameter_sync_signature_name without leading/trailing whitespace when parameter_sync_targets are configured"
+            ),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_internal_whitespace_parameter_sync_signature_when_targets_configured(
+    ) {
+        let cfg = DistributedRunConfig {
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_signature_name: "serving default".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "distributed config requires parameter_sync_signature_name without whitespace characters when parameter_sync_targets are configured"
             ),
             "unexpected validation error: {err}"
         );
