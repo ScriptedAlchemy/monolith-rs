@@ -1259,6 +1259,17 @@
   - verifies timeout surfacing plus deterministic cleanup attempts
     (`deregister` + `disconnect`) after setup-stage timeout failures.
 
+### 118) Configurable discovery setup timeout surface + CLI integration
+- Made discovery setup timeout configurable per distributed run config:
+  - added `discovery_operation_timeout` to `DistributedRunConfig`,
+  - defaulted to `5s` to avoid overly aggressive setup-stage timeouts for
+    non-test backends.
+- Updated setup-timeout wrapper usage to consume config timeout for:
+  - `connect` in `run_distributed`,
+  - `register` in worker/PS setup paths.
+- Updated distributed train CLI wiring to populate new config field when
+  constructing `DistributedRunConfig` for runtime execution.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -1465,6 +1476,9 @@
 203. `cargo test --workspace -q` ✅ (post parameter-sync replicator deterministic stop hardening + nonterminating-stop regression and full workspace rerun)
 204. `cargo test -p monolith-training -q` ✅ (post connect/register discovery-operation timeout hardening and blocking-operation regressions)
 205. `cargo test --workspace -q` ✅ (post connect/register discovery-operation timeout hardening and blocking-operation regressions full workspace rerun)
+206. `cargo test -p monolith-training -q` ✅ (post configurable discovery setup timeout field introduction and setup-timeout regression updates)
+207. `cargo test -p monolith-cli -q` ✅ (post train CLI wiring for configurable discovery setup timeout)
+208. `cargo test --workspace -q` ✅ (post configurable discovery setup timeout + CLI wiring updates full workspace rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
