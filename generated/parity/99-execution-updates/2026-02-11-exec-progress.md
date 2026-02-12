@@ -3452,6 +3452,29 @@
   `with_custom_service_type_and_index -> with_custom_service_type` counterpart
   naming gaps remain in `runner.rs`.
 
+### 251) Default-service non-index ordering+discover + last-discover parity expanded
+- Added runner-level default-service non-index ordering+discover timeout
+  cleanup regressions:
+  - `test_run_distributed_preserves_worker_ordering_and_discovery_error_timeout_with_default_service_type_when_cleanup_steps_timeout`
+  - `test_run_distributed_preserves_worker_ordering_and_discovery_error_timeout_with_default_service_type_when_cleanup_steps_fail`
+- Added RunConfig integration default-service non-index regressions:
+  - ordering+discover timeout cleanup:
+    - `distributed_runner_from_run_config_preserves_worker_ordering_and_discovery_error_timeout_with_default_service_type_when_cleanup_times_out`
+    - `distributed_runner_from_run_config_preserves_worker_ordering_and_discovery_error_timeout_with_default_service_type_when_cleanup_fails`
+  - last-discover-error cleanup:
+    - `distributed_runner_from_run_config_preserves_last_discover_error_with_default_service_type_when_cleanup_times_out`
+    - `distributed_runner_from_run_config_preserves_last_discover_error_with_default_service_type_when_cleanup_fails`
+- Added RunnerConfig integration default-service non-index regressions:
+  - ordering+discover timeout cleanup:
+    - `distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_default_service_type_when_cleanup_times_out`
+    - `distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_default_service_type_when_cleanup_fails`
+  - last-discover-error cleanup:
+    - `distributed_runner_from_runner_config_preserves_last_discover_error_with_default_service_type_when_cleanup_times_out`
+    - `distributed_runner_from_runner_config_preserves_last_discover_error_with_default_service_type_when_cleanup_fails`
+- Result: default-service non-index parity now explicitly covers both
+  ordering+discover composite timeout and last-discover-error cleanup
+  timeout/failure paths across runner + RunConfig + RunnerConfig entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3978,6 +4001,9 @@
 523. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner register-failure custom-service-type non-index naming parity alias expansion)
 524. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post runner register-failure custom-service-type non-index naming parity compatibility verification)
 525. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post runner register-failure custom-service-type non-index naming parity expansion full workspace rerun under ambient ZK auth env)
+526. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post default-service non-index ordering+discover + last-discover cleanup parity expansion across runner/config entrypoints)
+527. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post default-service non-index ordering+discover + last-discover parity compatibility verification)
+528. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post default-service non-index ordering+discover + last-discover cleanup parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
