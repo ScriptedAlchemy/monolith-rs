@@ -2960,7 +2960,7 @@ mod tests {
         async fn register_async(&self, service: ServiceInfo) -> DiscoveryResult<()> {
             self.services
                 .lock()
-                .unwrap()
+                .expect("counting discovery services mutex should not be poisoned")
                 .insert(service.id.clone(), service.clone());
             let _ = self.events_tx.send(DiscoveryEvent::ServiceAdded(service));
             Ok(())
@@ -2973,7 +2973,7 @@ mod tests {
             let services = self
                 .services
                 .lock()
-                .unwrap()
+                .expect("counting discovery services mutex should not be poisoned")
                 .values()
                 .filter(|s| s.service_type == service_type)
                 .cloned()
@@ -2990,7 +2990,10 @@ mod tests {
 
         async fn deregister_async(&self, service_id: &str) -> DiscoveryResult<()> {
             self.deregister_count.fetch_add(1, Ordering::SeqCst);
-            self.services.lock().unwrap().remove(service_id);
+            self.services
+                .lock()
+                .expect("counting discovery services mutex should not be poisoned")
+                .remove(service_id);
             let _ = self
                 .events_tx
                 .send(DiscoveryEvent::ServiceRemoved(service_id.to_string()));
@@ -3609,7 +3612,8 @@ mod tests {
         let mut ps0 = ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 20001);
         ps0 = ps0.with_metadata("index", "0");
 
-        let ordered = ordered_ps_addrs(vec![ps1, ps0], 2).unwrap();
+        let ordered = ordered_ps_addrs(vec![ps1, ps0], 2)
+            .expect("ordered_ps_addrs should accept contiguous index metadata");
         assert_eq!(
             ordered,
             vec!["127.0.0.1:20001".to_string(), "127.0.0.1:10001".to_string()]
@@ -4039,7 +4043,8 @@ mod tests {
         let ps_b = ServiceInfo::new("ps-b", "ps-b", "ps", "127.0.0.1", 30001);
         let ps_a = ServiceInfo::new("ps-a", "ps-a", "ps", "127.0.0.1", 20001);
 
-        let ordered = ordered_ps_addrs(vec![ps_b, ps_a], 2).unwrap();
+        let ordered = ordered_ps_addrs(vec![ps_b, ps_a], 2)
+            .expect("ordered_ps_addrs should fall back to lexical address sort");
         assert_eq!(
             ordered,
             vec!["127.0.0.1:20001".to_string(), "127.0.0.1:30001".to_string()]
@@ -4130,7 +4135,10 @@ mod tests {
         .await
         .expect("worker should succeed with active PS role in run-config smoke");
         assert!(
-            discovery.discover("worker").unwrap().is_empty(),
+            discovery
+                .discover("worker")
+                .expect("in-memory discover for worker should succeed")
+                .is_empty(),
             "worker service should be deregistered after completion"
         );
 
@@ -4181,13 +4189,22 @@ mod tests {
     #[tokio::test]
     async fn test_run_worker_role_timeout_reports_ordering_issue() {
         let discovery = Arc::new(InMemoryDiscovery::new());
-        discovery.connect().await.unwrap();
+        discovery
+            .connect()
+            .await
+            .expect("in-memory connect should succeed");
 
         let mut ps0 = ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 10001);
         ps0 = ps0.with_metadata("index", "0");
         let ps1 = ServiceInfo::new("ps-1", "ps-1", "ps", "127.0.0.1", 10002);
-        discovery.register_async(ps0).await.unwrap();
-        discovery.register_async(ps1).await.unwrap();
+        discovery
+            .register_async(ps0)
+            .await
+            .expect("registering ps0 for ordering test should succeed");
+        discovery
+            .register_async(ps1)
+            .await
+            .expect("registering ps1 for ordering test should succeed");
 
         let cfg = DistributedRunConfig {
             role: Role::Worker,
@@ -4511,7 +4528,7 @@ mod tests {
         let ps = PsServer::new(0, 8);
         let (listener, actual_addr) = bind_ephemeral(loopback_ephemeral_bind_addr())
             .await
-            .unwrap();
+            .expect("ephemeral bind for worker-success heartbeat test should succeed");
         let ps_server = tokio::spawn(
             tonic::transport::Server::builder()
                 .add_service(Arc::clone(&ps).into_service())
@@ -4526,7 +4543,10 @@ mod tests {
             actual_addr.port(),
         );
         ps_service = ps_service.with_metadata("index", "0");
-        discovery.register_async(ps_service).await.unwrap();
+        discovery
+            .register_async(ps_service)
+            .await
+            .expect("registering ps service for worker-success heartbeat test should succeed");
 
         let cfg = DistributedRunConfig {
             role: Role::Worker,
@@ -5801,7 +5821,10 @@ mod tests {
             1,
             "deregister should be attempted on worker role timeout failure"
         );
-        let workers = discovery.discover_async("worker").await.unwrap();
+        let workers = discovery
+            .discover_async("worker")
+            .await
+            .expect("discover_async(worker) should succeed for cleanup verification");
         assert!(
             workers.is_empty(),
             "worker service should be removed during cleanup after role failure"
@@ -9096,7 +9119,7 @@ mod tests {
         let ps = PsServer::new(0, 8);
         let (listener, actual_addr) = bind_ephemeral(loopback_ephemeral_bind_addr())
             .await
-            .unwrap();
+            .expect("ephemeral bind for deregister-failure-after-success test should succeed");
         let ps_server = tokio::spawn(
             tonic::transport::Server::builder()
                 .add_service(Arc::clone(&ps).into_service())
@@ -9150,7 +9173,7 @@ mod tests {
         let ps = PsServer::new(0, 8);
         let (listener, actual_addr) = bind_ephemeral(loopback_ephemeral_bind_addr())
             .await
-            .unwrap();
+            .expect("ephemeral bind for deregister-timeout-after-success test should succeed");
         let ps_server = tokio::spawn(
             tonic::transport::Server::builder()
                 .add_service(Arc::clone(&ps).into_service())
@@ -9201,7 +9224,7 @@ mod tests {
         let ps = PsServer::new(0, 8);
         let (listener, actual_addr) = bind_ephemeral(loopback_ephemeral_bind_addr())
             .await
-            .unwrap();
+            .expect("ephemeral bind for custom-service deregister-timeout test should succeed");
         let ps_server = tokio::spawn(
             tonic::transport::Server::builder()
                 .add_service(Arc::clone(&ps).into_service())
@@ -9252,7 +9275,7 @@ mod tests {
         let ps = PsServer::new(0, 8);
         let (listener, actual_addr) = bind_ephemeral(loopback_ephemeral_bind_addr())
             .await
-            .unwrap();
+            .expect("ephemeral bind for disconnect-failure-after-success test should succeed");
         let ps_server = tokio::spawn(
             tonic::transport::Server::builder()
                 .add_service(Arc::clone(&ps).into_service())
@@ -9306,7 +9329,7 @@ mod tests {
         let ps = PsServer::new(0, 8);
         let (listener, actual_addr) = bind_ephemeral(loopback_ephemeral_bind_addr())
             .await
-            .unwrap();
+            .expect("ephemeral bind for disconnect-timeout-after-success test should succeed");
         let ps_server = tokio::spawn(
             tonic::transport::Server::builder()
                 .add_service(Arc::clone(&ps).into_service())
@@ -9357,7 +9380,7 @@ mod tests {
         let ps = PsServer::new(0, 8);
         let (listener, actual_addr) = bind_ephemeral(loopback_ephemeral_bind_addr())
             .await
-            .unwrap();
+            .expect("ephemeral bind for custom-service disconnect-timeout test should succeed");
         let ps_server = tokio::spawn(
             tonic::transport::Server::builder()
                 .add_service(Arc::clone(&ps).into_service())
@@ -9409,7 +9432,7 @@ mod tests {
         let ps = PsServer::new(0, 8);
         let (listener, actual_addr) = bind_ephemeral(loopback_ephemeral_bind_addr())
             .await
-            .unwrap();
+            .expect("ephemeral bind for dual cleanup-failure precedence test should succeed");
         let ps_server = tokio::spawn(
             tonic::transport::Server::builder()
                 .add_service(Arc::clone(&ps).into_service())
