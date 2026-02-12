@@ -2699,9 +2699,13 @@ mod tests {
         let discovery: SharedDiscovery = new_in_memory_discovery();
 
         let service = ServiceInfo::new("shared-test", "Shared Test", "test", "localhost", 9000);
-        discovery.register(service).unwrap();
+        discovery
+            .register(service)
+            .expect("shared discovery register should succeed");
 
-        let services = discovery.discover("test").unwrap();
+        let services = discovery
+            .discover("test")
+            .expect("shared discovery discover(test) should succeed");
         assert_eq!(services.len(), 1);
     }
 
@@ -2740,7 +2744,9 @@ mod tests {
                 "localhost",
                 5000 + i as u16,
             );
-            discovery.register(ps).unwrap();
+            discovery
+                .register(ps)
+                .expect("registering ps service should succeed");
         }
 
         for i in 0..5 {
@@ -2751,12 +2757,26 @@ mod tests {
                 "localhost",
                 6000 + i as u16,
             );
-            discovery.register(worker).unwrap();
+            discovery
+                .register(worker)
+                .expect("registering worker service should succeed");
         }
 
         // Verify counts
-        assert_eq!(discovery.discover("ps").unwrap().len(), 3);
-        assert_eq!(discovery.discover("worker").unwrap().len(), 5);
+        assert_eq!(
+            discovery
+                .discover("ps")
+                .expect("discover(ps) should succeed")
+                .len(),
+            3
+        );
+        assert_eq!(
+            discovery
+                .discover("worker")
+                .expect("discover(worker) should succeed")
+                .len(),
+            5
+        );
         assert_eq!(discovery.len(), 8);
     }
 
@@ -2774,6 +2794,14 @@ mod tests {
             .lock()
             .expect("zk watchers mutex should not be poisoned")
             .len()
+    }
+
+    #[cfg(feature = "zookeeper")]
+    fn zk_watchers_is_empty(zk: &ZkDiscovery) -> bool {
+        zk.watchers
+            .lock()
+            .expect("zk watchers mutex should not be poisoned")
+            .is_empty()
     }
 
     #[cfg(feature = "zookeeper")]
@@ -2798,6 +2826,14 @@ mod tests {
             .lock()
             .expect("zk watch_poll_generations mutex should not be poisoned")
             .remove(service_type);
+    }
+
+    #[cfg(feature = "zookeeper")]
+    fn zk_has_watch_poll_generation(zk: &ZkDiscovery, service_type: &str) -> bool {
+        zk.watch_poll_generations
+            .lock()
+            .expect("zk watch_poll_generations mutex should not be poisoned")
+            .contains_key(service_type)
     }
 
     #[cfg(feature = "zookeeper")]
@@ -3059,7 +3095,7 @@ mod tests {
         drop(rx3);
         tokio::time::timeout(std::time::Duration::from_secs(3), async {
             loop {
-                if zk.watch_poll_generations.lock().unwrap().is_empty() {
+                if zk_watch_poll_is_empty(&zk) {
                     break;
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -3068,12 +3104,12 @@ mod tests {
         .await
         .expect("watch poll generation entries should clear after subscribers drop");
         assert!(
-            zk.watchers.lock().unwrap().is_empty(),
+            zk_watchers_is_empty(&zk),
             "watch_async should compact dead watcher sender entries after all receivers drop"
         );
         zk.disconnect().await.expect("disconnect should succeed");
         assert!(
-            zk.watch_poll_generations.lock().unwrap().is_empty(),
+            zk_watch_poll_is_empty(&zk),
             "disconnect should preserve cleared watch poll generation state"
         );
     }
@@ -3094,11 +3130,11 @@ mod tests {
             "expected ConfigError containing watch_service invalid-hosts context, got {err:?}"
         );
         assert!(
-            !zk.watchers.lock().unwrap().contains_key("ps"),
+            !zk_has_watcher(&zk, "ps"),
             "invalid-hosts watch_async should not create watcher sender entries"
         );
         assert!(
-            !zk.watch_poll_generations.lock().unwrap().contains_key("ps"),
+            !zk_has_watch_poll_generation(&zk, "ps"),
             "invalid-hosts watch_async should not seed poll-generation bookkeeping"
         );
     }
@@ -3109,7 +3145,7 @@ mod tests {
         let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
         let rx = zk.watch("ps").expect("watch should succeed");
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -3125,7 +3161,7 @@ mod tests {
             "expected ConfigError containing watch_service invalid-hosts context, got {err:?}"
         );
         assert!(
-            !zk.watchers.lock().unwrap().contains_key("ps"),
+            !zk_has_watcher(&zk, "ps"),
             "invalid-hosts watch_async should compact dead watcher sender entries"
         );
     }
@@ -3136,7 +3172,7 @@ mod tests {
         let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
         let _rx = zk.watch("ps").expect("watch should succeed");
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "watch sender should exist after subscribing"
         );
 
