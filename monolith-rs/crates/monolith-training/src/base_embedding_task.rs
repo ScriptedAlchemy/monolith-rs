@@ -572,7 +572,8 @@ mod tests {
         let mut cfg = BaseEmbeddingTaskConfig::default();
         cfg.vocab_file_path = Some(f.path().to_path_buf());
 
-        let err = BaseEmbeddingTask::create_vocab_dict_for_test(&mut cfg).unwrap_err();
+        let err = BaseEmbeddingTask::create_vocab_dict_for_test(&mut cfg)
+            .expect_err("invalid vocab line with extra fields should fail parsing");
         assert!(err.to_string().contains("must have 2 fields"));
     }
 }

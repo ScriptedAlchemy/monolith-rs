@@ -5127,6 +5127,17 @@
   - Targeted distributed/barrier/estimator lanes and default
     monolith-training regression remain green.
 
+### 382) Runner-utils/base-embedding `unwrap_err` contract tightening
+- Replaced direct `unwrap_err()` assertions with explicit `expect_err("...")`
+  contracts in:
+  - `runner_utils.rs` discovery guard/restore-sync/checkpoint-error lanes
+  - `base_embedding_task.rs` invalid-vocab-line parsing lane
+- Result:
+  - These utility-layer failure tests now fail with clearer intent-aligned
+    diagnostics when expected error paths are not taken.
+  - Targeted runner-utils/base-embedding lanes and default
+    monolith-training regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6006,6 +6017,7 @@
 876. `ZK_AUTH=user:pass cargo test -p monolith-training test_cluster_config_validation -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_local_cluster_register_parameter_requires_running_cluster -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_from_runner_config_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted distributed/runner residual is_ok assertion-wrapper cleanup verification plus default-lane regression rerun)
 877. `ZK_AUTH=user:pass cargo test -p monolith-training parameter_sync_replicator_task_stop -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_in_memory_barrier_waits_for_all_workers -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_ps_barrier_allows_parallel_waits -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_estimator_run_distributed_runtime_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_estimator_run_distributed_runtime_from_run_config_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_logging_hook -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_hook_list -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted barrier/estimator/hooks/replicator success-contract tightening verification plus default-lane regression rerun)
 878. `ZK_AUTH=user:pass cargo test -p monolith-training test_parameter_server_lifecycle_guards -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_worker_lifecycle_guards -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_local_cluster_register_parameter_requires_running_cluster -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_local_cluster_bad_worker_index -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_local_cluster_train_step_requires_running_cluster -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_local_cluster_wait_for_barrier_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_local_cluster_wait_for_barrier_timeout_cleanup_allows_retry -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_local_cluster_start_is_not_reentrant -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_local_cluster_stop_requires_running_cluster -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_ps_barrier_maps_timeout_to_barrier_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_ps_barrier_maps_invalid_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_estimator_spec_replace_mode_change_rejected -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted distributed/barrier/estimator unwrap_err contract tightening verification plus default-lane regression rerun)
+879. `ZK_AUTH=user:pass cargo test -p monolith-training test_get_discovery_consul_requires_psm -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_get_discovery_zk -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_prepare_restore_checkpoint_non_chief_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_monolith_discovery_guard_local_register_errors -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_monolith_discovery_guard_mlp_close_is_idempotent -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_get_checkpoint_state_with_restore_override_read_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_create_vocab_dict_invalid_line_errors -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner-utils/base-embedding unwrap_err contract tightening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

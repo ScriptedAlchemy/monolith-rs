@@ -770,7 +770,8 @@ all_model_checkpoint_paths: "model.ckpt-0"
             discovery_type: ServiceDiscoveryType::Consul,
             ..RunnerConfig::default()
         };
-        let err = get_discovery(&rc, None).unwrap_err();
+        let err = get_discovery(&rc, None)
+            .expect_err("consul discovery should require explicit psm when deep_insight_name is absent");
         assert!(matches!(err, RunnerUtilsError::MissingPsm));
     }
 
@@ -822,7 +823,9 @@ all_model_checkpoint_paths: "model.ckpt-0"
         let (job, zk) = discovery.zk_config().expect("zk config");
         assert_eq!(job, "test_job");
         assert_eq!(zk, "127.0.0.1:2181");
-        let err = discovery.query("ps").unwrap_err();
+        let err = discovery
+            .query("ps")
+            .expect_err("zk discovery query should fail when no instances are registered");
         assert!(matches!(err, RunnerUtilsError::Discovery(_)));
     }
 
@@ -879,7 +882,7 @@ all_model_checkpoint_paths: "model.ckpt-30"
             Duration::from_millis(150),
             Duration::from_millis(20),
         )
-        .unwrap_err();
+        .expect_err("non-chief restore prep should time out when chief never syncs checkpoint");
         assert!(matches!(err, RunnerUtilsError::RestoreSyncTimeout { .. }));
     }
 
@@ -891,7 +894,9 @@ all_model_checkpoint_paths: "model.ckpt-30"
         };
         let guard = monolith_discovery(&rc, None).unwrap();
         assert_eq!(guard.kind(), None);
-        let err = guard.register("ps", 0, "127.0.0.1:1000").unwrap_err();
+        let err = guard
+            .register("ps", 0, "127.0.0.1:1000")
+            .expect_err("local-mode discovery guard should reject register calls");
         assert!(matches!(err, RunnerUtilsError::LocalModeNoDiscovery));
     }
 
@@ -967,7 +972,9 @@ all_model_checkpoint_paths: "model.ckpt-30"
         guard.close().unwrap();
         guard.close().unwrap();
         assert_eq!(guard.kind(), None);
-        let err = guard.query("worker").unwrap_err();
+        let err = guard
+            .query("worker")
+            .expect_err("closed discovery guard should reject queries");
         assert!(matches!(err, RunnerUtilsError::LocalModeNoDiscovery));
     }
 
@@ -1103,7 +1110,7 @@ all_model_checkpoint_paths: "model.ckpt-30"
             1,
             Duration::from_millis(1),
         )
-        .unwrap_err();
+        .expect_err("invalid checkpoint state text should fail parsing");
         assert!(matches!(err, RunnerUtilsError::ReadCheckpointFailed));
     }
 
