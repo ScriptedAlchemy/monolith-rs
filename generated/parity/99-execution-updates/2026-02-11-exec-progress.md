@@ -5103,6 +5103,18 @@
   - Targeted distributed/runner lanes and default monolith-training
     regression remain green.
 
+### 380) Explicit success-contract tightening across barrier/estimator/hooks/replicator tests
+- Replaced remaining `assert!(...is_ok())` assertions in:
+  - `parameter_sync_replicator.rs` task stop/abort safety lanes
+  - `barrier.rs` in-memory + PS parallel barrier success lanes
+  - `estimator.rs` distributed runtime smoke success lanes
+  - `hooks.rs` logging/hook-list lifecycle success lanes
+- Result:
+  - Monolith-training module tests now consistently use explicit `expect(...)`
+    success contracts with clearer failure diagnostics.
+  - Targeted module lanes and default monolith-training regression remain
+    green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5980,6 +5992,7 @@
 874. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_from_run_config_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_rejects_invalid_runtime_config -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training run_worker_role_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner run-config/worker-role unwrap_err contract tightening verification plus default-lane regression rerun)
 875. `ZK_AUTH=user:pass cargo test -p monolith-training distributed_config_validate -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner distributed-config validation expect_err contract tightening verification plus default-lane regression rerun)
 876. `ZK_AUTH=user:pass cargo test -p monolith-training test_cluster_config_validation -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_local_cluster_register_parameter_requires_running_cluster -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_from_runner_config_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted distributed/runner residual is_ok assertion-wrapper cleanup verification plus default-lane regression rerun)
+877. `ZK_AUTH=user:pass cargo test -p monolith-training parameter_sync_replicator_task_stop -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_in_memory_barrier_waits_for_all_workers -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_ps_barrier_allows_parallel_waits -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_estimator_run_distributed_runtime_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_estimator_run_distributed_runtime_from_run_config_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_logging_hook -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_hook_list -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted barrier/estimator/hooks/replicator success-contract tightening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

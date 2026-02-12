@@ -498,7 +498,8 @@ mod tests {
         let mut hook = LoggingHook::new(10);
         let metrics = Metrics::new(0.5, 0);
 
-        assert!(hook.before_step(0).is_ok());
+        hook.before_step(0)
+            .expect("logging hook before_step should succeed");
         assert_eq!(hook.after_step(0, &metrics).unwrap(), HookAction::Continue);
         assert_eq!(hook.after_step(5, &metrics).unwrap(), HookAction::Continue);
         assert_eq!(hook.after_step(10, &metrics).unwrap(), HookAction::Continue);
@@ -568,9 +569,13 @@ mod tests {
         hooks.add(CheckpointHook::new(dir.path().to_path_buf(), 100));
 
         let metrics = Metrics::new(0.5, 0);
-        assert!(hooks.before_step(0).is_ok());
+        hooks
+            .before_step(0)
+            .expect("hook list before_step should succeed");
         assert_eq!(hooks.after_step(0, &metrics).unwrap(), HookAction::Continue);
-        assert!(hooks.end(100, Some(&metrics)).is_ok());
+        hooks
+            .end(100, Some(&metrics))
+            .expect("hook list end should succeed");
         assert!(dir.path().join("checkpoint-100.json").exists());
     }
 

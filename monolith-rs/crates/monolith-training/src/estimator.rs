@@ -931,14 +931,14 @@ all_model_checkpoint_paths: "model.ckpt-30"
         });
 
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        let worker_res = Estimator::<ConstantModelFn>::run_distributed_runtime(
+        Estimator::<ConstantModelFn>::run_distributed_runtime(
             Arc::clone(&discovery),
             &worker_runner,
             Role::Worker,
             "127.0.0.1:0".parse().unwrap(),
         )
-        .await;
-        assert!(worker_res.is_ok(), "worker failed: {worker_res:?}");
+        .await
+        .expect("worker should succeed when PS runtime is active");
         ps_task.abort();
     }
 
@@ -970,16 +970,15 @@ all_model_checkpoint_paths: "model.ckpt-30"
         });
 
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        let worker_res =
-            Estimator::<ConstantModelFn>::run_distributed_runtime_from_run_config(
-                Arc::clone(&discovery),
-                &run,
-                None,
-                Role::Worker,
-                "127.0.0.1:0".parse().unwrap(),
-            )
-            .await;
-        assert!(worker_res.is_ok(), "worker failed: {worker_res:?}");
+        Estimator::<ConstantModelFn>::run_distributed_runtime_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        )
+        .await
+        .expect("worker should succeed when PS runtime from run-config is active");
         ps_task.abort();
     }
 

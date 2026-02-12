@@ -107,8 +107,8 @@ mod tests {
             async move { b0.wait("s0", 0, 2).await },
             async move { b1.wait("s0", 1, 2).await }
         );
-        assert!(r0.is_ok());
-        assert!(r1.is_ok());
+        r0.expect("worker 0 should pass in-memory barrier once worker 1 arrives");
+        r1.expect("worker 1 should pass in-memory barrier once worker 0 arrives");
     }
 
     #[tokio::test]
@@ -133,8 +133,8 @@ mod tests {
             async move { b0.wait("parallel", 0, 2).await },
             async move { b1.wait("parallel", 1, 2).await }
         );
-        assert!(r0.is_ok());
-        assert!(r1.is_ok());
+        r0.expect("worker 0 should pass PS-backed barrier in parallel wait");
+        r1.expect("worker 1 should pass PS-backed barrier in parallel wait");
 
         server.abort();
     }

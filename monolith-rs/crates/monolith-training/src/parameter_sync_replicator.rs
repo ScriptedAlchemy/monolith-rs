@@ -246,7 +246,7 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(30)).await;
         let stopped = tokio::time::timeout(Duration::from_secs(1), task.stop()).await;
-        assert!(stopped.is_ok(), "replicator task stop should complete quickly");
+        stopped.expect("replicator task stop should complete quickly");
     }
 
     #[tokio::test]
@@ -279,9 +279,8 @@ mod tests {
         };
 
         let stopped = tokio::time::timeout(Duration::from_secs(1), task.stop()).await;
-        assert!(
-            stopped.is_ok(),
-            "replicator task stop should complete even if underlying task is nonterminating"
+        stopped.expect(
+            "replicator task stop should complete even if underlying task is nonterminating",
         );
     }
 }
