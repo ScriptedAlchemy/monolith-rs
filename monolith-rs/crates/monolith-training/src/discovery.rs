@@ -2132,6 +2132,57 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_register_failure_compacts_dead_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(
+            &zk,
+            ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
+        )
+        .await;
+        assert!(
+            result.is_err(),
+            "register_async should fail against unreachable ZooKeeper endpoint"
+        );
+        assert!(
+            !zk.watchers.lock().unwrap().contains_key("ps"),
+            "failed async register should compact dead watcher sender"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_register_failure_keeps_live_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(
+            &zk,
+            ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
+        )
+        .await;
+        assert!(
+            result.is_err(),
+            "register_async should fail against unreachable ZooKeeper endpoint"
+        );
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "live watcher sender should be preserved on async register failure"
+        );
+    }
+
     #[cfg(feature = "consul")]
     #[test]
     fn test_consul_discovery_creation() {

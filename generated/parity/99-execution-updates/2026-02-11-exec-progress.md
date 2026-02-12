@@ -4411,6 +4411,17 @@
     external-free ZK failure repro is not currently available.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 323) ZooKeeper async-register failure watcher-compaction coverage
+- Added feature-gated no-network failure-path regressions:
+  - `test_zk_async_register_failure_compacts_dead_watchers`
+  - `test_zk_async_register_failure_keeps_live_watchers`
+- Tests use an unreachable local endpoint with short session timeout to trigger
+  deterministic async register failure without external ZooKeeper dependency.
+- Result:
+  - ZooKeeper async register failure path is now explicitly validated for both
+    dead-sender compaction and live-watcher preservation semantics.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5214,6 +5225,8 @@
 800. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_register_failure -- --nocapture` ✅ (feature-gated Consul async-register failure dead-sender compaction and live-watcher preservation verification)
 801. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post ZooKeeper dead-watcher compaction helper coverage additions default-lane regression rerun)
 802. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_compact_dead_watch_sender -- --nocapture` ✅ (feature-gated ZooKeeper dead-watcher compaction helper behavior verification)
+803. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post ZooKeeper async-register failure watcher-compaction coverage additions default-lane regression rerun)
+804. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_async_register_failure -- --nocapture` ✅ (feature-gated ZooKeeper async-register failure dead-sender compaction and live-watcher preservation verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
