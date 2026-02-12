@@ -8241,6 +8241,56 @@ async fn distributed_runner_from_run_config_preserves_connect_failure_with_clean
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_preserves_connect_failure_with_cleanup_context() {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(FailingConnectWithHangingDisconnectFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when connect fails and disconnect cleanup blocks"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("forced connect failure"),
+        "connect failure should remain primary when cleanup disconnect blocks via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "connect-failure diagnostics via RunConfig should include cleanup issue context when cleanup disconnect blocks: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
+        ),
+        "connect-failure cleanup context via RunConfig should include disconnect-timeout diagnostics with custom worker service type: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_preserves_connect_failure_with_custom_service_type_cleanup_timeout_context(
 ) {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -12740,6 +12790,55 @@ async fn distributed_runner_from_runner_config_preserves_default_connect_timeout
 #[tokio::test]
 async fn distributed_runner_from_runner_config_preserves_connect_failure_with_cleanup_timeout_context(
 ) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(FailingConnectWithHangingDisconnectFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when connect fails and disconnect cleanup blocks"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("forced connect failure"),
+        "connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "connect-failure diagnostics via RunnerConfig should include cleanup issue context when cleanup disconnect blocks: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
+        ),
+        "connect-failure cleanup context via RunnerConfig should include disconnect-timeout diagnostics with custom worker service type: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_connect_failure_with_cleanup_context() {
     use monolith_training::runner::{run_distributed_from_runner_config, Role};
     use std::sync::Arc;
 
