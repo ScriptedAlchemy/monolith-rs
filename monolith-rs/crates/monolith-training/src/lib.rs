@@ -265,15 +265,21 @@ mod tests {
         estimator.add_hook(LoggingHook::new(10));
 
         // Train
-        let train_result = estimator.train().unwrap();
+        let train_result = estimator
+            .train()
+            .expect("training should succeed in full training flow smoke test");
         assert_eq!(train_result.global_step, 50);
 
         // Evaluate
-        let eval_result = estimator.evaluate().unwrap();
+        let eval_result = estimator
+            .evaluate()
+            .expect("evaluation should succeed in full training flow smoke test");
         assert!((eval_result.metrics.loss - 0.5).abs() < 1e-10);
 
         // Predict
-        let predict_result = estimator.predict(3).unwrap();
+        let predict_result = estimator
+            .predict(3)
+            .expect("prediction should succeed in full training flow smoke test");
         assert_eq!(predict_result.num_examples, 3);
     }
 }

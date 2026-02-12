@@ -6917,6 +6917,15 @@
   - removed all `.unwrap()` call-sites from `run_config.rs` (**0 remaining**),
     preserving run-config merge/env parity behavior.
 
+### 510) Monolith-training top-level flow test unwrap diagnostics tightening
+- Tightened the top-level full-flow unit test in
+  `crates/monolith-training/src/lib.rs` by replacing coarse unwrap assertions
+  with explicit `expect(...)` diagnostics for train/eval/predict stages.
+- Result:
+  - removed remaining non-doc unwrap call-sites from `lib.rs`
+    (**only doc-comment example remains**), preserving end-to-end smoke
+    behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7992,6 +8001,8 @@
 1072. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/entry.rs` ✅ (verified no remaining unwrap call-sites in entry module)
 1073. `cargo test -p monolith-training run_config::tests:: -- --nocapture` ✅ (validated run-config merge/override/env unit-test suite after unwrap-diagnostics tightening)
 1074. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/run_config.rs` ✅ (verified no remaining unwrap call-sites in run_config module)
+1075. `cargo test -p monolith-training test_full_training_flow -- --nocapture` ✅ (validated top-level training/eval/predict smoke flow after unwrap-diagnostics tightening)
+1076. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/lib.rs` ✅ (verified only doc-comment unwrap example remains in lib module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
