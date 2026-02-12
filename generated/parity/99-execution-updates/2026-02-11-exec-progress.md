@@ -3360,6 +3360,25 @@
   non-indexed custom service-type paths across runner + RunConfig +
   RunnerConfig entrypoints.
 
+### 246) Discover-timeout custom non-index custom-service-types parity expanded
+- Added runner-level custom non-index discover-timeout cleanup regressions:
+  - `test_run_distributed_preserves_worker_discover_failure_with_custom_service_types_when_cleanup_steps_timeout`
+  - `test_run_distributed_preserves_worker_discover_failure_with_custom_service_types_when_cleanup_steps_fail`
+- Added RunConfig integration custom non-index discover-timeout cleanup
+  regressions:
+  - `distributed_runner_from_run_config_preserves_discover_timeout_with_custom_service_types_when_cleanup_times_out`
+  - `distributed_runner_from_run_config_preserves_discover_timeout_with_custom_service_types_when_cleanup_fails`
+- Added RunnerConfig integration custom non-index discover-timeout cleanup
+  regressions:
+  - `distributed_runner_from_runner_config_preserves_discover_timeout_with_custom_service_types_when_cleanup_times_out`
+  - `distributed_runner_from_runner_config_preserves_discover_timeout_with_custom_service_types_when_cleanup_fails`
+- New assertions verify custom non-index worker discover-timeout diagnostics
+  preserve primary timeout precedence and append cleanup timeout/failure
+  operation context while carrying both custom PS + worker service-type context.
+- Result: discover-timeout cleanup diagnostics now explicitly cover both indexed
+  and non-indexed custom-service-types paths across runner + RunConfig +
+  RunnerConfig entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3871,6 +3890,9 @@
 508. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post connect-failure custom non-index cleanup-context parity expansion across runner/config entrypoints)
 509. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post connect-failure custom non-index cleanup-context parity compatibility verification)
 510. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post connect-failure custom non-index cleanup-context parity expansion full workspace rerun under ambient ZK auth env)
+511. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post discover-timeout custom non-index custom-service-types parity expansion across runner/config entrypoints)
+512. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post discover-timeout custom non-index custom-service-types parity compatibility verification)
+513. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post discover-timeout custom non-index custom-service-types parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
