@@ -497,10 +497,6 @@ async fn distributed_runner_from_run_config_honors_discover_timeout_controls() {
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when discover blocks"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when discover blocks")
         .expect_err("discover timeout should surface as a worker role error")
@@ -545,10 +541,6 @@ async fn distributed_runner_from_run_config_propagates_discover_service_type_int
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when discover blocks"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when discover blocks")
         .expect_err("custom-service discover timeout should surface as a worker role error")
@@ -593,10 +585,6 @@ async fn distributed_runner_from_run_config_propagates_discover_retry_controls()
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when discover repeatedly times out"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when discover repeatedly times out")
         .expect_err("discover retry exhaustion should surface as a worker role error")
@@ -647,10 +635,6 @@ async fn distributed_runner_from_run_config_preserves_discover_timeout_with_cust
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when indexed custom discover times out and cleanup steps block"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when indexed custom discover times out and cleanup steps block")
         .expect_err("indexed custom discover timeout with cleanup timeouts should surface as a worker role error")
@@ -725,10 +709,6 @@ async fn distributed_runner_from_run_config_preserves_discover_timeout_with_defa
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when indexed default discover times out and cleanup steps block"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when indexed default discover times out and cleanup steps block")
         .expect_err("indexed default discover timeout with cleanup timeouts should surface as a worker role error")
@@ -799,10 +779,6 @@ async fn distributed_runner_from_run_config_preserves_discover_timeout_with_defa
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when indexed default discover times out and cleanup fails"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when indexed default discover times out and cleanup fails")
         .expect_err("indexed default discover timeout with cleanup failures should surface as a worker role error")
@@ -875,10 +851,6 @@ async fn distributed_runner_from_run_config_preserves_discover_timeout_with_defa
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when default-service non-index discover times out and cleanup steps block"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when default-service non-index discover times out and cleanup steps block")
         .expect_err("default-service discover timeout with cleanup timeouts should surface as a worker role error")
