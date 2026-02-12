@@ -9412,6 +9412,71 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_preserves_worker_ordering_issue_timeout_with_custom_service_types_when_cleanup_steps_timeout(
+    ) {
+        let discovery = Arc::new(WorkerOrderingIssueWithHangingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 2,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(1500),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when worker discovery times out due to ordering issue with custom service types and cleanup steps time out"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker ordering-issue timeout should remain primary over cleanup timeout errors with custom service types: {msg}"
+        );
+        assert!(
+            msg.contains("service type: parameter_server_custom"),
+            "worker ordering-issue timeout should include custom PS service type context when cleanup times out: {msg}"
+        );
+        assert!(
+            msg.contains("for worker-0"),
+            "worker ordering-issue timeout should include worker service-id context when cleanup times out with custom service types: {msg}"
+        );
+        assert!(
+            msg.contains("last ordering issue: MixedIndexMetadataPresence"),
+            "worker ordering-issue timeout should preserve ordering issue diagnostics with custom service types when cleanup times out: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "worker ordering-issue timeout should include cleanup issue context when cleanup times out with custom service types: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: deregister worker-0 from trainer_custom after 20ms"
+            ),
+            "worker ordering-issue timeout cleanup context should include custom worker service-type deregister-timeout diagnostics: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
+            ),
+            "worker ordering-issue timeout cleanup context should include custom worker service-type disconnect-timeout diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_preserves_worker_ordering_issue_timeout_with_custom_service_types_and_index_when_cleanup_steps_fail(
     ) {
         let discovery = Arc::new(WorkerOrderingIssueWithFailingCleanupDiscovery::new());
@@ -9908,6 +9973,64 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_distributed_preserves_worker_ordering_issue_timeout_with_custom_service_type_when_cleanup_steps_fail(
+    ) {
+        let discovery = Arc::new(WorkerOrderingIssueWithFailingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 2,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(
+            res.is_err(),
+            "worker ordering-issue timeout with failing cleanup should surface as a role error with custom service types"
+        );
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker ordering-issue timeout should remain primary over cleanup failures with custom service types: {msg}"
+        );
+        assert!(
+            msg.contains("service type: parameter_server_custom"),
+            "worker ordering-issue timeout should include custom PS service type context when cleanup fails: {msg}"
+        );
+        assert!(
+            msg.contains("for worker-0"),
+            "worker ordering-issue timeout should include worker service-id context when cleanup fails with custom service types: {msg}"
+        );
+        assert!(
+            msg.contains("last ordering issue: MixedIndexMetadataPresence"),
+            "worker ordering-issue timeout should preserve ordering issue diagnostics with custom service types when cleanup fails: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "worker ordering-issue timeout should include cleanup issue context when cleanup fails with custom service types: {msg}"
+        );
+        assert!(
+            msg.contains("deregister worker-0 from trainer_custom")
+                && msg.contains("forced deregister failure"),
+            "worker ordering-issue timeout cleanup context should include custom worker service-type deregister-failure diagnostics: {msg}"
+        );
+        assert!(
+            msg.contains("disconnect worker-0 via trainer_custom")
+                && msg.contains("forced disconnect failure"),
+            "worker ordering-issue timeout cleanup context should include custom worker service-type disconnect-failure diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_ordering_issue_timeout_with_custom_service_types_when_cleanup_steps_fail(
     ) {
         let discovery = Arc::new(WorkerOrderingIssueWithFailingCleanupDiscovery::new());
         let cfg = DistributedRunConfig {
