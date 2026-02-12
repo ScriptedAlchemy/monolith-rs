@@ -1896,6 +1896,68 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn test_spawn_watch_poll_loop_recovers_after_discover_error() {
+        let (sender, _) = tokio::sync::broadcast::channel(16);
+        let mut rx = sender.subscribe();
+        let poll_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let poll_calls_for_loop = std::sync::Arc::clone(&poll_calls);
+        let keep_running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let keep_running_for_loop = std::sync::Arc::clone(&keep_running);
+        let on_exit_called = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let on_exit_called_for_loop = std::sync::Arc::clone(&on_exit_called);
+
+        let handle = spawn_watch_poll_loop(
+            sender,
+            "test",
+            std::time::Duration::from_millis(5),
+            move || keep_running_for_loop.load(std::sync::atomic::Ordering::SeqCst),
+            move || on_exit_called_for_loop.store(true, std::sync::atomic::Ordering::SeqCst),
+            move || {
+                let call = poll_calls_for_loop.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                async move {
+                    if call == 0 {
+                        Err(DiscoveryError::Internal("transient discover error".into()))
+                    } else {
+                        Ok(vec![ServiceInfo::new(
+                            "ps-0",
+                            "ps-0",
+                            "ps",
+                            "127.0.0.1",
+                            5000,
+                        )])
+                    }
+                }
+            },
+        );
+
+        let added = tokio::time::timeout(std::time::Duration::from_millis(250), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceAdded after transient discover error")
+            .expect("watch channel closed unexpectedly");
+        match added {
+            DiscoveryEvent::ServiceAdded(s) => assert_eq!(s.id, "ps-0"),
+            other => panic!("expected ServiceAdded, got {other:?}"),
+        }
+
+        assert!(
+            poll_calls.load(std::sync::atomic::Ordering::SeqCst) >= 2,
+            "watch poll loop should retry discover after transient failure"
+        );
+
+        keep_running.store(false, std::sync::atomic::Ordering::SeqCst);
+        drop(rx);
+
+        tokio::time::timeout(std::time::Duration::from_millis(250), handle)
+            .await
+            .expect("watch loop should stop after continue predicate flips false")
+            .expect("watch task join failed");
+        assert!(
+            on_exit_called.load(std::sync::atomic::Ordering::SeqCst),
+            "on_exit callback should run after recovery and graceful shutdown"
+        );
+    }
+
     #[test]
     fn test_shared_discovery() {
         let discovery: SharedDiscovery = new_in_memory_discovery();

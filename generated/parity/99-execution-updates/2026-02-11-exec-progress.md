@@ -4649,6 +4649,16 @@
   - Local cache non-population is now explicitly verified for config errors.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 343) Watch poll loop transient-discover-error recovery hardening
+- Added `test_spawn_watch_poll_loop_recovers_after_discover_error` to verify:
+  - transient discover errors do **not** terminate the poll loop
+  - subsequent successful discover snapshots still emit `ServiceAdded`
+  - graceful shutdown continues to invoke `on_exit` callback
+- Result:
+  - Poll-loop resilience now has explicit regression protection for transient
+    backend discovery failures, reducing risk of silent watcher starvation.
+  - Default monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5489,6 +5499,7 @@
 837. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_async_register_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_async_deregister_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated ZooKeeper unreachable-endpoint ConnectionFailed+message-context verification plus default-lane regression rerun)
 838. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" discover_async_connection_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" discover_async_config_error_is_classified -- --nocapture` ✅ (default-lane regression plus feature-gated Consul/ZK async-discover failure-shape and cache-preservation verification)
 839. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_register_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture` ✅ (default-lane regression plus feature-gated Consul async-register config-error context and cache-isolation verification)
+840. `ZK_AUTH=user:pass cargo test -p monolith-training test_spawn_watch_poll_loop_recovers_after_discover_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted transient discover-error recovery poll-loop verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
