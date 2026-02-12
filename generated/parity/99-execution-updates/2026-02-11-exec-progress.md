@@ -3933,6 +3933,19 @@
     `with_default_service_types_and_index -> (none): missing 0`
   - Updated broad audit still reports `missing 0` for all tracked transforms.
 
+### 286) Service-types generic alias parity completed
+- Added 30 additional aliases to close
+  `with_default_service_types -> (none)` end-to-end:
+  - 10 wrappers in `runner.rs`
+  - 20 wrappers in `native_training_parity.rs`
+- This also closed companion
+  `with_custom_service_types -> (none)` transform through existing alias
+  chains.
+- Result:
+  - `with_default_service_types -> (none)`: `missing 0` (both files)
+  - `with_custom_service_types -> (none)`: `missing 0` (both files)
+  - Expanded broad transform audit remains fully closed (`missing 0`).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4600,6 +4613,11 @@
 664. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post service-types-and-index generic alias additions full monolith-training regression rerun)
 665. `python3` `with_default_service_types_and_index -> (none)` audit (`runner.rs` + `native_training_parity.rs`) ✅ (both `missing 0`)
 666. `python3` updated broad transform audit ✅ (`missing 0` for all tracked transforms in both files, including `with_default_service_types_and_index -> (none)`)
+667. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_preserves_worker_discover_failure_and_index_when_cleanup_steps_fail -- --nocapture` ✅
+668. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_last_discover_error_and_index_when_cleanup_fails -- --nocapture` ✅
+669. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post service-types generic alias additions full monolith-training regression rerun)
+670. `python3` service-types generic audits (`with_default_service_types -> (none)` and `with_custom_service_types -> (none)`) ✅ (both files `missing 0`)
+671. `python3` expanded broad transform audit (including service-types and service-types-and-index generic families) ✅ (`missing 0` for all tracked transforms in both files)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
