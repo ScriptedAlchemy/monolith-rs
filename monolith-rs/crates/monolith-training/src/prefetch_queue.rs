@@ -546,14 +546,28 @@ mod tests {
         let res = res.expect("queue exists");
 
         // Non-tensor values should be present in the token template immediately.
-        let Nested::Map(root) = &token_template else {
-            panic!("expected map");
+        let root = if let Nested::Map(root) = &token_template {
+            root
+        } else {
+            assert!(
+                false,
+                "expected map token template root, got {token_template:?}"
+            );
+            return;
         };
-        let Nested::Seq(items) = root.get("list").unwrap() else {
-            panic!("expected list");
+        let list_node = root.get("list").expect("list key should exist");
+        let items = if let Nested::Seq(items) = list_node {
+            items
+        } else {
+            assert!(false, "expected list at key 'list', got {list_node:?}");
+            return;
         };
-        let Nested::Map(item0) = &items[0] else {
-            panic!("expected map item");
+        let first = &items[0];
+        let item0 = if let Nested::Map(item0) = first {
+            item0
+        } else {
+            assert!(false, "expected map element inside list, got {first:?}");
+            return;
         };
         assert_eq!(
             item0.get("b").unwrap(),
@@ -570,11 +584,18 @@ mod tests {
         let flat_out = res.queue.dequeue().unwrap();
         let rebuilt = res.token_template.fill_from_tokens(&flat_out);
 
-        let Nested::Map(root) = rebuilt else {
-            panic!("expected map");
+        let root = if let Nested::Map(root) = rebuilt {
+            root
+        } else {
+            assert!(false, "expected rebuilt map root, got {rebuilt:?}");
+            return;
         };
-        let Nested::Tensor(v) = root.get("v").unwrap() else {
-            panic!("expected tensor v");
+        let v_node = root.get("v").expect("v key should exist");
+        let v = if let Nested::Tensor(v) = v_node {
+            v
+        } else {
+            assert!(false, "expected tensor at key 'v', got {v_node:?}");
+            return;
         };
         assert_eq!(v.value, 5);
     }

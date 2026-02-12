@@ -5718,6 +5718,17 @@
   - Focused distributed/service-discovery tests and default monolith-training
     regression remain green.
 
+### 423) Prefetch-queue parity: panic fallback elimination in shape checks
+- Refactored `crates/monolith-training/src/prefetch_queue.rs` test
+  `enqueue_dicts_with_queue_return_preserves_non_tensor_leaves` to remove
+  panic fallback branches in nested shape/type checks.
+- Result:
+  - Queue token-template and rebuilt-structure assertions now use explicit
+    assertion failure messaging without ad-hoc `panic!` branches.
+  - `prefetch_queue.rs` is now panic-free.
+  - Focused prefetch-queue tests and default monolith-training regression
+    remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6640,6 +6651,8 @@
 919. `rg "panic!\\(" monolith-rs/crates/monolith-training/src/discovery.rs` ✅ (verified discovery.rs is panic-free after final assertion refactor batch)
 920. `cargo test -p monolith-training test_cluster_config_validation -- --nocapture && cargo test -p monolith-training test_parameter_server_lifecycle_guards -- --nocapture && cargo test -p monolith-training test_parameter_server_apply_gradients -- --nocapture && cargo test -p monolith-training test_worker -- --nocapture && cargo test -p monolith-training test_worker_lifecycle_guards -- --nocapture && cargo test -p monolith-training test_local_cluster_ -- --nocapture && cargo test -p monolith-training consul_retry_propagates_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (distributed and native service-discovery assertion-tightening targeted verification plus default-lane regression rerun)
 921. `rg "panic!\\(" monolith-rs/crates/monolith-training/src/distributed.rs && rg "panic!\\(" monolith-rs/crates/monolith-training/src/native_training/service_discovery.rs` ✅ (verified distributed.rs and service_discovery.rs are panic-free after assertion refactor batch)
+922. `cargo test -p monolith-training enqueue_dicts_with_queue_return_preserves_non_tensor_leaves -- --nocapture && cargo test -p monolith-training prefetch_queue -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (prefetch-queue assertion-tightening targeted verification plus default-lane regression rerun)
+923. `rg "panic!\\(" monolith-rs/crates/monolith-training/src/prefetch_queue.rs` ✅ (verified prefetch_queue.rs is panic-free after assertion refactor)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
