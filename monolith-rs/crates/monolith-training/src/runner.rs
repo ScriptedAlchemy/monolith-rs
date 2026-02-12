@@ -12665,4 +12665,64 @@ mod tests {
     ) {
         test_run_distributed_worker_registration_failure_with_default_service_type_includes_cleanup_context();
     }
+
+    #[test]
+    fn test_run_distributed_ps_registration_failure_includes_custom_service_type_when_cleanup_blocks(
+    ) {
+        test_run_distributed_ps_registration_failure_includes_custom_service_type_disconnect_failure_context();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_registration_failure_with_custom_service_type_and_index_includes_when_cleanup_blocks(
+    ) {
+        test_run_distributed_ps_registration_failure_with_custom_service_type_and_index_includes_disconnect_failure_context();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_registration_failure_with_custom_service_type_includes_when_cleanup_blocks(
+    ) {
+        test_run_distributed_ps_registration_failure_with_custom_service_type_includes_disconnect_failure_context();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_registration_failure_with_default_service_type_and_index_includes_when_cleanup_blocks(
+    ) {
+        test_run_distributed_ps_registration_failure_with_default_service_type_and_index_includes_disconnect_failure_context();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_registration_failure_with_default_service_type_includes_when_cleanup_blocks(
+    ) {
+        test_run_distributed_ps_registration_failure_with_default_service_type_includes_disconnect_failure_context();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_registration_failure_includes_custom_service_type_when_cleanup_blocks(
+    ) {
+        test_run_distributed_worker_registration_failure_includes_custom_service_type_disconnect_failure_context();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_registration_failure_with_custom_service_type_and_index_includes_when_cleanup_blocks(
+    ) {
+        test_run_distributed_worker_registration_failure_with_custom_service_type_and_index_includes_disconnect_failure_context();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_registration_failure_with_custom_service_type_includes_when_cleanup_blocks(
+    ) {
+        test_run_distributed_worker_registration_failure_with_custom_service_type_includes_disconnect_failure_context();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_registration_failure_with_default_service_type_and_index_includes_when_cleanup_blocks(
+    ) {
+        test_run_distributed_worker_registration_failure_with_default_service_type_and_index_includes_disconnect_failure_context();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_registration_failure_with_default_service_type_includes_when_cleanup_blocks(
+    ) {
+        test_run_distributed_worker_registration_failure_with_default_service_type_includes_disconnect_failure_context();
+    }
 }

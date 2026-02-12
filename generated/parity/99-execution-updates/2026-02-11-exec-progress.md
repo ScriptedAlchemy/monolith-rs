@@ -3840,6 +3840,15 @@
 - Result: run-config to runner-config counterpart audit in
   `native_training_parity.rs` is now fully closed (`run->runner missing 0`).
 
+### 277) Runner disconnect-to-when-cleanup-blocks parity completed
+- Added 10 runner unit-test alias wrappers in `runner.rs`:
+  - `*_includes_disconnect_failure_context` → `*_includes_when_cleanup_blocks`
+  - Covers worker/PS registration-failure families across default/custom
+    service-type and index variants.
+- Result: in `runner.rs`, the exploratory
+  `_disconnect_failure_context -> _when_cleanup_blocks` naming audit is now
+  fully closed (`missing 0`).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4469,6 +4478,10 @@
 626. `ZK_AUTH=user:pass cargo test -p monolith-training estimator_from_runner_config_roundtrip -- --nocapture` ✅
 627. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post estimator runner-config roundtrip counterpart addition full monolith-training regression rerun)
 628. `python3` run/runner counterpart audit (`native_training_parity.rs`) ✅ (`run->runner missing 0`)
+629. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_ps_registration_failure_with_default_service_type_includes_when_cleanup_blocks -- --nocapture` ✅
+630. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_worker_registration_failure_with_default_service_type_includes_when_cleanup_blocks -- --nocapture` ✅
+631. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner `*_when_cleanup_blocks` alias additions full monolith-training regression rerun)
+632. `python3` disconnect->when-cleanup-blocks audit (`runner.rs`) ✅ (`missing 0`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
