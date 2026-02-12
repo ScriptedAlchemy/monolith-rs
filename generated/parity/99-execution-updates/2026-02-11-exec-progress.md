@@ -3103,6 +3103,26 @@
   cleanup timeout/failure parity across runner + RunConfig + RunnerConfig
   entrypoints.
 
+### 233) Worker ordering+discovery composite timeout cleanup parity expanded
+- Added runner-level composite-timeout regressions:
+  - `test_run_distributed_preserves_worker_ordering_and_discovery_error_timeout_with_default_service_type_and_index_when_cleanup_steps_timeout`
+  - `test_run_distributed_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_and_index_when_cleanup_steps_fail`
+- Added RunConfig integration regressions:
+  - `distributed_runner_from_run_config_preserves_worker_ordering_and_discovery_error_timeout_with_default_service_type_and_index_when_cleanup_times_out`
+  - `distributed_runner_from_run_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_and_index_when_cleanup_fails`
+- Added RunnerConfig integration regressions:
+  - `distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_default_service_type_and_index_when_cleanup_times_out`
+  - `distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_and_index_when_cleanup_fails`
+- Added composite sequencing discovery mocks (ordering issue on first discover,
+  discover failure on retry) for runner + integration parity paths.
+- New assertions verify composite worker timeout diagnostics preserve both:
+  - `last ordering issue: MixedIndexMetadataPresence`
+  - `last discovery error: Internal error: forced discover failure`
+  while still appending cleanup timeout/failure operation diagnostics.
+- Result: composite ordering+discover-error timeout precedence and cleanup
+  context propagation now have explicit parity coverage across runner + RunConfig
+  + RunnerConfig entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3575,6 +3595,9 @@
 469. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker ordering-issue timeout cleanup diagnostics parity expansion across runner/config entrypoints)
 470. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post worker ordering-issue timeout cleanup diagnostics parity compatibility verification)
 471. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post worker ordering-issue timeout cleanup diagnostics parity expansion full workspace rerun under ambient ZK auth env)
+472. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker ordering+discover composite timeout cleanup parity expansion across runner/config entrypoints)
+473. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post worker ordering+discover composite timeout cleanup parity compatibility verification)
+474. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post worker ordering+discover composite timeout cleanup parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
