@@ -1257,7 +1257,7 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
 
         client.register_entity(&payload).await.map_err(|e| {
             self.compact_dead_watch_sender(&service.service_type);
-            DiscoveryError::Internal(format!("Consul register_entity failed: {e:?}"))
+            map_consul_request_error("register_entity", e)
         })?;
 
         self.services
@@ -1286,9 +1286,7 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
                 None,
             )
             .await
-            .map_err(|e| {
-                DiscoveryError::Internal(format!("Consul get_service_nodes failed: {e:?}"))
-            })?;
+            .map_err(|e| map_consul_request_error("get_service_nodes", e))?;
 
         let mut out = Vec::new();
         for sn in nodes.response {
@@ -1373,9 +1371,10 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
             Namespace: None,
         };
 
-        client.deregister_entity(&payload).await.map_err(|e| {
-            DiscoveryError::Internal(format!("Consul deregister_entity failed: {e:?}"))
-        })?;
+        client
+            .deregister_entity(&payload)
+            .await
+            .map_err(|e| map_consul_request_error("deregister_entity", e))?;
         Ok(())
     }
 }
@@ -1394,6 +1393,16 @@ async fn ensure_zk_path(client: &zk::Client, path: &str) -> Result<()> {
         let _ = client.create(&cur, b"", &opts).await;
     }
     Ok(())
+}
+
+#[cfg(feature = "consul")]
+fn map_consul_request_error(context: &str, err: impl std::fmt::Debug) -> DiscoveryError {
+    let detail = format!("{err:?}");
+    if detail.contains("InvalidUri") || detail.contains("InvalidAuthority") {
+        DiscoveryError::ConfigError(format!("Consul {context} invalid address: {detail}"))
+    } else {
+        DiscoveryError::Internal(format!("Consul {context} failed: {detail}"))
+    }
 }
 
 #[cfg(feature = "zookeeper")]
@@ -2716,10 +2725,10 @@ mod tests {
         let mut rx = consul.watch("worker").expect("watch should succeed");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
-        assert!(
-            result.is_err(),
-            "async deregister should surface backend deregister failures"
-        );
+        match result {
+            Err(DiscoveryError::Internal(_)) => {}
+            other => panic!("expected Internal error, got {other:?}"),
+        }
 
         let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
             .await
@@ -2754,10 +2763,10 @@ mod tests {
 
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
-        assert!(
-            result.is_err(),
-            "async deregister should surface backend deregister failures"
-        );
+        match result {
+            Err(DiscoveryError::Internal(_)) => {}
+            other => panic!("expected Internal error, got {other:?}"),
+        }
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "dead watch sender should be removed after async deregister notification"
@@ -2780,10 +2789,10 @@ mod tests {
 
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
-        assert!(
-            result.is_err(),
-            "consul async deregister should surface backend deregister failures"
-        );
+        match result {
+            Err(DiscoveryError::Internal(_)) => {}
+            other => panic!("expected Internal error, got {other:?}"),
+        }
         assert!(
             consul
                 .discover("worker")
@@ -2844,10 +2853,10 @@ mod tests {
         let mut rx = consul.watch("worker").expect("watch should succeed");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
-        assert!(
-            result.is_err(),
-            "consul async deregister should surface backend deregister failures"
-        );
+        match result {
+            Err(DiscoveryError::Internal(_)) => {}
+            other => panic!("expected Internal error, got {other:?}"),
+        }
         assert!(
             consul
                 .discover("worker")
@@ -2889,10 +2898,10 @@ mod tests {
 
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
-        assert!(
-            result.is_err(),
-            "consul async deregister should surface backend deregister failures"
-        );
+        match result {
+            Err(DiscoveryError::Internal(_)) => {}
+            other => panic!("expected Internal error, got {other:?}"),
+        }
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "dropped watcher sender should be compacted on async deregister notification"

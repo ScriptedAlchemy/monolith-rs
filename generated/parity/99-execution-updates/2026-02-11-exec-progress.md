@@ -4549,6 +4549,20 @@
     surfacing while preserving deterministic local cleanup semantics.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 335) Consul request-error classifier integration + assertion strengthening
+- Routed Consul async request error mapping through
+  `map_consul_request_error(...)` for:
+  - `register_async(...)`
+  - `discover_async(...)`
+  - `deregister_async(...)`
+- Strengthened Consul async deregister regressions to assert explicit error
+  surfacing (rather than generic `is_err()` checks) for backend-failure paths.
+- Result:
+  - Consul error classification now uses a single canonical mapping path.
+  - Consul async deregister regressions are stricter and less permissive about
+    silent error-type drift.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5376,6 +5390,8 @@
 824. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" sync_deregister_missing_service_preserves_watchers -- --nocapture` ✅ (feature-gated ZK/Consul sync missing-service deregister watcher-preservation verification)
 825. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post Consul async-deregister error-surfacing parity tightening default-lane regression rerun)
 826. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture` ✅ (feature-gated Consul async-deregister error surfacing + config-error watcher-consistency verification)
+827. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post Consul request-error classifier integration and stricter async-deregister assertion updates default-lane regression rerun)
+828. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture` ✅ (feature-gated Consul async-deregister and config-error verification after classifier integration)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
