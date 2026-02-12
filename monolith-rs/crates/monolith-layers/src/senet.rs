@@ -571,7 +571,7 @@ impl SENetLayer {
         let merged = if used_3d {
             match self.out_type {
                 MergeType::Concat => {
-                    merge_tensor_list_tensor(vec![output], MergeType::Concat, None, 1)
+                    merge_tensor_list_tensor(vec![output], MergeType::Concat, None, 1)?
                 }
                 MergeType::Stack => output,
                 MergeType::None => {
@@ -680,7 +680,7 @@ impl SENetLayer {
             Some(inputs.len()),
             1,
             self.keep_list,
-        ))
+        )?)
     }
 
     /// Backward pass for list inputs (expects gradients for each output).
@@ -833,7 +833,7 @@ impl Layer for SENetLayer {
                     MergeType::Concat,
                     None,
                     1,
-                )),
+                )?),
                 MergeType::Stack => Ok(output),
                 MergeType::None => Err(LayerError::ForwardError {
                     message: "SENet forward cannot return list when out_type is None".to_string(),

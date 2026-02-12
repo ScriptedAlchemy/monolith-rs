@@ -6231,6 +6231,22 @@
     generic panic fallbacks while preserving existing behavior contracts.
   - Targeted tests and full regressions for touched crates remain green.
 
+### 459) Layers parity: remove merge helper runtime `panic!` fallbacks
+- Refactored `monolith-layers/src/merge.rs` to eliminate runtime `panic!`
+  fallbacks by introducing typed error propagation:
+  - `merge_tensor_list(...)` now returns `Result<MergeOutput, LayerError>`,
+    mapping unsupported shape ranks into `LayerError::ShapeMismatch`.
+  - `merge_tensor_list_tensor(...)` now returns `Result<Tensor, LayerError>`,
+    returning `LayerError::ForwardError` when a non-singleton list is produced.
+- Updated all call sites in:
+  - `feature_trans.rs`,
+  - `feature_cross.rs`,
+  - `senet.rs`,
+  to propagate merge helper errors via `?`.
+- Result:
+  - Merge helper error behavior is now explicit and typed rather than panic-based.
+  - Full `monolith-layers` regression remains green after API propagation.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7210,6 +7226,8 @@
 976. `cargo test -p monolith-checkpoint test_error_handling -- --nocapture && cargo test -p monolith-checkpoint test_export_saved_model_writes_model_spec_when_metadata_present -- --nocapture && cargo test -p monolith-core test_initializer_config_default -- --nocapture && cargo test -p monolith-core test_optimizer_type -- --nocapture && cargo test -p monolith-core test_create_children -- --nocapture && cargo test -p monolith-core test_compress_decompress_roundtrip -- --nocapture && cargo test -p monolith-serving test_gen_model_spec -- --nocapture && cargo test -p monolith-serving test_gen_model_config_latest -- --nocapture && cargo test -p monolith-serving replica_manager_registers_and_watches_replicas --test replica_manager_parity -- --nocapture && cargo test -p monolith-data decode_python_generated_example_bytes -- --nocapture && cargo test -p monolith-data example_encode_decode_roundtrip --test proto_parity -- --nocapture && cargo test -p monolith-data test_generate_ffm_example_roundtrip -- --nocapture && cargo test -p monolith-data test_uniform_sampler_basic -- --nocapture && cargo test -p monolith-data test_frequency_sampler_basic -- --nocapture && cargo test -p monolith-data test_custom_item_feature_name -- --nocapture && cargo test -p monolith-data test_add_and_get_feature -- --nocapture && cargo test -p monolith-data test_add_and_get_dense_feature_float_list -- --nocapture && cargo test -p monolith-data test_get_feature_mut -- --nocapture && cargo test -p monolith-data test_merge_examples -- --nocapture` ✅ (multi-crate targeted panic-branch assertion refactor verification)
 977. `cargo test -p monolith-checkpoint -q && cargo test -p monolith-core -q && cargo test -p monolith-serving -q && cargo test -p monolith-data -q` ✅ (full regressions for touched crates after panic-branch assertion refactor)
 978. Multiple `rg "panic!\\("` scans over touched files (`monolith-checkpoint`, `monolith-core`, `monolith-serving` parity tests, and `monolith-data` test modules) ✅ (verified removed panic fallback branches in touched files)
+979. `cargo test -p monolith-layers -q` ✅ (full monolith-layers regression rerun after merge helper Result-based error propagation)
+980. `rg "panic!\\(" /workspace/monolith-rs/crates/monolith-layers/src/merge.rs` ✅ (verified merge helper panic fallbacks are eliminated)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

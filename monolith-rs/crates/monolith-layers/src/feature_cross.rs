@@ -400,7 +400,7 @@ impl AllInt {
             self.out_type,
             None,
             1,
-        ))
+        )?)
     }
 
     pub fn forward_with_merge(&mut self, input: &Tensor) -> Result<MergeOutput, LayerError> {
@@ -411,7 +411,7 @@ impl AllInt {
             None,
             1,
             self.keep_list,
-        ))
+        )?)
     }
 }
 

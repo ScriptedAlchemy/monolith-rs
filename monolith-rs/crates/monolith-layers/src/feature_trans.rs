@@ -80,7 +80,7 @@ impl AutoInt {
 
     pub fn forward_with_merge(&mut self, input: &Tensor) -> Result<MergeOutput, LayerError> {
         let out = self.forward_internal(input, false)?;
-        let output = merge_tensor_list(vec![out], self.out_type, None, 1, self.keep_list);
+        let output = merge_tensor_list(vec![out], self.out_type, None, 1, self.keep_list)?;
         Ok(output)
     }
 
@@ -137,7 +137,7 @@ impl Layer for AutoInt {
                 MergeType::Concat,
                 None,
                 1,
-            )),
+            )?),
             MergeType::Stack => Ok(x),
             MergeType::None => Err(LayerError::ForwardError {
                 message: "AutoInt forward cannot return list when out_type is None".to_string(),
@@ -327,7 +327,7 @@ impl IRazor {
             Some(self.num_feature),
             1,
             self.keep_list,
-        ))
+        )?)
     }
 
     pub fn aux_loss(&self) -> Option<f32> {
