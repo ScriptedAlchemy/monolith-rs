@@ -3949,6 +3949,24 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_connect_userinfo_authority_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new("http://user@127.0.0.1:8500");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address")
+                        && msg.contains("userinfo in authority")
+                        && msg.contains("connect"),
+                    "userinfo-authority connect failures should be classified as ConfigError with connect context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for userinfo authority connect, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_discover_async_whitespace_authority_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
