@@ -6500,6 +6500,32 @@
     watcher subscriptions remain preserved,
   - no poll-generation state is created for rejected watch attempts.
 
+### 477) ZooKeeper base-path parity: explicit config-shape contracts across connect/discovery/watch
+- Added `validate_zk_base_path_for_operation(context, base_path)` and wired it
+  into:
+  - `ZkDiscovery::connect` (shared by register/discover/deregister async flows),
+  - `ZkDiscovery::watch_async` (fail-fast before watcher/poller setup).
+- Validation now rejects:
+  - leading/trailing whitespace,
+  - empty paths,
+  - relative paths (must start with `/`),
+  - internal whitespace,
+  - empty path segments (`//`).
+- Added coverage:
+  - helper/unit tests for accepted/rejected base-path shapes,
+  - async behavior:
+    - `test_zk_connect_invalid_base_path_is_config_error`
+    - `test_zk_async_register_invalid_base_path_compacts_dead_watchers`
+    - `test_zk_discover_async_invalid_base_path_preserves_local_cache`
+    - `test_zk_watch_async_invalid_base_path_rejects_without_state_changes`
+    - `test_zk_watch_async_invalid_base_path_compacts_dead_watch_sender`
+    - `test_zk_watch_async_invalid_base_path_preserves_live_watch_sender`
+- Result:
+  - malformed ZK base-path configuration is now surfaced as deterministic
+    operation-scoped `ConfigError` contracts,
+  - async lifecycle cleanup/local-cache semantics remain preserved under these
+    config-error exit paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7515,6 +7541,8 @@
 1012. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after ZooKeeper host-validation hardening)
 1013. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_watch_async_invalid_hosts_ -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_watch_async_deduplicates_poll_generation_entries -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_connect_invalid_hosts_is_config_error -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_config_error_ -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_ -- --nocapture` ✅ (validated ZooKeeper watch_async fail-fast invalid-host contracts plus dead/live watcher cleanup semantics and ensured no regressions in existing Consul watch cleanup matrix)
 1014. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after ZooKeeper watch_async invalid-host hardening)
+1015. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_validate_zk_base_path_for_operation_ -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_connect_invalid_base_path_is_config_error -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_async_register_invalid_base_path_compacts_dead_watchers -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_discover_async_invalid_base_path_preserves_local_cache -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_watch_async_invalid_base_path_ -- --nocapture` ✅ (validated ZooKeeper base-path config-shape contracts and async lifecycle semantics across connect/register/discover/watch surfaces)
+1016. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after ZooKeeper base-path validation hardening)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

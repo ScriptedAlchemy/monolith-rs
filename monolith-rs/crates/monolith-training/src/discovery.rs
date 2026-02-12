@@ -619,6 +619,7 @@ impl ZkDiscovery {
     /// This is a placeholder that would establish a connection to ZooKeeper.
     pub async fn connect(&self) -> Result<()> {
         validate_zk_hosts_for_operation("connect", &self.hosts)?;
+        validate_zk_base_path_for_operation("connect", &self.base_path)?;
 
         tracing::info!(hosts = %self.hosts, base_path = %self.base_path, "Connecting to ZooKeeper");
 
@@ -922,6 +923,10 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
 
     async fn watch_async(&self, service_type: &str) -> Result<Receiver<DiscoveryEvent>> {
         validate_zk_hosts_for_operation("watch_service", &self.hosts).map_err(|e| {
+            self.compact_dead_watch_sender(service_type);
+            e
+        })?;
+        validate_zk_base_path_for_operation("watch_service", &self.base_path).map_err(|e| {
             self.compact_dead_watch_sender(service_type);
             e
         })?;
@@ -1473,6 +1478,30 @@ fn validate_zk_hosts_for_operation(context: &str, hosts: &str) -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "zookeeper")]
+fn validate_zk_base_path_for_operation(context: &str, base_path: &str) -> Result<()> {
+    let cfg_err = |detail: &str| {
+        DiscoveryError::ConfigError(format!("ZooKeeper {context} invalid base_path: {detail}"))
+    };
+
+    if base_path.trim() != base_path {
+        return Err(cfg_err("leading/trailing whitespace"));
+    }
+    if base_path.is_empty() {
+        return Err(cfg_err("empty path"));
+    }
+    if !base_path.starts_with('/') {
+        return Err(cfg_err("path must start with /"));
+    }
+    if base_path.chars().any(char::is_whitespace) {
+        return Err(cfg_err("whitespace in path"));
+    }
+    if base_path.contains("//") {
+        return Err(cfg_err("empty path segment"));
+    }
+    Ok(())
+}
+
 #[cfg(feature = "consul")]
 fn map_consul_request_error(context: &str, err: impl std::fmt::Debug) -> DiscoveryError {
     let detail = format!("{err:?}");
@@ -1937,6 +1966,83 @@ mod tests {
                     && msg.contains("invalid hosts")
                     && msg.contains("empty host entry")),
             "expected ConfigError containing empty-host-entry details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_validate_zk_base_path_for_operation_accepts_absolute_path() {
+        validate_zk_base_path_for_operation("connect", "/services/ps")
+            .expect("absolute ZooKeeper base path should pass validation");
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_validate_zk_base_path_for_operation_rejects_leading_trailing_whitespace() {
+        let err = validate_zk_base_path_for_operation("connect", " /services ")
+            .expect_err("leading/trailing whitespace should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid base_path")
+                    && msg.contains("leading/trailing whitespace")),
+            "expected ConfigError containing base_path whitespace details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_validate_zk_base_path_for_operation_rejects_empty_path() {
+        let err = validate_zk_base_path_for_operation("connect", "")
+            .expect_err("empty base path should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid base_path")
+                    && msg.contains("empty path")),
+            "expected ConfigError containing empty-path details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_validate_zk_base_path_for_operation_rejects_missing_leading_slash() {
+        let err = validate_zk_base_path_for_operation("connect", "services")
+            .expect_err("relative base path should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid base_path")
+                    && msg.contains("path must start with /")),
+            "expected ConfigError containing missing-leading-slash details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_validate_zk_base_path_for_operation_rejects_internal_whitespace() {
+        let err = validate_zk_base_path_for_operation("connect", "/ser vices")
+            .expect_err("internal whitespace should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid base_path")
+                    && msg.contains("whitespace in path")),
+            "expected ConfigError containing internal-whitespace details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_validate_zk_base_path_for_operation_rejects_empty_segment() {
+        let err = validate_zk_base_path_for_operation("connect", "/services//ps")
+            .expect_err("empty path segment should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid base_path")
+                    && msg.contains("empty path segment")),
+            "expected ConfigError containing empty-segment details, got {err:?}"
         );
     }
 
@@ -2861,6 +2967,84 @@ mod tests {
     }
 
     #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_watch_async_invalid_base_path_rejects_without_state_changes() {
+        let zk = ZkDiscovery::new("127.0.0.1:2181", "services");
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("invalid base_path should be rejected before watch state is created");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid base_path")
+                    && msg.contains("path must start with /")),
+            "expected ConfigError containing watch_service invalid-base_path context, got {err:?}"
+        );
+        assert!(
+            !zk.watchers.lock().unwrap().contains_key("ps"),
+            "invalid-base_path watch_async should not create watcher sender entries"
+        );
+        assert!(
+            !zk.watch_poll_generations.lock().unwrap().contains_key("ps"),
+            "invalid-base_path watch_async should not seed poll-generation bookkeeping"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_watch_async_invalid_base_path_compacts_dead_watch_sender() {
+        let zk = ZkDiscovery::new("127.0.0.1:2181", "services");
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("invalid base_path should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid base_path")
+                    && msg.contains("path must start with /")),
+            "expected ConfigError containing watch_service invalid-base_path context, got {err:?}"
+        );
+        assert!(
+            !zk.watchers.lock().unwrap().contains_key("ps"),
+            "invalid-base_path watch_async should compact dead watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_watch_async_invalid_base_path_preserves_live_watch_sender() {
+        let zk = ZkDiscovery::new("127.0.0.1:2181", "services");
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("invalid base_path should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid base_path")
+                    && msg.contains("path must start with /")),
+            "expected ConfigError containing watch_service invalid-base_path context, got {err:?}"
+        );
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "invalid-base_path watch_async should preserve live watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
     #[test]
     fn test_zk_sync_register_removes_dead_watchers() {
         let zk = ZkDiscovery::new("localhost:2181", "/services");
@@ -3090,6 +3274,74 @@ mod tests {
                     && msg.contains("invalid hosts")
                     && msg.contains("leading/trailing whitespace")),
             "expected ConfigError containing invalid-hosts discover context, got {err:?}"
+        );
+        assert_eq!(
+            zk.discover("ps").expect("discover should succeed after config failure").len(),
+            1,
+            "config-error async discover should preserve local cache entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_connect_invalid_base_path_is_config_error() {
+        let zk = ZkDiscovery::new("127.0.0.1:2181", "services");
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let err = result.expect_err("relative base_path should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid base_path")
+                    && msg.contains("path must start with /")),
+            "expected ConfigError containing invalid-base_path connect context, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_register_invalid_base_path_compacts_dead_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:2181", "services");
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(
+            &zk,
+            ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
+        )
+        .await;
+        let err = result.expect_err("invalid base_path should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid base_path")
+                    && msg.contains("path must start with /")),
+            "expected ConfigError containing invalid-base_path register context, got {err:?}"
+        );
+        assert!(
+            !zk.watchers.lock().unwrap().contains_key("ps"),
+            "config-error register should compact dead watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_discover_async_invalid_base_path_preserves_local_cache() {
+        let zk = ZkDiscovery::new("127.0.0.1:2181", "services");
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::discover_async(&zk, "ps").await;
+        let err = result.expect_err("invalid base_path should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid base_path")
+                    && msg.contains("path must start with /")),
+            "expected ConfigError containing invalid-base_path discover context, got {err:?}"
         );
         assert_eq!(
             zk.discover("ps").expect("discover should succeed after config failure").len(),
