@@ -5041,6 +5041,22 @@
   - Targeted PS register-timeout lane and default monolith-training regression
     remain green.
 
+### 375) Runner discover/connect-failure timeout-wrapper contract tightening (final sweep)
+- Converted remaining worker discover-timeout and connect-failure +
+  disconnect-blocked timeout-wrapper assertions from
+  `is_ok + unwrap().unwrap_err()` to explicit
+  `expect(\"must not hang\") + expect_err(\"must surface role error\")`.
+- Covered:
+  - worker discover-timeout baseline/custom context and cleanup
+    timeout/failure variants (default/custom + index)
+  - worker/PS connect-failure cases where disconnect cleanup blocks
+    (default/custom + index)
+- Result:
+  - Final timeout-wrapper assertion family in `runner.rs` now uses explicit
+    non-hang + role-error contracts with stronger per-case diagnostics.
+  - Targeted worker discover/connect-failure lanes and default
+    monolith-training regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5913,6 +5929,7 @@
 869. `ZK_AUTH=user:pass cargo test -p monolith-training ps_connect_timeout_preserves_error_when_disconnect_cleanup_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner PS connect-timeout cleanup contract tightening verification plus default-lane regression rerun)
 870. `ZK_AUTH=user:pass cargo test -p monolith-training worker_register_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner worker register-timeout contract tightening verification plus default-lane regression rerun)
 871. `ZK_AUTH=user:pass cargo test -p monolith-training ps_register_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner PS register-timeout contract tightening verification plus default-lane regression rerun)
+872. `ZK_AUTH=user:pass cargo test -p monolith-training worker_discover_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training connect_failure_does_not_hang_when_disconnect_blocks -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner worker-discover/connect-failure timeout-wrapper contract tightening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
