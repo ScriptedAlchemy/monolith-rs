@@ -5892,6 +5892,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_default_service_type(
+    ) {
+        let discovery = Arc::new(HangingConnectWithFailingDisconnectDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            discovery_operation_timeout: Duration::from_millis(20),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(700),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when non-index default-worker connect is blocked and cleanup disconnect fails"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery operation: connect worker-0 via worker after 20ms"),
+            "default-worker connect timeout should remain primary even if cleanup disconnect fails: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "default-worker connect-timeout failures should include cleanup issue context when disconnect cleanup fails: {msg}"
+        );
+        assert!(
+            msg.contains("disconnect worker-0 via worker")
+                && msg.contains("forced disconnect failure"),
+            "default-worker connect-timeout cleanup issue context should include default-service-type non-index disconnect failure diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_custom_service_type_and_index(
     ) {
         let discovery = Arc::new(HangingConnectWithFailingDisconnectDiscovery::new());
@@ -6057,6 +6098,48 @@ mod tests {
                 "Timed out during discovery cleanup: disconnect worker-3 via worker after 20ms"
             ),
             "indexed default-worker connect-timeout cleanup issue context should include default-service-type/index disconnect timeout diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_default_service_type(
+    ) {
+        let discovery = Arc::new(HangingConnectWithHangingDisconnectDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            discovery_operation_timeout: Duration::from_millis(20),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(700),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when non-index default-worker connect and cleanup disconnect are both blocked"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery operation: connect worker-0 via worker after 20ms"),
+            "default-worker connect timeout should remain primary even if cleanup disconnect also times out: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "default-worker connect-timeout failures should include cleanup issue context when disconnect cleanup times out: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: disconnect worker-0 via worker after 20ms"
+            ),
+            "default-worker connect-timeout cleanup issue context should include default-service-type non-index disconnect timeout diagnostics: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(discovery.disconnect_count(), 1);
@@ -6285,6 +6368,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_ps_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_default_service_type(
+    ) {
+        let discovery = Arc::new(HangingConnectWithFailingDisconnectDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_operation_timeout: Duration::from_millis(20),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(700),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when non-index default-ps connect is blocked and cleanup disconnect fails"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery operation: connect ps-0 via ps after 20ms"),
+            "default-ps connect timeout should remain primary even if cleanup disconnect fails: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "default-ps connect-timeout failures should include cleanup issue context when disconnect cleanup fails: {msg}"
+        );
+        assert!(
+            msg.contains("disconnect ps-0 via ps") && msg.contains("forced disconnect failure"),
+            "default-ps connect-timeout cleanup issue context should include default-service-type non-index disconnect failure diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_ps_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_default_service_type_and_index(
     ) {
         let discovery = Arc::new(HangingConnectWithHangingDisconnectDiscovery::new());
@@ -6322,6 +6446,49 @@ mod tests {
                 "Timed out during discovery cleanup: disconnect ps-2 via ps after 20ms"
             ),
             "indexed default-ps connect-timeout cleanup issue context should include default-service-type/index disconnect timeout diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_ps_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_default_service_type(
+    ) {
+        let discovery = Arc::new(HangingConnectWithHangingDisconnectDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_operation_timeout: Duration::from_millis(20),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(700),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when non-index default-ps connect and cleanup disconnect are both blocked"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery operation: connect ps-0 via ps after 20ms"),
+            "default-ps connect timeout should remain primary even if cleanup disconnect also times out: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "default-ps connect-timeout failures should include cleanup issue context when disconnect cleanup times out: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: disconnect ps-0 via ps after 20ms"
+            ),
+            "default-ps connect-timeout cleanup issue context should include default-service-type non-index disconnect timeout diagnostics: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(discovery.disconnect_count(), 1);
@@ -8098,6 +8265,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_connect_failure_does_not_hang_when_disconnect_blocks_with_default_service_type(
+    ) {
+        let discovery = Arc::new(FailingConnectWithHangingDisconnectDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(900),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when non-index worker connect-failure cleanup disconnect blocks"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("forced connect failure"),
+            "worker connect failure should remain primary when cleanup disconnect blocks: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "worker connect failures should include cleanup issue context when disconnect cleanup times out for non-index path: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: disconnect worker-0 via worker after 20ms"
+            ),
+            "worker connect-failure cleanup issue context should include default-service-type non-index disconnect timeout diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should still be attempted even if it blocks"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_connect_failure_does_not_hang_when_disconnect_blocks_with_custom_service_type_and_index(
     ) {
         let discovery = Arc::new(FailingConnectWithHangingDisconnectDiscovery::new());
@@ -8330,6 +8542,52 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_ps_connect_failure_does_not_hang_when_disconnect_blocks_with_default_service_type(
+    ) {
+        let discovery = Arc::new(FailingConnectWithHangingDisconnectDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(900),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when non-index ps connect-failure cleanup disconnect blocks"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("forced connect failure"),
+            "ps connect failure should remain primary when cleanup disconnect blocks: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "ps connect failures should include cleanup issue context when disconnect cleanup times out for non-index path: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: disconnect ps-0 via ps after 20ms"
+            ),
+            "ps connect-failure cleanup issue context should include default-service-type non-index disconnect timeout diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should still be attempted even if it blocks"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_returns_connect_error_when_connect_and_disconnect_fail() {
         let discovery = Arc::new(FailingConnectAndDisconnectDiscovery::new());
         let cfg = DistributedRunConfig {
@@ -8391,6 +8649,42 @@ mod tests {
             msg.contains("disconnect worker-3 via worker")
                 && msg.contains("forced disconnect failure"),
             "indexed connect-failure cleanup issue context should include default-service-type/index disconnect failure diagnostics with operation context: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should still be attempted even when it also fails"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_returns_connect_error_when_connect_and_disconnect_fail_with_default_service_type(
+    ) {
+        let discovery = Arc::new(FailingConnectAndDisconnectDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(res.is_err(), "expected non-index connect failure");
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("forced connect failure"),
+            "connect error should be returned even if disconnect also fails: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "connect failures should include cleanup issue context when disconnect cleanup fails for default-service non-index path: {msg}"
+        );
+        assert!(
+            msg.contains("disconnect worker-0 via worker")
+                && msg.contains("forced disconnect failure"),
+            "connect-failure cleanup issue context should include default-service-type non-index disconnect failure diagnostics with operation context: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(
@@ -8577,6 +8871,42 @@ mod tests {
         assert!(
             msg.contains("disconnect ps-2 via ps") && msg.contains("forced disconnect failure"),
             "indexed ps connect-failure cleanup issue context should include default-service-type/index disconnect failure diagnostics with operation context: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should still be attempted even when it also fails"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_returns_ps_connect_error_when_connect_and_disconnect_fail_with_default_service_type(
+    ) {
+        let discovery = Arc::new(FailingConnectAndDisconnectDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(res.is_err(), "expected non-index connect failure");
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("forced connect failure"),
+            "ps connect error should be returned even if disconnect also fails: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "ps connect failures should include cleanup issue context when disconnect cleanup fails for default-service non-index path: {msg}"
+        );
+        assert!(
+            msg.contains("disconnect ps-0 via ps") && msg.contains("forced disconnect failure"),
+            "ps connect-failure cleanup issue context should include default-service-type non-index disconnect failure diagnostics with operation context: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(
@@ -9180,6 +9510,65 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_preserves_worker_discover_failure_with_default_service_type_when_cleanup_steps_timeout(
+    ) {
+        let discovery = Arc::new(WorkerDiscoverErrorWithHangingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(1200),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when discover returns an error with default-service non-index path and cleanup steps time out"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker discover failure should still surface as worker-role timeout diagnostic with default service type: {msg}"
+        );
+        assert!(
+            msg.contains("service type: ps"),
+            "worker discover-failure diagnostics should include default PS service type context when cleanup steps time out for non-index path: {msg}"
+        );
+        assert!(
+            msg.contains("for worker-0"),
+            "worker discover-failure diagnostics should include worker service-id context when cleanup steps time out for default-service non-index path: {msg}"
+        );
+        assert!(
+            msg.contains("last discovery error: Internal error: forced discover failure"),
+            "worker discover-failure diagnostics should preserve last discovery error details with default-service non-index path: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "discover failure diagnostics should include cleanup issue context when cleanup steps time out for default-service non-index path: {msg}"
+        );
+        assert!(
+            msg.contains("Timed out during discovery cleanup: deregister worker-0 from worker after 20ms"),
+            "discover failure cleanup issue context should include default-worker non-index deregister-timeout diagnostics: {msg}"
+        );
+        assert!(
+            msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker after 20ms"),
+            "discover failure cleanup issue context should include default-worker non-index disconnect-timeout diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_preserves_worker_discover_failure_with_custom_service_type_when_cleanup_steps_timeout(
     ) {
         let discovery = Arc::new(WorkerDiscoverErrorWithHangingCleanupDiscovery::new());
@@ -9463,6 +9852,62 @@ mod tests {
             msg.contains("disconnect worker-2 via worker")
                 && msg.contains("forced disconnect failure"),
             "discover failure cleanup issue context should include indexed default-worker disconnect-failure diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_discover_failure_with_default_service_type_when_cleanup_steps_fail(
+    ) {
+        let discovery = Arc::new(WorkerDiscoverErrorWithFailingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(
+            res.is_err(),
+            "discover failure with failing cleanup should surface as a role error with default-service non-index path"
+        );
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker discover failure should still surface as worker-role timeout diagnostic with default service type when cleanup fails: {msg}"
+        );
+        assert!(
+            msg.contains("service type: ps"),
+            "worker discover-failure diagnostics should include default PS service type context when cleanup fails for non-index path: {msg}"
+        );
+        assert!(
+            msg.contains("for worker-0"),
+            "worker discover-failure diagnostics should include worker service-id context when cleanup fails for default-service non-index path: {msg}"
+        );
+        assert!(
+            msg.contains("last discovery error: Internal error: forced discover failure"),
+            "worker discover-failure diagnostics should preserve last discovery error details with default-service non-index path when cleanup fails: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "discover failure diagnostics should include cleanup issue context when cleanup fails for default-service non-index path: {msg}"
+        );
+        assert!(
+            msg.contains("deregister worker-0 from worker")
+                && msg.contains("forced deregister failure"),
+            "discover failure cleanup issue context should include default-worker non-index deregister-failure diagnostics: {msg}"
+        );
+        assert!(
+            msg.contains("disconnect worker-0 via worker")
+                && msg.contains("forced disconnect failure"),
+            "discover failure cleanup issue context should include default-worker non-index disconnect-failure diagnostics: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(discovery.discover_count(), 1);

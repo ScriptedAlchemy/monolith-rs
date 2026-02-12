@@ -3560,6 +3560,24 @@
   `native_training_parity.rs`, and runner default-service indexed→non-index
   gaps are reduced to connect/discover-failure path aliases only.
 
+### 256) Default-service non-index connect/discover parity aliases completed
+- Added runner-level default-service non-index connect-timeout cleanup aliases:
+  - `test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_default_service_type`
+  - `test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_default_service_type`
+  - `test_run_distributed_ps_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_default_service_type`
+  - `test_run_distributed_ps_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_default_service_type`
+- Added runner-level default-service non-index connect-failure cleanup aliases:
+  - `test_run_distributed_connect_failure_does_not_hang_when_disconnect_blocks_with_default_service_type`
+  - `test_run_distributed_ps_connect_failure_does_not_hang_when_disconnect_blocks_with_default_service_type`
+  - `test_run_distributed_returns_connect_error_when_connect_and_disconnect_fail_with_default_service_type`
+  - `test_run_distributed_returns_ps_connect_error_when_connect_and_disconnect_fail_with_default_service_type`
+- Added runner-level default-service non-index worker-discover-failure cleanup
+  aliases:
+  - `test_run_distributed_preserves_worker_discover_failure_with_default_service_type_when_cleanup_steps_timeout`
+  - `test_run_distributed_preserves_worker_discover_failure_with_default_service_type_when_cleanup_steps_fail`
+- Result: indexed→non-index counterpart gap audit now reports zero missing
+  aliases in both `runner.rs` and `native_training_parity.rs`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4101,6 +4119,9 @@
 538. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post default-service non-index register parity matrix completion across runner/config entrypoints)
 539. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post default-service non-index register parity matrix compatibility verification)
 540. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post default-service non-index register parity matrix completion full workspace rerun under ambient ZK auth env)
+541. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post default-service non-index connect/discover parity alias completion in runner)
+542. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post default-service non-index connect/discover parity alias compatibility verification)
+543. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post default-service non-index connect/discover parity alias completion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
