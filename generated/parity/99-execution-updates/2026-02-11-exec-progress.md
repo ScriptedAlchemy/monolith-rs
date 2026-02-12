@@ -6598,6 +6598,19 @@
   - these parity suites now emit deterministic, operation-specific assertion
     failures end-to-end, eliminating residual generic unwrap panic surfaces.
 
+### 483) Native parity diagnostics hardening (entry/discovery + runner bootstrap paths)
+- Tightened early high-signal unwrap paths in
+  `crates/monolith-training/tests/native_training_parity.rs` with explicit
+  `.expect("...")` diagnostics for:
+  - TF_CONFIG discovery creation/address extraction assertions,
+  - restore checkpoint copy/setup filesystem preparation,
+  - PS/worker bind-address parsing in initial distributed runner smoke tests
+    (raw distributed + runner-config + run-config barrier-timeout lanes).
+- Result:
+  - foundational native-training parity smoke failures now include explicit
+    operation context (config parse, fs setup, bind-address parse) instead of
+    generic unwrap panics, improving root-cause clarity at test entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7625,6 +7638,8 @@
 1024. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after runner-utils parity diagnostics tightening)
 1025. `cargo test -p monolith-training --test prefetch_queue_parity -- --nocapture && cargo test -p monolith-training --test native_training_save_utils_parity -- --nocapture` ✅ (validated prefetch/save parity suites after replacing final unwrap hotspots with explicit diagnostics)
 1026. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after save/prefetch diagnostics tightening)
+1027. `cargo test -p monolith-training tf_config_discovery_matches_python_indexing -- --nocapture && cargo test -p monolith-training runner_utils_copy_ckpt_creates_expected_files -- --nocapture && cargo test -p monolith-training distributed_runner_in_memory_ps_and_worker -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_smoke -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_smoke -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_propagates_barrier_timeout_controls -- --nocapture` ✅ (validated native-training parity entry/smoke lanes after replacing early unwrap hotspots with explicit diagnostics)
+1028. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after native parity diagnostics hardening)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

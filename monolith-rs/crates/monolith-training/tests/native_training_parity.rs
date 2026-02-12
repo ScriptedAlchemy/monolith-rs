@@ -22,10 +22,14 @@ fn tf_config_discovery_matches_python_indexing() {
   "task": {"type":"chief", "index":0}
 }
 "#;
-    let d = TfConfigServiceDiscovery::new(tf_config).unwrap();
+    let d = TfConfigServiceDiscovery::new(tf_config)
+        .expect("TfConfigServiceDiscovery::new should parse chief config");
     assert_eq!(d.server_type(), "worker");
     assert_eq!(d.index(), 0);
-    assert_eq!(d.addr().unwrap(), "localhost:1115");
+    assert_eq!(
+        d.addr().expect("chief address should resolve from TF_CONFIG"),
+        "localhost:1115"
+    );
 
     let tf_config_worker0 = r#"
 {
@@ -37,21 +41,25 @@ fn tf_config_discovery_matches_python_indexing() {
   "task": {"type":"worker", "index":0}
 }
 "#;
-    let d = TfConfigServiceDiscovery::new(tf_config_worker0).unwrap();
+    let d = TfConfigServiceDiscovery::new(tf_config_worker0)
+        .expect("TfConfigServiceDiscovery::new should parse worker config");
     assert_eq!(d.server_type(), "worker");
     // Worker indices shift by +1 when chief exists.
     assert_eq!(d.index(), 1);
-    assert_eq!(d.addr().unwrap(), "localhost:1113");
+    assert_eq!(
+        d.addr().expect("worker address should resolve from TF_CONFIG"),
+        "localhost:1113"
+    );
 }
 
 #[test]
 fn runner_utils_copy_ckpt_creates_expected_files() {
     // Mirrors monolith/native_training/runner_utils_test.py::test_copy_ckpt
-    let tmp = tempdir().unwrap();
+    let tmp = tempdir().expect("tempdir creation should succeed");
     let restore_dir = tmp.path().join("restore_dir");
     let model_dir = tmp.path().join("model_dir");
-    fs::create_dir_all(&restore_dir).unwrap();
-    fs::create_dir_all(&model_dir).unwrap();
+    fs::create_dir_all(&restore_dir).expect("create_dir_all(restore_dir) should succeed");
+    fs::create_dir_all(&model_dir).expect("create_dir_all(model_dir) should succeed");
 
     let pbtxt = r#"
 model_checkpoint_path: "model.ckpt-61"
@@ -59,10 +67,11 @@ all_model_checkpoint_paths: "model.ckpt-61"
 all_model_checkpoint_paths: "model.ckpt-30"
 all_model_checkpoint_paths: "model.ckpt-0"
 "#;
-    fs::write(restore_dir.join("checkpoint"), pbtxt).unwrap();
+    fs::write(restore_dir.join("checkpoint"), pbtxt)
+        .expect("writing restore_dir checkpoint file should succeed");
 
-    let st =
-        copy_checkpoint_from_restore_dir(&restore_dir, &model_dir, Some("model.ckpt-30")).unwrap();
+    let st = copy_checkpoint_from_restore_dir(&restore_dir, &model_dir, Some("model.ckpt-30"))
+        .expect("copy_checkpoint_from_restore_dir should succeed for requested checkpoint");
     assert!(model_dir.join("monolith_checkpoint").exists());
     assert!(model_dir.join("restore_ckpt").exists());
     assert!(model_dir.join("checkpoint").exists());
@@ -98,7 +107,9 @@ async fn distributed_runner_in_memory_ps_and_worker() {
         index: 0,
         num_ps: 1,
         num_workers: 1,
-        bind_addr: "127.0.0.1:0".parse().unwrap(),
+        bind_addr: "127.0.0.1:0"
+            .parse()
+            .expect("PS bind_addr parsing should succeed"),
         ..Default::default()
     };
 
@@ -107,7 +118,9 @@ async fn distributed_runner_in_memory_ps_and_worker() {
         index: 0,
         num_ps: 1,
         num_workers: 1,
-        bind_addr: "127.0.0.1:0".parse().unwrap(),
+        bind_addr: "127.0.0.1:0"
+            .parse()
+            .expect("worker bind_addr parsing should succeed"),
         connect_retries: 50,
         retry_backoff_ms: 20,
         ..Default::default()
@@ -152,7 +165,9 @@ async fn distributed_runner_from_runner_config_smoke() {
             discovery_bg,
             &ps_rc_bg,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            "127.0.0.1:0"
+                .parse()
+                .expect("PS bind_addr parsing should succeed"),
         )
         .await
     });
@@ -162,7 +177,9 @@ async fn distributed_runner_from_runner_config_smoke() {
         Arc::clone(&discovery),
         &worker_rc,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        "127.0.0.1:0"
+            .parse()
+            .expect("worker bind_addr parsing should succeed"),
     )
     .await
     .expect("worker should succeed in distributed_runner_from_runner_config_smoke");
@@ -191,7 +208,9 @@ async fn distributed_runner_from_run_config_smoke() {
             &run_bg,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            "127.0.0.1:0"
+                .parse()
+                .expect("PS bind_addr parsing should succeed"),
         )
         .await
     });
@@ -202,7 +221,9 @@ async fn distributed_runner_from_run_config_smoke() {
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        "127.0.0.1:0"
+            .parse()
+            .expect("worker bind_addr parsing should succeed"),
     )
     .await
     .expect("worker should succeed in distributed_runner_from_run_config_smoke");
@@ -235,7 +256,9 @@ async fn distributed_runner_from_run_config_propagates_barrier_timeout_controls(
             &run_bg,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            "127.0.0.1:0"
+                .parse()
+                .expect("PS bind_addr parsing should succeed"),
         )
         .await
     });
@@ -249,7 +272,9 @@ async fn distributed_runner_from_run_config_propagates_barrier_timeout_controls(
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            "127.0.0.1:0"
+                .parse()
+                .expect("worker bind_addr parsing should succeed"),
         ),
     )
     .await;
