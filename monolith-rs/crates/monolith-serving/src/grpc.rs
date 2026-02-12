@@ -1312,7 +1312,9 @@ mod tests {
         let invalid_config = GrpcServerConfig::builder()
             .bind_address("invalid:address:port")
             .build();
-        assert!(invalid_config.socket_addr().is_err());
+        invalid_config
+            .socket_addr()
+            .expect_err("invalid gRPC bind address should fail socket parsing");
     }
 
     // ========================================================================

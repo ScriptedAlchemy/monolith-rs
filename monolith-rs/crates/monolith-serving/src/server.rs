@@ -550,9 +550,10 @@ mod tests {
         config.port = 0; // Invalid - will fail validation
 
         let server = Server::new(config);
-        let result = server.start().await;
-
-        assert!(result.is_err());
+        server
+            .start()
+            .await
+            .expect_err("server start should fail for invalid configuration");
         assert_eq!(server.state(), ServerState::Error);
     }
 
@@ -613,8 +614,10 @@ mod tests {
         let server = Server::new(config);
 
         // Try to reload without starting
-        let result = server.reload_model().await;
-        assert!(result.is_err());
+        server
+            .reload_model()
+            .await
+            .expect_err("reloading model should fail when server is not running");
     }
 
     #[test]

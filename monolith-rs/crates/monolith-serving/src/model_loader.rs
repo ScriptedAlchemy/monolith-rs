@@ -439,9 +439,11 @@ mod tests {
         let config = ModelLoaderConfig::default();
         let loader = ModelLoader::new(config);
 
-        let result = loader.load("/nonexistent/path/to/model").await;
-        assert!(result.is_err());
-        assert!(matches!(result, Err(ServingError::ModelLoadError(_))));
+        let err = loader
+            .load("/nonexistent/path/to/model")
+            .await
+            .expect_err("loading from a missing model path should fail");
+        assert!(matches!(err, ServingError::ModelLoadError(_)));
     }
 
     #[tokio::test]

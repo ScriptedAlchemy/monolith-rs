@@ -6087,6 +6087,22 @@
     client connection paths.
   - gRPC example test binaries pass with the `full` feature enabled.
 
+### 449) Serving parity: tighten failure assertions to explicit `expect_err` contracts
+- Refactored remaining coarse `assert!(...is_err())` assertions in
+  `monolith-serving` tests into explicit `expect_err("...")` extraction paths
+  plus typed `matches!` checks where appropriate across:
+  - agent prediction missing-model failure (`agent_service.rs`),
+  - parameter sync not-connected pull failure (`parameter_sync.rs`),
+  - model loader missing-path failure (`model_loader.rs`),
+  - server invalid-config start + reload-when-stopped failures (`server.rs`),
+  - grpc invalid bind-address parse failure (`grpc.rs`),
+  - mocked zk client missing-node set failure (`tests/mocked_zkclient_parity.rs`).
+- Result:
+  - Serving failure-path tests now emit precise error diagnostics while
+    preserving existing failure-shape contracts.
+  - Targeted failure-path tests and full `monolith-serving` regression remain
+    green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7038,6 +7054,9 @@
 948. `cargo test -p monolith-layers test_din_config_validation -- --nocapture && cargo test -p monolith-layers test_dien_config_validation -- --nocapture && cargo test -p monolith-layers test_mlp_config -- --nocapture && cargo test -p monolith-layers test_mlp_different_activations -- --nocapture && cargo test -p monolith-layers test_mmoe_config -- --nocapture && cargo test -p monolith-layers test_mmoe_different_activations -- --nocapture && cargo test -p monolith-layers -q` ✅ (layers assertion-tightening targeted verification plus full monolith-layers regression rerun)
 949. `cargo test -p monolith-hash-table test_multi_get_shard -- --nocapture && cargo test -p monolith-hash-table -q && cargo test -p monolith-data test_kafka_config_validate -- --nocapture && cargo test -p monolith-data -q && cargo test -p monolith-checkpoint test_export_json -- --nocapture && cargo test -p monolith-checkpoint test_export_binary -- --nocapture && cargo test -p monolith-checkpoint test_export_saved_model -- --nocapture && cargo test -p monolith-checkpoint -q` ✅ (hash-table/data/checkpoint assertion-tightening targeted verification plus full package regressions)
 950. `cargo test --example grpc_server --features full -- --nocapture && cargo test --example grpc_client --features full -- --nocapture` ✅ (top-level gRPC example assertion-tightening verification with required `full` feature)
+951. `cargo test -p monolith-serving test_predict_no_model -- --nocapture && cargo test -p monolith-serving test_pull_not_connected -- --nocapture && cargo test -p monolith-serving test_load_nonexistent_path -- --nocapture && cargo test -p monolith-serving test_server_invalid_config -- --nocapture && cargo test -p monolith-serving test_server_reload_not_running -- --nocapture && cargo test -p monolith-serving test_socket_addr_parsing -- --nocapture && cargo test -p monolith-serving fake_kazoo_client_create_set_get_delete_and_watches --test mocked_zkclient_parity -- --nocapture` ✅ (serving failure-path `expect_err` assertion-tightening targeted verification)
+952. `cargo test -p monolith-serving -q` ✅ (full monolith-serving regression rerun after failure-path assertion tightening)
+953. `rg "assert!\\([^\\n]*is_err\\(" /workspace/monolith-rs/crates/monolith-serving` ✅ (verified no remaining coarse `assert!(...is_err())` patterns in monolith-serving)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

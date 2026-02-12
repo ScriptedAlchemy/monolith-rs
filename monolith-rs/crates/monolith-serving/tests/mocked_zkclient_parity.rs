@@ -16,7 +16,8 @@ fn fake_kazoo_client_create_set_get_delete_and_watches() {
     // set/get
     let data = b"hi, I am Fitz!".to_vec();
     // setting a non-existent node should error for the raw client.
-    assert!(zk.set(&format!("{path}/error"), data.clone()).is_err());
+    zk.set(&format!("{path}/error"), data.clone())
+        .expect_err("setting non-existent child path should fail");
     zk.set(path, data.clone()).unwrap();
     let got = zk.get(path).unwrap();
     assert_eq!(got, data);

@@ -521,9 +521,11 @@ mod tests {
         let config = test_config();
         let client = ParameterSyncClient::new(config);
 
-        let result = client.pull(0, &[1, 2, 3]).await;
-        assert!(result.is_err());
-        assert!(matches!(result, Err(ServingError::NotConnected)));
+        let err = client
+            .pull(0, &[1, 2, 3])
+            .await
+            .expect_err("pull should fail when client is not connected");
+        assert!(matches!(err, ServingError::NotConnected));
     }
 
     #[tokio::test]

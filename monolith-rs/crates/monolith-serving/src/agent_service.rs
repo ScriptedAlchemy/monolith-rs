@@ -537,9 +537,11 @@ mod tests {
             context: None,
         };
 
-        let result = service.predict(request).await;
-        assert!(result.is_err());
-        assert!(matches!(result, Err(ServingError::ModelNotLoaded)));
+        let err = service
+            .predict(request)
+            .await
+            .expect_err("predict should fail when no model is loaded");
+        assert!(matches!(err, ServingError::ModelNotLoaded));
     }
 
     #[tokio::test]
