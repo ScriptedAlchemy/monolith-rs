@@ -14069,7 +14069,10 @@ async fn distributed_runner_from_runner_config_preserves_connect_timeout_when_cl
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when connect and cleanup disconnect block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when connect and cleanup disconnect block")
+        .expect_err("runner-config worker connect timeout with blocked cleanup should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect worker-0 via worker after 20ms"),
         "connect timeout should remain primary over cleanup timeout when configured via RunnerConfig: {msg}"
@@ -14117,7 +14120,10 @@ async fn distributed_runner_from_runner_config_preserves_connect_timeout_disconn
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when connect and cleanup disconnect block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when connect and cleanup disconnect block")
+        .expect_err("runner-config worker connect timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect worker-0 via worker after 20ms"),
         "connect timeout should remain primary over cleanup timeout when configured via RunnerConfig: {msg}"
@@ -14166,7 +14172,10 @@ async fn distributed_runner_from_runner_config_preserves_connect_timeout_with_cu
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when custom non-index worker connect and cleanup disconnect block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when custom worker connect and cleanup disconnect block")
+        .expect_err("runner-config custom worker connect timeout with blocked cleanup should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect worker-0 via trainer_custom after 20ms"),
         "custom non-index worker connect timeout should remain primary over cleanup timeout when configured via RunnerConfig: {msg}"
@@ -14215,7 +14224,10 @@ async fn distributed_runner_from_runner_config_preserves_connect_timeout_with_di
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when indexed custom-worker connect blocks and cleanup disconnect fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when indexed custom-worker connect blocks and cleanup disconnect fails")
+        .expect_err("runner-config indexed custom worker connect timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect worker-3 via trainer_custom after 20ms"),
         "indexed custom-worker connect timeout should remain primary over cleanup disconnect failure via RunnerConfig: {msg}"
@@ -14265,7 +14277,10 @@ async fn distributed_runner_from_runner_config_preserves_connect_timeout_with_cu
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when custom non-index worker connect blocks and cleanup disconnect fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when custom worker connect blocks and cleanup disconnect fails")
+        .expect_err("runner-config custom worker connect timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect worker-0 via trainer_custom after 20ms"),
         "custom non-index worker connect timeout should remain primary over cleanup disconnect failure via RunnerConfig: {msg}"
@@ -14314,7 +14329,10 @@ async fn distributed_runner_from_runner_config_preserves_default_connect_timeout
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when indexed default-worker connect blocks and cleanup disconnect fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when indexed default-worker connect blocks and cleanup disconnect fails")
+        .expect_err("runner-config indexed default worker connect timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect worker-2 via worker after 20ms"),
         "indexed default-worker connect timeout should remain primary over cleanup disconnect failure via RunnerConfig: {msg}"
@@ -14363,7 +14381,10 @@ async fn distributed_runner_from_runner_config_preserves_connect_failure_with_cl
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when connect fails and disconnect cleanup blocks")
+        .expect_err("runner-config connect failure with cleanup timeout context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -14412,7 +14433,10 @@ async fn distributed_runner_from_runner_config_preserves_connect_failure_with_cl
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when connect fails and disconnect cleanup blocks")
+        .expect_err("runner-config connect failure with cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -14462,7 +14486,10 @@ async fn distributed_runner_from_runner_config_preserves_connect_failure_with_cu
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when custom non-index worker connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when custom worker connect fails and disconnect cleanup blocks")
+        .expect_err("runner-config custom worker connect failure with cleanup timeout context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "custom non-index worker connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -14512,7 +14539,10 @@ async fn distributed_runner_from_runner_config_preserves_connect_failure_with_cu
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when indexed custom-worker connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when indexed custom-worker connect fails and disconnect cleanup blocks")
+        .expect_err("runner-config indexed custom worker connect failure with cleanup timeout context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "indexed custom-worker connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -14562,7 +14592,10 @@ async fn distributed_runner_from_runner_config_preserves_connect_failure_with_cu
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when custom non-index worker connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when custom worker connect fails and disconnect cleanup blocks")
+        .expect_err("runner-config custom worker connect failure with cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "custom non-index worker connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -14612,7 +14645,10 @@ async fn distributed_runner_from_runner_config_preserves_connect_failure_with_cu
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when indexed custom-worker connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when indexed custom-worker connect fails and disconnect cleanup blocks")
+        .expect_err("runner-config indexed custom worker connect failure with cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "indexed custom-worker connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -14655,7 +14691,9 @@ async fn distributed_runner_from_runner_config_preserves_connect_failure_with_di
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("runner-config connect failure with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "connect failure should remain primary when cleanup disconnect fails via RunnerConfig: {msg}"
@@ -14697,7 +14735,9 @@ async fn distributed_runner_from_runner_config_preserves_connect_failure_with_cu
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("runner-config custom worker connect failure with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "custom non-index worker connect failure should remain primary when cleanup disconnect fails via RunnerConfig: {msg}"
@@ -14739,7 +14779,9 @@ async fn distributed_runner_from_runner_config_preserves_connect_failure_with_cu
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("runner-config indexed custom worker connect failure with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "indexed custom-worker connect failure should remain primary when cleanup disconnect fails via RunnerConfig: {msg}"
@@ -14787,7 +14829,10 @@ async fn distributed_runner_from_runner_config_preserves_default_worker_connect_
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when default-worker connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when default-worker connect fails and cleanup blocks")
+        .expect_err("runner-config default worker connect failure with cleanup timeout context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "default-worker connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -14834,7 +14879,10 @@ async fn distributed_runner_from_runner_config_preserves_default_worker_connect_
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when indexed default-worker connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when indexed default-worker connect fails and cleanup blocks")
+        .expect_err("runner-config indexed default worker connect failure with cleanup timeout context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "indexed default-worker connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -14881,7 +14929,10 @@ async fn distributed_runner_from_runner_config_preserves_default_worker_connect_
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when default-worker connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when default-worker connect fails and cleanup blocks")
+        .expect_err("runner-config default worker connect failure with cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "default-worker connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -14928,7 +14979,10 @@ async fn distributed_runner_from_runner_config_preserves_default_worker_connect_
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when indexed default-worker connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when indexed default-worker connect fails and cleanup blocks")
+        .expect_err("runner-config indexed default worker connect failure with cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "indexed default-worker connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -14968,7 +15022,9 @@ async fn distributed_runner_from_runner_config_preserves_default_worker_connect_
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("runner-config default worker connect failure with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "default-worker connect failure should remain primary when cleanup disconnect fails via RunnerConfig: {msg}"
@@ -15009,7 +15065,9 @@ async fn distributed_runner_from_runner_config_preserves_default_worker_connect_
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("runner-config indexed default worker connect failure with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "indexed default-worker connect failure should remain primary when cleanup disconnect fails via RunnerConfig: {msg}"
@@ -15057,7 +15115,10 @@ async fn distributed_runner_from_runner_config_preserves_default_ps_connect_fail
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when default-ps connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when default-ps connect fails and cleanup blocks")
+        .expect_err("runner-config default ps connect failure with cleanup timeout context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "default-ps connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -15104,7 +15165,10 @@ async fn distributed_runner_from_runner_config_preserves_default_ps_connect_fail
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when indexed default-ps connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when indexed default-ps connect fails and cleanup blocks")
+        .expect_err("runner-config indexed default ps connect failure with cleanup timeout context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "indexed default-ps connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -15151,7 +15215,10 @@ async fn distributed_runner_from_runner_config_preserves_default_ps_connect_fail
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when default-ps connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when default-ps connect fails and cleanup blocks")
+        .expect_err("runner-config default ps connect failure with cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "default-ps connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -15198,7 +15265,10 @@ async fn distributed_runner_from_runner_config_preserves_default_ps_connect_fail
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when indexed default-ps connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when indexed default-ps connect fails and cleanup blocks")
+        .expect_err("runner-config indexed default ps connect failure with cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "indexed default-ps connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -15238,7 +15308,9 @@ async fn distributed_runner_from_runner_config_preserves_default_ps_connect_fail
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("runner-config default ps connect failure with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "default-ps connect failure should remain primary when cleanup disconnect fails via RunnerConfig: {msg}"
@@ -15278,7 +15350,9 @@ async fn distributed_runner_from_runner_config_preserves_default_ps_connect_fail
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("runner-config indexed default ps connect failure with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "indexed default-ps connect failure should remain primary when cleanup disconnect fails via RunnerConfig: {msg}"
@@ -15326,7 +15400,10 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when ps connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when ps connect fails and cleanup blocks")
+        .expect_err("runner-config ps connect failure with cleanup timeout context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "ps connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -15376,7 +15453,10 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when custom non-index ps connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when custom-ps connect fails and cleanup blocks")
+        .expect_err("runner-config custom ps connect failure with cleanup timeout context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "custom non-index ps connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -15426,7 +15506,10 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when indexed custom-ps connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when indexed custom-ps connect fails and cleanup blocks")
+        .expect_err("runner-config indexed custom ps connect failure with cleanup timeout context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "indexed custom-ps connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -15475,7 +15558,10 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when ps connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when ps connect fails and cleanup blocks")
+        .expect_err("runner-config ps connect failure with cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "ps connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -15525,7 +15611,10 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when custom non-index ps connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when custom-ps connect fails and cleanup blocks")
+        .expect_err("runner-config custom ps connect failure with cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "custom non-index ps connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -15575,7 +15664,10 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when indexed custom-ps connect fails and disconnect cleanup blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when indexed custom-ps connect fails and cleanup blocks")
+        .expect_err("runner-config indexed custom ps connect failure with cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "indexed custom-ps connect failure should remain primary when cleanup disconnect blocks via RunnerConfig: {msg}"
@@ -15618,7 +15710,9 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("runner-config ps connect failure with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "ps connect failure should remain primary when cleanup disconnect fails via RunnerConfig: {msg}"
@@ -15660,7 +15754,9 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("runner-config custom ps connect failure with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "custom non-index ps connect failure should remain primary when cleanup disconnect fails via RunnerConfig: {msg}"
@@ -15702,7 +15798,9 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("runner-config indexed custom ps connect failure with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced connect failure"),
         "indexed custom-ps connect failure should remain primary when cleanup disconnect fails via RunnerConfig: {msg}"
@@ -15751,7 +15849,10 @@ async fn distributed_runner_from_runner_config_propagates_worker_index_into_conn
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when connect and cleanup disconnect block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when connect and cleanup disconnect block")
+        .expect_err("runner-config worker-index connect timeout diagnostics should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect worker-4 via worker after 20ms"),
         "worker index from RunnerConfig should propagate into timeout diagnostics: {msg}"
@@ -15800,7 +15901,10 @@ async fn distributed_runner_from_runner_config_propagates_worker_service_type_in
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when connect and cleanup disconnect block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when connect and cleanup disconnect block")
+        .expect_err("runner-config worker-service-type connect timeout diagnostics should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect worker-0 via trainer_custom after 20ms"),
         "worker service type from RunnerConfig should propagate into connect-timeout diagnostics: {msg}"
@@ -15849,7 +15953,10 @@ async fn distributed_runner_from_runner_config_propagates_worker_service_type_an
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when indexed custom-worker connect and cleanup disconnect block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when indexed custom-worker connect and cleanup disconnect block")
+        .expect_err("runner-config worker service-type/index connect timeout diagnostics should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect worker-3 via trainer_custom after 20ms"),
         "worker service type/index from RunnerConfig should propagate into connect-timeout diagnostics: {msg}"
@@ -15916,7 +16023,10 @@ async fn distributed_runner_from_runner_config_propagates_barrier_timeout_contro
         "worker run should return promptly when barrier timeout is configured"
     );
     let elapsed = started.elapsed();
-    let msg = worker_res.unwrap().unwrap_err().to_string();
+    let msg = worker_res
+        .expect("worker lane should complete without hanging under barrier-timeout controls")
+        .expect_err("worker lane should surface barrier-timeout role error under configured controls")
+        .to_string();
     assert!(
         msg.contains("Barrier timeout"),
         "worker should fail with barrier timeout when only one of two workers runs: {msg}"
@@ -15958,7 +16068,10 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_timeout_when
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when ps connect and cleanup disconnect block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when ps connect and cleanup disconnect block")
+        .expect_err("runner-config ps connect timeout with blocked cleanup should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect ps-0 via ps after 20ms"),
         "ps connect timeout should remain primary over cleanup timeout when configured via RunnerConfig: {msg}"
@@ -16006,7 +16119,10 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_timeout_disc
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when ps connect and cleanup disconnect block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when ps connect and cleanup disconnect block")
+        .expect_err("runner-config ps connect timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect ps-0 via ps after 20ms"),
         "ps connect timeout should remain primary over cleanup timeout when configured via RunnerConfig: {msg}"
@@ -16055,7 +16171,10 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_timeout_with
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when custom non-index ps connect and cleanup disconnect block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when custom-ps connect and cleanup disconnect block")
+        .expect_err("runner-config custom ps connect timeout with blocked cleanup should surface as role error")
+        .to_string();
     assert!(
         msg.contains(
             "Timed out during discovery operation: connect ps-0 via parameter_server_custom after 20ms"
@@ -16108,7 +16227,10 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_timeout_with
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when indexed custom-ps connect blocks and cleanup disconnect fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when indexed custom-ps connect blocks and cleanup disconnect fails")
+        .expect_err("runner-config indexed custom ps connect timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect ps-2 via parameter_server_custom after 20ms"),
         "indexed custom-ps connect timeout should remain primary over cleanup disconnect failure via RunnerConfig: {msg}"
@@ -16158,7 +16280,10 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_timeout_with
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when custom non-index ps connect blocks and cleanup disconnect fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when custom-ps connect blocks and cleanup disconnect fails")
+        .expect_err("runner-config custom ps connect timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect ps-0 via parameter_server_custom after 20ms"),
         "custom non-index ps connect timeout should remain primary over cleanup disconnect failure via RunnerConfig: {msg}"
@@ -16207,7 +16332,10 @@ async fn distributed_runner_from_runner_config_preserves_default_ps_connect_time
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when indexed default-ps connect blocks and cleanup disconnect fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when indexed default-ps connect blocks and cleanup disconnect fails")
+        .expect_err("runner-config indexed default ps connect timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect ps-2 via ps after 20ms"),
         "indexed default-ps connect timeout should remain primary over cleanup disconnect failure via RunnerConfig: {msg}"
@@ -16256,7 +16384,10 @@ async fn distributed_runner_from_runner_config_propagates_ps_index_into_connect_
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when ps connect and cleanup disconnect block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when ps connect and cleanup disconnect block")
+        .expect_err("runner-config ps-index connect timeout diagnostics should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect ps-2 via ps after 20ms"),
         "ps index from RunnerConfig should propagate into timeout diagnostics: {msg}"
@@ -16305,7 +16436,10 @@ async fn distributed_runner_from_runner_config_propagates_ps_service_type_into_c
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when ps connect and cleanup disconnect block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when ps connect and cleanup disconnect block")
+        .expect_err("runner-config ps-service-type connect timeout diagnostics should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect ps-0 via parameter_server_custom after 20ms"),
         "ps service type from RunnerConfig should propagate into connect-timeout diagnostics: {msg}"
@@ -16356,7 +16490,10 @@ async fn distributed_runner_from_runner_config_propagates_ps_service_type_and_in
         res.is_ok(),
         "run_distributed_from_runner_config should not hang when indexed custom-ps connect and cleanup disconnect block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when indexed custom-ps connect and cleanup disconnect block")
+        .expect_err("runner-config ps service-type/index connect timeout diagnostics should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect ps-2 via parameter_server_custom after 20ms"),
         "ps service type/index from RunnerConfig should propagate into connect-timeout diagnostics: {msg}"
@@ -16408,7 +16545,10 @@ async fn distributed_runner_from_runner_config_honors_cleanup_timeout_with_block
         "run_distributed_from_runner_config should not hang when connect and cleanup are blocked"
     );
     let elapsed = started.elapsed();
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_runner_config should not hang when cleanup is blocked")
+        .expect_err("runner-config blocked cleanup with operation timeout should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect worker-0 via worker after 10ms"),
         "operation timeout diagnostics should include configured operation timeout: {msg}"
