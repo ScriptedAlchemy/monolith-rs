@@ -2216,10 +2216,15 @@ mod tests {
             ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
         )
         .await;
-        assert!(
-            result.is_err(),
-            "register_async should fail against unreachable ZooKeeper endpoint"
-        );
+        match result {
+            Err(DiscoveryError::ConnectionFailed(msg)) => {
+                assert!(
+                    msg.contains("ZK connect failed"),
+                    "connection failure should include connect-operation context: {msg}"
+                );
+            }
+            other => panic!("expected ConnectionFailed error, got {other:?}"),
+        }
         assert!(
             !zk.watchers.lock().unwrap().contains_key("ps"),
             "failed async register should compact dead watcher sender"
@@ -2241,10 +2246,15 @@ mod tests {
             ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
         )
         .await;
-        assert!(
-            result.is_err(),
-            "register_async should fail against unreachable ZooKeeper endpoint"
-        );
+        match result {
+            Err(DiscoveryError::ConnectionFailed(msg)) => {
+                assert!(
+                    msg.contains("ZK connect failed"),
+                    "connection failure should include connect-operation context: {msg}"
+                );
+            }
+            other => panic!("expected ConnectionFailed error, got {other:?}"),
+        }
         assert!(
             zk.watchers.lock().unwrap().contains_key("ps"),
             "live watcher sender should be preserved on async register failure"
@@ -2259,10 +2269,15 @@ mod tests {
 
         let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(&zk, service)
             .await;
-        assert!(
-            result.is_err(),
-            "register_async should fail against unreachable ZooKeeper endpoint"
-        );
+        match result {
+            Err(DiscoveryError::ConnectionFailed(msg)) => {
+                assert!(
+                    msg.contains("ZK connect failed"),
+                    "connection failure should include connect-operation context: {msg}"
+                );
+            }
+            other => panic!("expected ConnectionFailed error, got {other:?}"),
+        }
         assert!(
             zk.discover("ps").expect("discover should succeed").is_empty(),
             "failed async register should not populate local service cache"
@@ -2282,10 +2297,15 @@ mod tests {
 
         let mut rx = zk.watch("ps").expect("watch should succeed");
         let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
-        assert!(
-            result.is_err(),
-            "async deregister should still surface remote ZooKeeper failure"
-        );
+        match result {
+            Err(DiscoveryError::ConnectionFailed(msg)) => {
+                assert!(
+                    msg.contains("ZK connect failed"),
+                    "connection failure should include connect-operation context: {msg}"
+                );
+            }
+            other => panic!("expected ConnectionFailed error, got {other:?}"),
+        }
         assert!(
             zk.discover("ps").expect("discover should succeed").is_empty(),
             "failed async deregister should still remove service from local cache"
@@ -2344,10 +2364,15 @@ mod tests {
         drop(rx);
 
         let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
-        assert!(
-            result.is_err(),
-            "async deregister should still surface remote ZooKeeper failure"
-        );
+        match result {
+            Err(DiscoveryError::ConnectionFailed(msg)) => {
+                assert!(
+                    msg.contains("ZK connect failed"),
+                    "connection failure should include connect-operation context: {msg}"
+                );
+            }
+            other => panic!("expected ConnectionFailed error, got {other:?}"),
+        }
         assert!(
             !zk.watchers.lock().unwrap().contains_key("ps"),
             "failed async deregister should compact dead watcher sender"
@@ -2366,10 +2391,15 @@ mod tests {
             .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
 
         let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
-        assert!(
-            result.is_err(),
-            "async deregister should still surface remote ZooKeeper failure"
-        );
+        match result {
+            Err(DiscoveryError::ConnectionFailed(msg)) => {
+                assert!(
+                    msg.contains("ZK connect failed"),
+                    "connection failure should include connect-operation context: {msg}"
+                );
+            }
+            other => panic!("expected ConnectionFailed error, got {other:?}"),
+        }
         assert!(
             !zk.registered_paths.lock().await.contains_key("ps-0"),
             "registered path entry should be removed even when backend delete fails"
@@ -2389,10 +2419,15 @@ mod tests {
 
         let mut rx = zk.watch("ps").expect("watch should succeed");
         let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
-        assert!(
-            result.is_err(),
-            "async deregister should still surface remote ZooKeeper failure"
-        );
+        match result {
+            Err(DiscoveryError::ConnectionFailed(msg)) => {
+                assert!(
+                    msg.contains("ZK connect failed"),
+                    "connection failure should include connect-operation context: {msg}"
+                );
+            }
+            other => panic!("expected ConnectionFailed error, got {other:?}"),
+        }
         let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
             .await
             .expect("timed out waiting for ServiceRemoved")

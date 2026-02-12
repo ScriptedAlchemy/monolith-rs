@@ -4612,6 +4612,18 @@
     stricter assertions.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 340) ZooKeeper unreachable-endpoint ConnectionFailed contract tightening
+- Tightened async register/deregister failure regressions against unreachable
+  ZooKeeper endpoints (`127.0.0.1:1`) to require:
+  - `DiscoveryError::ConnectionFailed(...)` (variant-level contract)
+  - payload context containing `ZK connect failed`
+- Result:
+  - ZooKeeper failure-shape assertions now mirror the stricter Consul
+    lifecycle parity approach: explicit variant + operation-context checks.
+  - Existing cache/watcher cleanup invariants remain validated under the
+    stronger contracts.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5449,6 +5461,7 @@
 834. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_register_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" discover_async_connection_failure_is_internal -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture` ✅ (feature-gated Consul localhost-failure Internal classification + malformed-endpoint ConfigError regression verification)
 835. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post Consul async-deregister message-context assertion hardening default-lane regression rerun)
 836. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture` ✅ (feature-gated Consul async-deregister Internal/ConfigError message-context + cleanup-invariant verification)
+837. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_async_register_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_async_deregister_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated ZooKeeper unreachable-endpoint ConnectionFailed+message-context verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
