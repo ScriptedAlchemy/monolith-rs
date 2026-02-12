@@ -737,7 +737,9 @@ mod tests {
     fn test_define_existing() {
         let mut p = Params::new();
         p.define("foo", 1_i64, "").unwrap();
-        let err = p.define("foo", 1_i64, "").unwrap_err();
+        let err = p
+            .define("foo", 1_i64, "")
+            .expect_err("defining an already defined key should fail");
         assert!(err.to_string().contains("already defined"));
     }
 
@@ -761,7 +763,11 @@ mod tests {
     #[test]
     fn test_set_and_get() {
         let mut p = Params::new();
-        assert!(p.set("foo", 4_i64).unwrap_err().to_string().contains("foo"));
+        assert!(p
+            .set("foo", 4_i64)
+            .expect_err("setting undefined key should fail")
+            .to_string()
+            .contains("foo"));
 
         p.define("foo", 1_i64, "").unwrap();
         assert_eq!(p.get("foo").unwrap(), &ParamValue::Int(1));
@@ -824,17 +830,17 @@ mod tests {
 
         assert!(outer
             .set("inner.gamma", 5_i64)
-            .unwrap_err()
+            .expect_err("setting unknown nested key should fail")
             .to_string()
             .contains("inner.gamma"));
         assert!(outer
             .set("inner.innermost.bad", 5_i64)
-            .unwrap_err()
+            .expect_err("setting unknown deep nested key should fail")
             .to_string()
             .contains("inner.innermost.bad"));
         assert!(outer
             .set("d.foo", "baz")
-            .unwrap_err()
+            .expect_err("setting into non-introspectable map leaf should fail")
             .to_string()
             .contains("Cannot introspect"));
     }
@@ -852,17 +858,17 @@ mod tests {
         p.freeze();
         assert!(p
             .set("foo", 2_i64)
-            .unwrap_err()
+            .expect_err("setting frozen params should fail")
             .to_string()
             .contains("immutable"));
         assert!(p
             .delete("foo")
-            .unwrap_err()
+            .expect_err("deleting frozen params should fail")
             .to_string()
             .contains("immutable"));
         assert!(p
             .define("bar", 1_i64, "")
-            .unwrap_err()
+            .expect_err("defining key on frozen params should fail")
             .to_string()
             .contains("immutable"));
         p.get("bar")
@@ -946,7 +952,9 @@ mod tests {
         p.define("cheesecake", ParamValue::None, "").unwrap();
         p.define("tofu", ParamValue::None, "").unwrap();
 
-        let err = p.set("actuvation", 1_i64).unwrap_err();
+        let err = p
+            .set("actuvation", 1_i64)
+            .expect_err("setting typo key should fail and suggest similar keys");
         assert!(err
             .to_string()
             .contains("actuvation (did you mean: [activation,activations])"));

@@ -6160,6 +6160,23 @@
   - Targeted error-handling and full `monolith-checkpoint` regression remain
     green.
 
+### 454) Core parity: tighten `unwrap_err()` failure extraction diagnostics
+- Refactored remaining `unwrap_err()` patterns in `monolith-core` tests into
+  explicit `expect_err("...")` extraction across:
+  - hyperparams mutation/freeze/suggestion error-message tests
+    (`hyperparams.rs`),
+  - model registry duplicate/not-found tests (`model_registry.rs`),
+  - model import failure-message tests (`model_imports.rs`),
+  - optimizer-name parsing error test (`optimizers.rs`),
+  - nested-map key/intermediate validation tests (`nested_map.rs`),
+  - base embedding host-call delta-length validation test
+    (`base_embedding_host_call.rs`),
+  - util gs-bucket parser invalid-path test (`util.rs`).
+- Result:
+  - Core failure-path tests now include explicit expectation diagnostics while
+    preserving existing error-shape and message-content assertions.
+  - Targeted tests and full `monolith-core` regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7126,6 +7143,9 @@
 963. `cargo test -p monolith-checkpoint test_error_handling -- --nocapture && cargo test -p monolith-checkpoint -q` ✅ (checkpoint missing-path failure assertion-tightening targeted verification plus full crate regression rerun)
 964. `rg "assert!\\([^\\n]*is_err\\(" /workspace/monolith-rs/crates/monolith-checkpoint` ✅ (verified no remaining coarse `assert!(...is_err())` patterns in monolith-checkpoint)
 965. `rg "assert!\\([^\\n]*is_err\\(" /workspace/monolith-rs` ✅ (verified no remaining coarse `assert!(...is_err())` patterns workspace-wide)
+966. `cargo test -p monolith-core test_define_existing -- --nocapture && cargo test -p monolith-core test_set_and_get -- --nocapture && cargo test -p monolith-core test_set_and_get_nested_param -- --nocapture && cargo test -p monolith-core test_freeze -- --nocapture && cargo test -p monolith-core test_similar_keys -- --nocapture && cargo test -p monolith-core test_register_duplicate_error_message -- --nocapture && cargo test -p monolith-core test_get_class_not_found_error_message -- --nocapture && cargo test -p monolith-core test_import_params_invalid_name_message -- --nocapture && cargo test -p monolith-core test_import_params_require_success_message -- --nocapture && cargo test -p monolith-core test_import_all_params_require_success_message -- --nocapture && cargo test -p monolith-core test_parse_optimizer_keys -- --nocapture && cargo test -p monolith-core test_check_key_error_messages -- --nocapture && cargo test -p monolith-core test_set_error_message_for_non_map_intermediate -- --nocapture && cargo test -p monolith-core test_compute_new_value_validates_lengths -- --nocapture && cargo test -p monolith-core test_get_bucket_name_and_relavite_path -- --nocapture` ✅ (core `unwrap_err`→`expect_err` assertion-tightening targeted verification)
+967. `cargo test -p monolith-core -q` ✅ (full monolith-core regression rerun after `unwrap_err` assertion tightening)
+968. `rg "unwrap_err\\(" /workspace/monolith-rs/crates/monolith-core` ✅ (verified no remaining `unwrap_err(...)` patterns in monolith-core tests)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

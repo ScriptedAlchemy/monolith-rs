@@ -116,7 +116,8 @@ mod tests {
         let key = "monolith.tasks.dummy.Dummy";
         register_single_task_model(key, || Box::new(DummyParams::default())).unwrap();
 
-        let err = register_single_task_model(key, || Box::new(DummyParams::default())).unwrap_err();
+        let err = register_single_task_model(key, || Box::new(DummyParams::default()))
+            .expect_err("registering duplicate model key should fail");
         assert_eq!(
             err.to_string(),
             "Duplicate model registered for key monolith.tasks.dummy.Dummy: <unknown>.<unknown>"
@@ -128,7 +129,8 @@ mod tests {
         let _guard = REGISTRY_TEST_MUTEX.lock().unwrap();
         clear_registry_for_test();
 
-        let err = get_class("does.not.Exist").unwrap_err();
+        let err = get_class("does.not.Exist")
+            .expect_err("requesting unknown model class should fail");
         assert_eq!(
             err.to_string(),
             "Model does.not.Exist not found from list of above known models."

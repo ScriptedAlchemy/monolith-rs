@@ -63,7 +63,8 @@ mod tests {
             OptimizerName::Rmsprop
         );
 
-        let err = OptimizerName::parse("nope").unwrap_err();
+        let err = OptimizerName::parse("nope")
+            .expect_err("unknown optimizer name should fail parsing");
         assert_eq!(err.to_string(), "Unknown optimizer: nope");
     }
 }

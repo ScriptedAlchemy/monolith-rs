@@ -262,7 +262,8 @@ mod tests {
         assert_eq!(bucket, "my-bucket");
         assert_eq!(rel, "a/b/c.txt");
 
-        let err = get_bucket_name_and_relavite_path("/not-gs/path").unwrap_err();
+        let err = get_bucket_name_and_relavite_path("/not-gs/path")
+            .expect_err("non-gs paths should fail bucket/relative-path parsing");
         assert_eq!(err.to_string(), "File name: /not-gs/path");
     }
 }
