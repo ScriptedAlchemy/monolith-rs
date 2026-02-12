@@ -1460,17 +1460,17 @@ fn normalize_consul_address_for_operation(context: &str, address: &str) -> Resul
         format!("http://{trimmed}")
     };
 
-    let (scheme, remainder) = normalized
+    let (raw_scheme, remainder) = normalized
         .split_once("://")
         .ok_or_else(|| cfg_err("missing scheme delimiter"))?;
+    let scheme = raw_scheme.to_ascii_lowercase();
     if scheme != "http" && scheme != "https" {
         return Err(cfg_err("invalid scheme"));
     }
 
-    let authority = remainder
-        .split(['/', '?', '#'])
-        .next()
-        .unwrap_or_default();
+    let authority_end = remainder.find(['/', '?', '#']).unwrap_or(remainder.len());
+    let authority = &remainder[..authority_end];
+    let suffix = &remainder[authority_end..];
     if authority.is_empty() {
         return Err(cfg_err("empty host"));
     }
@@ -1479,6 +1479,15 @@ fn normalize_consul_address_for_operation(context: &str, address: &str) -> Resul
     }
     if authority.contains('@') {
         return Err(cfg_err("userinfo in authority"));
+    }
+    if !suffix.is_empty() && suffix != "/" {
+        if suffix.starts_with('?') {
+            return Err(cfg_err("query is not allowed"));
+        }
+        if suffix.starts_with('#') {
+            return Err(cfg_err("fragment is not allowed"));
+        }
+        return Err(cfg_err("path is not allowed"));
     }
 
     if let Some(rest) = authority.strip_prefix('[') {
@@ -1497,7 +1506,7 @@ fn normalize_consul_address_for_operation(context: &str, address: &str) -> Resul
         } else if !trailing.is_empty() {
             return Err(cfg_err("invalid authority"));
         }
-        return Ok(normalized);
+        return Ok(format!("{scheme}://{authority}"));
     }
 
     let (host, maybe_port) = match authority.rsplit_once(':') {
@@ -1514,7 +1523,7 @@ fn normalize_consul_address_for_operation(context: &str, address: &str) -> Resul
         port.parse::<u16>()
             .map_err(|_| cfg_err("invalid port"))?;
     }
-    Ok(normalized)
+    Ok(format!("{scheme}://{authority}"))
 }
 
 #[cfg(feature = "zookeeper")]
@@ -1673,6 +1682,62 @@ mod tests {
         assert_eq!(
             normalized, "http://127.0.0.1:8501",
             "host:port Consul address should normalize by prepending http scheme"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_normalize_consul_address_for_operation_accepts_case_insensitive_scheme() {
+        let normalized = normalize_consul_address_for_operation(
+            "get_service_nodes",
+            "HtTp://127.0.0.1:8500/",
+        )
+        .expect("case-insensitive scheme with root path should normalize");
+        assert_eq!(
+            normalized, "http://127.0.0.1:8500",
+            "normalization should canonicalize scheme casing and trim root path suffix"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_normalize_consul_address_for_operation_rejects_address_path() {
+        let err = normalize_consul_address_for_operation("register_entity", "http://127.0.0.1:8500/v1")
+            .expect_err("non-root path in Consul address should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("register_entity")
+                    && msg.contains("invalid address")
+                    && msg.contains("path is not allowed")),
+            "expected ConfigError containing address-path rejection details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_normalize_consul_address_for_operation_rejects_address_query() {
+        let err = normalize_consul_address_for_operation("connect", "http://127.0.0.1:8500?dc=prod")
+            .expect_err("query in Consul address should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid address")
+                    && msg.contains("query is not allowed")),
+            "expected ConfigError containing address-query rejection details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_normalize_consul_address_for_operation_rejects_address_fragment() {
+        let err = normalize_consul_address_for_operation("deregister_entity", "http://127.0.0.1:8500#consul")
+            .expect_err("fragment in Consul address should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("deregister_entity")
+                    && msg.contains("invalid address")
+                    && msg.contains("fragment is not allowed")),
+            "expected ConfigError containing address-fragment rejection details, got {err:?}"
         );
     }
 

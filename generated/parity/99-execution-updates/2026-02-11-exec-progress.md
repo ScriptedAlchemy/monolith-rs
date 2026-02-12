@@ -6286,6 +6286,29 @@
   - Repo-wide `rg "panic!\\("` over `monolith-rs` now returns no matches.
   - `monolith-data` regression remains green after doc example tightening.
 
+### 463) Consul discovery parity: stricter endpoint-shape normalization contracts
+- Hardened `normalize_consul_address_for_operation` in
+  `monolith-training/src/discovery.rs` to improve deterministic config
+  validation semantics for Consul addresses:
+  - accept case-insensitive `http`/`https` schemes and canonicalize to
+    lowercase,
+  - permit optional root slash only (canonicalized away),
+  - reject non-root paths, query strings, and fragments with explicit
+    `ConfigError` details,
+  - preserve existing authority validation (empty host, whitespace, userinfo,
+    invalid IPv6/port shapes).
+- Added regression coverage:
+  - `test_normalize_consul_address_for_operation_accepts_case_insensitive_scheme`
+  - `test_normalize_consul_address_for_operation_rejects_address_path`
+  - `test_normalize_consul_address_for_operation_rejects_address_query`
+  - `test_normalize_consul_address_for_operation_rejects_address_fragment`
+- Result:
+  - Consul discovery address parsing now fails fast on malformed endpoint
+    suffixes and aligns discovery lifecycle behavior with explicit
+    failure-shape contracts.
+  - Consul-featured normalization tests and full `monolith-training` regression
+    remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7273,6 +7296,8 @@
 984. `rg "panic!\\(" /workspace/monolith-rs/crates/monolith-layers/src/tensor.rs` ✅ (verified tensor core panic fallbacks removed)
 985. `cargo test -p monolith-data -q` ✅ (monolith-data regression rerun after doc example panic removal)
 986. `rg "panic!\\(" /workspace/monolith-rs` ✅ (verified workspace no longer contains `panic!` macros)
+987. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" normalize_consul_address_for_operation -- --nocapture` ✅ (validated stricter Consul endpoint normalization contracts including case-insensitive scheme acceptance and path/query/fragment rejections)
+988. `cargo test -p monolith-training -q` ✅ (full monolith-training regression rerun after discovery normalization tightening)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
