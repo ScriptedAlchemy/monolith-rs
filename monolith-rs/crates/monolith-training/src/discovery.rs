@@ -2045,6 +2045,27 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_disconnect_clears_registered_paths() {
+        let zk = ZkDiscovery::new("localhost:2181", "/services");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+        assert!(
+            zk.registered_paths.lock().await.contains_key("ps-0"),
+            "test setup should seed registered path bookkeeping"
+        );
+
+        zk.disconnect().await.expect("disconnect should succeed");
+
+        assert!(
+            zk.registered_paths.lock().await.is_empty(),
+            "disconnect should clear registered path bookkeeping state"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_should_spawn_watch_poll_once_per_generation() {
         let zk = ZkDiscovery::new("localhost:2181", "/services");
 

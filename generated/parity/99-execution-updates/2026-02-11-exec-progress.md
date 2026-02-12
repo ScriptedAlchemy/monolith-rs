@@ -4669,6 +4669,14 @@
   - Existing local-cache cleanup + success semantics remain validated.
   - Feature-gated and default monolith-training regressions remain green.
 
+### 345) ZooKeeper disconnect registered-path bookkeeping cleanup parity
+- Added `test_zk_disconnect_clears_registered_paths` to verify disconnect
+  clears stale `registered_paths` bookkeeping entries.
+- Result:
+  - Disconnect lifecycle now has explicit regression coverage for clearing
+    registration path state, reducing stale-path drift risk after reconnects.
+  - Feature-gated and default monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5511,6 +5519,7 @@
 839. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_register_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture` ✅ (default-lane regression plus feature-gated Consul async-register config-error context and cache-isolation verification)
 840. `ZK_AUTH=user:pass cargo test -p monolith-training test_spawn_watch_poll_loop_recovers_after_discover_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted transient discover-error recovery poll-loop verification plus default-lane regression rerun)
 841. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_async_deregister_local_only_service -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated local-only ZK async-deregister dead-watcher compaction verification plus default-lane regression rerun)
+842. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_zk_disconnect_clears_registered_paths -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated ZK disconnect registered-path bookkeeping cleanup verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
