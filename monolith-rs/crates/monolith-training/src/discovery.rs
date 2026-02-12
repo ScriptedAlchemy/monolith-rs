@@ -1353,7 +1353,11 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
     }
 
     async fn watch_async(&self, service_type: &str) -> Result<Receiver<DiscoveryEvent>> {
-        normalize_consul_address_for_operation("watch_service", &self.address)?;
+        normalize_consul_address_for_operation("watch_service", &self.address)
+            .map_err(|e| {
+                self.compact_dead_watch_sender(service_type);
+                e
+            })?;
 
         // Poll-based watcher to avoid depending on Consul long-poll semantics here.
         let sender = self.get_or_create_sender(service_type);
@@ -3666,6 +3670,59 @@ mod tests {
                 .unwrap()
                 .contains_key("worker"),
             "empty-host watch_async should not seed poll-generation bookkeeping"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_config_error_compacts_dead_watch_sender() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("invalid watch address should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("path is not allowed")),
+            "expected ConfigError containing watch_service address-path context, got {err:?}"
+        );
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "config-error watch_async should compact dead watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_config_error_preserves_live_watch_sender() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("invalid watch address should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("path is not allowed")),
+            "expected ConfigError containing watch_service address-path context, got {err:?}"
+        );
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "config-error watch_async should preserve live watcher sender entries"
         );
     }
 

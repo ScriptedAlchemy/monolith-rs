@@ -6433,6 +6433,19 @@
     address forms while preserving zero-state-mutation guarantees for all tested
     invalid classes.
 
+### 473) Consul watch lifecycle parity: config-error compaction/preservation semantics
+- Hardened and validated watcher cleanup semantics on `watch_async` config
+  validation failures:
+  - `watch_async` now compacts dead watcher sender entries when validation fails
+    (`compact_dead_watch_sender(service_type)` in error path),
+  - live watcher sender entries are preserved.
+- Added regression coverage:
+  - `test_consul_watch_async_config_error_compacts_dead_watch_sender`
+  - `test_consul_watch_async_config_error_preserves_live_watch_sender`
+- Result:
+  - config-error watch attempts no longer leave dead sender entries behind,
+  - active watcher subscriptions remain stable under invalid watch attempts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7440,6 +7453,8 @@
 1004. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after Consul watch_async authority-shape parity expansion)
 1005. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_ -- --nocapture` ✅ (validated full Consul watch_async matrix including valid-address acceptance lanes for case-insensitive scheme and host:port normalization plus invalid authority/suffix fail-fast contracts)
 1006. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after watch_async acceptance/failure matrix completion)
+1007. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_config_error_ -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_ -- --nocapture` ✅ (validated config-error watch_async dead-sender compaction + live-sender preservation semantics and retained full watch_async acceptance/failure matrix behavior)
+1008. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after watch_async config-error cleanup semantics hardening)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
