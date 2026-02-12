@@ -6766,6 +6766,16 @@
   - removed the final 90 parse-unwrap hotspots in `native_training_parity.rs`
     (**0 remaining**), with parity behavior unchanged.
 
+### 497) Runner heartbeat timeout diagnostic assertion tightening
+- Tightened coarse worker-heartbeat timeout assertion in
+  `crates/monolith-training/src/runner.rs`:
+  - replaced `assert!(res.is_err())` in
+    `test_run_worker_role_does_not_hang_when_heartbeat_blocks`
+    with explicit `expect_err(...)` extraction plus message-shape assertion.
+- New assertion contract now verifies the surfaced failure includes
+  `Timed out waiting for PS discovery`, preserving explicit timeout diagnostic
+  behavior under blocked heartbeat conditions.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7816,6 +7826,7 @@
 1047. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_preserves_ && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_` ✅ (validated runner-config preserve + rejection matrices after phase-12 bind-address helper migration batch)
 1048. `rg "\"127\\.0\\.0\\.1:0\"\\.parse\\(\\)\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/tests/native_training_parity.rs` ✅ (verified no remaining bind-address parse-unwrap hotspots in native parity suite)
 1049. `cargo test -p monolith-training --test native_training_parity` ✅ (full native-training parity regression suite after completing bind-address helper migration)
+1050. `cargo test -p monolith-training test_run_worker_role_does_not_hang_when_heartbeat_blocks -- --nocapture` ✅ (validated heartbeat-blocked worker lane now asserts explicit PS-discovery timeout diagnostic shape)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

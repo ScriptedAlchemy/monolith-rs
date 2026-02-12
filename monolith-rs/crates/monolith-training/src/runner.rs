@@ -4603,9 +4603,11 @@ mod tests {
         )
         .await
         .expect("worker role should return even when heartbeat task blocks");
+        let err = res.expect_err("worker should still fail when PS discovery remains unavailable");
+        let msg = err.to_string();
         assert!(
-            res.is_err(),
-            "worker should still fail due to PS discovery timeout"
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker failure under blocked heartbeat should preserve PS discovery-timeout diagnostics: {msg}"
         );
     }
 
