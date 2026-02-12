@@ -4100,6 +4100,19 @@
     `missing 0` in both files.
   - Full monolith-training regression remains green.
 
+### 300) Worker-ordering-and-discovery-error-timeout preserves→surfaces parity completed
+- Added directional alias wrappers:
+  - `runner.rs`: 20 wrappers
+  - `native_training_parity.rs`: 40 wrappers
+- Closed family:
+  - `preserves_ -> surfaces_` for
+    `worker_ordering_and_discovery_error_timeout` across run/runner config
+    variants and cleanup context suffixes.
+- Result:
+  - `worker_ordering_and_discovery_error_timeout` directional transform now
+    reports `missing 0` in both files.
+  - Full monolith-training regression remains green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4828,6 +4841,10 @@
 725. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_worker_ordering_issue_timeout_with_default_service_type_when_cleanup_times_out -- --nocapture` ✅
 726. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker-ordering-issue-timeout preserves->surfaces alias additions full monolith-training regression rerun)
 727. `python3` preserves->surfaces worker-ordering-issue-timeout audit ✅ (`worker_ordering_issue_timeout` `missing 0` in `runner.rs` and `native_training_parity.rs`)
+728. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_surfaces_worker_ordering_and_discovery_error_timeout_with_default_service_type_when_cleanup_steps_timeout -- --nocapture` ✅
+729. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_worker_ordering_and_discovery_error_timeout_with_default_service_type_when_cleanup_times_out -- --nocapture` ✅
+730. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker-ordering-and-discovery-error-timeout preserves->surfaces alias additions full monolith-training regression rerun)
+731. `python3` preserves->surfaces worker-ordering-and-discovery-error-timeout audit ✅ (`worker_ordering_and_discovery_error_timeout` `missing 0` in `runner.rs` and `native_training_parity.rs`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
