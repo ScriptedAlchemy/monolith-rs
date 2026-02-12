@@ -1782,7 +1782,9 @@ mod tests {
         assert_eq!(config.num_experts, 4);
         assert_eq!(config.num_tasks, 2);
         assert_eq!(config.expert_hidden_units, vec![32, 16]);
-        assert!(config.validate().is_ok());
+        config
+            .validate()
+            .expect("fully specified MMoE config should pass validation");
     }
 
     #[test]
@@ -1905,8 +1907,8 @@ mod tests {
         ] {
             let mmoe = MMoE::new(64, 2, 2, &[32], activation).unwrap();
             let input = Tensor::rand(&[4, 64]);
-            let outputs = mmoe.forward_multi(&input);
-            assert!(outputs.is_ok());
+            mmoe.forward_multi(&input)
+                .expect("MMoE forward_multi should succeed for each supported activation");
         }
     }
 

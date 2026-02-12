@@ -1404,7 +1404,9 @@ mod tests {
     fn test_dien_config_validation() {
         // Valid config
         let config = DIENConfig::new(32, 32);
-        assert!(config.validate().is_ok());
+        config
+            .validate()
+            .expect("default DIEN config should pass validation");
 
         // Invalid: zero embedding dim
         let config = DIENConfig::new(0, 64);
@@ -1416,7 +1418,9 @@ mod tests {
 
         // Valid: embedding dim can differ from hidden size (extractor projects to hidden)
         let config = DIENConfig::new(32, 64);
-        assert!(config.validate().is_ok());
+        config
+            .validate()
+            .expect("DIEN config with projected hidden size should pass validation");
     }
 
     #[test]

@@ -906,7 +906,9 @@ mod tests {
     fn test_din_config_validation() {
         // Valid config
         let config = DINConfig::new(32);
-        assert!(config.validate().is_ok());
+        config
+            .validate()
+            .expect("default DIN config should pass validation");
 
         // Invalid: zero embedding dim
         let config = DINConfig::new(0);

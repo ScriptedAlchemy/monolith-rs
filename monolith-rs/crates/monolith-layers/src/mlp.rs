@@ -703,7 +703,9 @@ mod tests {
 
         assert_eq!(config.input_dim, 128);
         assert_eq!(config.layers.len(), 3);
-        assert!(config.validate().is_ok());
+        config
+            .validate()
+            .expect("fully specified MLP config should pass validation");
     }
 
     #[test]
@@ -794,8 +796,8 @@ mod tests {
             let mlp = MLPConfig::new(10).add_layer(5, activation).build().unwrap();
 
             let input = Tensor::rand(&[2, 10]);
-            let output = mlp.forward(&input);
-            assert!(output.is_ok());
+            mlp.forward(&input)
+                .expect("MLP forward should succeed for each supported activation");
         }
     }
 }
