@@ -2261,6 +2261,34 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_async_deregister_local_only_service_returns_ok() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+
+        let mut rx = zk.watch("ps").expect("watch should succeed");
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        assert!(
+            result.is_ok(),
+            "async deregister should succeed for local-only service without registered backend path"
+        );
+        assert!(
+            zk.discover("ps").expect("discover should succeed").is_empty(),
+            "local-only async deregister should clear local cache"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        match event {
+            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "ps-0"),
+            other => panic!("expected ServiceRemoved, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_async_deregister_failure_compacts_dead_watchers() {
         let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
         zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
