@@ -6637,6 +6637,16 @@
     preserving existing timeout/cleanup error-shape contracts and keeping
     bind-address diagnostics centralized.
 
+### 486) Native parity bind-address helper expansion (phase 3): discover-error and worker-timeout matrices
+- Continued migrating `native_training_parity` timeout/error matrix tests from
+  `"127.0.0.1:0".parse().unwrap()` to `test_bind_addr()` in additional lanes:
+  - worker-timeout cleanup-failure/timeout diagnostics (default + custom service types),
+  - last-discover-error cleanup-failure/timeout diagnostics (default + custom service types),
+  - custom discover-service worker-discovery cleanup-failure/timeout diagnostics.
+- Result:
+  - another significant unwrap batch removed from high-signal run-config
+    lifecycle parity tests while preserving behavior and diagnostics contracts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7670,6 +7680,8 @@
 1030. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after native parity bind-address helper rollout)
 1031. `cargo test -p monolith-training distributed_runner_from_run_config_preserves_discover_timeout_with_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_propagates_retry_backoff_controls -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_preserves_worker_discovery_error_when_cleanup_ -- --nocapture` ✅ (validated expanded discover-timeout/worker-cleanup parity lanes after additional bind-address helper migration)
 1032. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after native parity bind-address helper expansion)
+1033. `cargo test -p monolith-training distributed_runner_from_run_config_preserves_last_discover_error_with_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_propagates_custom_discover_service_type_into_worker_discovery_error_when_cleanup_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_preserves_worker_timeout_with_custom_service_types_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_preserves_worker_timeout_with_default_service_type_and_index_when_cleanup_times_out -- --nocapture` ✅ (validated discover-error/custom-discover/worker-timeout parity matrices after phase-3 bind-address helper migration)
+1034. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after phase-3 native parity bind-address helper expansion)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
