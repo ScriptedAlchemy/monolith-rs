@@ -3789,6 +3789,20 @@
   fully closes (`missing 0`), and key cleanup naming families are symmetric in
   both directions.
 
+### 273) `with_index` counterpart naming parity completed
+- Added RunConfig no-index alias counterparts for default-* with-index test names:
+  - default connect-timeout variants
+  - default worker/ps connect-failure variants (`cleanup_context`,
+    `cleanup_timeout_context`, `disconnect_failure_context`)
+  - default ps connect-timeout variants
+- Added RunnerConfig no-index alias counterparts for the same default-* with-index
+  families.
+- Implementation approach:
+  - Added direct `#[test]` alias wrappers calling existing `*_with_index_*`
+    tests to keep behavior identical and avoid async test nesting.
+- Result: exploratory naming audit for `with_index -> (no with_index)` is fully
+  closed (`missing 0`).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4404,6 +4418,9 @@
 612. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_ps_register_timeout_with_default_service_type_cleanup_context -- --nocapture` ✅
 613. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post disconnect->cleanup wrapper alias expansion full monolith-training regression rerun)
 614. `python3` multi-family naming audit (`native_training_parity.rs`) ✅ (`_disconnect_failure_context -> _cleanup_context` and related cleanup symmetry families all `missing 0`)
+615. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_preserves_default_connect_timeout_cleanup_context -- --nocapture` ✅
+616. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_default_ps_connect_failure_cleanup_timeout_context -- --nocapture` ✅
+617. `ZK_AUTH=user:pass cargo test -p monolith-training -q && python3 with_index counterpart audit` ✅ (`with_index -> no-with_index` `missing 0`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
