@@ -3400,4 +3400,37 @@ mod tests {
             other => panic!("expected ConfigError, got {other:?}"),
         }
     }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_config_error_preserves_local_cache() {
+        let consul = ConsulDiscovery::new("http://[::1");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0", "worker-0", "worker", "127.0.0.1", 6000,
+            ))
+            .expect("sync register should seed local cache");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address") && msg.contains("get_service_nodes"),
+                    "config error should include invalid-address discover context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError, got {other:?}"),
+        }
+
+        let cached = consul
+            .discover("worker")
+            .expect("discover should succeed after async config error");
+        assert_eq!(
+            cached.len(),
+            1,
+            "async discover config error should not evict local cache entries"
+        );
+        assert_eq!(cached[0].id, "worker-0");
+    }
 }

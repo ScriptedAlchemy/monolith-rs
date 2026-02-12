@@ -4737,6 +4737,16 @@
   - Targeted runner-failure lanes and default monolith-training regression
     remain green.
 
+### 351) Consul discover config-error local-cache non-eviction parity
+- Added `test_consul_discover_async_config_error_preserves_local_cache`.
+- Result:
+  - Malformed-endpoint Consul discover paths now explicitly guarantee local
+    cache entries are preserved after async discover config failures.
+  - Config-error discover assertions continue to enforce
+    `invalid address + get_service_nodes` message-context contracts.
+  - Feature-gated discover-failure lanes and default monolith-training
+    regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5585,6 +5595,7 @@
 845. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" disconnect_clears_watch_poll_generation_entries -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated ZK/Consul disconnect watch-poll-generation map cleanup verification plus default-lane regression rerun)
 846. `ZK_AUTH=user:pass cargo test -p monolith-training registration_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (runner registration-failure assertion-contract tightening verification plus default-lane regression rerun)
 847. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_preserves_ps_register_failure_with_default_service_type_when_cleanup_steps_fail -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_disconnects_when_worker_role_fails_after_registration -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_attempts_disconnect_when_connect_fails -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner cleanup/connect failure assertion tightening verification plus default-lane regression rerun)
+848. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" discover_async_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" discover_async_connection_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated discover async config/connection failure cache-invariant verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
