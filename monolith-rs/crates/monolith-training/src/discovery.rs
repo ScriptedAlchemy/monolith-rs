@@ -4114,6 +4114,86 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_deregister_userinfo_authority_still_notifies_and_returns_error() {
+        let consul = ConsulDiscovery::new("http://user@127.0.0.1:8500");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let mut rx = consul.watch("worker").expect("watch should succeed");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id).await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address")
+                        && msg.contains("userinfo in authority")
+                        && msg.contains("deregister_entity"),
+                    "userinfo-authority deregister failures should be classified as ConfigError with deregister context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for userinfo authority deregister, got {other:?}"),
+        }
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        match event {
+            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, service.id),
+            other => panic!("expected ServiceRemoved event, got {other:?}"),
+        }
+        assert!(
+            consul
+                .discover("worker")
+                .expect("sync discover should succeed after async deregister failure")
+                .is_empty(),
+            "local cache entry should remain removed even when async deregister fails due to userinfo authority"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_whitespace_authority_still_notifies_and_returns_error() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let mut rx = consul.watch("worker").expect("watch should succeed");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id).await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address")
+                        && msg.contains("whitespace in authority")
+                        && msg.contains("deregister_entity"),
+                    "whitespace-authority deregister failures should be classified as ConfigError with deregister context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for whitespace authority deregister, got {other:?}"),
+        }
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        match event {
+            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, service.id),
+            other => panic!("expected ServiceRemoved event, got {other:?}"),
+        }
+        assert!(
+            consul
+                .discover("worker")
+                .expect("sync discover should succeed after async deregister failure")
+                .is_empty(),
+            "local cache entry should remain removed even when async deregister fails due to whitespace authority"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_discover_async_empty_host_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("http://:8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
@@ -4161,6 +4241,72 @@ mod tests {
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "dead watch sender should be compacted on empty-host register validation failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_userinfo_authority_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://user@127.0.0.1:8500");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address")
+                        && msg.contains("userinfo in authority")
+                        && msg.contains("register_entity"),
+                    "userinfo-authority register failures should be classified as ConfigError with register context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for userinfo authority register, got {other:?}"),
+        }
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "dead watch sender should be compacted on userinfo-authority register validation failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_whitespace_authority_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address")
+                        && msg.contains("whitespace in authority")
+                        && msg.contains("register_entity"),
+                    "whitespace-authority register failures should be classified as ConfigError with register context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for whitespace authority register, got {other:?}"),
+        }
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "dead watch sender should be compacted on whitespace-authority register validation failure"
         );
     }
 
