@@ -649,6 +649,16 @@ impl ZkDiscovery {
             .clone()
     }
 
+    /// Notifies watchers for a service type and removes dead sender entries.
+    fn notify_watchers(&self, service_type: &str, event: DiscoveryEvent) {
+        let mut watchers = self.watchers.lock().unwrap();
+        if let Some(sender) = watchers.get(service_type) {
+            if sender.receiver_count() == 0 || sender.send(event).is_err() {
+                watchers.remove(service_type);
+            }
+        }
+    }
+
     /// Returns true only when a new poll loop should be spawned for the service type.
     fn should_spawn_watch_poll(&self, service_type: &str, receiver_count: usize) -> bool {
         let generation = self.watch_generation.load(Ordering::SeqCst);
@@ -680,9 +690,8 @@ impl ServiceDiscovery for ZkDiscovery {
         }
         services.insert(service.id.clone(), service.clone());
 
-        if let Some(sender) = self.watchers.lock().unwrap().get(&service.service_type) {
-            let _ = sender.send(DiscoveryEvent::ServiceAdded(service));
-        }
+        let service_type = service.service_type.clone();
+        self.notify_watchers(&service_type, DiscoveryEvent::ServiceAdded(service));
         Ok(())
     }
 
@@ -724,16 +733,10 @@ impl ServiceDiscovery for ZkDiscovery {
             .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
         drop(services);
 
-        let mut watchers = self.watchers.lock().unwrap();
-        if let Some(sender) = watchers.get(&service.service_type) {
-            if sender.receiver_count() == 0
-                || sender
-                    .send(DiscoveryEvent::ServiceRemoved(service_id.to_string()))
-                    .is_err()
-            {
-                watchers.remove(&service.service_type);
-            }
-        }
+        self.notify_watchers(
+            &service.service_type,
+            DiscoveryEvent::ServiceRemoved(service_id.to_string()),
+        );
         Ok(())
     }
 }
@@ -803,9 +806,8 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
             .write()
             .unwrap()
             .insert(service.id.clone(), service.clone());
-        if let Some(sender) = self.watchers.lock().unwrap().get(&service.service_type) {
-            let _ = sender.send(DiscoveryEvent::ServiceAdded(service.clone()));
-        }
+        let service_type = service.service_type.clone();
+        self.notify_watchers(&service_type, DiscoveryEvent::ServiceAdded(service));
         Ok(())
     }
 
@@ -1013,6 +1015,16 @@ impl ConsulDiscovery {
             .clone()
     }
 
+    /// Notifies watchers for a service type and removes dead sender entries.
+    fn notify_watchers(&self, service_type: &str, event: DiscoveryEvent) {
+        let mut watchers = self.watchers.lock().unwrap();
+        if let Some(sender) = watchers.get(service_type) {
+            if sender.receiver_count() == 0 || sender.send(event).is_err() {
+                watchers.remove(service_type);
+            }
+        }
+    }
+
     /// Returns true only when a new poll loop should be spawned for the service type.
     fn should_spawn_watch_poll(&self, service_type: &str, receiver_count: usize) -> bool {
         let generation = self.watch_generation.load(Ordering::SeqCst);
@@ -1042,9 +1054,8 @@ impl ServiceDiscovery for ConsulDiscovery {
             return Err(DiscoveryError::AlreadyRegistered(service.id.clone()));
         }
         services.insert(service.id.clone(), service.clone());
-        if let Some(sender) = self.watchers.lock().unwrap().get(&service.service_type) {
-            let _ = sender.send(DiscoveryEvent::ServiceAdded(service));
-        }
+        let service_type = service.service_type.clone();
+        self.notify_watchers(&service_type, DiscoveryEvent::ServiceAdded(service));
         Ok(())
     }
 
@@ -1085,16 +1096,10 @@ impl ServiceDiscovery for ConsulDiscovery {
             .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
         drop(services);
 
-        let mut watchers = self.watchers.lock().unwrap();
-        if let Some(sender) = watchers.get(&service.service_type) {
-            if sender.receiver_count() == 0
-                || sender
-                    .send(DiscoveryEvent::ServiceRemoved(service_id.to_string()))
-                    .is_err()
-            {
-                watchers.remove(&service.service_type);
-            }
-        }
+        self.notify_watchers(
+            &service.service_type,
+            DiscoveryEvent::ServiceRemoved(service_id.to_string()),
+        );
         Ok(())
     }
 }
@@ -1163,9 +1168,8 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
             .write()
             .unwrap()
             .insert(service.id.clone(), service.clone());
-        if let Some(sender) = self.watchers.lock().unwrap().get(&service.service_type) {
-            let _ = sender.send(DiscoveryEvent::ServiceAdded(service.clone()));
-        }
+        let service_type = service.service_type.clone();
+        self.notify_watchers(&service_type, DiscoveryEvent::ServiceAdded(service));
         Ok(())
     }
 
@@ -1879,6 +1883,25 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_zk_sync_register_removes_dead_watchers() {
+        let zk = ZkDiscovery::new("localhost:2181", "/services");
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        drop(rx);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("register should succeed");
+        assert!(
+            !zk.watchers.lock().unwrap().contains_key("ps"),
+            "dead watch sender should be removed after notification"
+        );
+    }
+
     #[cfg(feature = "consul")]
     #[test]
     fn test_consul_discovery_creation() {
@@ -1964,5 +1987,31 @@ mod tests {
             DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "worker-0"),
             other => panic!("expected ServiceRemoved, got {other:?}"),
         }
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_consul_sync_register_removes_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        drop(rx);
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("register should succeed");
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "dead watch sender should be removed after notification"
+        );
     }
 }

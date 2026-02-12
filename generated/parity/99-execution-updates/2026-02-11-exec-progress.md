@@ -4312,6 +4312,23 @@
     for removal events, improving parity for tests and local lifecycle flows.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 316) Optional-backend watcher dead-sender compaction parity
+- Added backend-local watcher notification helpers:
+  - `ZkDiscovery::notify_watchers(...)`
+  - `ConsulDiscovery::notify_watchers(...)`
+- Unified watcher event emission paths (sync/async register and sync
+  deregister) to:
+  - emit events consistently,
+  - compact dead watcher senders (`receiver_count == 0` or send error).
+- Added feature-gated regressions:
+  - `test_zk_sync_register_removes_dead_watchers`
+  - `test_consul_sync_register_removes_dead_watchers`
+- Result:
+  - Optional backend watcher maps now self-clean stale senders like
+    in-memory discovery.
+  - Watcher event behavior remains deterministic and regressions stay green in
+    default and feature-gated lanes.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5099,6 +5116,8 @@
 784. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" disconnect_increments_watch_generation -- --nocapture` ✅ (feature-gated disconnect-generation semantics re-verification after spawn-gating changes)
 785. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post sync-deregister watcher-notification hardening default-lane regression rerun)
 786. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" sync_watch_receives_removed_event_on_deregister -- --nocapture` ✅ (feature-gated ZK/Consul sync watcher removal-event verification)
+787. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post optional-backend dead-sender compaction hardening default-lane regression rerun)
+788. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" sync_ -- --nocapture` ✅ (feature-gated sync watcher event + dead-sender compaction verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
