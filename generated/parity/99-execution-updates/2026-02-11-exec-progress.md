@@ -5452,6 +5452,21 @@
   - Feature-gated Consul suites and default monolith-training regression remain
     green.
 
+### 406) Discovery parity: empty-host Consul validation coverage
+- Added feature-gated empty-host Consul validation coverage in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_discover_async_empty_host_is_classified_as_config_error`
+    verifies discover paths classify empty-host endpoints as operation-context
+    `ConfigError`.
+  - `test_consul_async_register_empty_host_compacts_dead_watchers` verifies
+    register validation failures on empty-host endpoints compact dead watcher
+    senders while preserving explicit config-error context.
+- Result:
+  - Empty-host malformed-endpoint behavior is now covered across discover and
+    register lifecycle paths, including watcher compaction invariants.
+  - Feature-gated Consul config-error suite and default monolith-training
+    regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6355,6 +6370,7 @@
 900. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_map_consul_request_error_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_invalid_port_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul invalid-address classifier/validation tightening verification plus default-lane regression rerun)
 901. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_map_consul_request_error_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_normalize_consul_address_for_operation_adds_http_scheme -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_invalid_port_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_host_port_without_scheme_keeps_port_context -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul host:port normalization + malformed-address classification verification plus default-lane regression rerun)
 902. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_invalid_scheme_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_async_deregister_invalid_scheme_still_notifies_and_returns_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul invalid-scheme discover/deregister lifecycle coverage verification plus default-lane regression rerun)
+903. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_empty_host_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_async_register_empty_host_compacts_dead_watchers -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul empty-host discover/register validation and watcher-compaction verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

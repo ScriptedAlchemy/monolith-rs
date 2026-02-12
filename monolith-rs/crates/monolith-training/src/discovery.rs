@@ -3865,6 +3865,58 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_discover_async_empty_host_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new("http://:8500");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address")
+                        && msg.contains("empty host")
+                        && msg.contains("get_service_nodes"),
+                    "empty-host discover failures should be classified as ConfigError with discover context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for empty host address, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_empty_host_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://:8500");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address")
+                        && msg.contains("empty host")
+                        && msg.contains("register_entity"),
+                    "empty-host register failures should be classified as ConfigError with register context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for empty host register, got {other:?}"),
+        }
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "dead watch sender should be compacted on empty-host register validation failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_discover_async_config_error_preserves_local_cache() {
         let consul = ConsulDiscovery::new("http://[::1");
         consul
