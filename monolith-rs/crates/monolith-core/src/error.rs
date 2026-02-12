@@ -184,7 +184,7 @@ mod tests {
             })
         }
 
-        assert!(success_fn().is_ok());
+        success_fn().expect("success_fn should return Ok(42)");
         assert!(error_fn().is_err());
     }
 }

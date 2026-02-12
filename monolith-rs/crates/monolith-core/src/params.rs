@@ -601,7 +601,9 @@ mod tests {
     fn test_embedding_config_validate() {
         // Valid config
         let config = EmbeddingConfig::new(1, 64);
-        assert!(config.validate().is_ok());
+        config
+            .validate()
+            .expect("default embedding config should pass validation");
 
         // Invalid: zero dimension
         let mut config = EmbeddingConfig::new(1, 0);
@@ -613,16 +615,19 @@ mod tests {
     fn test_initializer_config() {
         let init = InitializerConfig::zeros();
         assert_eq!(init, InitializerConfig::Zeros);
-        assert!(init.validate().is_ok());
+        init.validate()
+            .expect("zero initializer should pass validation");
 
         let init = InitializerConfig::uniform(-1.0, 1.0);
-        assert!(init.validate().is_ok());
+        init.validate()
+            .expect("uniform initializer with ordered bounds should pass validation");
 
         let init = InitializerConfig::uniform(1.0, -1.0);
         assert!(init.validate().is_err());
 
         let init = InitializerConfig::normal(0.0, 1.0);
-        assert!(init.validate().is_ok());
+        init.validate()
+            .expect("normal initializer with positive stddev should pass validation");
 
         let init = InitializerConfig::normal(0.0, -1.0);
         assert!(init.validate().is_err());
@@ -676,7 +681,9 @@ mod tests {
     #[test]
     fn test_training_params_validate() {
         let params = TrainingParams::default();
-        assert!(params.validate().is_ok());
+        params
+            .validate()
+            .expect("default training params should pass validation");
 
         let mut params = TrainingParams::default();
         params.set_learning_rate(-0.001);

@@ -1204,7 +1204,9 @@ mod tests {
     #[test]
     fn test_feature_slice_validate() {
         let slice = FeatureSlice::new(5, 5, 1);
-        assert!(slice.validate(10).is_ok());
+        slice
+            .validate(10)
+            .expect("slice fully within bounds should pass validation");
         assert!(slice.validate(9).is_err());
     }
 

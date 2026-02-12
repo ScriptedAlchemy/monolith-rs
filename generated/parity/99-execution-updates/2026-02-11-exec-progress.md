@@ -6045,6 +6045,17 @@
     existing behavior contracts.
   - Focused serving tests and full `monolith-serving` regression remain green.
 
+### 445) Core parity: tighten success assertions in params/feature/error tests
+- Refactored `monolith-core` tests to replace coarse `assert!(...is_ok())`
+  success checks with explicit `.expect("...")` diagnostics across:
+  - params validation tests (`params.rs`),
+  - feature slice validation tests (`feature.rs`),
+  - result alias coverage tests (`error.rs`).
+- Result:
+  - Core parity tests now preserve clearer failure diagnostics while keeping the
+    same validation behavior contracts.
+  - Focused `monolith-core` tests and full package regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6992,6 +7003,7 @@
 944. `cargo test -p monolith-training distributed_runner_from_runner_config_preserves_worker_register_failure_with_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_preserves_ps_register_failure_with_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_preserves_register_timeout_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_preserves_ps_register_timeout_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_surfaces_deregister_timeout -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_surfaces_disconnect_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (final runner-config register-timeout/register-failure timeout-guard assertion-tightening verification plus default-lane regression rerun)
 945. `rg "res\\.is_ok\\(\\)," monolith-rs/crates/monolith-training/tests/native_training_parity.rs` ✅ (verified `native_training_parity.rs` has no remaining `res.is_ok()` timeout guards)
 946. `cargo test -p monolith-serving test_server_ -- --nocapture && cargo test -p monolith-serving test_predict_with_ -- --nocapture && cargo test -p monolith-serving test_connect_disconnect -- --nocapture && cargo test -p monolith-serving test_pull_embeddings -- --nocapture && cargo test -p monolith-serving test_push_embeddings -- --nocapture && cargo test -p monolith-serving test_load_model_from_temp_dir -- --nocapture && cargo test -p monolith-serving test_socket_addr_parsing -- --nocapture && cargo test -p monolith-serving test_config_validation -- --nocapture && cargo test -p monolith-serving -q` ✅ (serving assertion-tightening targeted verification plus full monolith-serving regression rerun)
+947. `cargo test -p monolith-core test_embedding_config_validate -- --nocapture && cargo test -p monolith-core test_initializer_config -- --nocapture && cargo test -p monolith-core test_training_params_validate -- --nocapture && cargo test -p monolith-core test_feature_slice_validate -- --nocapture && cargo test -p monolith-core test_result_type -- --nocapture && cargo test -p monolith-core -q` ✅ (core assertion-tightening targeted verification plus full monolith-core regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
