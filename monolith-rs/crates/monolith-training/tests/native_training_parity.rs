@@ -1109,7 +1109,10 @@ async fn distributed_runner_from_run_config_preserves_discover_timeout_with_cust
         res.is_ok(),
         "run_distributed_from_run_config should not hang when custom non-index discover times out and cleanup steps block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when custom non-index discover times out and cleanup steps block")
+        .expect_err("custom non-index discover timeout with cleanup timeouts should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover timeout should remain primary over cleanup timeout failures via RunConfig for custom non-index paths: {msg}"
@@ -1186,7 +1189,10 @@ async fn distributed_runner_from_run_config_preserves_discover_timeout_with_cust
         res.is_ok(),
         "run_distributed_from_run_config should not hang when custom non-index discover times out and cleanup steps block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when custom non-index discover times out and cleanup steps block")
+        .expect_err("custom-service discover timeout with cleanup timeouts should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover timeout should remain primary over cleanup timeout failures via RunConfig for custom non-index paths: {msg}"
@@ -1263,7 +1269,10 @@ async fn distributed_runner_from_run_config_preserves_discover_timeout_with_cust
         res.is_ok(),
         "run_distributed_from_run_config should not hang when custom non-index discover times out and cleanup fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when custom non-index discover times out and cleanup fails")
+        .expect_err("custom non-index discover timeout with cleanup failures should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover timeout should remain primary over cleanup failures via RunConfig for custom non-index paths: {msg}"
