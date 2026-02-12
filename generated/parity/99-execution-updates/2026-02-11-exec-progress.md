@@ -6103,6 +6103,21 @@
   - Targeted failure-path tests and full `monolith-serving` regression remain
     green.
 
+### 450) Core parity: tighten failure assertions to explicit `expect_err` contracts
+- Refactored remaining coarse `assert!(...is_err())` assertions in
+  `monolith-core` tests into explicit `expect_err("...")` extraction paths
+  across:
+  - error alias test coverage (`error.rs`),
+  - feature slice/index bounds failure paths (`feature.rs`),
+  - params/initializer/training validation failures (`params.rs`),
+  - hyperparams illegal-name/deleted-key/freeze guard failures (`hyperparams.rs`),
+  - env invalid `make_fid` argument failures (`env.rs`).
+- Result:
+  - Core failure-path tests now produce explicit diagnostics while preserving
+    existing error-shape behavior contracts.
+  - Targeted failure-path tests and full `monolith-core` regression remain
+    green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7057,6 +7072,9 @@
 951. `cargo test -p monolith-serving test_predict_no_model -- --nocapture && cargo test -p monolith-serving test_pull_not_connected -- --nocapture && cargo test -p monolith-serving test_load_nonexistent_path -- --nocapture && cargo test -p monolith-serving test_server_invalid_config -- --nocapture && cargo test -p monolith-serving test_server_reload_not_running -- --nocapture && cargo test -p monolith-serving test_socket_addr_parsing -- --nocapture && cargo test -p monolith-serving fake_kazoo_client_create_set_get_delete_and_watches --test mocked_zkclient_parity -- --nocapture` ✅ (serving failure-path `expect_err` assertion-tightening targeted verification)
 952. `cargo test -p monolith-serving -q` ✅ (full monolith-serving regression rerun after failure-path assertion tightening)
 953. `rg "assert!\\([^\\n]*is_err\\(" /workspace/monolith-rs/crates/monolith-serving` ✅ (verified no remaining coarse `assert!(...is_err())` patterns in monolith-serving)
+954. `cargo test -p monolith-core test_result_type -- --nocapture && cargo test -p monolith-core test_feature_slice_validate -- --nocapture && cargo test -p monolith-core test_sparse_feature_column_slice -- --nocapture && cargo test -p monolith-core test_dense_feature_column_example_features -- --nocapture && cargo test -p monolith-core test_embedding_config_validate -- --nocapture && cargo test -p monolith-core test_initializer_config -- --nocapture && cargo test -p monolith-core test_training_params_validate -- --nocapture && cargo test -p monolith-core test_legal_param_names -- --nocapture && cargo test -p monolith-core test_set_and_get -- --nocapture && cargo test -p monolith-core test_set_and_get_nested_param -- --nocapture && cargo test -p monolith-core test_freeze -- --nocapture && cargo test -p monolith-core test_env_make_fid_invalid -- --nocapture` ✅ (core failure-path `expect_err` assertion-tightening targeted verification)
+955. `cargo test -p monolith-core -q` ✅ (full monolith-core regression rerun after failure-path assertion tightening)
+956. `rg "assert!\\([^\\n]*is_err\\(" /workspace/monolith-rs/crates/monolith-core` ✅ (verified no remaining coarse `assert!(...is_err())` patterns in monolith-core)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

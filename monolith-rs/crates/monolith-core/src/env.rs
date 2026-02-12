@@ -611,8 +611,10 @@ mod tests {
     fn test_env_make_fid_invalid() {
         let env = Env::new();
 
-        assert!(env.make_fid(-1, 0).is_err());
-        assert!(env.make_fid(0, -1).is_err());
+        env.make_fid(-1, 0)
+            .expect_err("negative slot id should be rejected");
+        env.make_fid(0, -1)
+            .expect_err("negative feature id should be rejected");
     }
 
     #[test]

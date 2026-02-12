@@ -608,7 +608,9 @@ mod tests {
         // Invalid: zero dimension
         let mut config = EmbeddingConfig::new(1, 0);
         config.learning_rate = 0.001;
-        assert!(config.validate().is_err());
+        config
+            .validate()
+            .expect_err("embedding config with zero dimension should fail validation");
     }
 
     #[test]
@@ -623,14 +625,16 @@ mod tests {
             .expect("uniform initializer with ordered bounds should pass validation");
 
         let init = InitializerConfig::uniform(1.0, -1.0);
-        assert!(init.validate().is_err());
+        init.validate()
+            .expect_err("uniform initializer with inverted bounds should fail validation");
 
         let init = InitializerConfig::normal(0.0, 1.0);
         init.validate()
             .expect("normal initializer with positive stddev should pass validation");
 
         let init = InitializerConfig::normal(0.0, -1.0);
-        assert!(init.validate().is_err());
+        init.validate()
+            .expect_err("normal initializer with negative stddev should fail validation");
     }
 
     #[test]
@@ -687,15 +691,21 @@ mod tests {
 
         let mut params = TrainingParams::default();
         params.set_learning_rate(-0.001);
-        assert!(params.validate().is_err());
+        params
+            .validate()
+            .expect_err("negative learning rate should fail training params validation");
 
         let mut params = TrainingParams::default();
         params.set_batch_size(0);
-        assert!(params.validate().is_err());
+        params
+            .validate()
+            .expect_err("zero batch size should fail training params validation");
 
         let mut params = TrainingParams::default();
         params.set_num_epochs(0);
-        assert!(params.validate().is_err());
+        params
+            .validate()
+            .expect_err("zero num_epochs should fail training params validation");
     }
 
     #[test]

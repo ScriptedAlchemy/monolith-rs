@@ -1207,7 +1207,9 @@ mod tests {
         slice
             .validate(10)
             .expect("slice fully within bounds should pass validation");
-        assert!(slice.validate(9).is_err());
+        slice
+            .validate(9)
+            .expect_err("slice extending beyond total length should fail validation");
     }
 
     #[test]
@@ -1248,7 +1250,9 @@ mod tests {
         assert_eq!(slice.offset(), 2);
         assert_eq!(slice.length(), 1);
 
-        assert!(column.slice(2).is_err());
+        column
+            .slice(2)
+            .expect_err("requesting slice for out-of-range example index should fail");
     }
 
     #[test]
@@ -1320,7 +1324,9 @@ mod tests {
         let features = column.example_features(1).unwrap();
         assert_eq!(features, &[4.0, 5.0, 6.0]);
 
-        assert!(column.example_features(2).is_err());
+        column
+            .example_features(2)
+            .expect_err("requesting dense example features out-of-range should fail");
     }
 
     #[test]

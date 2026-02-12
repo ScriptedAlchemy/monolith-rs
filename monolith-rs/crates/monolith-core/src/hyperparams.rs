@@ -744,11 +744,16 @@ mod tests {
     #[test]
     fn test_legal_param_names() {
         let mut p = Params::new();
-        assert!(p.define("", 1_i64, "").is_err());
-        assert!(p.define("_foo", 1_i64, "").is_err());
-        assert!(p.define("Foo", 1_i64, "").is_err());
-        assert!(p.define("1foo", 1_i64, "").is_err());
-        assert!(p.define("foo$", 1_i64, "").is_err());
+        p.define("", 1_i64, "")
+            .expect_err("empty parameter name should be rejected");
+        p.define("_foo", 1_i64, "")
+            .expect_err("leading underscore parameter name should be rejected");
+        p.define("Foo", 1_i64, "")
+            .expect_err("uppercase parameter name should be rejected");
+        p.define("1foo", 1_i64, "")
+            .expect_err("digit-prefixed parameter name should be rejected");
+        p.define("foo$", 1_i64, "")
+            .expect_err("parameter name with invalid symbol should be rejected");
         p.define("foo_bar", 1_i64, "").unwrap();
         p.define("foo9", 1_i64, "").unwrap();
     }
@@ -771,7 +776,8 @@ mod tests {
 
         p.delete("foo").unwrap();
         assert!(!p.contains("foo"));
-        assert!(p.get("foo").is_err());
+        p.get("foo")
+            .expect_err("deleted parameter should not be retrievable");
     }
 
     #[test]
@@ -809,8 +815,12 @@ mod tests {
         outer.delete("inner.innermost.zeta").unwrap();
 
         assert_eq!(outer.get("inner.alpha").unwrap(), &ParamValue::Int(3));
-        assert!(outer.get("beta").is_err());
-        assert!(outer.get("inner.innermost.zeta").is_err());
+        outer
+            .get("beta")
+            .expect_err("deleted top-level key should not be retrievable");
+        outer
+            .get("inner.innermost.zeta")
+            .expect_err("deleted nested key should not be retrievable");
 
         assert!(outer
             .set("inner.gamma", 5_i64)
@@ -832,7 +842,8 @@ mod tests {
     #[test]
     fn test_freeze() {
         let mut p = Params::new();
-        assert!(p.set("foo", 4_i64).is_err());
+        p.set("foo", 4_i64)
+            .expect_err("setting undefined parameter should fail");
         p.define("foo", 1_i64, "").unwrap();
         p.define("nested", p.copy(), "").unwrap();
         assert_eq!(p.get("foo").unwrap(), &ParamValue::Int(1));
@@ -854,7 +865,8 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("immutable"));
-        assert!(p.get("bar").is_err());
+        p.get("bar")
+            .expect_err("undefined key should not be retrievable from frozen params");
 
         // Nested params remain mutable.
         p.get_params_mut("nested")
