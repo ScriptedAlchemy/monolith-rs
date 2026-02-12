@@ -1107,7 +1107,16 @@ mod tests {
                 std::time::Duration::from_millis(1),
             )
             .unwrap_err();
-        assert!(matches!(err, DistributedError::BarrierTimeout { epoch: 0, .. }));
+        match err {
+            DistributedError::BarrierTimeout { epoch, timeout_ms } => {
+                assert_eq!(epoch, 0);
+                assert_eq!(
+                    timeout_ms, 10,
+                    "barrier-timeout error should retain configured timeout duration"
+                );
+            }
+            other => panic!("expected BarrierTimeout, got {other:?}"),
+        }
     }
 
     #[test]
@@ -1156,10 +1165,16 @@ mod tests {
                 std::time::Duration::from_millis(1),
             )
             .unwrap_err();
-        assert!(matches!(
-            timeout_err,
-            DistributedError::BarrierTimeout { epoch: 0, .. }
-        ));
+        match timeout_err {
+            DistributedError::BarrierTimeout { epoch, timeout_ms } => {
+                assert_eq!(epoch, 0);
+                assert_eq!(
+                    timeout_ms, 8,
+                    "timeout-cleanup barrier error should retain configured timeout duration"
+                );
+            }
+            other => panic!("expected BarrierTimeout, got {other:?}"),
+        }
 
         // Cleanup should have removed worker 0 from waiter set, so worker 1 alone
         // should still be in waiting state instead of incorrectly releasing.
