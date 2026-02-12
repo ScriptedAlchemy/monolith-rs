@@ -3389,6 +3389,64 @@ mod tests {
     }
 
     #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_invalid_scheme_rejects_without_state_changes() {
+        let consul = ConsulDiscovery::new("ftp://127.0.0.1:8500");
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("invalid scheme should be rejected before watch state is created");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("invalid scheme")),
+            "expected ConfigError containing watch_service invalid-scheme context, got {err:?}"
+        );
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "invalid-scheme watch_async should not create watcher sender entries"
+        );
+        assert!(
+            !consul
+                .watch_poll_generations
+                .lock()
+                .unwrap()
+                .contains_key("worker"),
+            "invalid-scheme watch_async should not seed poll-generation bookkeeping"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_userinfo_authority_rejects_without_state_changes() {
+        let consul = ConsulDiscovery::new("http://user@127.0.0.1:8500");
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("userinfo authority should be rejected before watch state is created");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("userinfo in authority")),
+            "expected ConfigError containing watch_service userinfo-authority context, got {err:?}"
+        );
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "userinfo-authority watch_async should not create watcher sender entries"
+        );
+        assert!(
+            !consul
+                .watch_poll_generations
+                .lock()
+                .unwrap()
+                .contains_key("worker"),
+            "userinfo-authority watch_async should not seed poll-generation bookkeeping"
+        );
+    }
+
+    #[cfg(feature = "consul")]
     #[test]
     fn test_consul_sync_register_removes_dead_watchers() {
         let consul = ConsulDiscovery::new("http://localhost:8500");
