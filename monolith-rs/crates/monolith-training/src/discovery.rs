@@ -2924,10 +2924,15 @@ mod tests {
             ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
         )
         .await;
-        assert!(
-            result.is_err(),
-            "register_async should fail without a live Consul endpoint"
-        );
+        match result {
+            Err(DiscoveryError::Internal(msg)) => {
+                assert!(
+                    msg.contains("register_entity"),
+                    "internal error should include register context: {msg}"
+                );
+            }
+            other => panic!("expected Internal error, got {other:?}"),
+        }
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "failed async register should compact dead watcher sender"
@@ -2949,10 +2954,15 @@ mod tests {
             ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
         )
         .await;
-        assert!(
-            result.is_err(),
-            "register_async should fail without a live Consul endpoint"
-        );
+        match result {
+            Err(DiscoveryError::Internal(msg)) => {
+                assert!(
+                    msg.contains("register_entity"),
+                    "internal error should include register context: {msg}"
+                );
+            }
+            other => panic!("expected Internal error, got {other:?}"),
+        }
         assert!(
             consul.watchers.lock().unwrap().contains_key("worker"),
             "live watcher sender should be preserved on async register failure"
@@ -2967,10 +2977,15 @@ mod tests {
 
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(&consul, service)
             .await;
-        assert!(
-            result.is_err(),
-            "register_async should fail without a live Consul endpoint"
-        );
+        match result {
+            Err(DiscoveryError::Internal(msg)) => {
+                assert!(
+                    msg.contains("register_entity"),
+                    "internal error should include register context: {msg}"
+                );
+            }
+            other => panic!("expected Internal error, got {other:?}"),
+        }
         assert!(
             consul
                 .discover("worker")
@@ -2978,6 +2993,23 @@ mod tests {
                 .is_empty(),
             "failed async register should not populate local service cache"
         );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_connection_failure_is_internal() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        match result {
+            Err(DiscoveryError::Internal(msg)) => {
+                assert!(
+                    msg.contains("get_service_nodes"),
+                    "internal error should include discover context: {msg}"
+                );
+            }
+            other => panic!("expected Internal error, got {other:?}"),
+        }
     }
 
     #[cfg(feature = "consul")]

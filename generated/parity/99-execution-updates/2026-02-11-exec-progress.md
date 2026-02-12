@@ -4585,6 +4585,20 @@
     acceptance), reducing classification drift risk.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 338) Consul localhost-failure Internal error-shape assertion tightening
+- Strengthened feature-gated regressions for non-malformed Consul endpoints:
+  - `test_consul_async_register_failure_compacts_dead_watchers`
+  - `test_consul_async_register_failure_keeps_live_watchers`
+  - `test_consul_async_register_failure_does_not_cache_service`
+  - `test_consul_discover_async_connection_failure_is_internal`
+- Result:
+  - Connection-refused paths now explicitly assert `DiscoveryError::Internal`
+    with operation context, complementing existing ConfigError assertions for
+    malformed endpoints.
+  - Consul error-shape parity is now tighter across both malformed-endpoint and
+    runtime-connection-failure classes.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5418,6 +5432,8 @@
 830. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" discover_async_config_error_is_classified -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture` ✅ (feature-gated Consul discover/config-error classification and async-deregister regression verification)
 831. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post strict Consul async-register ConfigError assertion tightening default-lane regression rerun)
 832. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture` ✅ (feature-gated strict Consul async-register/async-deregister ConfigError classification verification)
+833. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post Consul localhost-failure Internal error-shape assertion tightening default-lane regression rerun)
+834. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_register_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" discover_async_connection_failure_is_internal -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture` ✅ (feature-gated Consul localhost-failure Internal classification + malformed-endpoint ConfigError regression verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
