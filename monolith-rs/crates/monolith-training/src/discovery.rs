@@ -2726,7 +2726,12 @@ mod tests {
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
         match result {
-            Err(DiscoveryError::Internal(_)) => {}
+            Err(DiscoveryError::Internal(msg)) => {
+                assert!(
+                    msg.contains("deregister_entity"),
+                    "internal error should include deregister context: {msg}"
+                );
+            }
             other => panic!("expected Internal error, got {other:?}"),
         }
 
@@ -2764,7 +2769,12 @@ mod tests {
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
         match result {
-            Err(DiscoveryError::Internal(_)) => {}
+            Err(DiscoveryError::Internal(msg)) => {
+                assert!(
+                    msg.contains("deregister_entity"),
+                    "internal error should include deregister context: {msg}"
+                );
+            }
             other => panic!("expected Internal error, got {other:?}"),
         }
         assert!(
@@ -2790,7 +2800,12 @@ mod tests {
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
         match result {
-            Err(DiscoveryError::Internal(_)) => {}
+            Err(DiscoveryError::Internal(msg)) => {
+                assert!(
+                    msg.contains("deregister_entity"),
+                    "internal error should include deregister context: {msg}"
+                );
+            }
             other => panic!("expected Internal error, got {other:?}"),
         }
         assert!(
@@ -2854,7 +2869,12 @@ mod tests {
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
         match result {
-            Err(DiscoveryError::ConfigError(_)) => {}
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address") && msg.contains("deregister_entity"),
+                    "config error should include invalid-address deregister context: {msg}"
+                );
+            }
             other => panic!("expected ConfigError, got {other:?}"),
         }
         assert!(
@@ -2899,7 +2919,12 @@ mod tests {
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
         match result {
-            Err(DiscoveryError::ConfigError(_)) => {}
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address") && msg.contains("deregister_entity"),
+                    "config error should include invalid-address deregister context: {msg}"
+                );
+            }
             other => panic!("expected ConfigError, got {other:?}"),
         }
         assert!(
