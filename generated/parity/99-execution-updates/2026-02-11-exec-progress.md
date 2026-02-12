@@ -7063,6 +7063,18 @@
   - removed all `.unwrap()` call-sites from distributed-ps module
     (**0 remaining**), preserving PS RPC and shard-routing parity behavior.
 
+### 525) Discovery Consul-core unwrap diagnostics tightening
+- Tightened `crates/monolith-training/src/discovery.rs` by replacing remaining
+  unwrap-based lock usage in Consul discovery core paths with explicit
+  `expect(...)` diagnostics across:
+  - watcher map access/compaction helpers,
+  - watch-poll generation gating/cleanup helpers,
+  - sync register/discover/deregister cache paths.
+- Result:
+  - reduced `discovery.rs` unwrap call-sites from **201 → 167**, preserving
+    Consul watch/register/discover lifecycle behavior under `consul zookeeper`
+    feature coverage.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8169,6 +8181,8 @@
 1103. `cargo test -p monolith-training distributed_ps::tests::test_ps_client_ -- --nocapture` ✅ (validated distributed-ps client-heavy test lanes after unwrap-diagnostics tightening)
 1104. `cargo test -p monolith-training distributed_ps::tests::test_ps_server_ -- --nocapture && cargo test -p monolith-training distributed_ps::tests::test_ps_client_lookup_and_apply_across_shards -- --nocapture` ✅ (validated distributed-ps server barrier/stats lanes and shard lookup/apply lane after unwrap-diagnostics tightening)
 1105. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/distributed_ps.rs` ✅ (verified no remaining unwrap call-sites in distributed-ps module)
+1106. `cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_ -- --nocapture` ✅ (validated consul discovery test matrix after core lock unwrap-diagnostics tightening)
+1107. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/discovery.rs` ✅ (tracked remaining discovery unwrap call-sites after consul-core tightening batch: 167)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

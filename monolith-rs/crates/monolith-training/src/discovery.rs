@@ -402,17 +402,26 @@ impl InMemoryDiscovery {
 
     /// Returns the number of registered services.
     pub fn len(&self) -> usize {
-        self.services.read().unwrap().len()
+        self.services
+            .read()
+            .expect("in-memory discovery services read lock should not be poisoned")
+            .len()
     }
 
     /// Returns true if no services are registered.
     pub fn is_empty(&self) -> bool {
-        self.services.read().unwrap().is_empty()
+        self.services
+            .read()
+            .expect("in-memory discovery services read lock should not be poisoned")
+            .is_empty()
     }
 
     /// Clears all registered services.
     pub fn clear(&self) {
-        let mut services = self.services.write().unwrap();
+        let mut services = self
+            .services
+            .write()
+            .expect("in-memory discovery services write lock should not be poisoned");
         let service_ids: Vec<String> = services.keys().cloned().collect();
 
         for id in service_ids {
@@ -424,7 +433,10 @@ impl InMemoryDiscovery {
 
     /// Updates the health status of a service.
     pub fn update_health(&self, service_id: &str, health: HealthStatus) -> Result<()> {
-        let mut services = self.services.write().unwrap();
+        let mut services = self
+            .services
+            .write()
+            .expect("in-memory discovery services write lock should not be poisoned");
         let service = services
             .get_mut(service_id)
             .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
@@ -443,7 +455,10 @@ impl InMemoryDiscovery {
 
     /// Notifies watchers of an event.
     fn notify_watchers(&self, service_type: &str, event: DiscoveryEvent) {
-        let mut watchers = self.watchers.lock().unwrap();
+        let mut watchers = self
+            .watchers
+            .lock()
+            .expect("in-memory discovery watchers mutex should not be poisoned");
         if let Some(sender) = watchers.get(service_type) {
             if sender.receiver_count() == 0 || sender.send(event).is_err() {
                 // No active subscribers for this service type anymore.
@@ -454,7 +469,10 @@ impl InMemoryDiscovery {
 
     /// Gets or creates a sender for a service type.
     fn get_or_create_sender(&self, service_type: &str) -> Sender<DiscoveryEvent> {
-        let mut watchers = self.watchers.lock().unwrap();
+        let mut watchers = self
+            .watchers
+            .lock()
+            .expect("in-memory discovery watchers mutex should not be poisoned");
         watchers
             .entry(service_type.to_string())
             .or_insert_with(|| broadcast::channel(100).0)
@@ -470,7 +488,10 @@ impl Default for InMemoryDiscovery {
 
 impl ServiceDiscovery for InMemoryDiscovery {
     fn register(&self, service: ServiceInfo) -> Result<()> {
-        let mut services = self.services.write().unwrap();
+        let mut services = self
+            .services
+            .write()
+            .expect("in-memory discovery services write lock should not be poisoned");
 
         let is_update = services.contains_key(&service.id);
         // Default behavior: duplicate registration is an error. We only allow updates
@@ -508,7 +529,10 @@ impl ServiceDiscovery for InMemoryDiscovery {
     }
 
     fn discover(&self, service_type: &str) -> Result<Vec<ServiceInfo>> {
-        let services = self.services.read().unwrap();
+        let services = self
+            .services
+            .read()
+            .expect("in-memory discovery services read lock should not be poisoned");
         let matching: Vec<ServiceInfo> = services
             .values()
             .filter(|s| s.service_type == service_type)
@@ -530,7 +554,10 @@ impl ServiceDiscovery for InMemoryDiscovery {
     }
 
     fn deregister(&self, service_id: &str) -> Result<()> {
-        let mut services = self.services.write().unwrap();
+        let mut services = self
+            .services
+            .write()
+            .expect("in-memory discovery services write lock should not be poisoned");
 
         let service = services
             .remove(service_id)
@@ -654,13 +681,19 @@ impl ZkDiscovery {
         self.registered_paths.lock().await.clear();
         self.compact_dead_watch_senders();
         self.watch_generation.fetch_add(1, Ordering::SeqCst);
-        self.watch_poll_generations.lock().unwrap().clear();
+        self.watch_poll_generations
+            .lock()
+            .expect("zk discovery watch_poll_generations mutex should not be poisoned")
+            .clear();
         Ok(())
     }
 
     /// Gets or creates a sender for a service type.
     fn get_or_create_sender(&self, service_type: &str) -> Sender<DiscoveryEvent> {
-        let mut watchers = self.watchers.lock().unwrap();
+        let mut watchers = self
+            .watchers
+            .lock()
+            .expect("zk discovery watchers mutex should not be poisoned");
         watchers
             .entry(service_type.to_string())
             .or_insert_with(|| broadcast::channel(100).0)
@@ -669,7 +702,10 @@ impl ZkDiscovery {
 
     /// Notifies watchers for a service type and removes dead sender entries.
     fn notify_watchers(&self, service_type: &str, event: DiscoveryEvent) {
-        let mut watchers = self.watchers.lock().unwrap();
+        let mut watchers = self
+            .watchers
+            .lock()
+            .expect("zk discovery watchers mutex should not be poisoned");
         if let Some(sender) = watchers.get(service_type) {
             if sender.receiver_count() == 0 || sender.send(event).is_err() {
                 watchers.remove(service_type);
@@ -679,7 +715,10 @@ impl ZkDiscovery {
 
     /// Removes watcher sender for `service_type` if all receivers are dropped.
     fn compact_dead_watch_sender(&self, service_type: &str) {
-        let mut watchers = self.watchers.lock().unwrap();
+        let mut watchers = self
+            .watchers
+            .lock()
+            .expect("zk discovery watchers mutex should not be poisoned");
         if watchers
             .get(service_type)
             .map(|s| s.receiver_count() == 0)
@@ -693,14 +732,17 @@ impl ZkDiscovery {
     fn compact_dead_watch_senders(&self) {
         self.watchers
             .lock()
-            .unwrap()
+            .expect("zk discovery watchers mutex should not be poisoned")
             .retain(|_, sender| sender.receiver_count() > 0);
     }
 
     /// Returns true only when a new poll loop should be spawned for the service type.
     fn should_spawn_watch_poll(&self, service_type: &str) -> bool {
         let generation = self.watch_generation.load(Ordering::SeqCst);
-        let mut active = self.watch_poll_generations.lock().unwrap();
+        let mut active = self
+            .watch_poll_generations
+            .lock()
+            .expect("zk discovery watch_poll_generations mutex should not be poisoned");
         match active.get(service_type).copied() {
             Some(g) if g == generation => false,
             _ => {
@@ -712,7 +754,10 @@ impl ZkDiscovery {
 
     /// Cleans a poll-generation entry if it still matches the expected generation.
     fn cleanup_watch_poll_generation(&self, service_type: &str, generation: u64) {
-        let mut active = self.watch_poll_generations.lock().unwrap();
+        let mut active = self
+            .watch_poll_generations
+            .lock()
+            .expect("zk discovery watch_poll_generations mutex should not be poisoned");
         if active.get(service_type).copied() == Some(generation) {
             active.remove(service_type);
         }
@@ -730,7 +775,10 @@ impl ServiceDiscovery for ZkDiscovery {
 
         // Keep sync API best-effort: update local cache only. The distributed runner uses
         // `ServiceDiscoveryAsync` for real ZK I/O.
-        let mut services = self.services.write().unwrap();
+        let mut services = self
+            .services
+            .write()
+            .expect("zk discovery services write lock should not be poisoned");
         if services.contains_key(&service.id) {
             return Err(DiscoveryError::AlreadyRegistered(service.id.clone()));
         }
@@ -748,7 +796,10 @@ impl ServiceDiscovery for ZkDiscovery {
         );
 
         // Sync API returns from cache only; see `discover_async` for real ZK query.
-        let services = self.services.read().unwrap();
+        let services = self
+            .services
+            .read()
+            .expect("zk discovery services read lock should not be poisoned");
         Ok(services
             .values()
             .filter(|s| s.service_type == service_type)
@@ -773,7 +824,10 @@ impl ServiceDiscovery for ZkDiscovery {
         );
 
         // Cache-only removal for sync API.
-        let mut services = self.services.write().unwrap();
+        let mut services = self
+            .services
+            .write()
+            .expect("zk discovery services write lock should not be poisoned");
         let service = services
             .remove(service_id)
             .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
@@ -863,7 +917,7 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
         // Update local cache (for quick discover + tests).
         self.services
             .write()
-            .unwrap()
+            .expect("zk discovery services write lock should not be poisoned")
             .insert(service.id.clone(), service.clone());
         let service_type = service.service_type.clone();
         self.notify_watchers(&service_type, DiscoveryEvent::ServiceAdded(service));
@@ -911,7 +965,10 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
 
         // Keep cache in sync.
         {
-            let mut cache = self.services.write().unwrap();
+            let mut cache = self
+                .services
+                .write()
+                .expect("zk discovery services write lock should not be poisoned");
             cache.retain(|_, v| v.service_type != service_type);
             for svc in &out {
                 cache.insert(svc.id.clone(), svc.clone());
@@ -967,7 +1024,10 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
 
     async fn deregister_async(&self, service_id: &str) -> Result<()> {
         let service = match {
-            let mut services = self.services.write().unwrap();
+            let mut services = self
+                .services
+                .write()
+                .expect("zk discovery services write lock should not be poisoned");
             services.remove(service_id)
         } {
             Some(service) => service,
@@ -1115,7 +1175,10 @@ impl ConsulDiscovery {
 
     /// Gets or creates a sender for a service type.
     fn get_or_create_sender(&self, service_type: &str) -> Sender<DiscoveryEvent> {
-        let mut watchers = self.watchers.lock().unwrap();
+        let mut watchers = self
+            .watchers
+            .lock()
+            .expect("consul discovery watchers mutex should not be poisoned");
         watchers
             .entry(service_type.to_string())
             .or_insert_with(|| broadcast::channel(100).0)
@@ -1124,7 +1187,10 @@ impl ConsulDiscovery {
 
     /// Notifies watchers for a service type and removes dead sender entries.
     fn notify_watchers(&self, service_type: &str, event: DiscoveryEvent) {
-        let mut watchers = self.watchers.lock().unwrap();
+        let mut watchers = self
+            .watchers
+            .lock()
+            .expect("consul discovery watchers mutex should not be poisoned");
         if let Some(sender) = watchers.get(service_type) {
             if sender.receiver_count() == 0 || sender.send(event).is_err() {
                 watchers.remove(service_type);
@@ -1134,7 +1200,10 @@ impl ConsulDiscovery {
 
     /// Removes watcher sender for `service_type` if all receivers are dropped.
     fn compact_dead_watch_sender(&self, service_type: &str) {
-        let mut watchers = self.watchers.lock().unwrap();
+        let mut watchers = self
+            .watchers
+            .lock()
+            .expect("consul discovery watchers mutex should not be poisoned");
         if watchers
             .get(service_type)
             .map(|s| s.receiver_count() == 0)
@@ -1148,14 +1217,17 @@ impl ConsulDiscovery {
     fn compact_dead_watch_senders(&self) {
         self.watchers
             .lock()
-            .unwrap()
+            .expect("consul discovery watchers mutex should not be poisoned")
             .retain(|_, sender| sender.receiver_count() > 0);
     }
 
     /// Returns true only when a new poll loop should be spawned for the service type.
     fn should_spawn_watch_poll(&self, service_type: &str) -> bool {
         let generation = self.watch_generation.load(Ordering::SeqCst);
-        let mut active = self.watch_poll_generations.lock().unwrap();
+        let mut active = self
+            .watch_poll_generations
+            .lock()
+            .expect("consul discovery watch_poll_generations mutex should not be poisoned");
         match active.get(service_type).copied() {
             Some(g) if g == generation => false,
             _ => {
@@ -1167,7 +1239,10 @@ impl ConsulDiscovery {
 
     /// Cleans a poll-generation entry if it still matches the expected generation.
     fn cleanup_watch_poll_generation(&self, service_type: &str, generation: u64) {
-        let mut active = self.watch_poll_generations.lock().unwrap();
+        let mut active = self
+            .watch_poll_generations
+            .lock()
+            .expect("consul discovery watch_poll_generations mutex should not be poisoned");
         if active.get(service_type).copied() == Some(generation) {
             active.remove(service_type);
         }
@@ -1184,7 +1259,10 @@ impl ServiceDiscovery for ConsulDiscovery {
         );
 
         // Cache-only for sync API.
-        let mut services = self.services.write().unwrap();
+        let mut services = self
+            .services
+            .write()
+            .expect("consul discovery services write lock should not be poisoned");
         if services.contains_key(&service.id) {
             return Err(DiscoveryError::AlreadyRegistered(service.id.clone()));
         }
@@ -1201,7 +1279,10 @@ impl ServiceDiscovery for ConsulDiscovery {
         );
 
         // Cache-only for sync API.
-        let services = self.services.read().unwrap();
+        let services = self
+            .services
+            .read()
+            .expect("consul discovery services read lock should not be poisoned");
         Ok(services
             .values()
             .filter(|s| s.service_type == service_type)
@@ -1225,7 +1306,10 @@ impl ServiceDiscovery for ConsulDiscovery {
             "Deregistering service from Consul"
         );
 
-        let mut services = self.services.write().unwrap();
+        let mut services = self
+            .services
+            .write()
+            .expect("consul discovery services write lock should not be poisoned");
         let service = services
             .remove(service_id)
             .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
@@ -1253,7 +1337,10 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
         }
         self.compact_dead_watch_senders();
         self.watch_generation.fetch_add(1, Ordering::SeqCst);
-        self.watch_poll_generations.lock().unwrap().clear();
+        self.watch_poll_generations
+            .lock()
+            .expect("consul discovery watch_poll_generations mutex should not be poisoned")
+            .clear();
         Ok(())
     }
 
@@ -1313,7 +1400,7 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
 
         self.services
             .write()
-            .unwrap()
+            .expect("consul discovery services write lock should not be poisoned")
             .insert(service.id.clone(), service.clone());
         let service_type = service.service_type.clone();
         self.notify_watchers(&service_type, DiscoveryEvent::ServiceAdded(service));
@@ -1412,7 +1499,7 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
         let service = self
             .services
             .write()
-            .unwrap()
+            .expect("consul discovery services write lock should not be poisoned")
             .remove(service_id)
             .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
         self.notify_watchers(
