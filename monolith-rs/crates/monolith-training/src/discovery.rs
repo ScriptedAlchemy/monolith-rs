@@ -1709,6 +1709,35 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_normalize_consul_address_for_operation_defaults_empty_address() {
+        let normalized = normalize_consul_address_for_operation("connect", "")
+            .expect("empty address should normalize to default local Consul endpoint");
+        assert_eq!(
+            normalized, "http://127.0.0.1:8500",
+            "empty Consul address should normalize to default endpoint"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_normalize_consul_address_for_operation_rejects_invalid_ipv6_suffix() {
+        let result =
+            normalize_consul_address_for_operation("register_entity", "http://[::1]x:8500");
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("register_entity")
+                        && msg.contains("invalid address")
+                        && msg.contains("invalid authority"),
+                    "invalid IPv6 suffix should be rejected as config error with operation context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for invalid IPv6 suffix, got {other:?}"),
+        }
+    }
+
     #[test]
     fn test_in_memory_register_and_discover() {
         let discovery = InMemoryDiscovery::new();
@@ -3877,6 +3906,23 @@ mod tests {
                 );
             }
             other => panic!("expected ConfigError for whitespace authority address, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_empty_address_uses_default_endpoint_context() {
+        let consul = ConsulDiscovery::new("");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        match result {
+            Err(DiscoveryError::Internal(msg)) => {
+                assert!(
+                    msg.contains("get_service_nodes") && msg.contains("8500"),
+                    "empty-address discover path should normalize to default endpoint and preserve port context: {msg}"
+                );
+            }
+            other => panic!("expected Internal connection failure for empty Consul address, got {other:?}"),
         }
     }
 
