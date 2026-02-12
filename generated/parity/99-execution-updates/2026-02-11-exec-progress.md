@@ -6886,6 +6886,16 @@
   - removed all `.unwrap()` call-sites from base embedding task module
     (**0 remaining**), preserving vocab parsing parity behavior.
 
+### 507) Barrier module unwrap diagnostics completion
+- Tightened remaining `.unwrap()` assertions in
+  `crates/monolith-training/src/barrier.rs` tests by replacing them with
+  explicit `expect(...)` diagnostics for:
+  - ephemeral listener bind/local_addr setup,
+  - PS client connect setup across barrier test lanes.
+- Result:
+  - removed all `.unwrap()` call-sites from barrier module (**0 remaining**)
+    while preserving barrier behavior/error mapping assertions.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7955,6 +7965,8 @@
 1066. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/runner.rs` ✅ (verified no remaining unwrap call-sites in runner module)
 1067. `cargo test -p monolith-training base_embedding_task::tests:: -- --nocapture` ✅ (validated base embedding task vocab parsing parity tests after unwrap-diagnostics completion)
 1068. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/base_embedding_task.rs` ✅ (verified no remaining unwrap call-sites in base embedding task module)
+1069. `cargo test -p monolith-training barrier::tests:: -- --nocapture` ✅ (validated barrier unit-test suite after unwrap-diagnostics tightening)
+1070. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/barrier.rs` ✅ (verified no remaining unwrap call-sites in barrier module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

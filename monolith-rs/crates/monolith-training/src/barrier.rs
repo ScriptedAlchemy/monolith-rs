@@ -114,9 +114,9 @@ mod tests {
     #[tokio::test]
     async fn test_ps_barrier_allows_parallel_waits() {
         let bind = std::net::TcpListener::bind("127.0.0.1:0")
-            .unwrap()
+            .expect("ephemeral listener bind should succeed")
             .local_addr()
-            .unwrap();
+            .expect("ephemeral listener local_addr lookup should succeed");
         let ps = PsServer::new(0, 2);
         let server = tokio::spawn(async move {
             let _ = serve_ps(ps, bind).await;
@@ -124,7 +124,9 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed for barrier parallel-wait test");
         let barrier = Arc::new(PsBarrier::new(client, 500));
         let b0 = barrier.clone();
         let b1 = barrier.clone();
@@ -142,9 +144,9 @@ mod tests {
     #[tokio::test]
     async fn test_ps_barrier_maps_timeout_to_barrier_timeout() {
         let bind = std::net::TcpListener::bind("127.0.0.1:0")
-            .unwrap()
+            .expect("ephemeral listener bind should succeed")
             .local_addr()
-            .unwrap();
+            .expect("ephemeral listener local_addr lookup should succeed");
         let ps = PsServer::new(0, 2);
         let server = tokio::spawn(async move {
             let _ = serve_ps(ps, bind).await;
@@ -152,7 +154,9 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed for timeout-mapping test");
         let barrier = PsBarrier::new(client, 20);
         let err = barrier
             .wait("timeout_case", 0, 2)
@@ -166,9 +170,9 @@ mod tests {
     #[tokio::test]
     async fn test_ps_barrier_maps_invalid_config_error() {
         let bind = std::net::TcpListener::bind("127.0.0.1:0")
-            .unwrap()
+            .expect("ephemeral listener bind should succeed")
             .local_addr()
-            .unwrap();
+            .expect("ephemeral listener local_addr lookup should succeed");
         let ps = PsServer::new(0, 2);
         let server = tokio::spawn(async move {
             let _ = serve_ps(ps, bind).await;
@@ -176,7 +180,9 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed for invalid-config mapping test");
         let barrier = PsBarrier::new(client, 100);
         let err = barrier
             .wait("bad_cfg", -1, 2)
