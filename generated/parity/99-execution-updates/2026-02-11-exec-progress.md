@@ -4230,6 +4230,15 @@
     in-memory watcher behavior.
   - Full monolith-training regression remains green.
 
+### 310) Discover-failure/discovery-error naming symmetry closure
+- Added naming-alias wrappers to close terminology drift between
+  `worker_discover_failure` and `worker_discovery_error` test families:
+  - `runner.rs`: +40 wrappers (`discover_failure -> discovery_error`)
+  - `native_training_parity.rs`: +12 wrappers (`discovery_error -> discover_failure`)
+- Result:
+  - Both directional transforms now report `missing 0` in both files.
+  - Full monolith-training regression remains green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5000,6 +5009,10 @@
 767. `python3` final directional audit ✅ (`runner.rs` and `native_training_parity.rs` generic `preserves_ -> surfaces_` both `missing 0`)
 768. `ZK_AUTH=user:pass cargo test -p monolith-training test_spawn_watch_poll_loop_emits_updated_events -- --nocapture` ✅
 769. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post discovery watch update-event semantics hardening full monolith-training regression rerun)
+770. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_surfaces_worker_discovery_error_with_default_service_type_when_cleanup_steps_timeout -- --nocapture` ✅
+771. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_worker_discover_failure_when_cleanup_times_out -- --nocapture` ✅
+772. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post discover-failure/discovery-error naming alias additions full monolith-training regression rerun)
+773. `python3` discover-failure/discovery-error symmetry audit ✅ (both directional transforms `missing 0` in `runner.rs` and `native_training_parity.rs`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
