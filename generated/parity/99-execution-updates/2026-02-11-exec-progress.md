@@ -4514,6 +4514,16 @@
     when `NotFound` is returned.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 332) ZK NotFound stale-path cleanup hardening
+- Hardened `ZkDiscovery::deregister_async(...)`:
+  - `NotFound` path now best-effort clears any stale `registered_paths` entry.
+- Added feature-gated regression:
+  - `test_zk_async_deregister_missing_service_cleans_stale_registered_path`
+- Result:
+  - Drift between local service cache and registered-path bookkeeping no longer
+    accumulates stale path entries on repeated NotFound deregister attempts.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5335,6 +5345,8 @@
 818. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister_config_error -- --nocapture` ✅ (feature-gated Consul config-error async-deregister watcher notification + dead-sender compaction verification)
 819. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post missing-service async-deregister watcher-preservation coverage additions default-lane regression rerun)
 820. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" missing_service_preserves_watchers -- --nocapture` ✅ (feature-gated ZK/Consul missing-service async-deregister watcher-preservation verification)
+821. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post ZK NotFound stale-path cleanup hardening default-lane regression rerun)
+822. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" stale_registered_path -- --nocapture` ✅ (feature-gated ZK stale registered-path cleanup on async-deregister NotFound verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

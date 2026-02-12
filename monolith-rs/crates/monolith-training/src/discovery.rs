@@ -931,12 +931,18 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
     }
 
     async fn deregister_async(&self, service_id: &str) -> Result<()> {
-        let service = self
-            .services
-            .write()
-            .unwrap()
-            .remove(service_id)
-            .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
+        let service = match {
+            let mut services = self.services.write().unwrap();
+            services.remove(service_id)
+        } {
+            Some(service) => service,
+            None => {
+                // Best-effort stale-path cleanup for drift between local cache and
+                // backend registration bookkeeping.
+                self.registered_paths.lock().await.remove(service_id);
+                return Err(DiscoveryError::NotFound(service_id.to_string()));
+            }
+        };
         self.notify_watchers(
             &service.service_type,
             DiscoveryEvent::ServiceRemoved(service_id.to_string()),
@@ -2325,6 +2331,26 @@ mod tests {
             Err(DiscoveryError::NotFound(id)) => assert_eq!(id, "missing"),
             other => panic!("expected NotFound error, got {other:?}"),
         }
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_missing_service_cleans_stale_registered_path() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("missing".to_string(), "/services/ps/missing".to_string());
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "missing").await;
+        match result {
+            Err(DiscoveryError::NotFound(id)) => assert_eq!(id, "missing"),
+            other => panic!("expected NotFound error, got {other:?}"),
+        }
+        assert!(
+            !zk.registered_paths.lock().await.contains_key("missing"),
+            "NotFound path should still clear stale registered path entry"
+        );
     }
 
     #[cfg(feature = "zookeeper")]
