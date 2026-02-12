@@ -9,7 +9,8 @@ fn refresh_sync_config_from_zk_backend_matches_python() {
     // Mirrors `monolith/native_training/distributed_serving_ops_test.py::test_refresh_sync_config_2`.
     let zk = std::sync::Arc::new(FakeKazooClient::new());
     let bd = ZkBackend::new("demo", zk);
-    bd.start().unwrap();
+    bd.start()
+        .expect("ZkBackend start should succeed for fake client");
 
     let container = Container::new("default", "asdf");
     let service_info = ContainerServiceInfo {
@@ -20,7 +21,8 @@ fn refresh_sync_config_from_zk_backend_matches_python() {
         idc: Some("lf".to_string()),
         debug_info: None,
     };
-    bd.report_service_info(&container, &service_info).unwrap();
+    bd.report_service_info(&container, &service_info)
+        .expect("report_service_info should succeed");
     bd.sync_available_saved_models(
         &container,
         HashSet::from([
@@ -29,15 +31,16 @@ fn refresh_sync_config_from_zk_backend_matches_python() {
             SavedModel::new("test_ffm_model", "ps_2"),
         ]),
     )
-    .unwrap();
+    .expect("sync_available_saved_models should succeed");
 
-    bd.subscribe_model("test_ffm_model").unwrap();
+    bd.subscribe_model("test_ffm_model")
+        .expect("subscribe_model should succeed");
 
-    let cfg = refresh_sync_config(&bd, 1).unwrap();
+    let cfg = refresh_sync_config(&bd, 1).expect("refresh_sync_config should succeed");
     assert_eq!(cfg.model_name.as_deref(), Some("test_ffm_model:ps_1"));
     assert_eq!(cfg.targets, vec!["localhost:8888".to_string()]);
     assert_eq!(cfg.signature_name.as_deref(), Some("hashtable_assign"));
     assert_eq!(cfg.timeout_in_ms, Some(3000));
 
-    bd.stop().unwrap();
+    bd.stop().expect("ZkBackend stop should succeed");
 }

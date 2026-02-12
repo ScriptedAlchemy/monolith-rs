@@ -29,7 +29,7 @@ fn test_enqueue_dicts_preserves_non_tensor_structure() {
     root.insert("v".to_string(), Nested::Tensor(Placed::cpu(5i64)));
 
     let (templ, q) = enqueue_dicts_with_queue_return(Nested::Map(root.clone()), 2);
-    let q = q.expect("queue");
+    let q = q.expect("non-zero capacity should return queue metadata");
 
     // Non-tensor leaves are already present in template.
     let m = if let Nested::Map(m) = templ {
@@ -58,8 +58,13 @@ fn test_enqueue_dicts_preserves_non_tensor_structure() {
     // Flatten + enqueue + dequeue + rebuild.
     let mut flat = Vec::new();
     Nested::Map(root).flatten_tensors(&mut flat);
-    q.queue.enqueue(&flat).unwrap();
-    let flat_out = q.queue.dequeue().unwrap();
+    q.queue
+        .enqueue(&flat)
+        .expect("queue enqueue should succeed for flattened tensors");
+    let flat_out = q
+        .queue
+        .dequeue()
+        .expect("queue dequeue should succeed for enqueued tensors");
     let rebuilt = q.token_template.fill_from_tokens(&flat_out);
 
     let m = if let Nested::Map(m) = rebuilt {
@@ -110,7 +115,8 @@ fn test_async_function_mgr_end_drains_remaining_ops() {
 
     let mut hooks = mgr.hooks();
     for h in hooks.iter_mut() {
-        h.end(0, None).unwrap();
+        h.end(0, None)
+            .expect("async push hook end should drain queue without errors");
     }
     // Queue drain executes all enqueued functions.
     assert_eq!(counter.load(Ordering::SeqCst), 3);
