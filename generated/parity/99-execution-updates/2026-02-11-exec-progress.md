@@ -4268,6 +4268,21 @@
     disconnect-driven watch lifecycle invalidation is wired correctly.
   - Default and feature-gated monolith-training test runs remain green.
 
+### 313) Poll-loop spawn deduplication by service type + generation
+- Hardened ZK/Consul `watch_async(...)` lifecycle to avoid duplicate poll loops:
+  - Added `watch_poll_generations` state per backend.
+  - `should_spawn_watch_poll(service_type)` now ensures at most one active poll
+    loop per `(service_type, generation)`.
+  - `disconnect()` clears poll-generation state while bumping generation.
+- Added feature-gated regressions:
+  - `test_zk_should_spawn_watch_poll_once_per_generation`
+  - `test_consul_should_spawn_watch_poll_once_per_generation`
+- Result:
+  - Repeated watcher subscriptions no longer spawn redundant poll tasks in the
+    same lifecycle generation.
+  - Pollers can still respawn cleanly after disconnect lifecycle transitions.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5048,6 +5063,8 @@
 777. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_spawn_watch_poll_loop_stops_when_continue_predicate_false -- --nocapture` ✅ (feature-gated discovery backend compile/runtime verification)
 778. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post feature-gated disconnect-generation tests addition default-lane regression rerun)
 779. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" disconnect_increments_watch_generation -- --nocapture` ✅ (feature-gated ZK/Consul disconnect-generation regression verification)
+780. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post watch-poll spawn deduplication additions default-lane regression rerun)
+781. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" should_spawn_watch_poll_once_per_generation -- --nocapture` ✅ (feature-gated ZK/Consul watch-poll deduplication regression verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
