@@ -7053,6 +7053,16 @@
   - removed all `.unwrap()` call-sites from runner-utils module (**0 remaining**),
     preserving checkpoint/discovery parity behavior.
 
+### 524) Distributed-PS unwrap diagnostics completion
+- Tightened `crates/monolith-training/src/distributed_ps.rs` unwrap usage by:
+  - adding a shared `test_bind_addr()` helper for ephemeral bind setup,
+  - replacing remaining unwrap assertions in PS server stats/barrier tests and
+    PS client lookup/apply/barrier/health/stats/batch tests with explicit
+    `expect(...)` diagnostics.
+- Result:
+  - removed all `.unwrap()` call-sites from distributed-ps module
+    (**0 remaining**), preserving PS RPC and shard-routing parity behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8156,6 +8166,9 @@
 1100. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/distributed.rs` ✅ (verified only doc-comment unwrap example remains in distributed module)
 1101. `cargo test -p monolith-training runner_utils::tests:: -- --nocapture` ✅ (validated runner-utils unit-test suite after checkpoint/discovery unwrap-diagnostics tightening)
 1102. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/runner_utils.rs` ✅ (verified no remaining unwrap call-sites in runner-utils module)
+1103. `cargo test -p monolith-training distributed_ps::tests::test_ps_client_ -- --nocapture` ✅ (validated distributed-ps client-heavy test lanes after unwrap-diagnostics tightening)
+1104. `cargo test -p monolith-training distributed_ps::tests::test_ps_server_ -- --nocapture && cargo test -p monolith-training distributed_ps::tests::test_ps_client_lookup_and_apply_across_shards -- --nocapture` ✅ (validated distributed-ps server barrier/stats lanes and shard lookup/apply lane after unwrap-diagnostics tightening)
+1105. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/distributed_ps.rs` ✅ (verified no remaining unwrap call-sites in distributed-ps module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

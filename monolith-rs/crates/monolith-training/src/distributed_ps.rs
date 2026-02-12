@@ -1451,6 +1451,13 @@ mod tests {
         assert_eq!(get_shard_for_id(100, 0), 0); // edge case
     }
 
+    fn test_bind_addr() -> std::net::SocketAddr {
+        TcpListener::bind("127.0.0.1:0")
+            .expect("ephemeral listener bind should succeed")
+            .local_addr()
+            .expect("ephemeral listener local_addr lookup should succeed")
+    }
+
     #[tokio::test]
     async fn test_ps_server_stats_tracks_average_latency() {
         let ps = PsServer::new(0, 2);
@@ -1465,7 +1472,7 @@ mod tests {
                 timeout_ms: 1000,
             }))
             .await
-            .unwrap();
+            .expect("lookup RPC should succeed for latency stats test");
 
         let _ = handle
             .apply_gradients(Request::new(ApplyGradientsRequest {
@@ -1478,14 +1485,14 @@ mod tests {
                 timeout_ms: 1000,
             }))
             .await
-            .unwrap();
+            .expect("apply_gradients RPC should succeed for latency stats test");
 
         let stats = handle
             .get_stats(Request::new(GetStatsRequest {
                 include_table_stats: true,
             }))
             .await
-            .unwrap()
+            .expect("get_stats RPC should succeed for latency stats test")
             .into_inner();
 
         assert_eq!(stats.lookup_count, 1);
@@ -1511,7 +1518,7 @@ mod tests {
                 timeout_ms: 1000,
             }))
             .await
-            .unwrap()
+            .expect("apply_gradients RPC should succeed for failed-apply stats test")
             .into_inner();
         assert_eq!(bad.status_code, 1);
 
@@ -1520,7 +1527,7 @@ mod tests {
                 include_table_stats: false,
             }))
             .await
-            .unwrap()
+            .expect("get_stats RPC should succeed for failed-apply stats test")
             .into_inner();
         assert_eq!(stats.apply_gradients_count, 1);
         assert!(stats.avg_apply_latency_us >= 1);
@@ -1545,8 +1552,12 @@ mod tests {
             handle.barrier(Request::new(req0.clone())),
             handle.barrier(Request::new(req1.clone()))
         );
-        let r1 = r1.unwrap().into_inner();
-        let r2 = r2.unwrap().into_inner();
+        let r1 = r1
+            .expect("first barrier RPC should succeed")
+            .into_inner();
+        let r2 = r2
+            .expect("second barrier RPC should succeed")
+            .into_inner();
         assert_eq!(r1.status_code, 0);
         assert_eq!(r2.status_code, 0);
         assert_eq!(r1.num_arrived, 2);
@@ -1557,8 +1568,18 @@ mod tests {
             handle.barrier(Request::new(req0)),
             handle.barrier(Request::new(req1))
         );
-        assert_eq!(r3.unwrap().into_inner().status_code, 0);
-        assert_eq!(r4.unwrap().into_inner().status_code, 0);
+        assert_eq!(
+            r3.expect("third barrier RPC should succeed")
+                .into_inner()
+                .status_code,
+            0
+        );
+        assert_eq!(
+            r4.expect("fourth barrier RPC should succeed")
+                .into_inner()
+                .status_code,
+            0
+        );
     }
 
     #[tokio::test]
@@ -1575,7 +1596,7 @@ mod tests {
                 timeout_ms: 50,
             }))
             .await
-            .unwrap()
+            .expect("barrier RPC should succeed for initial cardinality setup")
             .into_inner();
         assert_eq!(ok.status_code, 0);
 
@@ -1588,7 +1609,7 @@ mod tests {
                 timeout_ms: 50,
             }))
             .await
-            .unwrap()
+            .expect("barrier RPC should succeed for mismatch response path")
             .into_inner();
         assert_eq!(bad.status_code, 1);
         assert!(bad.error_message.contains("expects num_workers=1"));
@@ -1607,7 +1628,7 @@ mod tests {
                 timeout_ms: 50,
             }))
             .await
-            .unwrap()
+            .expect("barrier RPC should succeed for worker-id range validation response path")
             .into_inner();
         assert_eq!(bad.status_code, 1);
         assert!(bad.error_message.contains("out of range"));
@@ -1634,7 +1655,7 @@ mod tests {
         let dup = handle
             .barrier(Request::new(req))
             .await
-            .unwrap()
+            .expect("duplicate-arrival barrier RPC should return response")
             .into_inner();
         assert_eq!(dup.status_code, 1);
         assert!(dup.error_message.contains("already arrived"));
@@ -1647,11 +1668,15 @@ mod tests {
                 timeout_ms: 300,
             }))
             .await
-            .unwrap()
+            .expect("peer-arrival barrier RPC should return response")
             .into_inner();
         assert_eq!(peer.status_code, 0);
 
-        let first = first.await.unwrap().unwrap().into_inner();
+        let first = first
+            .await
+            .expect("spawned first-arrival barrier task should join successfully")
+            .expect("first-arrival barrier RPC should succeed")
+            .into_inner();
         assert_eq!(first.status_code, 0);
     }
 
@@ -1668,7 +1693,7 @@ mod tests {
                 timeout_ms: 20,
             }))
             .await
-            .unwrap()
+            .expect("timeout barrier RPC should return timeout response")
             .into_inner();
         assert_eq!(timeout.status_code, 1);
         assert_eq!(timeout.num_arrived, 0);
@@ -1687,20 +1712,24 @@ mod tests {
             handle.barrier(Request::new(req0)),
             handle.barrier(Request::new(req1))
         );
-        assert_eq!(r1.unwrap().into_inner().status_code, 0);
-        assert_eq!(r2.unwrap().into_inner().status_code, 0);
+        assert_eq!(
+            r1.expect("retry barrier RPC (worker 0) should succeed")
+                .into_inner()
+                .status_code,
+            0
+        );
+        assert_eq!(
+            r2.expect("retry barrier RPC (worker 1) should succeed")
+                .into_inner()
+                .status_code,
+            0
+        );
     }
 
     #[tokio::test]
     async fn test_ps_client_lookup_and_apply_across_shards() {
-        let bind0 = TcpListener::bind("127.0.0.1:0")
-            .unwrap()
-            .local_addr()
-            .unwrap();
-        let bind1 = TcpListener::bind("127.0.0.1:0")
-            .unwrap()
-            .local_addr()
-            .unwrap();
+        let bind0 = test_bind_addr();
+        let bind1 = test_bind_addr();
 
         let ps0 = PsServer::new(0, 2);
         let ps1 = PsServer::new(1, 2);
@@ -1715,9 +1744,14 @@ mod tests {
 
         let addr0 = bind0.to_string();
         let addr1 = bind1.to_string();
-        let client = PsClient::connect(&[&addr0, &addr1]).await.unwrap();
+        let client = PsClient::connect(&[&addr0, &addr1])
+            .await
+            .expect("ps client connect should succeed for sharded apply/lookup test");
 
-        let initial = client.lookup("emb", &[0, 1, 2, 3], 2, true).await.unwrap();
+        let initial = client
+            .lookup("emb", &[0, 1, 2, 3], 2, true)
+            .await
+            .expect("initial lookup should succeed");
         assert_eq!(initial, vec![0.0; 8]);
 
         let (updated, not_found) = client
@@ -1730,11 +1764,14 @@ mod tests {
                 1,
             )
             .await
-            .unwrap();
+            .expect("apply_gradients should succeed");
         assert_eq!(updated, 3);
         assert_eq!(not_found, 0);
 
-        let after = client.lookup("emb", &[0, 1, 3], 2, false).await.unwrap();
+        let after = client
+            .lookup("emb", &[0, 1, 3], 2, false)
+            .await
+            .expect("post-update lookup should succeed");
         assert_eq!(after, vec![-3.0, -4.0, -1.5, -2.0, -3.5, -4.0]);
 
         h0.abort();
@@ -1743,7 +1780,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ps_client_detailed_lookup_and_apply_metadata() {
-        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let bind = test_bind_addr();
         let ps = PsServer::new(0, 2);
         let server = tokio::spawn(async move {
             let _ = serve_ps(ps, bind).await;
@@ -1751,15 +1788,23 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
 
-        let first_lookup = client.lookup_detailed("meta", &[7, 7, 9], 2, true).await.unwrap();
+        let first_lookup = client
+            .lookup_detailed("meta", &[7, 7, 9], 2, true)
+            .await
+            .expect("first detailed lookup should succeed");
         assert_eq!(first_lookup.status_code, 0);
         assert_eq!(first_lookup.found, vec![false, false, false]);
         assert_eq!(first_lookup.num_found, 0);
         assert_eq!(first_lookup.num_initialized, 3);
 
-        let second_lookup = client.lookup_detailed("meta", &[7, 9], 2, false).await.unwrap();
+        let second_lookup = client
+            .lookup_detailed("meta", &[7, 9], 2, false)
+            .await
+            .expect("second detailed lookup should succeed");
         assert_eq!(second_lookup.status_code, 0);
         assert_eq!(second_lookup.found, vec![true, true]);
         assert_eq!(second_lookup.num_found, 2);
@@ -1768,7 +1813,7 @@ mod tests {
         let apply_resp = client
             .apply_gradients_detailed("meta", &[7, 9], &[1.0, 2.0, 3.0, 4.0], 2, 0.1, 1)
             .await
-            .unwrap();
+            .expect("detailed apply_gradients should succeed");
         assert_eq!(apply_resp.status_code, 0);
         assert_eq!(apply_resp.num_updated, 2);
         assert_eq!(apply_resp.num_not_found, 0);
@@ -1784,7 +1829,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ps_client_supports_parallel_immutable_lookups() {
-        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let bind = test_bind_addr();
         let ps = PsServer::new(0, 2);
         let server = tokio::spawn(async move {
             let _ = serve_ps(ps, bind).await;
@@ -1792,15 +1837,26 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let client = PsClient::connect(&[&addr]).await.unwrap();
-        client.lookup("immut", &[1, 2], 2, true).await.unwrap();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
+        client
+            .lookup("immut", &[1, 2], 2, true)
+            .await
+            .expect("initial immutable lookup should succeed");
 
         let (left, right) = tokio::join!(
             client.lookup("immut", &[1], 2, false),
             client.lookup("immut", &[2], 2, false)
         );
-        assert_eq!(left.unwrap(), vec![0.0, 0.0]);
-        assert_eq!(right.unwrap(), vec![0.0, 0.0]);
+        assert_eq!(
+            left.expect("left immutable lookup should succeed"),
+            vec![0.0, 0.0]
+        );
+        assert_eq!(
+            right.expect("right immutable lookup should succeed"),
+            vec![0.0, 0.0]
+        );
 
         server.abort();
     }
@@ -1878,7 +1934,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ps_client_barrier_on_shard_rejects_invalid_index() {
-        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let bind = test_bind_addr();
         let ps = PsServer::new(0, 2);
         let server = tokio::spawn(async move {
             let _ = serve_ps(ps, bind).await;
@@ -1886,7 +1942,9 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
         let err = client
             .barrier_on_shard(1, "bshard", 0, 1, 100)
             .await
@@ -1897,14 +1955,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_ps_client_barrier_on_shard_routes_to_selected_coordinator() {
-        let bind0 = TcpListener::bind("127.0.0.1:0")
-            .unwrap()
-            .local_addr()
-            .unwrap();
-        let bind1 = TcpListener::bind("127.0.0.1:0")
-            .unwrap()
-            .local_addr()
-            .unwrap();
+        let bind0 = test_bind_addr();
+        let bind1 = test_bind_addr();
 
         let ps0 = PsServer::new(0, 2);
         let ps1 = PsServer::new(1, 2);
@@ -1918,15 +1970,20 @@ mod tests {
 
         let addr0 = bind0.to_string();
         let addr1 = bind1.to_string();
-        let client = PsClient::connect(&[&addr0, &addr1]).await.unwrap();
+        let client = PsClient::connect(&[&addr0, &addr1])
+            .await
+            .expect("ps client connect should succeed for barrier shard-routing test");
 
         // Use shard 1 as explicit barrier coordinator.
         client
             .barrier_on_shard(1, "explicit_shard", 0, 1, 200)
             .await
-            .unwrap();
+            .expect("barrier_on_shard should succeed on explicit coordinator");
         // Default barrier should still use shard 0 and succeed independently.
-        client.barrier("default_shard0", 0, 1, 200).await.unwrap();
+        client
+            .barrier("default_shard0", 0, 1, 200)
+            .await
+            .expect("default barrier should succeed independently");
 
         h0.abort();
         h1.abort();
@@ -1934,7 +1991,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ps_client_barrier_maps_timeout_error() {
-        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let bind = test_bind_addr();
         let ps = PsServer::new(0, 2);
         let server = tokio::spawn(async move {
             let _ = serve_ps(ps, bind).await;
@@ -1942,7 +1999,9 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
         let err = client
             .barrier("bt", 0, 2, 20)
             .await
@@ -1953,7 +2012,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ps_client_barrier_maps_mismatch_to_invalid_config() {
-        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let bind = test_bind_addr();
         let ps = PsServer::new(0, 2);
         let server = tokio::spawn(async move {
             let _ = serve_ps(ps, bind).await;
@@ -1961,9 +2020,14 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
         // Initializes barrier "bm" with num_workers=1.
-        client.barrier("bm", 0, 1, 200).await.unwrap();
+        client
+            .barrier("bm", 0, 1, 200)
+            .await
+            .expect("initial barrier should succeed");
         // Reusing same barrier id with incompatible num_workers should become InvalidConfig.
         let err = client
             .barrier("bm", 0, 2, 200)
@@ -1975,7 +2039,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ps_client_health_and_stats_shard_methods() {
-        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let bind = test_bind_addr();
         let ps = PsServer::new(0, 2);
         let server = tokio::spawn(async move {
             let _ = serve_ps(ps, bind).await;
@@ -1983,16 +2047,27 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
 
-        let health = client.health_check_shard(0, "ps").await.unwrap();
+        let health = client
+            .health_check_shard(0, "ps")
+            .await
+            .expect("health_check_shard should succeed");
         assert_eq!(
             health.status,
             monolith_proto::monolith::ps_training::health_check_response::Status::Healthy as i32
         );
 
-        let _ = client.lookup("emb", &[1, 2], 2, true).await.unwrap();
-        let stats = client.get_stats_shard(0, true).await.unwrap();
+        let _ = client
+            .lookup("emb", &[1, 2], 2, true)
+            .await
+            .expect("lookup should succeed before stats request");
+        let stats = client
+            .get_stats_shard(0, true)
+            .await
+            .expect("get_stats_shard should succeed");
         assert_eq!(stats.shard_id, 0);
         assert!(stats.lookup_count >= 1);
         assert!(stats.total_embeddings >= 2);
@@ -2002,7 +2077,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ps_client_default_health_and_stats_methods() {
-        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let bind = test_bind_addr();
         let ps = PsServer::new(0, 2);
         let server = tokio::spawn(async move {
             let _ = serve_ps(ps, bind).await;
@@ -2010,15 +2085,26 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let client = PsClient::connect(&[&addr]).await.unwrap();
-        let health = client.health_check("ps").await.unwrap();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
+        let health = client
+            .health_check("ps")
+            .await
+            .expect("default health_check should succeed");
         assert_eq!(
             health.status,
             monolith_proto::monolith::ps_training::health_check_response::Status::Healthy as i32
         );
 
-        let _ = client.lookup("emb", &[1], 2, true).await.unwrap();
-        let stats = client.get_stats(false).await.unwrap();
+        let _ = client
+            .lookup("emb", &[1], 2, true)
+            .await
+            .expect("lookup should succeed before default stats request");
+        let stats = client
+            .get_stats(false)
+            .await
+            .expect("default get_stats should succeed");
         assert_eq!(stats.shard_id, 0);
         assert!(stats.lookup_count >= 1);
 
@@ -2027,14 +2113,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_ps_client_health_and_stats_all_methods() {
-        let bind0 = TcpListener::bind("127.0.0.1:0")
-            .unwrap()
-            .local_addr()
-            .unwrap();
-        let bind1 = TcpListener::bind("127.0.0.1:0")
-            .unwrap()
-            .local_addr()
-            .unwrap();
+        let bind0 = test_bind_addr();
+        let bind1 = test_bind_addr();
 
         let ps0 = PsServer::new(0, 2);
         let ps1 = PsServer::new(1, 2);
@@ -2048,9 +2128,14 @@ mod tests {
 
         let addr0 = bind0.to_string();
         let addr1 = bind1.to_string();
-        let client = PsClient::connect(&[&addr0, &addr1]).await.unwrap();
+        let client = PsClient::connect(&[&addr0, &addr1])
+            .await
+            .expect("ps client connect should succeed for all-shards health/stats test");
 
-        let healths = client.health_check_all("ps").await.unwrap();
+        let healths = client
+            .health_check_all("ps")
+            .await
+            .expect("health_check_all should succeed");
         assert_eq!(healths.len(), 2);
         assert!(healths.iter().all(|h| {
             h.status
@@ -2058,7 +2143,10 @@ mod tests {
                     as i32
         }));
 
-        let stats = client.get_stats_all(false).await.unwrap();
+        let stats = client
+            .get_stats_all(false)
+            .await
+            .expect("get_stats_all should succeed");
         assert_eq!(stats.len(), 2);
         assert!(stats.iter().any(|s| s.shard_id == 0));
         assert!(stats.iter().any(|s| s.shard_id == 1));
@@ -2084,7 +2172,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ps_client_batch_lookup_and_apply() {
-        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let bind = test_bind_addr();
         let ps = PsServer::new(0, 2);
         let server = tokio::spawn(async move {
             let _ = serve_ps(ps, bind).await;
@@ -2092,7 +2180,9 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
 
         let lookup_batch = BatchLookupRequest {
             requests: vec![
@@ -2112,7 +2202,10 @@ mod tests {
                 },
             ],
         };
-        let lookup_resp = client.batch_lookup(lookup_batch).await.unwrap();
+        let lookup_resp = client
+            .batch_lookup(lookup_batch)
+            .await
+            .expect("batch_lookup should succeed");
         assert_eq!(lookup_resp.responses.len(), 2);
         assert!(lookup_resp.responses.iter().all(|r| r.status_code == 0));
         assert_eq!(lookup_resp.responses[0].embeddings.len(), 4);
@@ -2141,7 +2234,10 @@ mod tests {
                 },
             ],
         };
-        let apply_resp = client.batch_apply_gradients(apply_batch).await.unwrap();
+        let apply_resp = client
+            .batch_apply_gradients(apply_batch)
+            .await
+            .expect("batch_apply_gradients should succeed");
         assert_eq!(apply_resp.responses.len(), 2);
         assert_eq!(apply_resp.responses[0].status_code, 0);
         assert_eq!(apply_resp.responses[1].status_code, 1);
@@ -2151,7 +2247,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ps_client_batch_lookup_preserves_duplicate_found_flags() {
-        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let bind = test_bind_addr();
         let ps = PsServer::new(0, 2);
         let server = tokio::spawn(async move {
             let _ = serve_ps(ps, bind).await;
@@ -2159,7 +2255,9 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
 
         // First lookup initializes missing IDs and should report all as newly initialized.
         let first = client
@@ -2173,7 +2271,7 @@ mod tests {
                 }],
             })
             .await
-            .unwrap();
+            .expect("first batch_lookup should succeed");
         assert_eq!(first.responses.len(), 1);
         let first_resp = &first.responses[0];
         assert_eq!(first_resp.status_code, 0);
@@ -2193,7 +2291,7 @@ mod tests {
                 }],
             })
             .await
-            .unwrap();
+            .expect("second batch_lookup should succeed");
         let second_resp = &second.responses[0];
         assert_eq!(second_resp.status_code, 0);
         assert_eq!(second_resp.found, vec![true, true, true]);
@@ -2205,7 +2303,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ps_client_batch_lookup_validates_dim_size_per_entry() {
-        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let bind = test_bind_addr();
         let ps = PsServer::new(0, 2);
         let server = tokio::spawn(async move {
             let _ = serve_ps(ps, bind).await;
@@ -2213,7 +2311,9 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
 
         let resp = client
             .batch_lookup(BatchLookupRequest {
@@ -2235,7 +2335,7 @@ mod tests {
                 ],
             })
             .await
-            .unwrap();
+            .expect("batch_lookup should succeed for per-entry dim validation test");
 
         assert_eq!(resp.responses.len(), 2);
         assert_eq!(resp.responses[0].status_code, 1);
@@ -2252,7 +2352,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ps_client_batch_apply_validates_dim_size_per_entry() {
-        let bind = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let bind = test_bind_addr();
         let ps = PsServer::new(0, 2);
         let server = tokio::spawn(async move {
             let _ = serve_ps(ps, bind).await;
@@ -2260,10 +2360,15 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let addr = bind.to_string();
-        let client = PsClient::connect(&[&addr]).await.unwrap();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
 
         // Initialize valid table entry so the second apply request can update it.
-        client.lookup("dim_apply", &[9], 2, true).await.unwrap();
+        client
+            .lookup("dim_apply", &[9], 2, true)
+            .await
+            .expect("lookup should succeed before per-entry apply validation test");
 
         let resp = client
             .batch_apply_gradients(BatchApplyGradientsRequest {
@@ -2289,7 +2394,7 @@ mod tests {
                 ],
             })
             .await
-            .unwrap();
+            .expect("batch_apply_gradients should succeed for per-entry dim validation test");
 
         assert_eq!(resp.responses.len(), 2);
         assert_eq!(resp.responses[0].status_code, 1);
