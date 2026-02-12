@@ -63,7 +63,9 @@ mod tests {
 
     #[test]
     fn test_get_zk_auth_data_none() {
-        let _guard = zk_auth_test_mutex().lock().unwrap();
+        let _guard = zk_auth_test_mutex()
+            .lock()
+            .expect("zk auth test mutex should not be poisoned");
         let _snapshot = EnvSnapshot::capture("ZK_AUTH");
         std::env::remove_var("ZK_AUTH");
         assert!(get_zk_auth_data().is_none());
@@ -71,16 +73,20 @@ mod tests {
 
     #[test]
     fn test_get_zk_auth_data_some() {
-        let _guard = zk_auth_test_mutex().lock().unwrap();
+        let _guard = zk_auth_test_mutex()
+            .lock()
+            .expect("zk auth test mutex should not be poisoned");
         let _snapshot = EnvSnapshot::capture("ZK_AUTH");
         std::env::set_var("ZK_AUTH", "user:pass");
-        let v = get_zk_auth_data().unwrap();
+        let v = get_zk_auth_data().expect("zk auth data should be returned when ZK_AUTH is set");
         assert_eq!(v, vec![("digest".to_string(), "user:pass".to_string())]);
     }
 
     #[test]
     fn test_get_zk_auth_data_empty_after_trim_is_none() {
-        let _guard = zk_auth_test_mutex().lock().unwrap();
+        let _guard = zk_auth_test_mutex()
+            .lock()
+            .expect("zk auth test mutex should not be poisoned");
         let _snapshot = EnvSnapshot::capture("ZK_AUTH");
         std::env::set_var("ZK_AUTH", "   ");
         assert!(get_zk_auth_data().is_none());

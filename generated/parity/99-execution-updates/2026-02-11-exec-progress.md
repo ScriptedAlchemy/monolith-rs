@@ -6958,6 +6958,15 @@
   - removed all `.unwrap()` call-sites from file-ops module (**0 remaining**),
     preserving writable-file and close-hook behavior.
 
+### 514) Native-training env-utils unwrap diagnostics completion
+- Tightened remaining unwrap assertions in
+  `crates/monolith-training/src/native_training/env_utils.rs` tests by
+  replacing mutex lock and option extraction unwraps with explicit
+  `expect(...)` diagnostics.
+- Result:
+  - removed all `.unwrap()` call-sites from native-training env-utils module
+    (**0 remaining**), preserving `ZK_AUTH` parity behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8041,6 +8050,8 @@
 1080. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/prefetch_queue.rs` ✅ (verified no remaining unwrap call-sites in prefetch queue module)
 1081. `cargo test -p monolith-training file_ops::tests:: -- --nocapture` ✅ (validated file-ops unit-test suite after unwrap-diagnostics tightening)
 1082. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/file_ops.rs` ✅ (verified no remaining unwrap call-sites in file-ops module)
+1083. `cargo test -p monolith-training get_zk_auth_data -- --nocapture` ✅ (validated native-training env-utils ZK auth tests after unwrap-diagnostics tightening)
+1084. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/env_utils.rs` ✅ (verified no remaining unwrap call-sites in native-training env-utils module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
