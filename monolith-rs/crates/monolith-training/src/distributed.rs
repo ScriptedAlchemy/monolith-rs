@@ -750,39 +750,36 @@ mod tests {
 
         // Invalid: no PS
         let config = ClusterConfig::new(vec![], vec![make_addr(6000)], 0, false);
-        match config.validate() {
-            Err(DistributedError::InvalidConfiguration(msg)) => {
-                assert!(
-                    msg.contains("At least one parameter server is required"),
-                    "validation error should include missing-PS context: {msg}"
-                );
-            }
-            other => panic!("expected InvalidConfiguration, got {other:?}"),
-        }
+        let err = config
+            .validate()
+            .expect_err("config without parameter servers should fail validation");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("At least one parameter server is required")),
+            "expected InvalidConfiguration mentioning missing parameter servers, got {err:?}"
+        );
 
         // Invalid: no workers
         let config = ClusterConfig::new(vec![make_addr(5000)], vec![], 0, true);
-        match config.validate() {
-            Err(DistributedError::InvalidConfiguration(msg)) => {
-                assert!(
-                    msg.contains("At least one worker is required"),
-                    "validation error should include missing-worker context: {msg}"
-                );
-            }
-            other => panic!("expected InvalidConfiguration, got {other:?}"),
-        }
+        let err = config
+            .validate()
+            .expect_err("config without workers should fail validation");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("At least one worker is required")),
+            "expected InvalidConfiguration mentioning missing workers, got {err:?}"
+        );
 
         // Invalid: task index out of range
         let config = ClusterConfig::new(vec![make_addr(5000)], vec![make_addr(6000)], 5, false);
-        match config.validate() {
-            Err(DistributedError::InvalidConfiguration(msg)) => {
-                assert!(
-                    msg.contains("Task index 5 is out of range"),
-                    "validation error should include task-index range context: {msg}"
-                );
-            }
-            other => panic!("expected InvalidConfiguration, got {other:?}"),
-        }
+        let err = config
+            .validate()
+            .expect_err("out-of-range task index should fail validation");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("Task index 5 is out of range")),
+            "expected InvalidConfiguration mentioning task-index range, got {err:?}"
+        );
 
         // Invalid: duplicate PS addresses
         let config = ClusterConfig::new(
@@ -791,15 +788,14 @@ mod tests {
             0,
             true,
         );
-        match config.validate() {
-            Err(DistributedError::InvalidConfiguration(msg)) => {
-                assert!(
-                    msg.contains("Parameter server addresses must be unique"),
-                    "validation error should include duplicate-PS context: {msg}"
-                );
-            }
-            other => panic!("expected InvalidConfiguration, got {other:?}"),
-        }
+        let err = config
+            .validate()
+            .expect_err("duplicate parameter-server addresses should fail validation");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("Parameter server addresses must be unique")),
+            "expected InvalidConfiguration mentioning duplicate parameter-server addresses, got {err:?}"
+        );
 
         // Invalid: duplicate worker addresses
         let config = ClusterConfig::new(
@@ -808,15 +804,14 @@ mod tests {
             0,
             false,
         );
-        match config.validate() {
-            Err(DistributedError::InvalidConfiguration(msg)) => {
-                assert!(
-                    msg.contains("Worker addresses must be unique"),
-                    "validation error should include duplicate-worker context: {msg}"
-                );
-            }
-            other => panic!("expected InvalidConfiguration, got {other:?}"),
-        }
+        let err = config
+            .validate()
+            .expect_err("duplicate worker addresses should fail validation");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("Worker addresses must be unique")),
+            "expected InvalidConfiguration mentioning duplicate worker addresses, got {err:?}"
+        );
     }
 
     #[test]
@@ -838,32 +833,24 @@ mod tests {
     #[test]
     fn test_parameter_server_lifecycle_guards() {
         let mut ps = ParameterServer::new(1);
-        match ps
+        let err = ps
             .stop()
-            .expect_err("stopping an idle parameter server should fail")
-        {
-            DistributedError::InvalidConfiguration(msg) => {
-                assert!(
-                    msg.contains("parameter server 1 is not running"),
-                    "stop precondition error should include server-index not-running context: {msg}"
-                );
-            }
-            other => panic!("expected InvalidConfiguration, got {other:?}"),
-        }
+            .expect_err("stopping an idle parameter server should fail");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("parameter server 1 is not running")),
+            "expected InvalidConfiguration mentioning not-running parameter server, got {err:?}"
+        );
 
         ps.start().unwrap();
-        match ps
+        let err = ps
             .start()
-            .expect_err("starting an already running parameter server should fail")
-        {
-            DistributedError::InvalidConfiguration(msg) => {
-                assert!(
-                    msg.contains("parameter server 1 is already running"),
-                    "start reentrancy error should include server-index running context: {msg}"
-                );
-            }
-            other => panic!("expected InvalidConfiguration, got {other:?}"),
-        }
+            .expect_err("starting an already running parameter server should fail");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("parameter server 1 is already running")),
+            "expected InvalidConfiguration mentioning already-running parameter server, got {err:?}"
+        );
         ps.stop().unwrap();
     }
 
@@ -876,23 +863,23 @@ mod tests {
         assert_eq!(updated, vec![0.9, 1.8, 2.7]);
 
         // Wrong gradient size
-        match ps.apply_gradients("w", &[0.1], 1.0) {
-            Err(DistributedError::CommunicationError(msg)) => {
-                assert!(
-                    msg.contains("Gradient size mismatch"),
-                    "gradient-size error should include mismatch context: {msg}"
-                );
-            }
-            other => panic!("expected CommunicationError, got {other:?}"),
-        }
+        let err = ps
+            .apply_gradients("w", &[0.1], 1.0)
+            .expect_err("gradient-size mismatch should fail apply_gradients");
+        assert!(
+            matches!(err, DistributedError::CommunicationError(ref msg)
+                if msg.contains("Gradient size mismatch")),
+            "expected CommunicationError mentioning gradient-size mismatch, got {err:?}"
+        );
 
         // Unknown parameter
-        match ps.apply_gradients("unknown", &[0.1], 1.0) {
-            Err(DistributedError::ParameterNotFound(name)) => {
-                assert_eq!(name, "unknown");
-            }
-            other => panic!("expected ParameterNotFound, got {other:?}"),
-        }
+        let err = ps
+            .apply_gradients("unknown", &[0.1], 1.0)
+            .expect_err("unknown parameter should fail apply_gradients");
+        assert!(
+            matches!(err, DistributedError::ParameterNotFound(ref name) if name == "unknown"),
+            "expected ParameterNotFound(unknown), got {err:?}"
+        );
     }
 
     #[test]
@@ -903,12 +890,13 @@ mod tests {
         assert!(!worker.is_running());
 
         // Can't step when not running
-        match worker.step() {
-            Err(DistributedError::CommunicationError(msg)) => {
-                assert_eq!(msg, "Worker is not running");
-            }
-            other => panic!("expected CommunicationError, got {other:?}"),
-        }
+        let err = worker
+            .step()
+            .expect_err("step should fail while worker is not running");
+        assert!(
+            matches!(err, DistributedError::CommunicationError(ref msg) if msg == "Worker is not running"),
+            "expected CommunicationError(\"Worker is not running\"), got {err:?}"
+        );
 
         worker.start().unwrap();
         assert!(worker.is_running());
@@ -926,43 +914,36 @@ mod tests {
         assert!(!worker.is_running());
 
         // Barrier fails once stopped.
-        match worker.sync_barrier() {
-            Err(DistributedError::CommunicationError(msg)) => {
-                assert_eq!(msg, "Worker is not running");
-            }
-            other => panic!("expected CommunicationError, got {other:?}"),
-        }
+        let err = worker
+            .sync_barrier()
+            .expect_err("barrier should fail once worker is stopped");
+        assert!(
+            matches!(err, DistributedError::CommunicationError(ref msg) if msg == "Worker is not running"),
+            "expected CommunicationError(\"Worker is not running\"), got {err:?}"
+        );
     }
 
     #[test]
     fn test_worker_lifecycle_guards() {
         let mut worker = Worker::new(1, 2);
-        match worker
+        let err = worker
             .stop()
-            .expect_err("stopping an idle worker should fail")
-        {
-            DistributedError::InvalidConfiguration(msg) => {
-                assert!(
-                    msg.contains("worker 1 is not running"),
-                    "stop precondition error should include worker-index not-running context: {msg}"
-                );
-            }
-            other => panic!("expected InvalidConfiguration, got {other:?}"),
-        }
+            .expect_err("stopping an idle worker should fail");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("worker 1 is not running")),
+            "expected InvalidConfiguration mentioning not-running worker, got {err:?}"
+        );
 
         worker.start().unwrap();
-        match worker
+        let err = worker
             .start()
-            .expect_err("starting an already running worker should fail")
-        {
-            DistributedError::InvalidConfiguration(msg) => {
-                assert!(
-                    msg.contains("worker 1 is already running"),
-                    "start reentrancy error should include worker-index running context: {msg}"
-                );
-            }
-            other => panic!("expected InvalidConfiguration, got {other:?}"),
-        }
+            .expect_err("starting an already running worker should fail");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("worker 1 is already running")),
+            "expected InvalidConfiguration mentioning already-running worker, got {err:?}"
+        );
         worker.stop().unwrap();
     }
 
@@ -1014,15 +995,11 @@ mod tests {
         let err = cluster
             .register_parameter("w", vec![1.0, 2.0])
             .expect_err("register_parameter should fail when cluster is not running");
-        match err {
-            DistributedError::InvalidConfiguration(msg) => {
-                assert!(
-                    msg.contains("local cluster is not fully running"),
-                    "register-parameter precondition error should include cluster-running context: {msg}"
-                );
-            }
-            other => panic!("expected InvalidConfiguration, got {other:?}"),
-        }
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("local cluster is not fully running")),
+            "expected InvalidConfiguration mentioning not-fully-running cluster, got {err:?}"
+        );
 
         cluster.start().unwrap();
         cluster
@@ -1039,15 +1016,11 @@ mod tests {
         let err = cluster
             .train_step(5, &grads)
             .expect_err("train_step should fail for out-of-range worker index");
-        match err {
-            DistributedError::InvalidConfiguration(msg) => {
-                assert!(
-                    msg.contains("Worker index 5 out of range"),
-                    "bad-worker-index error should include worker index context: {msg}"
-                );
-            }
-            other => panic!("expected InvalidConfiguration, got {other:?}"),
-        }
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("Worker index 5 out of range")),
+            "expected InvalidConfiguration mentioning out-of-range worker index, got {err:?}"
+        );
     }
 
     #[test]
@@ -1061,15 +1034,11 @@ mod tests {
         let err = cluster
             .train_step(0, &grads)
             .expect_err("train_step should fail when cluster is not running");
-        match err {
-            DistributedError::InvalidConfiguration(msg) => {
-                assert!(
-                    msg.contains("local cluster is not fully running"),
-                    "train-step precondition error should include cluster-running context: {msg}"
-                );
-            }
-            other => panic!("expected InvalidConfiguration, got {other:?}"),
-        }
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("local cluster is not fully running")),
+            "expected InvalidConfiguration mentioning not-fully-running cluster, got {err:?}"
+        );
     }
 
     #[test]
@@ -1147,16 +1116,10 @@ mod tests {
                 std::time::Duration::from_millis(1),
             )
             .expect_err("wait_for_barrier should fail with timeout when peers never arrive");
-        match err {
-            DistributedError::BarrierTimeout { epoch, timeout_ms } => {
-                assert_eq!(epoch, 0);
-                assert_eq!(
-                    timeout_ms, 10,
-                    "barrier-timeout error should retain configured timeout duration"
-                );
-            }
-            other => panic!("expected BarrierTimeout, got {other:?}"),
-        }
+        assert!(
+            matches!(err, DistributedError::BarrierTimeout { epoch: 0, timeout_ms: 10 }),
+            "expected BarrierTimeout {{ epoch: 0, timeout_ms: 10 }}, got {err:?}"
+        );
     }
 
     #[test]
@@ -1205,16 +1168,10 @@ mod tests {
                 std::time::Duration::from_millis(1),
             )
             .expect_err("wait_for_barrier should fail with timeout before retry");
-        match timeout_err {
-            DistributedError::BarrierTimeout { epoch, timeout_ms } => {
-                assert_eq!(epoch, 0);
-                assert_eq!(
-                    timeout_ms, 8,
-                    "timeout-cleanup barrier error should retain configured timeout duration"
-                );
-            }
-            other => panic!("expected BarrierTimeout, got {other:?}"),
-        }
+        assert!(
+            matches!(timeout_err, DistributedError::BarrierTimeout { epoch: 0, timeout_ms: 8 }),
+            "expected BarrierTimeout {{ epoch: 0, timeout_ms: 8 }}, got {timeout_err:?}"
+        );
 
         // Cleanup should have removed worker 0 from waiter set, so worker 1 alone
         // should still be in waiting state instead of incorrectly releasing.
@@ -1290,15 +1247,11 @@ mod tests {
         let err = cluster
             .start()
             .expect_err("starting an already running local cluster should fail");
-        match err {
-            DistributedError::InvalidConfiguration(msg) => {
-                assert!(
-                    msg.contains("local cluster is already running"),
-                    "start reentrancy error should include already-running context: {msg}"
-                );
-            }
-            other => panic!("expected InvalidConfiguration, got {other:?}"),
-        }
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("local cluster is already running")),
+            "expected InvalidConfiguration mentioning already-running local cluster, got {err:?}"
+        );
     }
 
     #[test]
@@ -1313,14 +1266,10 @@ mod tests {
         let err = cluster
             .stop()
             .expect_err("stopping a non-running local cluster should fail");
-        match err {
-            DistributedError::InvalidConfiguration(msg) => {
-                assert!(
-                    msg.contains("local cluster is not running"),
-                    "stop precondition error should include not-running context: {msg}"
-                );
-            }
-            other => panic!("expected InvalidConfiguration, got {other:?}"),
-        }
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("local cluster is not running")),
+            "expected InvalidConfiguration mentioning not-running local cluster, got {err:?}"
+        );
     }
 }

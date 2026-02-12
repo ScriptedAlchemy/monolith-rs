@@ -830,10 +830,10 @@ mod tests {
         let err = d
             .register("ps", 0, "192.168.0.1:1001")
             .expect_err("consul register should propagate client timeout errors");
-        match err {
-            ServiceDiscoveryError::Io(e) => assert_eq!(e.kind(), std::io::ErrorKind::TimedOut),
-            other => panic!("unexpected error: {other:?}"),
-        }
+        assert!(
+            matches!(err, ServiceDiscoveryError::Io(ref e) if e.kind() == std::io::ErrorKind::TimedOut),
+            "expected timed-out IO error from consul register retry path, got {err:?}"
+        );
     }
 
     #[test]
