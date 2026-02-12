@@ -3657,6 +3657,18 @@
   default worker connect-timeout cleanup-block path, matching surrounding
   naming conventions used by existing disconnect-failure-context variants.
 
+### 262) Run/runner register-timeout and PS-register timeout alias parity completed
+- Added RunConfig cleanup-block alias names:
+  - `distributed_runner_from_run_config_preserves_register_timeout_with_custom_service_type_and_index_disconnect_failure_context`
+  - `distributed_runner_from_run_config_preserves_ps_register_timeout_disconnect_failure_context`
+  - `distributed_runner_from_run_config_preserves_ps_register_timeout_with_custom_service_type_and_index_disconnect_failure_context`
+- Added RunnerConfig cleanup-block alias names:
+  - `distributed_runner_from_runner_config_preserves_register_timeout_with_custom_service_type_and_index_disconnect_failure_context`
+  - `distributed_runner_from_runner_config_preserves_ps_register_timeout_disconnect_failure_context`
+  - `distributed_runner_from_runner_config_preserves_ps_register_timeout_with_custom_service_type_and_index_disconnect_failure_context`
+- Result: `_when_cleanup_blocks -> _disconnect_failure_context` counterpart
+  audit in `native_training_parity.rs` now reports zero missing aliases.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4215,6 +4227,10 @@
 555. `ZK_AUTH=user:pass cargo test -p monolith-training connect_timeout_ -- --nocapture` ✅ (post run/runner default connect-timeout disconnect-failure-context alias additions)
 556. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post run/runner connect-timeout alias expansion full monolith-training regression rerun)
 557. `python3` naming audit (`native_training_parity.rs`) ✅ (verifies newly added connect-timeout alias names are present and executable)
+558. `ZK_AUTH=user:pass cargo test -p monolith-training "preserves_ps_register_timeout_" -- --nocapture` ✅ (post run/runner ps-register-timeout disconnect-failure alias additions)
+559. `ZK_AUTH=user:pass cargo test -p monolith-training "preserves_register_timeout_with_custom_service_type_and_index" -- --nocapture` ✅ (post run/runner custom-index register-timeout disconnect-failure alias additions)
+560. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post register-timeout alias parity completion full monolith-training regression rerun)
+561. `python3` cleanup-block alias audit (`native_training_parity.rs`) ✅ (reports zero missing `_when_cleanup_blocks -> _disconnect_failure_context` aliases)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
