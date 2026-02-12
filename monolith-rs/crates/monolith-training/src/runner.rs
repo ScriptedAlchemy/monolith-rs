@@ -9547,17 +9547,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1500),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang even when cleanup steps time out"
-        );
-        let err = res.unwrap().unwrap_err();
-        let msg = err.to_string();
+        .await
+        .expect("run_distributed should not hang even when cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker-role error should be preserved over cleanup timeout errors: {msg}"
@@ -9603,16 +9601,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1200),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when discover returns an error and cleanup steps time out"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when discover returns an error and cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker discover failure with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker discover failure should still surface as worker-role timeout diagnostic: {msg}"
@@ -9656,16 +9653,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1200),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when discover returns an error with custom service types and cleanup steps time out"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when discover returns an error with custom service types and cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker discover failure with custom service types and cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker discover failure should still surface as worker-role timeout diagnostic with custom service types: {msg}"
@@ -9719,16 +9715,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1200),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when discover returns an error with indexed default service types and cleanup steps time out"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when discover returns an error with indexed default service types and cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker discover failure with indexed default service types and cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker discover failure should still surface as worker-role timeout diagnostic with indexed default service types: {msg}"
@@ -9778,16 +9773,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1200),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when discover returns an error with default-service non-index path and cleanup steps time out"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when discover returns an error with default-service non-index path and cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker discover failure with default non-index service type and cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker discover failure should still surface as worker-role timeout diagnostic with default service type: {msg}"
@@ -9839,16 +9833,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1200),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when discover returns an error with custom non-index service types and cleanup steps time out"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when discover returns an error with custom non-index service types and cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker discover failure with custom non-index service type and cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker discover failure should still surface as worker-role timeout diagnostic with custom non-index service types: {msg}"
@@ -9904,16 +9897,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1200),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when discover returns an error with custom non-index service types and cleanup steps time out"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when discover returns an error with custom non-index service types and cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker discover failure with custom non-index service types and cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker discover failure should still surface as worker-role timeout diagnostic with custom non-index service types: {msg}"
