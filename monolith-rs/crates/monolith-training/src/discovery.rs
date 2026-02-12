@@ -2761,6 +2761,55 @@ mod tests {
     }
 
     #[cfg(feature = "zookeeper")]
+    fn zk_has_watcher(zk: &ZkDiscovery, service_type: &str) -> bool {
+        zk.watchers
+            .lock()
+            .expect("zk watchers mutex should not be poisoned")
+            .contains_key(service_type)
+    }
+
+    #[cfg(feature = "zookeeper")]
+    fn zk_watcher_count(zk: &ZkDiscovery) -> usize {
+        zk.watchers
+            .lock()
+            .expect("zk watchers mutex should not be poisoned")
+            .len()
+    }
+
+    #[cfg(feature = "zookeeper")]
+    fn zk_watch_poll_count(zk: &ZkDiscovery) -> usize {
+        zk.watch_poll_generations
+            .lock()
+            .expect("zk watch_poll_generations mutex should not be poisoned")
+            .len()
+    }
+
+    #[cfg(feature = "zookeeper")]
+    fn zk_watch_poll_is_empty(zk: &ZkDiscovery) -> bool {
+        zk.watch_poll_generations
+            .lock()
+            .expect("zk watch_poll_generations mutex should not be poisoned")
+            .is_empty()
+    }
+
+    #[cfg(feature = "zookeeper")]
+    fn zk_watch_poll_remove(zk: &ZkDiscovery, service_type: &str) {
+        zk.watch_poll_generations
+            .lock()
+            .expect("zk watch_poll_generations mutex should not be poisoned")
+            .remove(service_type);
+    }
+
+    #[cfg(feature = "zookeeper")]
+    fn zk_watch_poll_get(zk: &ZkDiscovery, service_type: &str) -> Option<u64> {
+        zk.watch_poll_generations
+            .lock()
+            .expect("zk watch_poll_generations mutex should not be poisoned")
+            .get(service_type)
+            .copied()
+    }
+
+    #[cfg(feature = "zookeeper")]
     #[test]
     fn test_zk_discovery_creation() {
         let _zk = ZkDiscovery::new("localhost:2181", "/services").with_session_timeout(60000);
@@ -2785,7 +2834,7 @@ mod tests {
         let zk = ZkDiscovery::new("localhost:2181", "/services");
         let rx = zk.watch("ps").expect("watch should succeed");
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -2793,7 +2842,7 @@ mod tests {
         zk.disconnect().await.expect("disconnect should succeed");
 
         assert!(
-            !zk.watchers.lock().unwrap().contains_key("ps"),
+            !zk_has_watcher(&zk, "ps"),
             "disconnect should compact dead watcher senders"
         );
     }
@@ -2804,14 +2853,14 @@ mod tests {
         let zk = ZkDiscovery::new("localhost:2181", "/services");
         let _rx = zk.watch("ps").expect("watch should succeed");
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "watch sender should exist after subscribing"
         );
 
         zk.disconnect().await.expect("disconnect should succeed");
 
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "disconnect should preserve live watcher senders"
         );
     }
@@ -2823,7 +2872,7 @@ mod tests {
         let dead_rx = zk.watch("ps").expect("watch should succeed");
         let _live_rx = zk.watch("worker").expect("watch should succeed");
         assert_eq!(
-            zk.watchers.lock().unwrap().len(),
+            zk_watcher_count(&zk),
             2,
             "test setup should seed two watcher senders"
         );
@@ -2831,13 +2880,12 @@ mod tests {
 
         zk.disconnect().await.expect("disconnect should succeed");
 
-        let watchers = zk.watchers.lock().unwrap();
         assert!(
-            !watchers.contains_key("ps"),
+            !zk_has_watcher(&zk, "ps"),
             "disconnect should compact dead watcher sender for dropped receiver"
         );
         assert!(
-            watchers.contains_key("worker"),
+            zk_has_watcher(&zk, "worker"),
             "disconnect should preserve watcher sender with active receiver"
         );
     }
@@ -2849,7 +2897,7 @@ mod tests {
         assert!(zk.should_spawn_watch_poll("ps"));
         assert!(zk.should_spawn_watch_poll("worker"));
         assert_eq!(
-            zk.watch_poll_generations.lock().unwrap().len(),
+            zk_watch_poll_count(&zk),
             2,
             "test setup should seed watch-poll generation entries"
         );
@@ -2857,7 +2905,7 @@ mod tests {
         zk.disconnect().await.expect("disconnect should succeed");
 
         assert!(
-            zk.watch_poll_generations.lock().unwrap().is_empty(),
+            zk_watch_poll_is_empty(&zk),
             "disconnect should clear active watch-poll generation entries"
         );
     }
@@ -2917,7 +2965,7 @@ mod tests {
             !zk.should_spawn_watch_poll("ps"),
             "second watch on same service type and generation should not respawn poller"
         );
-        zk.watch_poll_generations.lock().unwrap().remove("ps");
+        zk_watch_poll_remove(&zk, "ps");
         assert!(
             zk.should_spawn_watch_poll("ps"),
             "poller should respawn once prior generation entry is cleaned"
@@ -2951,7 +2999,7 @@ mod tests {
 
         zk.cleanup_watch_poll_generation("ps", old_generation);
         assert_eq!(
-            zk.watch_poll_generations.lock().unwrap().get("ps").copied(),
+            zk_watch_poll_get(&zk, "ps"),
             Some(new_generation),
             "cleanup for stale generation must not remove newer generation entry"
         );
@@ -2986,13 +3034,13 @@ mod tests {
         let rx1 = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
             .await
             .expect("first watch_async should succeed");
-        assert_eq!(zk.watch_poll_generations.lock().unwrap().len(), 1);
+        assert_eq!(zk_watch_poll_count(&zk), 1);
 
         let rx2 = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
             .await
             .expect("second watch_async should succeed");
         assert_eq!(
-            zk.watch_poll_generations.lock().unwrap().len(),
+            zk_watch_poll_count(&zk),
             1,
             "same service type should not create duplicate poll-generation entries"
         );
@@ -3001,7 +3049,7 @@ mod tests {
             .await
             .expect("watch_async for second service type should succeed");
         assert_eq!(
-            zk.watch_poll_generations.lock().unwrap().len(),
+            zk_watch_poll_count(&zk),
             2,
             "second service type should create a second poll-generation entry"
         );

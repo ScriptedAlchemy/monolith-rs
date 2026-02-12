@@ -7088,6 +7088,15 @@
   - reduced `discovery.rs` unwrap call-sites from **167 → 137**, preserving
     in-memory discovery behavior and watch-event parity.
 
+### 527) Discovery zk watcher-lock unwrap diagnostics tightening
+- Tightened zk watcher/poll-generation test diagnostics in
+  `crates/monolith-training/src/discovery.rs` by introducing helper accessors
+  (`zk_has_watcher`, `zk_watcher_count`, `zk_watch_poll_*`) that replace direct
+  `.lock().unwrap()` test assertions with explicit `expect(...)` diagnostics.
+- Result:
+  - reduced `discovery.rs` unwrap call-sites from **137 → 124**, preserving zk
+    disconnect/watch-poller lifecycle parity behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8198,6 +8207,8 @@
 1107. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/discovery.rs` ✅ (tracked remaining discovery unwrap call-sites after consul-core tightening batch: 167)
 1108. `cargo test -p monolith-training discovery::tests::test_in_memory_ -- --nocapture` ✅ (validated in-memory discovery test matrix after unwrap-diagnostics tightening)
 1109. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/discovery.rs` ✅ (tracked remaining discovery unwrap call-sites after in-memory test tightening batch: 137)
+1110. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_disconnect_ -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_should_spawn_watch_poll_once_per_generation -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_cleanup_watch_poll_generation_preserves_newer_generation_entry -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_deduplicates_poll_generation_entries -- --nocapture` ✅ (validated zk watcher/poll-generation lifecycle tests after helper-based unwrap-diagnostics tightening)
+1111. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/discovery.rs` ✅ (tracked remaining discovery unwrap call-sites after zk watcher-lock tightening batch: 124)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
