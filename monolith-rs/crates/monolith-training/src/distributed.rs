@@ -980,7 +980,15 @@ mod tests {
         let err = cluster
             .register_parameter("w", vec![1.0, 2.0])
             .unwrap_err();
-        assert!(matches!(err, DistributedError::InvalidConfiguration(_)));
+        match err {
+            DistributedError::InvalidConfiguration(msg) => {
+                assert!(
+                    msg.contains("local cluster is not fully running"),
+                    "register-parameter precondition error should include cluster-running context: {msg}"
+                );
+            }
+            other => panic!("expected InvalidConfiguration, got {other:?}"),
+        }
 
         cluster.start().unwrap();
         assert!(cluster.register_parameter("w", vec![1.0, 2.0]).is_ok());
@@ -993,7 +1001,15 @@ mod tests {
         cluster.start().unwrap();
         let grads: HashMap<String, Vec<f32>> = HashMap::new();
         let err = cluster.train_step(5, &grads).unwrap_err();
-        assert!(matches!(err, DistributedError::InvalidConfiguration(_)));
+        match err {
+            DistributedError::InvalidConfiguration(msg) => {
+                assert!(
+                    msg.contains("Worker index 5 out of range"),
+                    "bad-worker-index error should include worker index context: {msg}"
+                );
+            }
+            other => panic!("expected InvalidConfiguration, got {other:?}"),
+        }
     }
 
     #[test]
@@ -1005,7 +1021,15 @@ mod tests {
 
         let grads: HashMap<String, Vec<f32>> = HashMap::new();
         let err = cluster.train_step(0, &grads).unwrap_err();
-        assert!(matches!(err, DistributedError::InvalidConfiguration(_)));
+        match err {
+            DistributedError::InvalidConfiguration(msg) => {
+                assert!(
+                    msg.contains("local cluster is not fully running"),
+                    "train-step precondition error should include cluster-running context: {msg}"
+                );
+            }
+            other => panic!("expected InvalidConfiguration, got {other:?}"),
+        }
     }
 
     #[test]
@@ -1209,7 +1233,15 @@ mod tests {
         cluster.start().unwrap();
 
         let err = cluster.start().unwrap_err();
-        assert!(matches!(err, DistributedError::InvalidConfiguration(_)));
+        match err {
+            DistributedError::InvalidConfiguration(msg) => {
+                assert!(
+                    msg.contains("local cluster is already running"),
+                    "start reentrancy error should include already-running context: {msg}"
+                );
+            }
+            other => panic!("expected InvalidConfiguration, got {other:?}"),
+        }
     }
 
     #[test]
@@ -1222,6 +1254,14 @@ mod tests {
         );
         let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
         let err = cluster.stop().unwrap_err();
-        assert!(matches!(err, DistributedError::InvalidConfiguration(_)));
+        match err {
+            DistributedError::InvalidConfiguration(msg) => {
+                assert!(
+                    msg.contains("local cluster is not running"),
+                    "stop precondition error should include not-running context: {msg}"
+                );
+            }
+            other => panic!("expected InvalidConfiguration, got {other:?}"),
+        }
     }
 }
