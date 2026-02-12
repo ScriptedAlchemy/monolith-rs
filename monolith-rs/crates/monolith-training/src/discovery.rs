@@ -636,9 +636,15 @@ impl ZkDiscovery {
         tracing::info!("Disconnecting from ZooKeeper");
 
         // Drop the client, which closes the session and cleans ephemerals.
-        let mut guard = self.client.lock().await;
-        *guard = None;
+        {
+            let mut guard = self.client.lock().await;
+            *guard = None;
+        }
         self.registered_paths.lock().await.clear();
+        self.watchers
+            .lock()
+            .unwrap()
+            .retain(|_, sender| sender.receiver_count() > 0);
         self.watch_generation.fetch_add(1, Ordering::SeqCst);
         self.watch_poll_generations.lock().unwrap().clear();
         Ok(())
@@ -1203,8 +1209,14 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
     }
 
     async fn disconnect(&self) -> Result<()> {
-        let mut guard = self.client.lock().await;
-        *guard = None;
+        {
+            let mut guard = self.client.lock().await;
+            *guard = None;
+        }
+        self.watchers
+            .lock()
+            .unwrap()
+            .retain(|_, sender| sender.receiver_count() > 0);
         self.watch_generation.fetch_add(1, Ordering::SeqCst);
         self.watch_poll_generations.lock().unwrap().clear();
         Ok(())
@@ -2045,6 +2057,43 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_disconnect_compacts_dead_watchers() {
+        let zk = ZkDiscovery::new("localhost:2181", "/services");
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        zk.disconnect().await.expect("disconnect should succeed");
+
+        assert!(
+            !zk.watchers.lock().unwrap().contains_key("ps"),
+            "disconnect should compact dead watcher senders"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_disconnect_preserves_live_watchers() {
+        let zk = ZkDiscovery::new("localhost:2181", "/services");
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        zk.disconnect().await.expect("disconnect should succeed");
+
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "disconnect should preserve live watcher senders"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_disconnect_clears_watch_poll_generation_entries() {
         let zk = ZkDiscovery::new("localhost:2181", "/services");
         assert!(zk.should_spawn_watch_poll("ps"));
@@ -2664,6 +2713,47 @@ mod tests {
             .watch_generation
             .load(std::sync::atomic::Ordering::SeqCst);
         assert_eq!(after, before + 1);
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_disconnect_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "disconnect should compact dead watcher senders"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_disconnect_preserves_live_watchers() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "disconnect should preserve live watcher senders"
+        );
     }
 
     #[cfg(feature = "consul")]

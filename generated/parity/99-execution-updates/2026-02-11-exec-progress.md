@@ -4795,6 +4795,21 @@
   - Targeted registration-failure lane and default monolith-training regression
     remain green.
 
+### 356) Disconnect dead-watcher compaction hardening (ZK + Consul)
+- Hardened disconnect lifecycle behavior to compact dead watcher senders for
+  both optional backends and added explicit regressions:
+  - `test_zk_disconnect_compacts_dead_watchers`
+  - `test_zk_disconnect_preserves_live_watchers`
+  - `test_consul_disconnect_compacts_dead_watchers`
+  - `test_consul_disconnect_preserves_live_watchers`
+- Also scoped backend client-lock drop before additional cleanup to avoid
+  unnecessary lock retention during disconnect housekeeping.
+- Result:
+  - Disconnect now enforces “drop dead watchers, keep live subscribers”
+    invariants for both ZooKeeper and Consul implementations.
+  - Feature-gated watcher lifecycle lane and default monolith-training
+    regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5648,6 +5663,7 @@
 850. `ZK_AUTH=user:pass cargo test -p monolith-training connect_and_disconnect_fail -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (runner connect+disconnect failure assertion-contract tightening verification plus default-lane regression rerun)
 851. `ZK_AUTH=user:pass cargo test -p monolith-training after_success -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (runner post-success cleanup assertion-contract tightening verification plus default-lane regression rerun)
 852. `ZK_AUTH=user:pass cargo test -p monolith-training registration_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (runner registration-failure assertion-contract tightening completion verification plus default-lane regression rerun)
+853. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" disconnect_compacts_dead_watchers -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" disconnect_preserves_live_watchers -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated ZK/Consul disconnect dead-watcher compaction + live-watcher preservation verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
