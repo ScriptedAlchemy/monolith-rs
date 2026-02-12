@@ -744,7 +744,9 @@ mod tests {
             0,
             true,
         );
-        assert!(config.validate().is_ok());
+        config
+            .validate()
+            .expect("valid cluster config should pass validation");
 
         // Invalid: no PS
         let config = ClusterConfig::new(vec![], vec![make_addr(6000)], 0, false);
@@ -1011,7 +1013,9 @@ mod tests {
         }
 
         cluster.start().unwrap();
-        assert!(cluster.register_parameter("w", vec![1.0, 2.0]).is_ok());
+        cluster
+            .register_parameter("w", vec![1.0, 2.0])
+            .expect("register_parameter should succeed after cluster start");
     }
 
     #[test]

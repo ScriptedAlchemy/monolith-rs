@@ -4115,14 +4115,14 @@ mod tests {
         });
 
         tokio::time::sleep(Duration::from_millis(50)).await;
-        let worker_res = run_distributed_from_runner_config(
+        run_distributed_from_runner_config(
             Arc::clone(&discovery),
             &worker_rc,
             Role::Worker,
             "127.0.0.1:0".parse().unwrap(),
         )
-        .await;
-        assert!(worker_res.is_ok(), "worker failed: {worker_res:?}");
+        .await
+        .expect("worker should succeed with active PS role in run-config smoke");
         assert!(
             discovery.discover("worker").unwrap().is_empty(),
             "worker service should be deregistered after completion"
