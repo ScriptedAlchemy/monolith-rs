@@ -4239,6 +4239,24 @@
   - Both directional transforms now report `missing 0` in both files.
   - Full monolith-training regression remains green.
 
+### 311) Discovery watch lifecycle hardening: disconnect-aware poll shutdown
+- Hardened poll-backed discovery watch lifecycle for ZK/Consul:
+  - Added `watch_generation` counters in discovery backends.
+  - `disconnect()` now bumps generation to invalidate active poll loops.
+  - `watch_async()` captures generation and passes a continue-predicate into the
+    poll loop.
+- Enhanced `spawn_watch_poll_loop(...)` API:
+  - accepts `should_continue` predicate,
+  - exits when predicate flips false (even if receivers remain subscribed),
+  - retains receiver-drop based shutdown behavior.
+- Added regression:
+  - `test_spawn_watch_poll_loop_stops_when_continue_predicate_false`
+  validating explicit lifecycle cancellation semantics.
+- Result:
+  - Discovery watch poll tasks now respect backend disconnect lifecycle and can
+    terminate deterministically without waiting for subscriber drops.
+  - Full monolith-training regression remains green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5013,6 +5031,9 @@
 771. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_worker_discover_failure_when_cleanup_times_out -- --nocapture` ✅
 772. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post discover-failure/discovery-error naming alias additions full monolith-training regression rerun)
 773. `python3` discover-failure/discovery-error symmetry audit ✅ (both directional transforms `missing 0` in `runner.rs` and `native_training_parity.rs`)
+774. `ZK_AUTH=user:pass cargo test -p monolith-training test_spawn_watch_poll_loop_stops_when_continue_predicate_false -- --nocapture` ✅
+775. `ZK_AUTH=user:pass cargo test -p monolith-training test_spawn_watch_poll_loop_emits_updated_events -- --nocapture` ✅
+776. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post disconnect-aware discovery watch poll shutdown hardening full monolith-training regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

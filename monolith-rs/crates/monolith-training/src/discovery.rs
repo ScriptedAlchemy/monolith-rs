@@ -37,6 +37,8 @@
 use std::collections::HashMap;
 #[cfg(any(feature = "zookeeper", feature = "consul", test))]
 use std::future::Future;
+#[cfg(any(feature = "zookeeper", feature = "consul"))]
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use thiserror::Error;
 use tokio::sync::broadcast::{self, Receiver, Sender};
@@ -276,22 +278,24 @@ impl ServiceDiscoveryAsync for InMemoryDiscovery {
 }
 
 #[cfg(any(feature = "zookeeper", feature = "consul", test))]
-fn spawn_watch_poll_loop<F, Fut>(
+fn spawn_watch_poll_loop<F, Fut, C>(
     sender: Sender<DiscoveryEvent>,
     backend: &'static str,
     poll_interval: std::time::Duration,
+    should_continue: C,
     mut poll_discover: F,
 ) -> tokio::task::JoinHandle<()>
 where
     F: FnMut() -> Fut + Send + 'static,
     Fut: Future<Output = Result<Vec<ServiceInfo>>> + Send + 'static,
+    C: Fn() -> bool + Send + 'static,
 {
     tokio::spawn(async move {
         let mut prev: HashMap<String, ServiceInfo> = HashMap::new();
         loop {
             // If no receivers are subscribed anymore, stop the poller to avoid
             // leaking long-lived background tasks.
-            if sender.receiver_count() == 0 {
+            if sender.receiver_count() == 0 || !should_continue() {
                 break;
             }
 
@@ -303,6 +307,9 @@ where
                         error = %e,
                         "Discovery watch poll discover failed"
                     );
+                    if !should_continue() {
+                        break;
+                    }
                     tokio::time::sleep(poll_interval).await;
                     continue;
                 }
@@ -561,6 +568,8 @@ pub struct ZkDiscovery {
     services: RwLock<HashMap<String, ServiceInfo>>,
     /// Event senders for watchers.
     watchers: Mutex<HashMap<String, Sender<DiscoveryEvent>>>,
+    /// Generation counter for watch lifecycle control.
+    watch_generation: Arc<AtomicU64>,
 }
 
 #[cfg(feature = "zookeeper")]
@@ -580,6 +589,7 @@ impl ZkDiscovery {
             registered_paths: tokio::sync::Mutex::new(HashMap::new()),
             services: RwLock::new(HashMap::new()),
             watchers: Mutex::new(HashMap::new()),
+            watch_generation: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -622,6 +632,7 @@ impl ZkDiscovery {
         let mut guard = self.client.lock().await;
         *guard = None;
         self.registered_paths.lock().await.clear();
+        self.watch_generation.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
 
@@ -829,10 +840,13 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
         let svc_type = service_type.to_string();
         let this = Arc::new(self.clone_for_watch());
         let sender_for_poll = sender.clone();
+        let watch_generation = Arc::clone(&self.watch_generation);
+        let generation = watch_generation.load(Ordering::SeqCst);
         spawn_watch_poll_loop(
             sender_for_poll,
             "zk",
             std::time::Duration::from_secs(1),
+            move || watch_generation.load(Ordering::SeqCst) == generation,
             move || {
                 let this = Arc::clone(&this);
                 let svc_type = svc_type.clone();
@@ -887,6 +901,8 @@ pub struct ConsulDiscovery {
     services: RwLock<HashMap<String, ServiceInfo>>,
     /// Event senders for watchers.
     watchers: Mutex<HashMap<String, Sender<DiscoveryEvent>>>,
+    /// Generation counter for watch lifecycle control.
+    watch_generation: Arc<AtomicU64>,
 }
 
 #[cfg(feature = "consul")]
@@ -905,6 +921,7 @@ impl ConsulDiscovery {
             service_name: "monolith".to_string(),
             services: RwLock::new(HashMap::new()),
             watchers: Mutex::new(HashMap::new()),
+            watch_generation: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -1032,6 +1049,7 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
     async fn disconnect(&self) -> Result<()> {
         let mut guard = self.client.lock().await;
         *guard = None;
+        self.watch_generation.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
 
@@ -1147,10 +1165,13 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
         let svc_type = service_type.to_string();
         let this = Arc::new(self.clone_for_watch());
         let sender_for_poll = sender.clone();
+        let watch_generation = Arc::clone(&self.watch_generation);
+        let generation = watch_generation.load(Ordering::SeqCst);
         spawn_watch_poll_loop(
             sender_for_poll,
             "consul",
             std::time::Duration::from_secs(1),
+            move || watch_generation.load(Ordering::SeqCst) == generation,
             move || {
                 let this = Arc::clone(&this);
                 let svc_type = svc_type.clone();
@@ -1209,6 +1230,7 @@ impl ZkDiscovery {
             registered_paths: tokio::sync::Mutex::new(HashMap::new()),
             services: RwLock::new(HashMap::new()),
             watchers: Mutex::new(HashMap::new()),
+            watch_generation: Arc::clone(&self.watch_generation),
         }
     }
 }
@@ -1224,6 +1246,7 @@ impl ConsulDiscovery {
             service_name: self.service_name.clone(),
             services: RwLock::new(HashMap::new()),
             watchers: Mutex::new(HashMap::new()),
+            watch_generation: Arc::clone(&self.watch_generation),
         }
     }
 }
@@ -1489,6 +1512,7 @@ mod tests {
             sender,
             "test",
             std::time::Duration::from_millis(5),
+            || true,
             move || {
                 let call = poll_calls_for_loop.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 async move {
@@ -1543,6 +1567,7 @@ mod tests {
             sender,
             "test",
             std::time::Duration::from_millis(5),
+            || true,
             move || {
                 let call = poll_calls_for_loop.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 async move {
@@ -1600,6 +1625,7 @@ mod tests {
             sender,
             "test",
             std::time::Duration::from_millis(5),
+            || true,
             move || {
                 poll_calls_for_loop.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 async move { Ok(Vec::new()) }
@@ -1616,6 +1642,39 @@ mod tests {
         tokio::time::timeout(std::time::Duration::from_millis(200), handle)
             .await
             .expect("watch loop should stop when receiver is dropped")
+            .expect("watch task join failed");
+    }
+
+    #[tokio::test]
+    async fn test_spawn_watch_poll_loop_stops_when_continue_predicate_false() {
+        let (sender, _) = tokio::sync::broadcast::channel(16);
+        let _rx = sender.subscribe();
+        let poll_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let poll_calls_for_loop = std::sync::Arc::clone(&poll_calls);
+        let keep_running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let keep_running_for_loop = std::sync::Arc::clone(&keep_running);
+
+        let handle = spawn_watch_poll_loop(
+            sender,
+            "test",
+            std::time::Duration::from_millis(5),
+            move || keep_running_for_loop.load(std::sync::atomic::Ordering::SeqCst),
+            move || {
+                poll_calls_for_loop.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                async move { Ok(Vec::new()) }
+            },
+        );
+
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        assert!(
+            poll_calls.load(std::sync::atomic::Ordering::SeqCst) > 0,
+            "watch poll loop should execute while continue predicate is true"
+        );
+
+        keep_running.store(false, std::sync::atomic::Ordering::SeqCst);
+        tokio::time::timeout(std::time::Duration::from_millis(200), handle)
+            .await
+            .expect("watch loop should stop when continue predicate flips false")
             .expect("watch task join failed");
     }
 
