@@ -3161,6 +3161,23 @@
   default/custom × timeout/failure matrix parity across runner + RunConfig +
   RunnerConfig entrypoints.
 
+### 236) Worker ordering-issue custom non-index cleanup parity expanded
+- Added runner-level custom non-index regressions:
+  - `test_run_distributed_preserves_worker_ordering_issue_timeout_with_custom_service_type_when_cleanup_steps_timeout`
+  - `test_run_distributed_preserves_worker_ordering_issue_timeout_with_custom_service_type_when_cleanup_steps_fail`
+- Added RunConfig integration custom non-index regressions:
+  - `distributed_runner_from_run_config_preserves_worker_ordering_issue_timeout_with_custom_service_type_when_cleanup_times_out`
+  - `distributed_runner_from_run_config_preserves_worker_ordering_issue_timeout_with_custom_service_type_when_cleanup_fails`
+- Added RunnerConfig integration custom non-index regressions:
+  - `distributed_runner_from_runner_config_preserves_worker_ordering_issue_timeout_with_custom_service_type_when_cleanup_times_out`
+  - `distributed_runner_from_runner_config_preserves_worker_ordering_issue_timeout_with_custom_service_type_when_cleanup_fails`
+- New assertions verify custom service-type ordering-issue diagnostics for
+  non-index workers (`worker-0`) preserve ordering issue precedence and append
+  custom worker cleanup timeout/failure operation context.
+- Result: ordering-issue cleanup diagnostics now explicitly cover both indexed
+  and non-indexed custom service-type paths across runner + RunConfig +
+  RunnerConfig entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3642,6 +3659,9 @@
 478. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker ordering-issue timeout cleanup matrix completion across runner/config entrypoints)
 479. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post worker ordering-issue timeout cleanup matrix completion compatibility verification)
 480. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post worker ordering-issue timeout cleanup matrix completion full workspace rerun under ambient ZK auth env)
+481. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker ordering-issue custom non-index cleanup parity expansion across runner/config entrypoints)
+482. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post worker ordering-issue custom non-index cleanup parity compatibility verification)
+483. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post worker ordering-issue custom non-index cleanup parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
