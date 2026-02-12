@@ -7009,6 +7009,17 @@
   - removed all `.unwrap()` call-sites from native-training consul module
     (**0 remaining**) while preserving lookup/register/deregister behavior.
 
+### 520) Native-training service-discovery unwrap diagnostics completion
+- Tightened `crates/monolith-training/src/native_training/service_discovery.rs`
+  unwrap usage by replacing:
+  - all remaining lock/wait-timeout unwraps in ZK registration thread +
+    FakeConsul/FakeZk helpers with explicit `expect(...)` diagnostics,
+  - all remaining test unwrap assertions across Consul, TF_CONFIG, and ZK
+    parity lanes with explicit `expect(...)` diagnostics.
+- Result:
+  - removed all `.unwrap()` call-sites from native-training service-discovery
+    module (**0 remaining**) while preserving lifecycle/query/close semantics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8104,6 +8115,8 @@
 1092. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/ragged_utils.rs` ✅ (verified no remaining unwrap call-sites in native-training ragged-utils module)
 1093. `cargo test -p monolith-training consul::tests:: -- --nocapture` ✅ (validated native-training consul unit-test suite after unwrap-diagnostics tightening)
 1094. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/consul.rs` ✅ (verified no remaining unwrap call-sites in native-training consul module)
+1095. `cargo test -p monolith-training native_training::service_discovery::tests:: -- --nocapture` ✅ (validated native-training service-discovery unit-test suite after lock/assert unwrap-diagnostics tightening)
+1096. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/service_discovery.rs` ✅ (verified no remaining unwrap call-sites in native-training service-discovery module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

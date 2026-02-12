@@ -410,7 +410,10 @@ impl ZkRegThread {
     }
 
     fn request_wakeup(&self) {
-        let mut g = self.mu.lock().unwrap();
+        let mut g = self
+            .mu
+            .lock()
+            .expect("zk registration thread wakeup mutex should not be poisoned");
         *g = true;
         self.wakeup.notify_all();
     }
@@ -418,7 +421,12 @@ impl ZkRegThread {
     fn stop_and_join(&self) {
         self.stop.store(true, Ordering::SeqCst);
         self.request_wakeup();
-        if let Some(h) = self.handle.lock().unwrap().take() {
+        if let Some(h) = self
+            .handle
+            .lock()
+            .expect("zk registration thread handle mutex should not be poisoned")
+            .take()
+        {
             let _ = h.join();
         }
     }
@@ -460,7 +468,9 @@ impl ZkServiceDiscovery {
             // Match Python's semantics used by tests: on reconnect after lost,
             // best-effort wake periodic registration threads.
             if state == ZkState::Connected {
-                let guard = threads.lock().unwrap();
+                let guard = threads
+                    .lock()
+                    .expect("zk service-discovery threads mutex should not be poisoned");
                 for ts in guard.values() {
                     ts.request_wakeup();
                 }
@@ -521,7 +531,10 @@ impl ServiceDiscovery for ZkServiceDiscovery {
         // Spawn periodic re-registration thread (best-effort), mirroring Python.
         let key = (name.to_string(), index);
         let old = {
-            let mut threads = self.threads.lock().unwrap();
+            let mut threads = self
+                .threads
+                .lock()
+                .expect("zk service-discovery threads mutex should not be poisoned");
             threads.remove(&key)
         };
         if let Some(old) = old {
@@ -539,14 +552,17 @@ impl ServiceDiscovery for ZkServiceDiscovery {
         let h = std::thread::spawn(move || loop {
             // Wake up periodically or on explicit wakeup.
             let period_ms = ZK_REGISTRATION_PERIOD_MS.load(Ordering::SeqCst);
-            let mut w = ts2.mu.lock().unwrap();
+            let mut w = ts2
+                .mu
+                .lock()
+                .expect("zk registration thread wakeup mutex should not be poisoned");
             if !*w {
                 if period_ms == 0 {
                     // Busy-looping can be expensive; sleep a tiny bit between attempts.
                     let (wg, _) = ts2
                         .wakeup
                         .wait_timeout(w, Duration::from_millis(10))
-                        .unwrap();
+                        .expect("zk registration wakeup wait_timeout should not fail");
                     w = wg;
                 } else {
                     // Guard against spurious wakeups: only proceed on explicit wake or timeout.
@@ -555,7 +571,7 @@ impl ServiceDiscovery for ZkServiceDiscovery {
                         let (wg, res) = ts2
                             .wakeup
                             .wait_timeout(w, Duration::from_millis(period_ms))
-                            .unwrap();
+                            .expect("zk registration wakeup wait_timeout should not fail");
                         w = wg;
                         timed_out = res.timed_out();
                     }
@@ -589,8 +605,13 @@ impl ServiceDiscovery for ZkServiceDiscovery {
             }
             let _ = last;
         });
-        *ts.handle.lock().unwrap() = Some(h);
-        self.threads.lock().unwrap().insert(key, ts);
+        *ts.handle
+            .lock()
+            .expect("zk registration thread handle mutex should not be poisoned") = Some(h);
+        self.threads
+            .lock()
+            .expect("zk service-discovery threads mutex should not be poisoned")
+            .insert(key, ts);
         Ok(())
     }
 
@@ -604,7 +625,11 @@ impl ServiceDiscovery for ZkServiceDiscovery {
         let _ = self.client.delete_recursive(&path);
 
         let key = (name.to_string(), index);
-        let removed = self.threads.lock().unwrap().remove(&key);
+        let removed = self
+            .threads
+            .lock()
+            .expect("zk service-discovery threads mutex should not be poisoned")
+            .remove(&key);
         if let Some(ts) = removed {
             ts.stop_and_join();
         }
@@ -644,7 +669,10 @@ impl ServiceDiscovery for ZkServiceDiscovery {
             return Ok(());
         }
         let drained = {
-            let mut threads = self.threads.lock().unwrap();
+            let mut threads = self
+                .threads
+                .lock()
+                .expect("zk service-discovery threads mutex should not be poisoned");
             threads.drain().map(|(_, ts)| ts).collect::<Vec<_>>()
         };
         for ts in drained {
@@ -693,7 +721,10 @@ mod tests {
             name: &str,
             _timeout_secs: u64,
         ) -> std::io::Result<Vec<serde_json::Value>> {
-            let guard = self.name_to_dict.lock().unwrap();
+            let guard = self
+                .name_to_dict
+                .lock()
+                .expect("fake consul name_to_dict mutex should not be poisoned");
             Ok(guard
                 .get(name)
                 .map(|m| m.values().cloned().collect())
@@ -715,7 +746,10 @@ mod tests {
             }
             let host = tags.get("ip").cloned().unwrap_or_default();
             let key = format!("{host}:{port}");
-            let mut map = self.name_to_dict.lock().unwrap();
+            let mut map = self
+                .name_to_dict
+                .lock()
+                .expect("fake consul name_to_dict mutex should not be poisoned");
             let entry = map.entry(name.to_string()).or_default();
             entry.insert(
                 key.clone(),
@@ -726,7 +760,10 @@ mod tests {
 
         fn deregister(&self, name: &str, port: u16) -> std::io::Result<()> {
             // Host isn't passed; match FakeConsul's behavior by removing any key with port.
-            let mut map = self.name_to_dict.lock().unwrap();
+            let mut map = self
+                .name_to_dict
+                .lock()
+                .expect("fake consul name_to_dict mutex should not be poisoned");
             if let Some(d) = map.get_mut(name) {
                 let to_remove: Vec<String> = d
                     .keys()
@@ -747,18 +784,27 @@ mod tests {
     fn consul_service_discovery_basic() {
         let c = Arc::new(FakeConsul::new(vec![]));
         let d = ConsulServiceDiscovery::new("unique_id").with_client(c);
-        d.register("server", 0, "192.168.0.1:1001").unwrap();
-        d.register("server", 1, "192.168.0.2:1002").unwrap();
+        d.register("server", 0, "192.168.0.1:1001")
+            .expect("consul register server[0] should succeed in basic test");
+        d.register("server", 1, "192.168.0.2:1002")
+            .expect("consul register server[1] should succeed in basic test");
         assert_eq!(
-            d.query("server").unwrap(),
+            d.query("server")
+                .expect("consul query(server) should succeed in basic test"),
             BTreeMap::from([
                 (0, "192.168.0.1:1001".to_string()),
                 (1, "192.168.0.2:1002".to_string())
             ])
         );
-        d.deregister("server", 0, "192.168.0.1:1001").unwrap();
-        d.deregister("server", 1, "192.168.0.2:1002").unwrap();
-        assert_eq!(d.query("server").unwrap(), BTreeMap::new());
+        d.deregister("server", 0, "192.168.0.1:1001")
+            .expect("consul deregister server[0] should succeed in basic test");
+        d.deregister("server", 1, "192.168.0.2:1002")
+            .expect("consul deregister server[1] should succeed in basic test");
+        assert_eq!(
+            d.query("server")
+                .expect("consul query(server) should succeed after deregistration"),
+            BTreeMap::new()
+        );
     }
 
     #[test]
@@ -767,10 +813,13 @@ mod tests {
         let d = ConsulServiceDiscovery::new("unique_id")
             .with_retry_time_secs(0.0)
             .with_client(c);
-        d.register("server", 0, "192.168.0.1:1001").unwrap();
-        d.register("server", 0, "192.168.0.1:1002").unwrap();
+        d.register("server", 0, "192.168.0.1:1001")
+            .expect("first duplicate-registration setup should succeed");
+        d.register("server", 0, "192.168.0.1:1002")
+            .expect("second duplicate-registration setup should succeed");
         assert_eq!(
-            d.query("server").unwrap(),
+            d.query("server")
+                .expect("consul query(server) should succeed for duplicate overwrite test"),
             BTreeMap::from([(0, "192.168.0.1:1002".to_string())])
         );
     }
@@ -781,10 +830,13 @@ mod tests {
         let d = ConsulServiceDiscovery::new("unique_id")
             .with_retry_time_secs(0.0)
             .with_client(c);
-        d.register("server", 0, "192.168.0.1:1001").unwrap();
-        d.register("server", 0, "192.168.0.1:1001").unwrap();
+        d.register("server", 0, "192.168.0.1:1001")
+            .expect("first idempotent-registration setup should succeed");
+        d.register("server", 0, "192.168.0.1:1001")
+            .expect("second idempotent-registration setup should succeed");
         assert_eq!(
-            d.query("server").unwrap(),
+            d.query("server")
+                .expect("consul query(server) should succeed for idempotent registration test"),
             BTreeMap::from([(0, "192.168.0.1:1001".to_string())])
         );
     }
@@ -793,10 +845,13 @@ mod tests {
     fn consul_multi_names() {
         let c = Arc::new(FakeConsul::new(vec![]));
         let d = ConsulServiceDiscovery::new("unique_id").with_client(c);
-        d.register("ps", 0, "192.168.0.1:1001").unwrap();
-        d.register("worker", 0, "192.168.0.1:1002").unwrap();
+        d.register("ps", 0, "192.168.0.1:1001")
+            .expect("consul register(ps) should succeed");
+        d.register("worker", 0, "192.168.0.1:1002")
+            .expect("consul register(worker) should succeed");
         assert_eq!(
-            d.query("worker").unwrap(),
+            d.query("worker")
+                .expect("consul query(worker) should succeed in multi-name test"),
             BTreeMap::from([(0, "192.168.0.1:1002".to_string())])
         );
     }
@@ -943,8 +998,10 @@ mod tests {
         let d = ConsulServiceDiscovery::new("unique_id")
             .with_retry_time_secs(0.0)
             .with_client(c);
-        d.close().unwrap();
-        d.close().unwrap();
+        d.close()
+            .expect("first consul close should succeed in idempotent-close test");
+        d.close()
+            .expect("second consul close should succeed in idempotent-close test");
 
         let register_err = d
             .register("ps", 0, "192.168.0.1:1001")
@@ -975,7 +1032,8 @@ mod tests {
             .with_client(c);
         let d2 = d1.clone();
 
-        d1.close().unwrap();
+        d1.close()
+            .expect("closing original consul discovery should succeed");
         let err = d2
             .query_all()
             .expect_err("consul clone should observe closed state from original instance");
@@ -992,15 +1050,40 @@ mod tests {
           },
           "task": {"type": "worker", "index": 1}
         });
-        let d = TfConfigServiceDiscovery::new(&tf_conf.to_string()).unwrap();
-        let ps = d.query("ps").unwrap();
-        assert_eq!(ps.get(&0).unwrap(), "host1:2222");
-        assert_eq!(ps.get(&1).unwrap(), "host2:2222");
-        let wk = d.query("worker").unwrap();
-        assert_eq!(wk.get(&0).unwrap(), "host0:2222");
-        assert_eq!(wk.get(&1).unwrap(), "host3:2222");
-        assert_eq!(wk.get(&2).unwrap(), "host4:2222");
-        assert_eq!(d.addr().unwrap(), "host4:2222");
+        let d = TfConfigServiceDiscovery::new(&tf_conf.to_string())
+            .expect("tf-config service discovery construction should succeed");
+        let ps = d.query("ps").expect("tf-config query(ps) should succeed");
+        assert_eq!(
+            ps.get(&0).expect("ps[0] should be present in tf-config cluster"),
+            "host1:2222"
+        );
+        assert_eq!(
+            ps.get(&1).expect("ps[1] should be present in tf-config cluster"),
+            "host2:2222"
+        );
+        let wk = d
+            .query("worker")
+            .expect("tf-config query(worker) should succeed");
+        assert_eq!(
+            wk.get(&0)
+                .expect("worker[0] should be present in tf-config cluster"),
+            "host0:2222"
+        );
+        assert_eq!(
+            wk.get(&1)
+                .expect("worker[1] should be present in tf-config cluster"),
+            "host3:2222"
+        );
+        assert_eq!(
+            wk.get(&2)
+                .expect("worker[2] should be present in tf-config cluster"),
+            "host4:2222"
+        );
+        assert_eq!(
+            d.addr()
+                .expect("tf-config task addr should resolve successfully"),
+            "host4:2222"
+        );
         assert_eq!(d.server_type(), "worker");
         assert_eq!(d.index(), 2);
     }
@@ -1020,7 +1103,12 @@ mod tests {
         }
 
         fn emit(&self, st: ZkState) {
-            for l in self.listeners.lock().unwrap().iter() {
+            for l in self
+                .listeners
+                .lock()
+                .expect("fake zk listeners mutex should not be poisoned")
+                .iter()
+            {
                 l(st);
             }
         }
@@ -1028,7 +1116,10 @@ mod tests {
 
     impl ZkClientLike for FakeZk {
         fn ensure_path(&self, path: &str) -> std::io::Result<()> {
-            let mut d = self.data.write().unwrap();
+            let mut d = self
+                .data
+                .write()
+                .expect("fake zk data write lock should not be poisoned");
             d.entry(path.to_string()).or_default();
             Ok(())
         }
@@ -1041,7 +1132,10 @@ mod tests {
         fn close(&self) {}
 
         fn add_listener(&self, f: Arc<dyn Fn(ZkState) + Send + Sync>) {
-            self.listeners.lock().unwrap().push(f);
+            self.listeners
+                .lock()
+                .expect("fake zk listeners mutex should not be poisoned")
+                .push(f);
         }
 
         fn create_ephemeral(
@@ -1055,7 +1149,10 @@ mod tests {
                     self.ensure_path(parent)?;
                 }
             }
-            let mut d = self.data.write().unwrap();
+            let mut d = self
+                .data
+                .write()
+                .expect("fake zk data write lock should not be poisoned");
             if d.contains_key(path) {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::AlreadyExists,
@@ -1067,7 +1164,10 @@ mod tests {
         }
 
         fn set(&self, path: &str, value: &[u8]) -> std::io::Result<()> {
-            let mut d = self.data.write().unwrap();
+            let mut d = self
+                .data
+                .write()
+                .expect("fake zk data write lock should not be poisoned");
             if !d.contains_key(path) {
                 return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "missing"));
             }
@@ -1076,7 +1176,10 @@ mod tests {
         }
 
         fn delete_recursive(&self, path: &str) -> std::io::Result<()> {
-            let mut d = self.data.write().unwrap();
+            let mut d = self
+                .data
+                .write()
+                .expect("fake zk data write lock should not be poisoned");
             let keys: Vec<String> = d.keys().filter(|k| k.starts_with(path)).cloned().collect();
             if keys.is_empty() {
                 return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "missing"));
@@ -1088,12 +1191,18 @@ mod tests {
         }
 
         fn get(&self, path: &str) -> std::io::Result<Option<Vec<u8>>> {
-            let d = self.data.read().unwrap();
+            let d = self
+                .data
+                .read()
+                .expect("fake zk data read lock should not be poisoned");
             Ok(d.get(path).cloned())
         }
 
         fn get_children(&self, path: &str) -> std::io::Result<Vec<String>> {
-            let d = self.data.read().unwrap();
+            let d = self
+                .data
+                .read()
+                .expect("fake zk data read lock should not be poisoned");
             if !d.contains_key(path) {
                 return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "missing"));
             }
@@ -1120,92 +1229,118 @@ mod tests {
     #[test]
     fn zk_basic_and_duplicate_and_multi_names() {
         let c = Arc::new(FakeZk::new());
-        let d =
-            ZkServiceDiscovery::new("test_model", Arc::clone(&c) as Arc<dyn ZkClientLike>).unwrap();
-        d.register("server", 0, "192.168.0.1:1001").unwrap();
-        d.register("server", 1, "192.168.0.2:1002").unwrap();
+        let d = ZkServiceDiscovery::new("test_model", Arc::clone(&c) as Arc<dyn ZkClientLike>)
+            .expect("zk service discovery construction should succeed");
+        d.register("server", 0, "192.168.0.1:1001")
+            .expect("zk register server[0] should succeed");
+        d.register("server", 1, "192.168.0.2:1002")
+            .expect("zk register server[1] should succeed");
         assert_eq!(
-            d.query("server").unwrap(),
+            d.query("server")
+                .expect("zk query(server) should succeed in basic test"),
             BTreeMap::from([
                 (0, "192.168.0.1:1001".to_string()),
                 (1, "192.168.0.2:1002".to_string())
             ])
         );
-        d.deregister("server", 0, "192.168.0.1:1001").unwrap();
-        d.deregister("server", 1, "192.168.0.2:1002").unwrap();
-        assert_eq!(d.query("server").unwrap(), BTreeMap::new());
+        d.deregister("server", 0, "192.168.0.1:1001")
+            .expect("zk deregister server[0] should succeed");
+        d.deregister("server", 1, "192.168.0.2:1002")
+            .expect("zk deregister server[1] should succeed");
+        assert_eq!(
+            d.query("server")
+                .expect("zk query(server) should succeed after deregistration"),
+            BTreeMap::new()
+        );
 
         // Duplicate overwrites.
-        d.register("server", 0, "192.168.0.1:1001").unwrap();
-        d.register("server", 0, "192.168.0.1:1002").unwrap();
+        d.register("server", 0, "192.168.0.1:1001")
+            .expect("zk duplicate setup register should succeed");
+        d.register("server", 0, "192.168.0.1:1002")
+            .expect("zk duplicate overwrite register should succeed");
         assert_eq!(
-            d.query("server").unwrap(),
+            d.query("server")
+                .expect("zk query(server) should succeed for duplicate overwrite test"),
             BTreeMap::from([(0, "192.168.0.1:1002".to_string())])
         );
 
         // Multi names.
-        d.register("ps", 0, "192.168.0.1:1001").unwrap();
-        d.register("worker", 0, "192.168.0.1:1002").unwrap();
+        d.register("ps", 0, "192.168.0.1:1001")
+            .expect("zk register(ps) should succeed");
+        d.register("worker", 0, "192.168.0.1:1002")
+            .expect("zk register(worker) should succeed");
         assert_eq!(
-            d.query("worker").unwrap(),
+            d.query("worker")
+                .expect("zk query(worker) should succeed in multi-name test"),
             BTreeMap::from([(0, "192.168.0.1:1002".to_string())])
         );
 
-        d.close().unwrap();
+        d.close().expect("zk close should succeed");
     }
 
     #[test]
     fn zk_periodic_registration_repairs_data() {
-        let _guard = ZK_PERIOD_TEST_MUTEX.lock().unwrap();
+        let _guard = ZK_PERIOD_TEST_MUTEX
+            .lock()
+            .expect("zk period test mutex should not be poisoned");
         set_zk_registration_period_ms_for_tests(10);
         let c = Arc::new(FakeZk::new());
-        let d =
-            ZkServiceDiscovery::new("test_model", Arc::clone(&c) as Arc<dyn ZkClientLike>).unwrap();
-        d.register("ps", 0, "192.168.0.1:1001").unwrap();
+        let d = ZkServiceDiscovery::new("test_model", Arc::clone(&c) as Arc<dyn ZkClientLike>)
+            .expect("zk service discovery construction should succeed");
+        d.register("ps", 0, "192.168.0.1:1001")
+            .expect("zk register(ps) should succeed");
         // Corrupt the node.
-        c.set("/monolith/test_model/ps.0", b"wrongdata").unwrap();
+        c.set("/monolith/test_model/ps.0", b"wrongdata")
+            .expect("fake zk set should succeed when corrupting node");
         std::thread::sleep(Duration::from_millis(100));
         assert_eq!(
-            d.query("ps").unwrap(),
+            d.query("ps")
+                .expect("zk query(ps) should succeed after periodic repair"),
             BTreeMap::from([(0, "192.168.0.1:1001".to_string())])
         );
-        d.close().unwrap();
+        d.close().expect("zk close should succeed");
     }
 
     #[test]
     fn zk_listener_wakeup_does_not_break_registration() {
-        let _guard = ZK_PERIOD_TEST_MUTEX.lock().unwrap();
+        let _guard = ZK_PERIOD_TEST_MUTEX
+            .lock()
+            .expect("zk period test mutex should not be poisoned");
         set_zk_registration_period_ms_for_tests(60_000);
         let c = Arc::new(FakeZk::new());
-        let d =
-            ZkServiceDiscovery::new("test_model", Arc::clone(&c) as Arc<dyn ZkClientLike>).unwrap();
-        d.register("ps", 0, "192.168.0.1:1001").unwrap();
+        let d = ZkServiceDiscovery::new("test_model", Arc::clone(&c) as Arc<dyn ZkClientLike>)
+            .expect("zk service discovery construction should succeed");
+        d.register("ps", 0, "192.168.0.1:1001")
+            .expect("zk register(ps) should succeed");
         c.emit(ZkState::Lost);
         c.emit(ZkState::Connected);
         assert_eq!(
-            d.query("ps").unwrap(),
+            d.query("ps")
+                .expect("zk query(ps) should succeed after listener wakeup"),
             BTreeMap::from([(0, "192.168.0.1:1001".to_string())])
         );
-        d.close().unwrap();
+        d.close().expect("zk close should succeed");
     }
 
     #[test]
     fn zk_close_is_idempotent_after_deregister() {
         let c = Arc::new(FakeZk::new());
-        let d =
-            ZkServiceDiscovery::new("test_model", Arc::clone(&c) as Arc<dyn ZkClientLike>).unwrap();
-        d.register("ps", 0, "192.168.0.1:1001").unwrap();
-        d.deregister("ps", 0, "192.168.0.1:1001").unwrap();
-        d.close().unwrap();
-        d.close().unwrap();
+        let d = ZkServiceDiscovery::new("test_model", Arc::clone(&c) as Arc<dyn ZkClientLike>)
+            .expect("zk service discovery construction should succeed");
+        d.register("ps", 0, "192.168.0.1:1001")
+            .expect("zk register(ps) should succeed");
+        d.deregister("ps", 0, "192.168.0.1:1001")
+            .expect("zk deregister(ps) should succeed");
+        d.close().expect("first zk close should succeed");
+        d.close().expect("second zk close should succeed");
     }
 
     #[test]
     fn zk_operations_fail_after_close() {
         let c = Arc::new(FakeZk::new());
-        let d =
-            ZkServiceDiscovery::new("test_model", Arc::clone(&c) as Arc<dyn ZkClientLike>).unwrap();
-        d.close().unwrap();
+        let d = ZkServiceDiscovery::new("test_model", Arc::clone(&c) as Arc<dyn ZkClientLike>)
+            .expect("zk service discovery construction should succeed");
+        d.close().expect("zk close should succeed");
 
         let register_err = d
             .register("ps", 0, "192.168.0.1:1001")
