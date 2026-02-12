@@ -641,10 +641,7 @@ impl ZkDiscovery {
             *guard = None;
         }
         self.registered_paths.lock().await.clear();
-        self.watchers
-            .lock()
-            .unwrap()
-            .retain(|_, sender| sender.receiver_count() > 0);
+        self.compact_dead_watch_senders();
         self.watch_generation.fetch_add(1, Ordering::SeqCst);
         self.watch_poll_generations.lock().unwrap().clear();
         Ok(())
@@ -679,6 +676,14 @@ impl ZkDiscovery {
         {
             watchers.remove(service_type);
         }
+    }
+
+    /// Compacts all watcher senders that have no active receivers.
+    fn compact_dead_watch_senders(&self) {
+        self.watchers
+            .lock()
+            .unwrap()
+            .retain(|_, sender| sender.receiver_count() > 0);
     }
 
     /// Returns true only when a new poll loop should be spawned for the service type.
@@ -1114,6 +1119,14 @@ impl ConsulDiscovery {
         }
     }
 
+    /// Compacts all watcher senders that have no active receivers.
+    fn compact_dead_watch_senders(&self) {
+        self.watchers
+            .lock()
+            .unwrap()
+            .retain(|_, sender| sender.receiver_count() > 0);
+    }
+
     /// Returns true only when a new poll loop should be spawned for the service type.
     fn should_spawn_watch_poll(&self, service_type: &str) -> bool {
         let generation = self.watch_generation.load(Ordering::SeqCst);
@@ -1213,10 +1226,7 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
             let mut guard = self.client.lock().await;
             *guard = None;
         }
-        self.watchers
-            .lock()
-            .unwrap()
-            .retain(|_, sender| sender.receiver_count() > 0);
+        self.compact_dead_watch_senders();
         self.watch_generation.fetch_add(1, Ordering::SeqCst);
         self.watch_poll_generations.lock().unwrap().clear();
         Ok(())
@@ -2094,6 +2104,32 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_disconnect_compacts_only_dead_watchers() {
+        let zk = ZkDiscovery::new("localhost:2181", "/services");
+        let dead_rx = zk.watch("ps").expect("watch should succeed");
+        let _live_rx = zk.watch("worker").expect("watch should succeed");
+        assert_eq!(
+            zk.watchers.lock().unwrap().len(),
+            2,
+            "test setup should seed two watcher senders"
+        );
+        drop(dead_rx);
+
+        zk.disconnect().await.expect("disconnect should succeed");
+
+        let watchers = zk.watchers.lock().unwrap();
+        assert!(
+            !watchers.contains_key("ps"),
+            "disconnect should compact dead watcher sender for dropped receiver"
+        );
+        assert!(
+            watchers.contains_key("worker"),
+            "disconnect should preserve watcher sender with active receiver"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_disconnect_clears_watch_poll_generation_entries() {
         let zk = ZkDiscovery::new("localhost:2181", "/services");
         assert!(zk.should_spawn_watch_poll("ps"));
@@ -2753,6 +2789,34 @@ mod tests {
         assert!(
             consul.watchers.lock().unwrap().contains_key("worker"),
             "disconnect should preserve live watcher senders"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_disconnect_compacts_only_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        let dead_rx = consul.watch("worker").expect("watch should succeed");
+        let _live_rx = consul.watch("ps").expect("watch should succeed");
+        assert_eq!(
+            consul.watchers.lock().unwrap().len(),
+            2,
+            "test setup should seed two watcher senders"
+        );
+        drop(dead_rx);
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+
+        let watchers = consul.watchers.lock().unwrap();
+        assert!(
+            !watchers.contains_key("worker"),
+            "disconnect should compact dead watcher sender for dropped receiver"
+        );
+        assert!(
+            watchers.contains_key("ps"),
+            "disconnect should preserve watcher sender with active receiver"
         );
     }
 
