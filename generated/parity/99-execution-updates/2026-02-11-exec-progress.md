@@ -5396,6 +5396,27 @@
   - Targeted run-config/runner-config rejection suites and default
     monolith-training regression remain green.
 
+### 403) Discovery parity: stricter Consul invalid-address classification and validation
+- Hardened Consul request error handling in
+  `crates/monolith-training/src/discovery.rs`:
+  - Expanded `map_consul_request_error` malformed-address classification to
+    cover additional invalid-address markers (`InvalidPort`, invalid-scheme /
+    host / authority patterns, relative URL, empty host).
+  - Added `validate_consul_address_for_operation(...)` and integrated it into
+    Consul async register/discover/deregister flows so malformed addresses are
+    rejected deterministically as `ConfigError` with operation-specific context
+    before network fallback paths.
+- Added targeted tests:
+  - Direct classifier tests for InvalidPort, invalid-scheme, and runtime
+    connection-failure Internal classification retention.
+  - Async discover test ensuring invalid-port Consul addresses are classified as
+    `ConfigError` with discover-operation context.
+- Result:
+  - Malformed Consul endpoints now surface as deterministic `ConfigError`
+    diagnostics with clearer operation context.
+  - Feature-gated Consul config/deregister suites and default monolith-training
+    regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6296,6 +6317,7 @@
 897. `ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_honors_discover_timeout_controls -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_propagates_discover_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_preserves_discover_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_preserves_worker_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_preserves_last_discover_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_propagates_custom_discover_service_type_into_worker_discovery_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity runner-config discover/worker-timeout contract tightening verification plus default-lane regression rerun)
 898. `ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_accepts_case_insensitive_http_scheme_parameter_sync_target -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_preserves_worker_register_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_preserves_ps_register_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_surfaces_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_preserves_deregister_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_preserves_register_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_preserves_ps_register_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_honors_cleanup_timeout_after_register_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity runner-config register/post-success contract closure verification plus default-lane regression rerun)
 899. `ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_run_config_rejects_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_rejects_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity distributed-config validation rejection contract tightening verification plus default-lane regression rerun)
+900. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_map_consul_request_error_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_invalid_port_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul invalid-address classifier/validation tightening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

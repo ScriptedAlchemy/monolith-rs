@@ -1233,6 +1233,10 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
     }
 
     async fn register_async(&self, service: ServiceInfo) -> Result<()> {
+        validate_consul_address_for_operation("register_entity", &self.address).map_err(|e| {
+            self.compact_dead_watch_sender(&service.service_type);
+            e
+        })?;
         self.connect().await.map_err(|e| {
             self.compact_dead_watch_sender(&service.service_type);
             e
@@ -1292,6 +1296,7 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
     }
 
     async fn discover_async(&self, service_type: &str) -> Result<Vec<ServiceInfo>> {
+        validate_consul_address_for_operation("get_service_nodes", &self.address)?;
         self.connect().await?;
         let client = self.client.lock().await.as_ref().cloned().ok_or_else(|| {
             DiscoveryError::ConnectionFailed("Consul client not connected".into())
@@ -1380,6 +1385,7 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
             DiscoveryEvent::ServiceRemoved(service_id.to_string()),
         );
 
+        validate_consul_address_for_operation("deregister_entity", &self.address)?;
         self.connect().await?;
         let client = self.client.lock().await.as_ref().cloned().ok_or_else(|| {
             DiscoveryError::ConnectionFailed("Consul client not connected".into())
@@ -1420,11 +1426,91 @@ async fn ensure_zk_path(client: &zk::Client, path: &str) -> Result<()> {
 #[cfg(feature = "consul")]
 fn map_consul_request_error(context: &str, err: impl std::fmt::Debug) -> DiscoveryError {
     let detail = format!("{err:?}");
-    if detail.contains("InvalidUri") || detail.contains("InvalidAuthority") {
+    let detail_lower = detail.to_ascii_lowercase();
+    let is_config_error = detail.contains("InvalidUri")
+        || detail.contains("InvalidAuthority")
+        || detail.contains("InvalidPort")
+        || detail_lower.contains("invalid port")
+        || detail_lower.contains("invalid scheme")
+        || detail_lower.contains("invalid host")
+        || detail_lower.contains("invalid authority")
+        || detail_lower.contains("relative url without a base")
+        || detail_lower.contains("empty host");
+
+    if is_config_error {
         DiscoveryError::ConfigError(format!("Consul {context} invalid address: {detail}"))
     } else {
         DiscoveryError::Internal(format!("Consul {context} failed: {detail}"))
     }
+}
+
+#[cfg(feature = "consul")]
+fn validate_consul_address_for_operation(context: &str, address: &str) -> Result<()> {
+    let cfg_err = |detail: &str| {
+        DiscoveryError::ConfigError(format!("Consul {context} invalid address: {detail}"))
+    };
+
+    let trimmed = address.trim();
+    let normalized = if trimmed.is_empty() {
+        "http://127.0.0.1:8500".to_string()
+    } else if trimmed.contains("://") {
+        trimmed.to_string()
+    } else {
+        format!("http://{trimmed}")
+    };
+
+    let (scheme, remainder) = normalized
+        .split_once("://")
+        .ok_or_else(|| cfg_err("missing scheme delimiter"))?;
+    if scheme != "http" && scheme != "https" {
+        return Err(cfg_err("invalid scheme"));
+    }
+
+    let authority = remainder
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or_default();
+    if authority.is_empty() {
+        return Err(cfg_err("empty host"));
+    }
+    if authority.chars().any(char::is_whitespace) {
+        return Err(cfg_err("whitespace in authority"));
+    }
+
+    if let Some(rest) = authority.strip_prefix('[') {
+        let (host, trailing) = rest
+            .split_once(']')
+            .ok_or_else(|| cfg_err("invalid IPv6 host"))?;
+        if host.is_empty() {
+            return Err(cfg_err("empty host"));
+        }
+        if let Some(port) = trailing.strip_prefix(':') {
+            if port.is_empty() {
+                return Err(cfg_err("invalid port"));
+            }
+            port.parse::<u16>()
+                .map_err(|_| cfg_err("invalid port"))?;
+        } else if !trailing.is_empty() {
+            return Err(cfg_err("invalid authority"));
+        }
+        return Ok(());
+    }
+
+    let (host, maybe_port) = match authority.rsplit_once(':') {
+        Some((host, port)) if !port.is_empty() && port.chars().all(|c| c.is_ascii_digit()) => {
+            (host, Some(port))
+        }
+        Some((_host, _port)) if authority.contains(':') => return Err(cfg_err("invalid port")),
+        _ => (authority, None),
+    };
+    if host.is_empty() {
+        return Err(cfg_err("empty host"));
+    }
+    if let Some(port) = maybe_port {
+        port.parse::<u16>()
+            .map_err(|_| cfg_err("invalid port"))?;
+    }
+    Ok(())
 }
 
 #[cfg(feature = "zookeeper")]
@@ -1526,6 +1612,51 @@ mod tests {
     fn test_service_info_address() {
         let service = ServiceInfo::new("test", "Test", "test", "10.0.0.1", 8080);
         assert_eq!(service.address(), "10.0.0.1:8080");
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_map_consul_request_error_classifies_invalid_port_as_config_error() {
+        let err = map_consul_request_error("register_entity", "InvalidPort");
+        match err {
+            DiscoveryError::ConfigError(msg) => {
+                assert!(
+                    msg.contains("register_entity") && msg.contains("invalid address"),
+                    "config error should retain operation context for InvalidPort markers: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for InvalidPort marker, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_map_consul_request_error_classifies_invalid_scheme_as_config_error() {
+        let err = map_consul_request_error("get_service_nodes", "invalid scheme");
+        match err {
+            DiscoveryError::ConfigError(msg) => {
+                assert!(
+                    msg.contains("get_service_nodes") && msg.contains("invalid address"),
+                    "config error should retain operation context for invalid-scheme markers: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for invalid-scheme marker, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_map_consul_request_error_keeps_connection_failures_internal() {
+        let err = map_consul_request_error("get_service_nodes", "Connection refused");
+        match err {
+            DiscoveryError::Internal(msg) => {
+                assert!(
+                    msg.contains("get_service_nodes") && msg.contains("Connection refused"),
+                    "internal error should retain operation context for runtime failures: {msg}"
+                );
+            }
+            other => panic!("expected Internal for runtime failure marker, got {other:?}"),
+        }
     }
 
     #[test]
@@ -3624,6 +3755,23 @@ mod tests {
                 );
             }
             other => panic!("expected ConfigError, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_invalid_port_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:notaport");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address") && msg.contains("get_service_nodes"),
+                    "invalid-port discover failures should be classified as ConfigError with discover context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for invalid port address, got {other:?}"),
         }
     }
 
