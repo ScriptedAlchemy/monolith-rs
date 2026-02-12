@@ -87,7 +87,8 @@ mod tests {
     fn machine_health_oom_sets_status() {
         let info = machine_info(Some(0), None);
         let bytes = check_machine_health(&info);
-        let decoded = MachineHealthResult::decode(bytes.as_slice()).unwrap();
+        let decoded = MachineHealthResult::decode(bytes.as_slice())
+            .expect("machine health bytes should decode into MachineHealthResult");
         assert_eq!(
             decoded.status,
             Some(MachineHealthStatus::OutOfMemory as i32)

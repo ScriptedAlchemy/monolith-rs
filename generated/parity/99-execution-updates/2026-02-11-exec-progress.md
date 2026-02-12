@@ -6983,6 +6983,14 @@
   - removed all `.unwrap()` call-sites from native-training hvd-lib module
     (**0 remaining**) while preserving Horovod/BytePS env parsing behavior.
 
+### 517) Native-training logging-ops unwrap diagnostics completion
+- Tightened the remaining unwrap assertion in
+  `crates/monolith-training/src/native_training/logging_ops.rs` test by
+  replacing proto decode unwrap with explicit `expect(...)` diagnostics.
+- Result:
+  - removed all `.unwrap()` call-sites from native-training logging-ops module
+    (**0 remaining**) while preserving machine-health status behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8072,6 +8080,8 @@
 1086. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/graph_meta.rs` ✅ (verified no remaining unwrap call-sites in native-training graph-meta module)
 1087. `cargo test -p monolith-training hvd_lib::tests:: -- --nocapture` ✅ (validated native-training hvd-lib unit-test suite after unwrap-diagnostics tightening)
 1088. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/hvd_lib.rs` ✅ (verified no remaining unwrap call-sites in native-training hvd-lib module)
+1089. `cargo test -p monolith-training machine_health_oom_sets_status -- --nocapture` ✅ (validated native-training logging-ops OOM status test after unwrap-diagnostics tightening)
+1090. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/logging_ops.rs` ✅ (verified no remaining unwrap call-sites in native-training logging-ops module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
