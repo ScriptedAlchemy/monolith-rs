@@ -3361,6 +3361,84 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_watch_async_case_insensitive_scheme_seeds_poll_generation_entry() {
+        let consul = ConsulDiscovery::new("HtTp://localhost:8500/");
+
+        let rx = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("watch_async should accept case-insensitive http scheme");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch_async should create watcher sender entry for valid address"
+        );
+        assert!(
+            consul
+                .watch_poll_generations
+                .lock()
+                .unwrap()
+                .contains_key("worker"),
+            "watch_async should seed poll-generation bookkeeping for valid address"
+        );
+
+        drop(rx);
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                if !consul
+                    .watch_poll_generations
+                    .lock()
+                    .unwrap()
+                    .contains_key("worker")
+                {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        })
+        .await
+        .expect("poll-generation entry should clear after watcher receiver drops");
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_host_port_without_scheme_seeds_poll_generation_entry() {
+        let consul = ConsulDiscovery::new("127.0.0.1:8501");
+
+        let rx = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("watch_async should accept host:port by normalizing http scheme");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch_async should create watcher sender entry for normalized host:port address"
+        );
+        assert!(
+            consul
+                .watch_poll_generations
+                .lock()
+                .unwrap()
+                .contains_key("worker"),
+            "watch_async should seed poll-generation bookkeeping for normalized host:port address"
+        );
+
+        drop(rx);
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                if !consul
+                    .watch_poll_generations
+                    .lock()
+                    .unwrap()
+                    .contains_key("worker")
+                {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        })
+        .await
+        .expect("poll-generation entry should clear after watcher receiver drops");
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_watch_async_config_error_cleans_poll_generation_entry() {
         let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
 

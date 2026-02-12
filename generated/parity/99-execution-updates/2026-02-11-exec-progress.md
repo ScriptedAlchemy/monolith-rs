@@ -6420,6 +6420,19 @@
   - Lifecycle state remains unchanged under every tested invalid-address watch
     input class.
 
+### 472) Consul watch parity: add valid-address acceptance contracts for normalized schemes
+- Added watcher success-path parity regressions to confirm normalized valid
+  address forms remain accepted by fail-fast validation:
+  - `test_consul_watch_async_case_insensitive_scheme_seeds_poll_generation_entry`
+  - `test_consul_watch_async_host_port_without_scheme_seeds_poll_generation_entry`
+- Expanded invalid-address coverage further with:
+  - `test_consul_watch_async_whitespace_authority_rejects_without_state_changes`
+  - `test_consul_watch_async_empty_host_rejects_without_state_changes`
+- Result:
+  - `watch_async` now has explicit acceptance coverage for canonicalized valid
+    address forms while preserving zero-state-mutation guarantees for all tested
+    invalid classes.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7425,6 +7438,8 @@
 1002. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after watch_async invalid-address matrix completion)
 1003. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_ -- --nocapture` ✅ (validated watch_async authority-shape fail-fast contracts for whitespace-authority and empty-host address inputs, alongside existing path/query/fragment/scheme/userinfo lanes)
 1004. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after Consul watch_async authority-shape parity expansion)
+1005. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_ -- --nocapture` ✅ (validated full Consul watch_async matrix including valid-address acceptance lanes for case-insensitive scheme and host:port normalization plus invalid authority/suffix fail-fast contracts)
+1006. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after watch_async acceptance/failure matrix completion)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
