@@ -4784,6 +4784,17 @@
   - Targeted post-success cleanup lane and default monolith-training regression
     remain green.
 
+### 355) Runner registration-failure contract tightening completion
+- Finished tightening remaining registration-failure tests in `runner.rs` by
+  replacing the last `assert!(res.is_err())` patterns with explicit
+  `expect_err` contracts for custom-service worker/ps variants.
+- Result:
+  - Registration-failure assertion-contract tightening is now complete for this
+    runner test family (no remaining `assert!(res.is_err(), "expected ...")`
+    patterns in `runner.rs`).
+  - Targeted registration-failure lane and default monolith-training regression
+    remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5636,6 +5647,7 @@
 849. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" disconnect_preserves_local_service_cache -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated ZK/Consul disconnect local-cache preservation verification plus default-lane regression rerun)
 850. `ZK_AUTH=user:pass cargo test -p monolith-training connect_and_disconnect_fail -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (runner connect+disconnect failure assertion-contract tightening verification plus default-lane regression rerun)
 851. `ZK_AUTH=user:pass cargo test -p monolith-training after_success -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (runner post-success cleanup assertion-contract tightening verification plus default-lane regression rerun)
+852. `ZK_AUTH=user:pass cargo test -p monolith-training registration_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (runner registration-failure assertion-contract tightening completion verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

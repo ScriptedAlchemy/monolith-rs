@@ -4940,9 +4940,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected worker registration failure");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected worker registration failure");
+        let msg = err.to_string();
         assert!(
             msg.contains("forced register failure"),
             "worker register failure should remain primary with custom service type: {msg}"
@@ -4975,9 +4976,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected indexed worker registration failure");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected indexed worker registration failure");
+        let msg = err.to_string();
         assert!(
             msg.contains("forced register failure"),
             "indexed worker register failure should remain primary with custom service type: {msg}"
@@ -5010,9 +5012,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected ps registration failure");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected ps registration failure");
+        let msg = err.to_string();
         assert!(
             msg.contains("forced register failure"),
             "ps register failure should remain primary with custom service type: {msg}"
@@ -5045,9 +5048,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected ps registration failure");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected ps registration failure");
+        let msg = err.to_string();
         assert!(
             msg.contains("forced register failure"),
             "ps register failure should remain primary with custom service type: {msg}"
@@ -5080,9 +5084,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected indexed ps registration failure");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected indexed ps registration failure");
+        let msg = err.to_string();
         assert!(
             msg.contains("forced register failure"),
             "indexed ps register failure should remain primary with custom service type: {msg}"
