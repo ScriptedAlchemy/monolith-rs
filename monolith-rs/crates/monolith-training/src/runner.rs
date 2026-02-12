@@ -7246,16 +7246,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when ps register and cleanup operations are blocked"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when ps register and cleanup operations are blocked");
+        let msg = run_result
+            .expect_err("ps register timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: register ps-0 as ps after 20ms"),
             "ps register timeout should remain primary over cleanup timeout failures: {msg}"
@@ -7279,16 +7278,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when ps register is blocked and cleanup fails"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when ps register is blocked and cleanup fails");
+        let msg = run_result
+            .expect_err("ps register timeout with cleanup failures should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: register ps-0 as ps after 20ms"),
             "ps register timeout should remain primary over cleanup-failure diagnostics: {msg}"
@@ -7325,16 +7323,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when indexed default-ps register and cleanup operations are blocked"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when indexed default-ps register and cleanup operations are blocked");
+        let msg = run_result
+            .expect_err("indexed default-ps register timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: register ps-2 as ps after 20ms"),
             "indexed default-ps register timeout should remain primary over cleanup timeout failures: {msg}"
@@ -7371,16 +7368,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when non-index default-ps register and cleanup operations are blocked"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when non-index default-ps register and cleanup operations are blocked");
+        let msg = run_result
+            .expect_err("default-ps register timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: register ps-0 as ps after 20ms"),
             "default-ps register timeout should remain primary over cleanup timeout failures: {msg}"
@@ -7418,16 +7414,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when indexed custom-ps register and cleanup operations are blocked"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when indexed custom-ps register and cleanup operations are blocked");
+        let msg = run_result
+            .expect_err("indexed custom-ps register timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains(
                 "Timed out during discovery operation: register ps-2 as parameter_server_custom after 20ms"
@@ -7471,16 +7466,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when custom non-index ps register and cleanup operations are blocked"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when custom non-index ps register and cleanup operations are blocked");
+        let msg = run_result
+            .expect_err("custom non-index ps register timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains(
                 "Timed out during discovery operation: register ps-0 as parameter_server_custom after 20ms"
@@ -7524,16 +7518,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when indexed custom-ps register is blocked and cleanup fails"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when indexed custom-ps register is blocked and cleanup fails");
+        let msg = run_result
+            .expect_err("indexed custom-ps register timeout with cleanup failures should surface as a role error")
+            .to_string();
         assert!(
             msg.contains(
                 "Timed out during discovery operation: register ps-2 as parameter_server_custom after 20ms"
@@ -7575,16 +7568,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when custom non-index ps register is blocked and cleanup fails"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when custom non-index ps register is blocked and cleanup fails");
+        let msg = run_result
+            .expect_err("custom non-index ps register timeout with cleanup failures should surface as a role error")
+            .to_string();
         assert!(
             msg.contains(
                 "Timed out during discovery operation: register ps-0 as parameter_server_custom after 20ms"
@@ -7625,16 +7617,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when indexed default-ps register is blocked and cleanup fails"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when indexed default-ps register is blocked and cleanup fails");
+        let msg = run_result
+            .expect_err("indexed default-ps register timeout with cleanup failures should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: register ps-2 as ps after 20ms"),
             "indexed default-ps register timeout should remain primary over cleanup-failure diagnostics: {msg}"
@@ -7671,16 +7662,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when non-index default-ps register is blocked and cleanup fails"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when non-index default-ps register is blocked and cleanup fails");
+        let msg = run_result
+            .expect_err("default-ps register timeout with cleanup failures should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: register ps-0 as ps after 20ms"),
             "default-ps register timeout should remain primary over cleanup-failure diagnostics: {msg}"
@@ -7715,16 +7705,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(900),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when ps registration blocks"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when ps registration blocks");
+        let msg = run_result
+            .expect_err("ps register timeout should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: register ps-0 as ps"),
             "unexpected ps register-timeout error: {msg}"
@@ -7752,16 +7741,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(900),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when ps registration blocks"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when ps registration blocks");
+        let msg = run_result
+            .expect_err("ps register timeout with custom service type should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: register ps-0 as parameter_server_custom"),
             "ps register-timeout diagnostics should include custom service-type context: {msg}"
