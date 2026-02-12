@@ -1662,6 +1662,24 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[test]
+    fn test_map_consul_request_error_classifies_relative_url_without_base_as_config_error() {
+        let err = map_consul_request_error(
+            "get_service_nodes",
+            "relative URL without a base",
+        );
+        match err {
+            DiscoveryError::ConfigError(msg) => {
+                assert!(
+                    msg.contains("get_service_nodes") && msg.contains("invalid address"),
+                    "relative-URL markers should be classified as config errors with operation context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for relative-URL marker, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
     fn test_normalize_consul_address_for_operation_adds_http_scheme() {
         let normalized = normalize_consul_address_for_operation("get_service_nodes", "127.0.0.1:8501")
             .expect("host:port address should normalize to explicit http URL");
@@ -3887,6 +3905,24 @@ mod tests {
                 );
             }
             other => panic!("expected ConfigError for invalid scheme address, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_connect_invalid_scheme_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new("ftp://127.0.0.1:8500");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address")
+                        && msg.contains("invalid scheme")
+                        && msg.contains("connect"),
+                    "invalid-scheme connect failures should be classified as ConfigError with connect context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for invalid scheme connect, got {other:?}"),
         }
     }
 
