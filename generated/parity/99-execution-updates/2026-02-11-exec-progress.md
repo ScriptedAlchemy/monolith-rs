@@ -6706,6 +6706,16 @@
   - removed 26 additional parse-unwrap hotspots while preserving existing
     cleanup-timeout/failure error-shape assertions and diagnostics.
 
+### 492) Native parity bind-address helper expansion (phase 9): runner-config worker preserve matrix batch
+- Continued `native_training_parity` bind-address migration by replacing another
+  bounded set of repeated `"127.0.0.1:0".parse().unwrap()` call-sites with
+  `test_bind_addr()`.
+- This batch focused on the large runner-config / run-config worker-preserve
+  timeout/ordering/discovery matrix region and adjacent cleanup-context lanes.
+- Result:
+  - removed 30 additional parse-unwrap hotspots while preserving existing
+    worker-timeout/ordering/discovery error-shape assertions.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7750,6 +7760,7 @@
 1041. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects` ✅ (validated run-config rejection guard matrix after phase-7 bind-address helper migration batch)
 1042. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_preserves_worker_ordering_and_discovery_error_timeout` ✅ (validated ordering+discovery timeout cleanup matrix after phase-7 bind-address helper migration batch)
 1043. `cargo test -p monolith-training --test native_training_parity after_success && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects` ✅ (validated post-success cleanup timeout/failure matrices plus run-config rejection guards after phase-8 bind-address helper migration batch)
+1044. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_preserves_worker && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_preserves_worker` ✅ (validated runner-config + run-config worker preserve timeout/ordering/discovery matrices after phase-9 bind-address helper migration batch)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

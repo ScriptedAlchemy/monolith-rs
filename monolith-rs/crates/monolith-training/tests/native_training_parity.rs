@@ -8821,7 +8821,7 @@ async fn distributed_runner_from_run_config_preserves_default_connect_timeout_wi
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -8870,7 +8870,7 @@ async fn distributed_runner_from_run_config_preserves_connect_failure_with_clean
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -8919,7 +8919,7 @@ async fn distributed_runner_from_run_config_preserves_connect_failure_with_clean
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -8969,7 +8969,7 @@ async fn distributed_runner_from_run_config_preserves_connect_failure_with_custo
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -9019,7 +9019,7 @@ async fn distributed_runner_from_run_config_preserves_connect_failure_with_custo
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -9069,7 +9069,7 @@ async fn distributed_runner_from_run_config_preserves_connect_failure_with_custo
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -9119,7 +9119,7 @@ async fn distributed_runner_from_run_config_preserves_connect_failure_with_custo
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -9303,7 +9303,7 @@ async fn distributed_runner_from_run_config_preserves_default_worker_connect_fai
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -9350,7 +9350,7 @@ async fn distributed_runner_from_run_config_preserves_default_worker_connect_fai
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -9397,7 +9397,7 @@ async fn distributed_runner_from_run_config_preserves_default_worker_connect_fai
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -9444,7 +9444,7 @@ async fn distributed_runner_from_run_config_preserves_default_worker_connect_fai
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -9579,7 +9579,7 @@ async fn distributed_runner_from_run_config_preserves_default_ps_connect_failure
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -9626,7 +9626,7 @@ async fn distributed_runner_from_run_config_preserves_default_ps_connect_failure
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -9673,7 +9673,7 @@ async fn distributed_runner_from_run_config_preserves_default_ps_connect_failure
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -9720,7 +9720,7 @@ async fn distributed_runner_from_run_config_preserves_default_ps_connect_failure
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -9854,7 +9854,7 @@ async fn distributed_runner_from_run_config_preserves_ps_connect_failure_with_cl
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -9904,7 +9904,7 @@ async fn distributed_runner_from_run_config_preserves_ps_connect_failure_with_cu
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -9954,7 +9954,7 @@ async fn distributed_runner_from_run_config_preserves_ps_connect_failure_with_cu
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -10003,7 +10003,7 @@ async fn distributed_runner_from_run_config_preserves_ps_connect_failure_with_cl
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -10053,7 +10053,7 @@ async fn distributed_runner_from_run_config_preserves_ps_connect_failure_with_cu
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -10103,7 +10103,7 @@ async fn distributed_runner_from_run_config_preserves_ps_connect_failure_with_cu
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -10287,7 +10287,7 @@ async fn distributed_runner_from_run_config_propagates_worker_index_into_connect
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -10336,7 +10336,7 @@ async fn distributed_runner_from_run_config_propagates_worker_service_type_into_
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -10385,7 +10385,7 @@ async fn distributed_runner_from_run_config_propagates_worker_service_type_and_i
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -10431,7 +10431,7 @@ async fn distributed_runner_from_run_config_preserves_ps_connect_timeout_when_cl
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -10478,7 +10478,7 @@ async fn distributed_runner_from_run_config_preserves_ps_connect_timeout_disconn
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -10527,7 +10527,7 @@ async fn distributed_runner_from_run_config_preserves_ps_connect_timeout_with_cu
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -10580,7 +10580,7 @@ async fn distributed_runner_from_run_config_preserves_ps_connect_timeout_with_di
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -10630,7 +10630,7 @@ async fn distributed_runner_from_run_config_preserves_ps_connect_timeout_with_cu
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -10679,7 +10679,7 @@ async fn distributed_runner_from_run_config_preserves_default_ps_connect_timeout
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
