@@ -2065,6 +2065,27 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_disconnect_preserves_local_service_cache() {
+        let zk = ZkDiscovery::new("localhost:2181", "/services");
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        assert_eq!(
+            zk.discover("ps").expect("discover should succeed").len(),
+            1,
+            "test setup should seed one cached service"
+        );
+
+        zk.disconnect().await.expect("disconnect should succeed");
+
+        assert_eq!(
+            zk.discover("ps").expect("discover should succeed").len(),
+            1,
+            "disconnect should preserve local cached services"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_disconnect_clears_registered_paths() {
         let zk = ZkDiscovery::new("localhost:2181", "/services");
         zk.registered_paths
@@ -2664,6 +2685,42 @@ mod tests {
         assert!(
             consul.watch_poll_generations.lock().unwrap().is_empty(),
             "disconnect should clear active watch-poll generation entries"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_disconnect_preserves_local_service_cache() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("sync register should seed local cache");
+        assert_eq!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .len(),
+            1,
+            "test setup should seed one cached service"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+
+        assert_eq!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .len(),
+            1,
+            "disconnect should preserve local cached services"
         );
     }
 
