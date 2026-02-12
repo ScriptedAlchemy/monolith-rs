@@ -3222,7 +3222,7 @@ async fn distributed_runner_from_run_config_preserves_worker_timeout_with_defaul
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -3287,7 +3287,7 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_issue_time
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -3356,7 +3356,7 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_issue_time
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -3427,7 +3427,7 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_issue_time
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -3502,7 +3502,7 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_issue_time
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -3574,7 +3574,7 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_issue_time
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -3640,7 +3640,7 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_issue_time
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -3711,7 +3711,7 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_issue_time
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -3781,7 +3781,7 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_issue_time
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -3849,7 +3849,7 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_issue_time
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -3917,7 +3917,7 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_issue_time
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -3987,7 +3987,7 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_and_discov
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
