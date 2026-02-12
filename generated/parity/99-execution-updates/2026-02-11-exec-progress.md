@@ -6809,6 +6809,19 @@
     (**0 remaining**), preserving distributed timeout/cleanup failure-shape
     behavior.
 
+### 501) Estimator distributed-runtime bind-address diagnostics tightening
+- Added a dedicated estimator test helper in
+  `crates/monolith-training/src/estimator.rs`:
+  - `test_bind_addr()`,
+  and migrated remaining distributed-runtime smoke test call-sites from
+  `"127.0.0.1:0".parse().unwrap()` to this helper.
+- Scope:
+  - `test_estimator_run_distributed_runtime_smoke`,
+  - `test_estimator_run_distributed_runtime_from_run_config_smoke`.
+- Result:
+  - removed the final 4 bind parse-unwrap hotspots from `estimator.rs`
+    (**0 remaining**) while preserving distributed-runtime smoke semantics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7866,6 +7879,8 @@
 1054. `rg "\"127\\.0\\.0\\.1:0\"\\.parse\\(\\)\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/runner.rs` ✅ (verified remaining runner parse-unwrap hotspots reduced to 35 after phase-2 batch)
 1055. `cargo test -p monolith-training runner::tests:: -- --nocapture` ✅ (validated full runner unit-test matrix after phase-3 runner bind-address helper migration)
 1056. `rg "\"127\\.0\\.0\\.1:0\"\\.parse\\(\\)\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/runner.rs` ✅ (verified no remaining runner bind-address parse-unwrap hotspots)
+1057. `cargo test -p monolith-training test_estimator_run_distributed_runtime_smoke -- --nocapture && cargo test -p monolith-training test_estimator_run_distributed_runtime_from_run_config_smoke -- --nocapture` ✅ (validated estimator distributed-runtime smoke lanes after bind-address helper migration)
+1058. `rg "\"127\\.0\\.0\\.1:0\"\\.parse\\(\\)\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/estimator.rs` ✅ (verified no remaining estimator bind-address parse-unwrap hotspots)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

@@ -671,6 +671,12 @@ mod tests {
     use super::*;
     use crate::hooks::{EarlyStoppingHook, LoggingHook};
 
+    fn test_bind_addr() -> std::net::SocketAddr {
+        "127.0.0.1:0"
+            .parse()
+            .expect("loopback ephemeral bind address parsing should succeed")
+    }
+
     #[test]
     fn test_estimator_config() {
         let config = EstimatorConfig::new(PathBuf::from("/tmp/model"))
@@ -925,7 +931,7 @@ all_model_checkpoint_paths: "model.ckpt-30"
                 discovery_bg,
                 &ps_runner_bg,
                 Role::Ps,
-                "127.0.0.1:0".parse().unwrap(),
+                test_bind_addr(),
             )
             .await
         });
@@ -935,7 +941,7 @@ all_model_checkpoint_paths: "model.ckpt-30"
             Arc::clone(&discovery),
             &worker_runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         )
         .await
         .expect("worker should succeed when PS runtime is active");
@@ -964,7 +970,7 @@ all_model_checkpoint_paths: "model.ckpt-30"
                 &run_bg,
                 None,
                 Role::Ps,
-                "127.0.0.1:0".parse().unwrap(),
+                test_bind_addr(),
             )
             .await
         });
@@ -975,7 +981,7 @@ all_model_checkpoint_paths: "model.ckpt-30"
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         )
         .await
         .expect("worker should succeed when PS runtime from run-config is active");
