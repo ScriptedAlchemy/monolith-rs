@@ -28222,6 +28222,434 @@ fn distributed_runner_from_runner_config_surfaces_last_discover_error_with_defau
 }
 
 #[test]
+fn distributed_runner_from_run_config_surfaces_connect_failure_with_cleanup_context() {
+    distributed_runner_from_run_config_preserves_connect_failure_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_connect_failure_with_custom_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_connect_failure_with_custom_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_connect_failure_with_custom_service_type_cleanup_context()
+{
+    distributed_runner_from_run_config_preserves_connect_failure_with_custom_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_connect_failure_with_default_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_connect_failure_with_default_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_connect_failure_with_default_service_type_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_connect_failure_with_default_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_default_ps_connect_failure_cleanup_context() {
+    distributed_runner_from_run_config_preserves_default_ps_connect_failure_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_default_ps_connect_failure_with_cleanup_context() {
+    distributed_runner_from_run_config_preserves_default_ps_connect_failure_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_default_ps_connect_failure_with_index_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_default_ps_connect_failure_with_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_default_worker_connect_failure_cleanup_context() {
+    distributed_runner_from_run_config_preserves_default_worker_connect_failure_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_default_worker_connect_failure_with_cleanup_context()
+{
+    distributed_runner_from_run_config_preserves_default_worker_connect_failure_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_default_worker_connect_failure_with_index_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_default_worker_connect_failure_with_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_ps_connect_failure_cleanup_context() {
+    distributed_runner_from_run_config_preserves_ps_connect_failure_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_ps_connect_failure_with_cleanup_context() {
+    distributed_runner_from_run_config_preserves_ps_connect_failure_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_ps_connect_failure_with_custom_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_ps_connect_failure_with_custom_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_ps_connect_failure_with_custom_service_type_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_ps_connect_failure_with_custom_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_ps_connect_failure_with_default_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_ps_connect_failure_with_default_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_ps_connect_failure_with_default_service_type_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_ps_connect_failure_with_default_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_ps_connect_failure_with_index_cleanup_context() {
+    distributed_runner_from_run_config_preserves_ps_connect_failure_with_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_ps_register_timeout_cleanup_context() {
+    distributed_runner_from_run_config_preserves_ps_register_timeout_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_ps_register_timeout_with_cleanup_context() {
+    distributed_runner_from_run_config_preserves_ps_register_timeout_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_ps_register_timeout_with_custom_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_ps_register_timeout_with_custom_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_ps_register_timeout_with_custom_service_type_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_ps_register_timeout_with_custom_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_ps_register_timeout_with_default_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_ps_register_timeout_with_default_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_ps_register_timeout_with_default_service_type_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_ps_register_timeout_with_default_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_register_timeout_cleanup_context() {
+    distributed_runner_from_run_config_preserves_register_timeout_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_register_timeout_with_cleanup_context() {
+    distributed_runner_from_run_config_preserves_register_timeout_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_register_timeout_with_custom_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_register_timeout_with_custom_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_register_timeout_with_custom_service_type_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_register_timeout_with_custom_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_register_timeout_with_default_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_register_timeout_with_default_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_register_timeout_with_default_service_type_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_register_timeout_with_default_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_worker_connect_failure_cleanup_context() {
+    distributed_runner_from_run_config_preserves_worker_connect_failure_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_worker_connect_failure_with_cleanup_context() {
+    distributed_runner_from_run_config_preserves_worker_connect_failure_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_worker_connect_failure_with_index_cleanup_context() {
+    distributed_runner_from_run_config_preserves_worker_connect_failure_with_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_worker_register_failure_with_cleanup_context() {
+    distributed_runner_from_run_config_preserves_worker_register_failure_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_worker_register_failure_with_custom_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_worker_register_failure_with_custom_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_worker_register_failure_with_custom_service_type_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_worker_register_failure_with_custom_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_worker_register_failure_with_default_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_worker_register_failure_with_default_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_worker_register_failure_with_default_service_type_cleanup_context(
+) {
+    distributed_runner_from_run_config_preserves_worker_register_failure_with_default_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_connect_failure_with_cleanup_context() {
+    distributed_runner_from_runner_config_preserves_connect_failure_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_connect_failure_with_custom_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_connect_failure_with_custom_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_connect_failure_with_custom_service_type_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_connect_failure_with_custom_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_connect_failure_with_default_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_connect_failure_with_default_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_connect_failure_with_default_service_type_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_connect_failure_with_default_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_default_ps_connect_failure_cleanup_context() {
+    distributed_runner_from_runner_config_preserves_default_ps_connect_failure_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_default_ps_connect_failure_with_cleanup_context() {
+    distributed_runner_from_runner_config_preserves_default_ps_connect_failure_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_default_ps_connect_failure_with_index_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_default_ps_connect_failure_with_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_default_worker_connect_failure_cleanup_context() {
+    distributed_runner_from_runner_config_preserves_default_worker_connect_failure_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_default_worker_connect_failure_with_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_default_worker_connect_failure_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_default_worker_connect_failure_with_index_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_default_worker_connect_failure_with_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_ps_connect_failure_cleanup_context() {
+    distributed_runner_from_runner_config_preserves_ps_connect_failure_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_ps_connect_failure_with_cleanup_context() {
+    distributed_runner_from_runner_config_preserves_ps_connect_failure_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_ps_connect_failure_with_custom_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_ps_connect_failure_with_custom_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_ps_connect_failure_with_custom_service_type_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_ps_connect_failure_with_custom_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_ps_connect_failure_with_default_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_ps_connect_failure_with_default_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_ps_connect_failure_with_default_service_type_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_ps_connect_failure_with_default_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_ps_connect_failure_with_index_cleanup_context()
+{
+    distributed_runner_from_runner_config_preserves_ps_connect_failure_with_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_ps_register_timeout_cleanup_context() {
+    distributed_runner_from_runner_config_preserves_ps_register_timeout_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_ps_register_timeout_with_cleanup_context() {
+    distributed_runner_from_runner_config_preserves_ps_register_timeout_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_ps_register_timeout_with_custom_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_ps_register_timeout_with_custom_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_ps_register_timeout_with_custom_service_type_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_ps_register_timeout_with_custom_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_ps_register_timeout_with_default_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_ps_register_timeout_with_default_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_ps_register_timeout_with_default_service_type_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_ps_register_timeout_with_default_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_register_timeout_cleanup_context() {
+    distributed_runner_from_runner_config_preserves_register_timeout_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_register_timeout_with_cleanup_context() {
+    distributed_runner_from_runner_config_preserves_register_timeout_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_register_timeout_with_custom_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_register_timeout_with_custom_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_register_timeout_with_custom_service_type_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_register_timeout_with_custom_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_register_timeout_with_default_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_register_timeout_with_default_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_register_timeout_with_default_service_type_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_register_timeout_with_default_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_worker_connect_failure_cleanup_context() {
+    distributed_runner_from_runner_config_preserves_worker_connect_failure_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_worker_connect_failure_with_cleanup_context() {
+    distributed_runner_from_runner_config_preserves_worker_connect_failure_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_worker_connect_failure_with_index_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_worker_connect_failure_with_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_worker_register_failure_with_cleanup_context() {
+    distributed_runner_from_runner_config_preserves_worker_register_failure_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_worker_register_failure_with_custom_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_worker_register_failure_with_custom_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_worker_register_failure_with_custom_service_type_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_worker_register_failure_with_custom_service_type_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_worker_register_failure_with_default_service_type_and_index_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_worker_register_failure_with_default_service_type_and_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_worker_register_failure_with_default_service_type_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_worker_register_failure_with_default_service_type_cleanup_context();
+}
+
+#[test]
 fn distributed_runner_from_runner_config_preserves_discover_timeout_and_index_when_cleanup_fails()
 {
     distributed_runner_from_runner_config_preserves_discover_timeout_with_default_service_types_and_index_when_cleanup_fails();

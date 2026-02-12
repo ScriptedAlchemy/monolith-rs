@@ -4150,6 +4150,34 @@
       separately)
   - Full monolith-training regression remains green.
 
+### 304) Native cleanup-context preserves→surfaces directional closure
+- Added 76 alias wrappers in `native_training_parity.rs` for
+  `_cleanup_context` directional transform:
+  - run-config + runner-config variants across connect/register families.
+- Result:
+  - Native generic `preserves_ -> surfaces_` reduced:
+    - total `308 -> 232`
+    - `_cleanup_context`: `76 -> 0`
+    - remaining suffix families:
+      - `_cleanup_timeout_context`: 76
+      - `_disconnect_failure_context`: 76
+      - `_when_cleanup_blocks`: 76
+      - `_when_cleanup_fails`: 2
+      - `_when_cleanup_times_out`: 2
+  - Full monolith-training regression remains green.
+
+### 305) Runner final preserves→surfaces tails closed
+- Added remaining runner directional alias wrappers in `runner.rs` for:
+  - `worker_register_failure`
+  - `ps_register_timeout`
+  - `worker_register_timeout`
+  - worker-role retry diagnostics
+    (`last_discovery_error`, `last_ordering_issue`)
+- Result:
+  - `runner.rs` generic `preserves_ -> surfaces_`: `32 -> 0`.
+  - Runner directional preserves→surfaces matrix is now fully closed.
+  - Full monolith-training regression remains green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4895,6 +4923,15 @@
 742. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner worker-discover/error preserves->surfaces alias additions full monolith-training regression rerun)
 743. `python3` runner family audit ✅ (`worker_discover_failure` and `worker_error` directional `missing 0` in `runner.rs`)
 744. `python3` generic directional count audit ✅ (`runner.rs` generic `preserves_ -> surfaces_`: `74 -> 32`; native currently `308`)
+745. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_surfaces_connect_failure_with_default_service_type_cleanup_context -- --nocapture` ✅
+746. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_ps_register_timeout_with_default_service_type_cleanup_context -- --nocapture` ✅
+747. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post native cleanup-context preserves->surfaces alias additions full monolith-training regression rerun)
+748. `python3` native suffix-audit ✅ (`_cleanup_context` `76->0`; native generic `preserves_ -> surfaces_` `308 -> 232`)
+749. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_worker_register_timeout_surfaces_error_when_cleanup_times_out_with_default_service_type -- --nocapture` ✅
+750. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_worker_role_surfaces_last_discovery_error_across_retries -- --nocapture` ✅
+751. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner tail preserves->surfaces alias additions full monolith-training regression rerun)
+752. `python3` runner generic directional audit ✅ (`preserves_ -> surfaces_` missing `0` in `runner.rs`)
+753. `python3` combined directional count audit ✅ (`runner.rs`: `0`, native: `232`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

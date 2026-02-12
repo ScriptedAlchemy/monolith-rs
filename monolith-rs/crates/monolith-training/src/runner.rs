@@ -13983,4 +13983,188 @@ mod tests {
     ) {
         test_run_distributed_preserves_worker_error_with_default_service_types_when_cleanup_steps_timeout();
     }
+
+    #[test]
+    fn test_run_distributed_surfaces_worker_register_failure_when_cleanup_steps_fail() {
+        test_run_distributed_preserves_worker_register_failure_when_cleanup_steps_fail();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_worker_register_failure_when_cleanup_steps_timeout() {
+        test_run_distributed_preserves_worker_register_failure_when_cleanup_steps_timeout();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_worker_register_failure_with_custom_service_type_and_index_when_cleanup_steps_fail(
+    ) {
+        test_run_distributed_preserves_worker_register_failure_with_custom_service_type_and_index_when_cleanup_steps_fail();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_worker_register_failure_with_custom_service_type_and_index_when_cleanup_steps_timeout(
+    ) {
+        test_run_distributed_preserves_worker_register_failure_with_custom_service_type_and_index_when_cleanup_steps_timeout();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_worker_register_failure_with_custom_service_type_when_cleanup_steps_fail(
+    ) {
+        test_run_distributed_preserves_worker_register_failure_with_custom_service_type_when_cleanup_steps_fail();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_worker_register_failure_with_custom_service_type_when_cleanup_steps_timeout(
+    ) {
+        test_run_distributed_preserves_worker_register_failure_with_custom_service_type_when_cleanup_steps_timeout();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_worker_register_failure_with_default_service_type_and_index_when_cleanup_steps_fail(
+    ) {
+        test_run_distributed_preserves_worker_register_failure_with_default_service_type_and_index_when_cleanup_steps_fail();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_worker_register_failure_with_default_service_type_and_index_when_cleanup_steps_timeout(
+    ) {
+        test_run_distributed_preserves_worker_register_failure_with_default_service_type_and_index_when_cleanup_steps_timeout();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_worker_register_failure_with_default_service_type_when_cleanup_steps_fail(
+    ) {
+        test_run_distributed_preserves_worker_register_failure_with_default_service_type_when_cleanup_steps_fail();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_worker_register_failure_with_default_service_type_when_cleanup_steps_timeout(
+    ) {
+        test_run_distributed_preserves_worker_register_failure_with_default_service_type_when_cleanup_steps_timeout();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_register_timeout_surfaces_error_when_cleanup_fails() {
+        test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_fails();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_register_timeout_surfaces_error_when_cleanup_fails_with_custom_service_type(
+    ) {
+        test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_fails_with_custom_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_register_timeout_surfaces_error_when_cleanup_fails_with_custom_service_type_and_index(
+    ) {
+        test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_fails_with_custom_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_register_timeout_surfaces_error_when_cleanup_fails_with_default_service_type(
+    ) {
+        test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_fails_with_default_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_register_timeout_surfaces_error_when_cleanup_fails_with_default_service_type_and_index(
+    ) {
+        test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_fails_with_default_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_register_timeout_surfaces_error_when_cleanup_times_out() {
+        test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_times_out();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_register_timeout_surfaces_error_when_cleanup_times_out_with_custom_service_type(
+    ) {
+        test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_times_out_with_custom_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_register_timeout_surfaces_error_when_cleanup_times_out_with_custom_service_type_and_index(
+    ) {
+        test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_times_out_with_custom_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_register_timeout_surfaces_error_when_cleanup_times_out_with_default_service_type(
+    ) {
+        test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_times_out_with_default_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_register_timeout_surfaces_error_when_cleanup_times_out_with_default_service_type_and_index(
+    ) {
+        test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_times_out_with_default_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_register_timeout_surfaces_error_when_cleanup_fails() {
+        test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_fails();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_register_timeout_surfaces_error_when_cleanup_fails_with_custom_service_type(
+    ) {
+        test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_fails_with_custom_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_register_timeout_surfaces_error_when_cleanup_fails_with_custom_service_type_and_index(
+    ) {
+        test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_fails_with_custom_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_register_timeout_surfaces_error_when_cleanup_fails_with_default_service_type(
+    ) {
+        test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_fails_with_default_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_register_timeout_surfaces_error_when_cleanup_fails_with_default_service_type_and_index(
+    ) {
+        test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_fails_with_default_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_register_timeout_surfaces_error_when_cleanup_times_out() {
+        test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_times_out();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_register_timeout_surfaces_error_when_cleanup_times_out_with_custom_service_type(
+    ) {
+        test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_times_out_with_custom_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_register_timeout_surfaces_error_when_cleanup_times_out_with_custom_service_type_and_index(
+    ) {
+        test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_times_out_with_custom_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_register_timeout_surfaces_error_when_cleanup_times_out_with_default_service_type(
+    ) {
+        test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_times_out_with_default_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_register_timeout_surfaces_error_when_cleanup_times_out_with_default_service_type_and_index(
+    ) {
+        test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_times_out_with_default_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_worker_role_surfaces_last_discovery_error_across_retries() {
+        test_run_worker_role_preserves_last_discovery_error_across_retries();
+    }
+
+    #[test]
+    fn test_run_worker_role_surfaces_last_ordering_issue_across_retries() {
+        test_run_worker_role_preserves_last_ordering_issue_across_retries();
+    }
 }
