@@ -1205,8 +1205,12 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
     }
 
     async fn register_async(&self, service: ServiceInfo) -> Result<()> {
-        self.connect().await?;
+        self.connect().await.map_err(|e| {
+            self.compact_dead_watch_sender(&service.service_type);
+            e
+        })?;
         let client = self.client.lock().await.as_ref().cloned().ok_or_else(|| {
+            self.compact_dead_watch_sender(&service.service_type);
             DiscoveryError::ConnectionFailed("Consul client not connected".into())
         })?;
 
@@ -1345,6 +1349,10 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
             .unwrap()
             .remove(service_id)
             .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
+        self.notify_watchers(
+            &service.service_type,
+            DiscoveryEvent::ServiceRemoved(service_id.to_string()),
+        );
 
         self.connect().await?;
         let client = self.client.lock().await.as_ref().cloned().ok_or_else(|| {
@@ -1360,10 +1368,6 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
         };
 
         let _ = client.deregister_entity(&payload).await;
-        self.notify_watchers(
-            &service.service_type,
-            DiscoveryEvent::ServiceRemoved(service_id.to_string()),
-        );
         Ok(())
     }
 }
@@ -2653,6 +2657,45 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_deregister_config_error_still_notifies_and_returns_ok() {
+        let consul = ConsulDiscovery::new("http://[::1");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("sync register should seed local cache");
+
+        let mut rx = consul.watch("worker").expect("watch should succeed");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
+            .await;
+        assert!(
+            result.is_ok(),
+            "consul async deregister remains best-effort for backend deregister errors"
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .is_empty(),
+            "async deregister should remove service from local cache even on config failure"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        match event {
+            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "worker-0"),
+            other => panic!("expected ServiceRemoved, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_register_failure_compacts_dead_watchers() {
         let consul = ConsulDiscovery::new("http://localhost:8500");
         let rx = consul.watch("worker").expect("watch should succeed");
@@ -2720,6 +2763,57 @@ mod tests {
                 .expect("discover should succeed")
                 .is_empty(),
             "failed async register should not populate local service cache"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_config_error_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://[::1");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        assert!(
+            result.is_err(),
+            "register_async should fail when consul endpoint is malformed/unusable"
+        );
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "config-error register failure should compact dead watcher sender"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_config_error_keeps_live_watchers() {
+        let consul = ConsulDiscovery::new("http://[::1");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        assert!(
+            result.is_err(),
+            "register_async should fail when consul endpoint is malformed/unusable"
+        );
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "live watcher sender should be preserved on config-error register failure"
         );
     }
 }

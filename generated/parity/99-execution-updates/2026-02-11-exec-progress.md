@@ -4481,6 +4481,21 @@
     and watcher removal notifications.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 329) Consul config-error async lifecycle coverage + watcher consistency
+- Hardened Consul async lifecycle edge handling:
+  - `register_async(...)` now compacts dead watcher senders on connect/client
+    acquisition errors (parity with existing send-error compaction behavior).
+  - `deregister_async(...)` now notifies watchers before backend calls, ensuring
+    removal events are surfaced even when backend configuration is invalid.
+- Added feature-gated regressions:
+  - `test_consul_async_register_config_error_compacts_dead_watchers`
+  - `test_consul_async_register_config_error_keeps_live_watchers`
+  - `test_consul_async_deregister_config_error_still_notifies_and_returns_ok`
+- Result:
+  - Consul async failure paths now preserve watcher consistency guarantees under
+    malformed endpoint configurations.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5296,6 +5311,8 @@
 812. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" async_deregister -- --nocapture` ✅ (feature-gated async-deregister semantics verification: missing-service NotFound parity, ZK remote-failure cleanup, Consul best-effort behavior)
 813. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post ZK local-only async-deregister success-path coverage additions default-lane regression rerun)
 814. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_async_deregister_local_only_service_returns_ok -- --nocapture` ✅ (feature-gated ZK local-only async-deregister success semantics verification)
+815. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post Consul config-error async lifecycle watcher-consistency hardening default-lane regression rerun)
+816. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture` ✅ (feature-gated Consul config-error async register/deregister watcher-consistency verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
