@@ -1990,7 +1990,10 @@ async fn distributed_runner_from_run_config_preserves_worker_timeout_when_cleanu
         res.is_ok(),
         "run_distributed_from_run_config should not hang when worker timeout cleanup steps block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when worker timeout cleanup steps block")
+        .expect_err("worker timeout with cleanup timeouts should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "worker timeout should remain primary over cleanup timeout failures via RunConfig: {msg}"
@@ -2056,7 +2059,10 @@ async fn distributed_runner_from_run_config_preserves_last_discover_error_when_c
         res.is_ok(),
         "run_distributed_from_run_config should not hang when discover returns an error and cleanup steps block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when discover returns an error and cleanup steps block")
+        .expect_err("discover-error timeout with cleanup timeouts should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover-error worker timeout should remain primary over cleanup timeout failures via RunConfig: {msg}"
@@ -2120,7 +2126,10 @@ async fn distributed_runner_from_run_config_preserves_last_discover_error_with_c
         res.is_ok(),
         "run_distributed_from_run_config should not hang when discover returns an error with custom service types/index and cleanup steps block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when discover returns an error with custom service types/index and cleanup steps block")
+        .expect_err("indexed custom discover-error timeout with cleanup timeouts should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover-error worker timeout should remain primary over cleanup timeout failures with custom service types/index via RunConfig: {msg}"
@@ -2194,7 +2203,10 @@ async fn distributed_runner_from_run_config_preserves_last_discover_error_with_d
         res.is_ok(),
         "run_distributed_from_run_config should not hang when discover returns an error with indexed default service types and cleanup steps block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when discover returns an error with indexed default service types and cleanup steps block")
+        .expect_err("indexed default discover-error timeout with cleanup timeouts should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover-error worker timeout should remain primary over cleanup timeout failures with indexed default service types via RunConfig: {msg}"
@@ -2264,7 +2276,10 @@ async fn distributed_runner_from_run_config_preserves_last_discover_error_with_d
         res.is_ok(),
         "run_distributed_from_run_config should not hang when discover returns an error with default-service non-index path and cleanup steps block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when discover returns an error with default-service non-index path and cleanup steps block")
+        .expect_err("default discover-error timeout with cleanup timeouts should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover-error worker timeout should remain primary over cleanup timeout failures with default service type via RunConfig: {msg}"
@@ -2336,7 +2351,10 @@ async fn distributed_runner_from_run_config_preserves_last_discover_error_with_c
         res.is_ok(),
         "run_distributed_from_run_config should not hang when discover returns an error with custom non-index service types and cleanup steps block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when discover returns an error with custom non-index service types and cleanup steps block")
+        .expect_err("custom discover-error timeout with cleanup timeouts should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover-error worker timeout should remain primary over cleanup timeout failures with custom non-index service types via RunConfig: {msg}"
@@ -2412,7 +2430,10 @@ async fn distributed_runner_from_run_config_preserves_last_discover_error_with_c
         res.is_ok(),
         "run_distributed_from_run_config should not hang when discover returns an error with custom non-index service types and cleanup steps block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when discover returns an error with custom non-index service types and cleanup steps block")
+        .expect_err("custom-service discover-error timeout with cleanup timeouts should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover-error worker timeout should remain primary over cleanup timeout failures with custom non-index service types via RunConfig: {msg}"
@@ -2477,7 +2498,9 @@ async fn distributed_runner_from_run_config_preserves_last_discover_error_when_c
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("discover-error timeout with cleanup failures should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover-error worker timeout should remain primary over cleanup failures via RunConfig: {msg}"
@@ -2533,7 +2556,9 @@ async fn distributed_runner_from_run_config_preserves_last_discover_error_with_c
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("indexed custom discover-error timeout with cleanup failures should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover-error worker timeout should remain primary over cleanup failures with custom service types/index via RunConfig: {msg}"
@@ -2597,7 +2622,9 @@ async fn distributed_runner_from_run_config_preserves_last_discover_error_with_d
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("indexed default discover-error timeout with cleanup failures should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover-error worker timeout should remain primary over cleanup failures with indexed default service types via RunConfig: {msg}"
@@ -2661,7 +2688,9 @@ async fn distributed_runner_from_run_config_preserves_last_discover_error_with_d
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("default discover-error timeout with cleanup failures should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover-error worker timeout should remain primary over cleanup failures with default service type via RunConfig: {msg}"
@@ -2727,7 +2756,9 @@ async fn distributed_runner_from_run_config_preserves_last_discover_error_with_c
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("custom discover-error timeout with cleanup failures should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover-error worker timeout should remain primary over cleanup failures with custom non-index service types via RunConfig: {msg}"
@@ -2793,7 +2824,9 @@ async fn distributed_runner_from_run_config_preserves_last_discover_error_with_c
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("custom-service discover-error timeout with cleanup failures should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover-error worker timeout should remain primary over cleanup failures with custom non-index service types via RunConfig: {msg}"
@@ -2866,7 +2899,10 @@ async fn distributed_runner_from_run_config_propagates_custom_discover_service_t
         res.is_ok(),
         "run_distributed_from_run_config should not hang when worker discovery fails and cleanup steps block with custom discover service type"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when worker discovery fails and cleanup steps block with custom discover service type")
+        .expect_err("custom discover-service worker timeout with cleanup timeouts should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "worker discovery timeout should remain primary over cleanup timeout failures for custom discover service type via RunConfig: {msg}"
@@ -2926,7 +2962,9 @@ async fn distributed_runner_from_run_config_propagates_custom_discover_service_t
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("custom discover-service worker timeout with cleanup failures should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "worker discovery timeout should remain primary over cleanup failures for custom discover service type via RunConfig: {msg}"
