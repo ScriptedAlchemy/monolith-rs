@@ -4113,6 +4113,18 @@
     reports `missing 0` in both files.
   - Full monolith-training regression remains green.
 
+### 301) Discover-timeout preserves→surfaces parity completed
+- Added directional alias wrappers:
+  - `runner.rs`: 8 wrappers
+  - `native_training_parity.rs`: 40 wrappers
+- Closed family:
+  - `preserves_ -> surfaces_` for `discover_timeout` across run/runner
+    config variants and cleanup context suffixes.
+- Result:
+  - `discover_timeout` directional transform now reports `missing 0` in both
+    files.
+  - Full monolith-training regression remains green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4845,6 +4857,10 @@
 729. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_worker_ordering_and_discovery_error_timeout_with_default_service_type_when_cleanup_times_out -- --nocapture` ✅
 730. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker-ordering-and-discovery-error-timeout preserves->surfaces alias additions full monolith-training regression rerun)
 731. `python3` preserves->surfaces worker-ordering-and-discovery-error-timeout audit ✅ (`worker_ordering_and_discovery_error_timeout` `missing 0` in `runner.rs` and `native_training_parity.rs`)
+732. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_worker_discover_timeout_surfaces_error_when_cleanup_fails_with_default_service_type -- --nocapture` ✅
+733. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_discover_timeout_with_default_service_type_when_cleanup_times_out -- --nocapture` ✅
+734. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post discover-timeout preserves->surfaces alias additions full monolith-training regression rerun)
+735. `python3` preserves->surfaces discover-timeout audit ✅ (`discover_timeout` `missing 0` in `runner.rs` and `native_training_parity.rs`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
