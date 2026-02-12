@@ -827,7 +827,9 @@ mod tests {
 
         set_retry_max_backoff_secs_for_tests(0);
         let d = ConsulServiceDiscovery::new("unique_id").with_client(Arc::new(ErrClient));
-        let err = d.register("ps", 0, "192.168.0.1:1001").unwrap_err();
+        let err = d
+            .register("ps", 0, "192.168.0.1:1001")
+            .expect_err("consul register should propagate client timeout errors");
         match err {
             ServiceDiscoveryError::Io(e) => assert_eq!(e.kind(), std::io::ErrorKind::TimedOut),
             other => panic!("unexpected error: {other:?}"),
@@ -839,7 +841,9 @@ mod tests {
         set_retry_max_backoff_secs_for_tests(0);
         let c = Arc::new(FakeConsul::new(vec!["192.168.0.1".to_string()]));
         let d = ConsulServiceDiscovery::new("unique_id").with_client(c);
-        let err = d.register("ps", 0, "192.168.0.1:1001").unwrap_err();
+        let err = d
+            .register("ps", 0, "192.168.0.1:1001")
+            .expect_err("consul register should fail when host is blacklisted");
         assert_eq!(err.to_string(), "This machine is blacklisted by consul.");
     }
 
@@ -873,7 +877,9 @@ mod tests {
         }
 
         let d = ConsulServiceDiscovery::new("unique_id").with_client(Arc::new(MalformedLookupConsul));
-        let err = d.query_all().unwrap_err();
+        let err = d
+            .query_all()
+            .expect_err("consul query_all should reject malformed service entries");
         assert!(
             err.to_string().contains("missing/invalid tag 'index'"),
             "unexpected error: {err}"
@@ -921,7 +927,9 @@ mod tests {
             .with_retry_time_secs(0.0)
             .with_max_replace_retries(2)
             .with_client(Arc::new(StickyLookupConsul));
-        let err = d.register("ps", 0, "192.168.0.1:1001").unwrap_err();
+        let err = d
+            .register("ps", 0, "192.168.0.1:1001")
+            .expect_err("consul register should time out when stale registration never clears");
         assert!(
             err.to_string()
                 .contains("Timed out clearing existing consul registration"),
@@ -938,16 +946,24 @@ mod tests {
         d.close().unwrap();
         d.close().unwrap();
 
-        let register_err = d.register("ps", 0, "192.168.0.1:1001").unwrap_err();
+        let register_err = d
+            .register("ps", 0, "192.168.0.1:1001")
+            .expect_err("consul register should fail after discovery is closed");
         assert!(register_err.to_string().contains("closed"));
 
-        let query_err = d.query("ps").unwrap_err();
+        let query_err = d
+            .query("ps")
+            .expect_err("consul query should fail after discovery is closed");
         assert!(query_err.to_string().contains("closed"));
 
-        let query_all_err = d.query_all().unwrap_err();
+        let query_all_err = d
+            .query_all()
+            .expect_err("consul query_all should fail after discovery is closed");
         assert!(query_all_err.to_string().contains("closed"));
 
-        let deregister_err = d.deregister("ps", 0, "192.168.0.1:1001").unwrap_err();
+        let deregister_err = d
+            .deregister("ps", 0, "192.168.0.1:1001")
+            .expect_err("consul deregister should fail after discovery is closed");
         assert!(deregister_err.to_string().contains("closed"));
     }
 
@@ -960,7 +976,9 @@ mod tests {
         let d2 = d1.clone();
 
         d1.close().unwrap();
-        let err = d2.query_all().unwrap_err();
+        let err = d2
+            .query_all()
+            .expect_err("consul clone should observe closed state from original instance");
         assert!(err.to_string().contains("closed"));
     }
 
@@ -1189,13 +1207,19 @@ mod tests {
             ZkServiceDiscovery::new("test_model", Arc::clone(&c) as Arc<dyn ZkClientLike>).unwrap();
         d.close().unwrap();
 
-        let register_err = d.register("ps", 0, "192.168.0.1:1001").unwrap_err();
+        let register_err = d
+            .register("ps", 0, "192.168.0.1:1001")
+            .expect_err("zk register should fail after discovery is closed");
         assert!(register_err.to_string().contains("closed"));
 
-        let query_err = d.query("ps").unwrap_err();
+        let query_err = d
+            .query("ps")
+            .expect_err("zk query should fail after discovery is closed");
         assert!(query_err.to_string().contains("closed"));
 
-        let deregister_err = d.deregister("ps", 0, "192.168.0.1:1001").unwrap_err();
+        let deregister_err = d
+            .deregister("ps", 0, "192.168.0.1:1001")
+            .expect_err("zk deregister should fail after discovery is closed");
         assert!(deregister_err.to_string().contains("closed"));
     }
 }
