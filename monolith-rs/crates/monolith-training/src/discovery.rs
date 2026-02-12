@@ -2413,6 +2413,27 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_async_deregister_local_only_service_compacts_dead_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+
+        let rx = zk.watch("ps").expect("watch should succeed");
+        drop(rx);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        assert!(
+            result.is_ok(),
+            "async deregister should succeed for local-only service without registered backend path"
+        );
+        assert!(
+            !zk.watchers.lock().unwrap().contains_key("ps"),
+            "local-only async deregister should compact dead watcher sender"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_async_deregister_failure_compacts_dead_watchers() {
         let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
         zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))

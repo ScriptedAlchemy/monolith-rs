@@ -4659,6 +4659,16 @@
     backend discovery failures, reducing risk of silent watcher starvation.
   - Default monolith-training regressions remain green.
 
+### 344) ZooKeeper local-only async-deregister dead-watcher compaction parity
+- Added `test_zk_async_deregister_local_only_service_compacts_dead_watchers`
+  to cover the local-only async-deregister success path (no backend path) when
+  all watchers are dropped.
+- Result:
+  - Local-only async-deregister now has explicit regression coverage that dead
+    watcher senders are compacted even when remote backend deletion is skipped.
+  - Existing local-cache cleanup + success semantics remain validated.
+  - Feature-gated and default monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5500,6 +5510,7 @@
 838. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" discover_async_connection_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" discover_async_config_error_is_classified -- --nocapture` ✅ (default-lane regression plus feature-gated Consul/ZK async-discover failure-shape and cache-preservation verification)
 839. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_register_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture` ✅ (default-lane regression plus feature-gated Consul async-register config-error context and cache-isolation verification)
 840. `ZK_AUTH=user:pass cargo test -p monolith-training test_spawn_watch_poll_loop_recovers_after_discover_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted transient discover-error recovery poll-loop verification plus default-lane regression rerun)
+841. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_async_deregister_local_only_service -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated local-only ZK async-deregister dead-watcher compaction verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
