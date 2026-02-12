@@ -4137,6 +4137,19 @@
     both files.
   - Full monolith-training regression remains green.
 
+### 303) Runner worker-discover-failure/worker-error preserves→surfaces completed
+- Added runner-only directional alias wrappers in `runner.rs`:
+  - 20 for `worker_discover_failure`
+  - 22 for `worker_error`
+- Result:
+  - `worker_discover_failure` and `worker_error` directional transforms now
+    report `missing 0` in `runner.rs`.
+  - Generic `preserves_ -> surfaces_` gaps reduced:
+    - `runner.rs`: `74 -> 32`
+    - `native_training_parity.rs`: currently `308` (context families tracked
+      separately)
+  - Full monolith-training regression remains green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4877,6 +4890,11 @@
 737. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_last_discover_error_with_default_service_type_when_cleanup_times_out -- --nocapture` ✅
 738. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post last-discover-error preserves->surfaces alias additions full monolith-training regression rerun)
 739. `python3` preserves->surfaces last-discover-error audit ✅ (`last_discover_error` `missing 0` in `runner.rs` and `native_training_parity.rs`)
+740. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_surfaces_worker_discover_failure_with_default_service_type_when_cleanup_steps_timeout -- --nocapture` ✅
+741. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_surfaces_worker_error_with_default_service_type_when_cleanup_steps_timeout -- --nocapture` ✅
+742. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner worker-discover/error preserves->surfaces alias additions full monolith-training regression rerun)
+743. `python3` runner family audit ✅ (`worker_discover_failure` and `worker_error` directional `missing 0` in `runner.rs`)
+744. `python3` generic directional count audit ✅ (`runner.rs` generic `preserves_ -> surfaces_`: `74 -> 32`; native currently `308`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
