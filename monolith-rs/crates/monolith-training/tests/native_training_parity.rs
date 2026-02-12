@@ -27987,6 +27987,241 @@ fn distributed_runner_from_runner_config_surfaces_discover_timeout_with_default_
 }
 
 #[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_and_index_when_cleanup_fails() {
+    distributed_runner_from_run_config_preserves_last_discover_error_and_index_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_and_index_when_cleanup_times_out(
+) {
+    distributed_runner_from_run_config_preserves_last_discover_error_and_index_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_when_cleanup_fails() {
+    distributed_runner_from_run_config_preserves_last_discover_error_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_when_cleanup_times_out() {
+    distributed_runner_from_run_config_preserves_last_discover_error_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_with_custom_service_type_and_index_when_cleanup_fails(
+) {
+    distributed_runner_from_run_config_preserves_last_discover_error_with_custom_service_type_and_index_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_with_custom_service_type_and_index_when_cleanup_times_out(
+) {
+    distributed_runner_from_run_config_preserves_last_discover_error_with_custom_service_type_and_index_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_with_custom_service_type_when_cleanup_fails(
+) {
+    distributed_runner_from_run_config_preserves_last_discover_error_with_custom_service_type_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_with_custom_service_type_when_cleanup_times_out(
+) {
+    distributed_runner_from_run_config_preserves_last_discover_error_with_custom_service_type_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_with_custom_service_types_and_index_when_cleanup_fails(
+) {
+    distributed_runner_from_run_config_preserves_last_discover_error_with_custom_service_types_and_index_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_with_custom_service_types_and_index_when_cleanup_times_out(
+) {
+    distributed_runner_from_run_config_preserves_last_discover_error_with_custom_service_types_and_index_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_with_custom_service_types_when_cleanup_fails(
+) {
+    distributed_runner_from_run_config_preserves_last_discover_error_with_custom_service_types_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_with_custom_service_types_when_cleanup_times_out(
+) {
+    distributed_runner_from_run_config_preserves_last_discover_error_with_custom_service_types_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_with_default_service_type_and_index_when_cleanup_fails(
+) {
+    distributed_runner_from_run_config_preserves_last_discover_error_with_default_service_type_and_index_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_with_default_service_type_and_index_when_cleanup_times_out(
+) {
+    distributed_runner_from_run_config_preserves_last_discover_error_with_default_service_type_and_index_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_with_default_service_type_when_cleanup_fails(
+) {
+    distributed_runner_from_run_config_preserves_last_discover_error_with_default_service_type_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_with_default_service_type_when_cleanup_times_out(
+) {
+    distributed_runner_from_run_config_preserves_last_discover_error_with_default_service_type_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_with_default_service_types_and_index_when_cleanup_fails(
+) {
+    distributed_runner_from_run_config_preserves_last_discover_error_with_default_service_types_and_index_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_with_default_service_types_and_index_when_cleanup_times_out(
+) {
+    distributed_runner_from_run_config_preserves_last_discover_error_with_default_service_types_and_index_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_with_default_service_types_when_cleanup_fails(
+) {
+    distributed_runner_from_run_config_preserves_last_discover_error_with_default_service_types_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_last_discover_error_with_default_service_types_when_cleanup_times_out(
+) {
+    distributed_runner_from_run_config_preserves_last_discover_error_with_default_service_types_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_and_index_when_cleanup_fails(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_and_index_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_and_index_when_cleanup_times_out(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_and_index_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_when_cleanup_fails() {
+    distributed_runner_from_runner_config_preserves_last_discover_error_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_when_cleanup_times_out() {
+    distributed_runner_from_runner_config_preserves_last_discover_error_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_with_custom_service_type_and_index_when_cleanup_fails(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_type_and_index_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_with_custom_service_type_and_index_when_cleanup_times_out(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_type_and_index_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_with_custom_service_type_when_cleanup_fails(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_type_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_with_custom_service_type_when_cleanup_times_out(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_type_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_with_custom_service_types_and_index_when_cleanup_fails(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_types_and_index_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_with_custom_service_types_and_index_when_cleanup_times_out(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_types_and_index_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_with_custom_service_types_when_cleanup_fails(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_types_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_with_custom_service_types_when_cleanup_times_out(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_types_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_with_default_service_type_and_index_when_cleanup_fails(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_with_default_service_type_and_index_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_with_default_service_type_and_index_when_cleanup_times_out(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_with_default_service_type_and_index_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_with_default_service_type_when_cleanup_fails(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_with_default_service_type_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_with_default_service_type_when_cleanup_times_out(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_with_default_service_type_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_with_default_service_types_and_index_when_cleanup_fails(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_with_default_service_types_and_index_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_with_default_service_types_and_index_when_cleanup_times_out(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_with_default_service_types_and_index_when_cleanup_times_out();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_with_default_service_types_when_cleanup_fails(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_with_default_service_types_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_last_discover_error_with_default_service_types_when_cleanup_times_out(
+) {
+    distributed_runner_from_runner_config_preserves_last_discover_error_with_default_service_types_when_cleanup_times_out();
+}
+
+#[test]
 fn distributed_runner_from_runner_config_preserves_discover_timeout_and_index_when_cleanup_fails()
 {
     distributed_runner_from_runner_config_preserves_discover_timeout_with_default_service_types_and_index_when_cleanup_fails();

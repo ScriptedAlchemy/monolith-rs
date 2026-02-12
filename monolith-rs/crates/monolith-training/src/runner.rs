@@ -13692,4 +13692,52 @@ mod tests {
     ) {
         test_run_distributed_worker_discover_timeout_preserves_error_when_cleanup_times_out_with_default_service_type_and_index();
     }
+
+    #[test]
+    fn test_run_distributed_worker_last_discover_error_surfaces_error_when_cleanup_fails_with_custom_service_type(
+    ) {
+        test_run_distributed_worker_last_discover_error_preserves_error_when_cleanup_fails_with_custom_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_last_discover_error_surfaces_error_when_cleanup_fails_with_custom_service_type_and_index(
+    ) {
+        test_run_distributed_worker_last_discover_error_preserves_error_when_cleanup_fails_with_custom_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_last_discover_error_surfaces_error_when_cleanup_fails_with_default_service_type(
+    ) {
+        test_run_distributed_worker_last_discover_error_preserves_error_when_cleanup_fails_with_default_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_last_discover_error_surfaces_error_when_cleanup_fails_with_default_service_type_and_index(
+    ) {
+        test_run_distributed_worker_last_discover_error_preserves_error_when_cleanup_fails_with_default_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_last_discover_error_surfaces_error_when_cleanup_times_out_with_custom_service_type(
+    ) {
+        test_run_distributed_worker_last_discover_error_preserves_error_when_cleanup_times_out_with_custom_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_last_discover_error_surfaces_error_when_cleanup_times_out_with_custom_service_type_and_index(
+    ) {
+        test_run_distributed_worker_last_discover_error_preserves_error_when_cleanup_times_out_with_custom_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_last_discover_error_surfaces_error_when_cleanup_times_out_with_default_service_type(
+    ) {
+        test_run_distributed_worker_last_discover_error_preserves_error_when_cleanup_times_out_with_default_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_worker_last_discover_error_surfaces_error_when_cleanup_times_out_with_default_service_type_and_index(
+    ) {
+        test_run_distributed_worker_last_discover_error_preserves_error_when_cleanup_times_out_with_default_service_type_and_index();
+    }
 }
