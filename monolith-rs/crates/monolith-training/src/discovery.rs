@@ -3928,6 +3928,58 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_discover_async_invalid_ipv6_suffix_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new("http://[::1]x:8500");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address")
+                        && msg.contains("invalid authority")
+                        && msg.contains("get_service_nodes"),
+                    "invalid-IPv6-suffix discover failures should be classified as ConfigError with discover context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for invalid IPv6 suffix address, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_invalid_ipv6_suffix_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://[::1]x:8500");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address")
+                        && msg.contains("invalid authority")
+                        && msg.contains("register_entity"),
+                    "invalid-IPv6-suffix register failures should be classified as ConfigError with register context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for invalid IPv6 suffix register, got {other:?}"),
+        }
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "dead watch sender should be compacted on invalid-IPv6-suffix register validation failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_deregister_invalid_scheme_still_notifies_and_returns_error() {
         let consul = ConsulDiscovery::new("ftp://127.0.0.1:8500");
         let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);

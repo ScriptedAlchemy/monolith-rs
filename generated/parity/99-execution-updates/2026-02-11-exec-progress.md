@@ -5500,6 +5500,20 @@
   - Feature-gated config-error suite and default monolith-training regression
     remain green.
 
+### 409) Discovery parity: invalid-IPv6-suffix lifecycle coverage
+- Added feature-gated lifecycle coverage in
+  `crates/monolith-training/src/discovery.rs` for malformed IPv6 suffix paths:
+  - `test_consul_discover_async_invalid_ipv6_suffix_is_classified_as_config_error`
+    verifies discover-path operation-context `ConfigError` classification.
+  - `test_consul_async_register_invalid_ipv6_suffix_compacts_dead_watchers`
+    verifies register-path config-error classification and dead-watcher
+    compaction invariants.
+- Result:
+  - Invalid IPv6 suffix handling is now covered in both discover and register
+    async lifecycle paths, including watcher cleanup behavior.
+  - Feature-gated config-error suite and default monolith-training regression
+    remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6406,6 +6420,7 @@
 903. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_empty_host_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_async_register_empty_host_compacts_dead_watchers -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul empty-host discover/register validation and watcher-compaction verification plus default-lane regression rerun)
 904. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_normalize_consul_address_for_operation_rejects_whitespace_authority -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_normalize_consul_address_for_operation_rejects_invalid_ipv6_authority -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_whitespace_authority_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul whitespace/IPv6 authority validation coverage verification plus default-lane regression rerun)
 905. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_normalize_consul_address_for_operation_defaults_empty_address -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_normalize_consul_address_for_operation_rejects_invalid_ipv6_suffix -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_empty_address_uses_default_endpoint_context -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul empty-address defaulting + IPv6-suffix validation coverage verification plus default-lane regression rerun)
+906. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_invalid_ipv6_suffix_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_async_register_invalid_ipv6_suffix_compacts_dead_watchers -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul invalid-IPv6-suffix discover/register lifecycle coverage verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
