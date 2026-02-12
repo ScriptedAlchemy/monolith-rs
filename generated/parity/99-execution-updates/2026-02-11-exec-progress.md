@@ -5740,6 +5740,23 @@
   - `monolith-training/tests` parity suites are now panic-free.
   - Focused parity tests and default monolith-training regression remain green.
 
+### 425) Discovery/runner timeout-success assertion tightening
+- Refactored timeout-success assertions to avoid coarse `is_ok()` checks in:
+  - `crates/monolith-training/src/discovery.rs`
+    - `test_zk_async_deregister_local_only_service_returns_ok`
+    - `test_zk_async_deregister_local_only_service_compacts_dead_watchers`
+  - `crates/monolith-training/src/runner.rs`
+    - `test_run_worker_role_does_not_hang_when_heartbeat_blocks`
+    - `test_ps_abort_cancels_inflight_blocking_heartbeat`
+    - `test_stop_heartbeat_task_aborts_nonterminating_task`
+- Result:
+  - Timeout-success paths now use explicit `.await.expect("...")` contracts,
+    improving diagnostics and removing generic success predicates.
+  - Runner test cleanup removed follow-on unused-variable warnings introduced by
+    prior assertion tightening.
+  - Focused discovery/runner tests and default monolith-training regression
+    remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6666,6 +6683,7 @@
 923. `rg "panic!\\(" monolith-rs/crates/monolith-training/src/prefetch_queue.rs` ✅ (verified prefetch_queue.rs is panic-free after assertion refactor)
 924. `cargo test -p monolith-training entry_batch_softmax_initializer_errors_like_python -- --nocapture && cargo test -p monolith-training --test prefetch_queue_parity test_enqueue_dicts_preserves_non_tensor_structure -- --nocapture && cargo test -p monolith-training --test prefetch_queue_parity -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (native/prefetch parity integration assertion-tightening targeted verification plus default-lane regression rerun)
 925. `rg "panic!\\(" monolith-rs/crates/monolith-training/tests` ✅ (verified monolith-training parity tests are panic-free after assertion refactor batch)
+926. `cargo test -p monolith-training test_zk_async_deregister_local_only_service_returns_ok --features "zookeeper" -- --nocapture && cargo test -p monolith-training test_zk_async_deregister_local_only_service_compacts_dead_watchers --features "zookeeper" -- --nocapture && cargo test -p monolith-training test_run_worker_role_does_not_hang_when_heartbeat_blocks -- --nocapture && cargo test -p monolith-training test_ps_abort_cancels_inflight_blocking_heartbeat -- --nocapture && cargo test -p monolith-training test_stop_heartbeat_task_aborts_nonterminating_task -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (discovery/runner timeout-success assertion-tightening targeted verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

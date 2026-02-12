@@ -4601,13 +4601,10 @@ mod tests {
             Duration::from_millis(300),
             run_worker_role(discovery, "worker-0", cfg),
         )
-        .await;
+        .await
+        .expect("worker role should return even when heartbeat task blocks");
         assert!(
-            res.is_ok(),
-            "worker role should return even when heartbeat task blocks"
-        );
-        assert!(
-            res.unwrap().is_err(),
+            res.is_err(),
             "worker should still fail due to PS discovery timeout"
         );
     }
@@ -4627,7 +4624,7 @@ mod tests {
 
         let ps_task = tokio::spawn(run_distributed(Arc::clone(&discovery), cfg));
 
-        let started = tokio::time::timeout(Duration::from_millis(250), async {
+        tokio::time::timeout(Duration::from_millis(250), async {
             loop {
                 if discovery.active_heartbeats() > 0 {
                     break;
@@ -4635,15 +4632,12 @@ mod tests {
                 tokio::time::sleep(Duration::from_millis(5)).await;
             }
         })
-        .await;
-        assert!(
-            started.is_ok(),
-            "blocking heartbeat should have started before abort"
-        );
+        .await
+        .expect("blocking heartbeat should have started before abort");
 
         ps_task.abort();
 
-        let stopped = tokio::time::timeout(Duration::from_millis(300), async {
+        tokio::time::timeout(Duration::from_millis(300), async {
             loop {
                 if discovery.active_heartbeats() == 0 {
                     break;
@@ -4651,11 +4645,8 @@ mod tests {
                 tokio::time::sleep(Duration::from_millis(5)).await;
             }
         })
-        .await;
-        assert!(
-            stopped.is_ok(),
-            "in-flight blocking heartbeat should be cancelled after PS abort"
-        );
+        .await
+        .expect("in-flight blocking heartbeat should be cancelled after PS abort");
     }
 
     #[tokio::test]
@@ -4665,15 +4656,12 @@ mod tests {
             std::future::pending::<()>().await;
         });
 
-        let res = tokio::time::timeout(
+        tokio::time::timeout(
             Duration::from_millis(300),
             stop_heartbeat_task(Some(stop_tx), Some(stuck_task)),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "stop_heartbeat_task should return promptly by aborting stuck heartbeat tasks"
-        );
+        .await
+        .expect("stop_heartbeat_task should return promptly by aborting stuck heartbeat tasks");
     }
 
     #[tokio::test]

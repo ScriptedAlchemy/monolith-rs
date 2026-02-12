@@ -2752,11 +2752,9 @@ mod tests {
             .expect("sync register should seed local cache");
 
         let mut rx = zk.watch("ps").expect("watch should succeed");
-        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
-        assert!(
-            result.is_ok(),
-            "async deregister should succeed for local-only service without registered backend path"
-        );
+        <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0")
+            .await
+            .expect("async deregister should succeed for local-only service without registered backend path");
         assert!(
             zk.discover("ps").expect("discover should succeed").is_empty(),
             "local-only async deregister should clear local cache"
@@ -2782,11 +2780,9 @@ mod tests {
         let rx = zk.watch("ps").expect("watch should succeed");
         drop(rx);
 
-        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
-        assert!(
-            result.is_ok(),
-            "async deregister should succeed for local-only service without registered backend path"
-        );
+        <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0")
+            .await
+            .expect("async deregister should succeed for local-only service without registered backend path");
         assert!(
             !zk.watchers.lock().unwrap().contains_key("ps"),
             "local-only async deregister should compact dead watcher sender"
