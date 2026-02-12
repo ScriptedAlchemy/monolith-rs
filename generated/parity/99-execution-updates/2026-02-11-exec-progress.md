@@ -3884,6 +3884,13 @@
   - `default_ps_connect_failure -> ps_connect_failure`: `missing 0`
   - `default_worker_connect_failure -> worker_connect_failure`: `missing 0`
 
+### 281) Native default→custom service-type parity aliases completed
+- Added 20 `#[test]` alias wrappers in `native_training_parity.rs` to close
+  `with_default_service_type -> with_custom_service_type` for
+  discover-timeout / discovery-error / worker-timeout families (run+runner).
+- Result:
+  - `with_default_service_type -> with_custom_service_type`: `missing 0`
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4530,6 +4537,10 @@
 643. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_worker_connect_failure_with_cleanup_context -- --nocapture` ✅
 644. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post default connect-failure alias additions full monolith-training regression rerun)
 645. `python3` default-to-generic connect-failure alias audit (`native_training_parity.rs`) ✅ (`default_ps_connect_failure->ps_connect_failure` and `default_worker_connect_failure->worker_connect_failure` both `missing 0`)
+646. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_preserves_discover_timeout_with_custom_service_type_and_index_when_cleanup_fails -- --nocapture` ✅
+647. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_worker_timeout_with_custom_service_type_and_index_when_cleanup_times_out -- --nocapture` ✅
+648. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post default->custom service-type alias additions full monolith-training regression rerun)
+649. `python3` service-type transform audit (`native_training_parity.rs`) ✅ (`with_default_service_type->with_custom_service_type` now `missing 0`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
