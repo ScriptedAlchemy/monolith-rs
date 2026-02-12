@@ -3679,6 +3679,17 @@
   `_cleanup_timeout_context -> _cleanup_context` gaps in integration parity
   audits.
 
+### 264) Custom connect-failure cleanup-context alias parity expanded
+- Added RunConfig custom connect-failure cleanup-context aliases:
+  - `distributed_runner_from_run_config_preserves_connect_failure_with_custom_service_type_cleanup_context`
+  - `distributed_runner_from_run_config_preserves_connect_failure_with_custom_service_type_and_index_cleanup_context`
+- Added RunnerConfig custom connect-failure cleanup-context aliases:
+  - `distributed_runner_from_runner_config_preserves_connect_failure_with_custom_service_type_cleanup_context`
+  - `distributed_runner_from_runner_config_preserves_connect_failure_with_custom_service_type_and_index_cleanup_context`
+- Result: integration counterpart audit for
+  `_cleanup_timeout_context -> _cleanup_context` improved from 22 missing to 18
+  missing aliases.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4244,6 +4255,9 @@
 562. `ZK_AUTH=user:pass cargo test -p monolith-training "connect_failure_with_cleanup" -- --nocapture` ✅ (post run/runner connect-failure cleanup-context alias additions)
 563. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post connect-failure cleanup-context alias expansion full monolith-training regression rerun)
 564. `python3` cleanup-timeout-context alias audit (`native_training_parity.rs`) ✅ (remaining `_cleanup_timeout_context -> _cleanup_context` gaps reduced after new run/runner connect-failure aliases)
+565. `ZK_AUTH=user:pass cargo test -p monolith-training "connect_failure_with_custom_service_type" -- --nocapture` ✅ (post run/runner custom connect-failure cleanup-context alias additions)
+566. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post custom connect-failure cleanup-context alias expansion full monolith-training regression rerun)
+567. `python3` cleanup-timeout-context alias audit (`native_training_parity.rs`) ✅ (remaining `_cleanup_timeout_context -> _cleanup_context` gaps reduced from 22 to 18 after custom connect-failure alias additions)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
