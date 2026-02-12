@@ -425,7 +425,11 @@ mod tests {
             model_version: None,
         };
 
-        let err = cmd.run().await.unwrap_err().to_string();
+        let err = cmd
+            .run()
+            .await
+            .expect_err("ONNX export command should fail until format is implemented")
+            .to_string();
         assert!(err.contains("ONNX export is not implemented yet"));
     }
 
@@ -451,7 +455,11 @@ mod tests {
             model_version: None,
         };
 
-        let err = cmd.run().await.unwrap_err().to_string();
+        let err = cmd
+            .run()
+            .await
+            .expect_err("export command should fail for unsupported quantize bit-width")
+            .to_string();
         assert!(err.contains("Unsupported quantize bits"));
     }
 }

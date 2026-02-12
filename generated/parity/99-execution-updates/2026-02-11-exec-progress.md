@@ -6177,6 +6177,18 @@
     preserving existing error-shape and message-content assertions.
   - Targeted tests and full `monolith-core` regression remain green.
 
+### 455) CLI export parity: tighten async failure extraction diagnostics
+- Refactored remaining async `unwrap_err()` assertions in
+  `monolith-cli/src/commands/export.rs` into explicit
+  `expect_err("...")` extraction for:
+  - unsupported ONNX export format failure,
+  - invalid quantization bit-width failure.
+- Result:
+  - CLI export failure-path tests now emit explicit extraction diagnostics
+    while preserving existing error message contract assertions.
+  - Targeted export failure tests and full `monolith-cli` regression remain
+    green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7146,6 +7158,8 @@
 966. `cargo test -p monolith-core test_define_existing -- --nocapture && cargo test -p monolith-core test_set_and_get -- --nocapture && cargo test -p monolith-core test_set_and_get_nested_param -- --nocapture && cargo test -p monolith-core test_freeze -- --nocapture && cargo test -p monolith-core test_similar_keys -- --nocapture && cargo test -p monolith-core test_register_duplicate_error_message -- --nocapture && cargo test -p monolith-core test_get_class_not_found_error_message -- --nocapture && cargo test -p monolith-core test_import_params_invalid_name_message -- --nocapture && cargo test -p monolith-core test_import_params_require_success_message -- --nocapture && cargo test -p monolith-core test_import_all_params_require_success_message -- --nocapture && cargo test -p monolith-core test_parse_optimizer_keys -- --nocapture && cargo test -p monolith-core test_check_key_error_messages -- --nocapture && cargo test -p monolith-core test_set_error_message_for_non_map_intermediate -- --nocapture && cargo test -p monolith-core test_compute_new_value_validates_lengths -- --nocapture && cargo test -p monolith-core test_get_bucket_name_and_relavite_path -- --nocapture` ✅ (core `unwrap_err`→`expect_err` assertion-tightening targeted verification)
 967. `cargo test -p monolith-core -q` ✅ (full monolith-core regression rerun after `unwrap_err` assertion tightening)
 968. `rg "unwrap_err\\(" /workspace/monolith-rs/crates/monolith-core` ✅ (verified no remaining `unwrap_err(...)` patterns in monolith-core tests)
+969. `cargo test -p monolith-cli test_export_unsupported_format_errors -- --nocapture && cargo test -p monolith-cli test_export_invalid_quantize_bits_errors -- --nocapture && cargo test -p monolith-cli -q` ✅ (CLI export async failure extraction assertion-tightening targeted verification plus full monolith-cli regression rerun)
+970. `rg "unwrap_err\\(" /workspace/monolith-rs/crates/monolith-cli/src/commands/export.rs` ✅ (verified no remaining `unwrap_err(...)` patterns in export command tests)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
