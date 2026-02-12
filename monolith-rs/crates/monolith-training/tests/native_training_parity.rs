@@ -14285,10 +14285,6 @@ async fn distributed_runner_from_runner_config_preserves_default_worker_connect_
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when default-worker connect fails and disconnect cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_runner_config should not hang when default-worker connect fails and cleanup blocks")
         .expect_err("runner-config default worker connect failure with cleanup timeout context should surface as role error")
@@ -14335,10 +14331,6 @@ async fn distributed_runner_from_runner_config_preserves_default_worker_connect_
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed default-worker connect fails and disconnect cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_runner_config should not hang when indexed default-worker connect fails and cleanup blocks")
         .expect_err("runner-config indexed default worker connect failure with cleanup timeout context should surface as role error")
@@ -14385,10 +14377,6 @@ async fn distributed_runner_from_runner_config_preserves_default_worker_connect_
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when default-worker connect fails and disconnect cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_runner_config should not hang when default-worker connect fails and cleanup blocks")
         .expect_err("runner-config default worker connect failure with cleanup context should surface as role error")
@@ -14435,10 +14423,6 @@ async fn distributed_runner_from_runner_config_preserves_default_worker_connect_
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed default-worker connect fails and disconnect cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_runner_config should not hang when indexed default-worker connect fails and cleanup blocks")
         .expect_err("runner-config indexed default worker connect failure with cleanup context should surface as role error")
@@ -14571,10 +14555,6 @@ async fn distributed_runner_from_runner_config_preserves_default_ps_connect_fail
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when default-ps connect fails and disconnect cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_runner_config should not hang when default-ps connect fails and cleanup blocks")
         .expect_err("runner-config default ps connect failure with cleanup timeout context should surface as role error")
@@ -14621,10 +14601,6 @@ async fn distributed_runner_from_runner_config_preserves_default_ps_connect_fail
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed default-ps connect fails and disconnect cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_runner_config should not hang when indexed default-ps connect fails and cleanup blocks")
         .expect_err("runner-config indexed default ps connect failure with cleanup timeout context should surface as role error")
@@ -14671,10 +14647,6 @@ async fn distributed_runner_from_runner_config_preserves_default_ps_connect_fail
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when default-ps connect fails and disconnect cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_runner_config should not hang when default-ps connect fails and cleanup blocks")
         .expect_err("runner-config default ps connect failure with cleanup context should surface as role error")
@@ -14721,10 +14693,6 @@ async fn distributed_runner_from_runner_config_preserves_default_ps_connect_fail
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed default-ps connect fails and disconnect cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_runner_config should not hang when indexed default-ps connect fails and cleanup blocks")
         .expect_err("runner-config indexed default ps connect failure with cleanup context should surface as role error")
@@ -14856,10 +14824,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when ps connect fails and disconnect cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_runner_config should not hang when ps connect fails and cleanup blocks")
         .expect_err("runner-config ps connect failure with cleanup timeout context should surface as role error")
@@ -14909,10 +14873,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when custom non-index ps connect fails and disconnect cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_runner_config should not hang when custom-ps connect fails and cleanup blocks")
         .expect_err("runner-config custom ps connect failure with cleanup timeout context should surface as role error")
@@ -14962,10 +14922,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed custom-ps connect fails and disconnect cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_runner_config should not hang when indexed custom-ps connect fails and cleanup blocks")
         .expect_err("runner-config indexed custom ps connect failure with cleanup timeout context should surface as role error")
@@ -15014,10 +14970,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when ps connect fails and disconnect cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_runner_config should not hang when ps connect fails and cleanup blocks")
         .expect_err("runner-config ps connect failure with cleanup context should surface as role error")
@@ -15067,10 +15019,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when custom non-index ps connect fails and disconnect cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_runner_config should not hang when custom-ps connect fails and cleanup blocks")
         .expect_err("runner-config custom ps connect failure with cleanup context should surface as role error")
@@ -15120,10 +15068,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed custom-ps connect fails and disconnect cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_runner_config should not hang when indexed custom-ps connect fails and cleanup blocks")
         .expect_err("runner-config indexed custom ps connect failure with cleanup context should surface as role error")
