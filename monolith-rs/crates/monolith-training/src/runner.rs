@@ -9182,6 +9182,60 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_preserves_worker_timeout_with_custom_service_types_when_cleanup_steps_fail(
+    ) {
+        let discovery = Arc::new(WorkerTimeoutWithFailingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(
+            res.is_err(),
+            "worker timeout with failing cleanup should surface as a role error with custom non-index service types"
+        );
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker timeout should remain primary over cleanup failures with custom non-index service types: {msg}"
+        );
+        assert!(
+            msg.contains("service type: parameter_server_custom"),
+            "worker-timeout diagnostics should include custom PS service-type context when cleanup fails for custom non-index paths: {msg}"
+        );
+        assert!(
+            msg.contains("for worker-0"),
+            "worker-timeout diagnostics should include worker service-id context when cleanup fails for custom non-index paths: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "worker-timeout diagnostics should include cleanup issue context when cleanup fails with custom non-index service types: {msg}"
+        );
+        assert!(
+            msg.contains("deregister worker-0 from trainer_custom")
+                && msg.contains("forced deregister failure"),
+            "worker-timeout cleanup issue context should include custom worker service-type deregister-failure diagnostics for non-index paths: {msg}"
+        );
+        assert!(
+            msg.contains("disconnect worker-0 via trainer_custom")
+                && msg.contains("forced disconnect failure"),
+            "worker-timeout cleanup issue context should include custom worker service-type disconnect-failure diagnostics for non-index paths: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_preserves_worker_timeout_with_default_service_type_and_index_when_cleanup_steps_fail(
     ) {
         let discovery = Arc::new(WorkerTimeoutWithFailingCleanupDiscovery::new());
@@ -10098,6 +10152,67 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_distributed_preserves_worker_error_with_custom_service_type_when_cleanup_steps_timeout(
+    ) {
+        let discovery = Arc::new(WorkerTimeoutWithHangingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(1500),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when custom non-index worker discovery times out and cleanup steps time out"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker-role timeout should remain primary over cleanup timeout errors with custom non-index service types: {msg}"
+        );
+        assert!(
+            msg.contains("service type: parameter_server_custom"),
+            "worker-timeout diagnostics should include custom PS service-type context for custom non-index paths: {msg}"
+        );
+        assert!(
+            msg.contains("for worker-0"),
+            "worker-timeout diagnostics should include worker service-id context for custom non-index paths: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "worker-timeout errors should include cleanup issue context when cleanup steps time out with custom non-index service types: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: deregister worker-0 from trainer_custom after 20ms"
+            ),
+            "worker-timeout cleanup issue context should include custom worker service-type deregister-timeout diagnostics for non-index paths: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
+            ),
+            "worker-timeout cleanup issue context should include custom worker service-type disconnect-timeout diagnostics for non-index paths: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_error_with_custom_service_types_when_cleanup_steps_timeout(
     ) {
         let discovery = Arc::new(WorkerTimeoutWithHangingCleanupDiscovery::new());
         let cfg = DistributedRunConfig {
