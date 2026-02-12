@@ -2854,8 +2854,8 @@ mod tests {
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
         match result {
-            Err(DiscoveryError::Internal(_)) => {}
-            other => panic!("expected Internal error, got {other:?}"),
+            Err(DiscoveryError::ConfigError(_)) => {}
+            other => panic!("expected ConfigError, got {other:?}"),
         }
         assert!(
             consul
@@ -2899,8 +2899,8 @@ mod tests {
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
         match result {
-            Err(DiscoveryError::Internal(_)) => {}
-            other => panic!("expected Internal error, got {other:?}"),
+            Err(DiscoveryError::ConfigError(_)) => {}
+            other => panic!("expected ConfigError, got {other:?}"),
         }
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
@@ -3029,5 +3029,22 @@ mod tests {
             consul.watchers.lock().unwrap().contains_key("worker"),
             "live watcher sender should be preserved on config-error register failure"
         );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_config_error_is_classified() {
+        let consul = ConsulDiscovery::new("http://[::1");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address"),
+                    "config error should include invalid address context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError, got {other:?}"),
+        }
     }
 }
