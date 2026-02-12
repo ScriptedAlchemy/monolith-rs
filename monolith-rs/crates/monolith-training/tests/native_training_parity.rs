@@ -22366,10 +22366,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_register_failure
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker register fails and cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_register_failure_with_cleanup_timeout_context should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_register_failure_with_cleanup_timeout_context should return an error")
@@ -23631,10 +23627,6 @@ async fn distributed_runner_from_runner_config_preserves_deregister_timeout_with
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when both cleanup steps block after successful worker run"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_deregister_timeout_with_disconnect_timeout_context_after_success should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_deregister_timeout_with_disconnect_timeout_context_after_success should return an error")
@@ -23689,10 +23681,6 @@ async fn distributed_runner_from_runner_config_preserves_register_timeout_when_c
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when register and cleanup block"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -23746,10 +23734,6 @@ async fn distributed_runner_from_runner_config_preserves_register_timeout_discon
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when register and cleanup block"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -23804,10 +23788,6 @@ async fn distributed_runner_from_runner_config_preserves_register_timeout_with_d
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed custom-worker register blocks and cleanup fails"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -23864,10 +23844,6 @@ async fn distributed_runner_from_runner_config_preserves_register_timeout_with_c
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when custom non-index worker register blocks and cleanup fails"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -23923,10 +23899,6 @@ async fn distributed_runner_from_runner_config_preserves_register_timeout_with_d
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed default-worker register blocks and cleanup fails"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -23982,10 +23954,6 @@ async fn distributed_runner_from_runner_config_preserves_register_timeout_with_d
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when non-index default-worker register blocks and cleanup fails"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -24042,10 +24010,6 @@ async fn distributed_runner_from_runner_config_propagates_worker_service_type_in
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker register and cleanup block"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -24100,10 +24064,6 @@ async fn distributed_runner_from_runner_config_preserves_register_timeout_with_c
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when custom non-index worker register and cleanup block"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -24158,10 +24118,6 @@ async fn distributed_runner_from_runner_config_preserves_register_timeout_with_c
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed custom-worker register and cleanup block"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -24216,10 +24172,6 @@ async fn distributed_runner_from_runner_config_preserves_register_timeout_with_c
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed custom-worker register and cleanup block"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -24273,10 +24225,6 @@ async fn distributed_runner_from_runner_config_preserves_register_timeout_with_d
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed default-worker register and cleanup block"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -24330,10 +24278,6 @@ async fn distributed_runner_from_runner_config_preserves_register_timeout_with_d
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when non-index default-worker register and cleanup block"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -24388,10 +24332,6 @@ async fn distributed_runner_from_runner_config_honors_cleanup_timeout_after_regi
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when register and cleanup are blocked"
-    );
     let elapsed = started.elapsed();
     let msg = res
         .expect("runner-config parity lane should not hang")
@@ -24442,10 +24382,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_timeout_whe
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when ps register and cleanup block"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -24499,10 +24435,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_timeout_dis
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when ps register and cleanup block"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -24557,10 +24489,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_timeout_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed custom-ps register blocks and cleanup fails"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -24619,10 +24547,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_timeout_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when custom non-index ps register blocks and cleanup fails"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -24680,10 +24604,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_timeout_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed default-ps register blocks and cleanup fails"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -24737,10 +24657,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_timeout_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when non-index default-ps register blocks and cleanup fails"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -24795,10 +24711,6 @@ async fn distributed_runner_from_runner_config_propagates_ps_service_type_into_r
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when ps register and cleanup block"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -24853,10 +24765,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_timeout_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when custom non-index ps register and cleanup block"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -24917,10 +24825,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_timeout_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed custom-ps register and cleanup block"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -24981,10 +24885,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_timeout_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed custom-ps register and cleanup block"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -25044,10 +24944,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_timeout_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed default-ps register and cleanup block"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
@@ -25101,10 +24997,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_timeout_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when non-index default-ps register and cleanup block"
-    );
     let msg = res
         .expect("runner-config parity lane should not hang")
         .expect_err("runner-config parity lane should return an error")
