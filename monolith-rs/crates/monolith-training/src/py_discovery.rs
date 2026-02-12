@@ -929,7 +929,8 @@ mod tests {
         let _env = install_default_mlp_env();
 
         let d = MlpServiceDiscovery::new();
-        let err = PyServiceDiscovery::register(&d, "ps", 0, "untrusted-host:3333").unwrap_err();
+        let err = PyServiceDiscovery::register(&d, "ps", 0, "untrusted-host:3333")
+            .expect_err("MLP register should reject host mismatches");
         assert!(
             err.to_string().contains("Host mismatch"),
             "unexpected error: {err}"
@@ -942,7 +943,9 @@ mod tests {
         let _env = install_default_mlp_env();
 
         let d = MlpServiceDiscovery::new();
-        let err = d.query("").unwrap_err();
+        let err = d
+            .query("")
+            .expect_err("MLP query should reject empty service names");
         assert!(err.to_string().contains("name must be non-empty"));
     }
 

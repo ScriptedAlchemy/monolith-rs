@@ -1792,7 +1792,10 @@ mod tests {
             clients: Vec::new(),
             num_shards: 0,
         };
-        let err = client.lookup("emb", &[1], 2, true).await.unwrap_err();
+        let err = client
+            .lookup("emb", &[1], 2, true)
+            .await
+            .expect_err("lookup should fail when client has no shards configured");
         assert!(matches!(err, PsError::InvalidConfig(_)));
     }
 
@@ -1802,7 +1805,10 @@ mod tests {
             clients: Vec::new(),
             num_shards: 1,
         };
-        let err = client.lookup("emb", &[1], 0, true).await.unwrap_err();
+        let err = client
+            .lookup("emb", &[1], 0, true)
+            .await
+            .expect_err("lookup should reject non-positive embedding dimensions");
         assert!(matches!(err, PsError::InvalidConfig(_)));
     }
 
@@ -1815,7 +1821,7 @@ mod tests {
         let err = client
             .apply_gradients("emb", &[1, 2], &[0.1, 0.2, 0.3], 2, 0.1, 1)
             .await
-            .unwrap_err();
+            .expect_err("apply_gradients should reject gradient-size mismatch");
         assert!(matches!(
             err,
             PsError::DimensionMismatch {
@@ -1831,7 +1837,10 @@ mod tests {
             clients: Vec::new(),
             num_shards: 1,
         };
-        let err = client.barrier("b", 2, 2, 100).await.unwrap_err();
+        let err = client
+            .barrier("b", 2, 2, 100)
+            .await
+            .expect_err("barrier should reject worker ids outside [0, num_workers)");
         assert!(matches!(err, PsError::InvalidConfig(_)));
     }
 
@@ -1841,7 +1850,10 @@ mod tests {
             clients: Vec::new(),
             num_shards: 0,
         };
-        let err = client.barrier("b", 0, 1, 0).await.unwrap_err();
+        let err = client
+            .barrier("b", 0, 1, 0)
+            .await
+            .expect_err("barrier should reject non-positive timeout values");
         assert!(matches!(err, PsError::InvalidConfig(_)));
     }
 
@@ -1859,7 +1871,7 @@ mod tests {
         let err = client
             .barrier_on_shard(1, "bshard", 0, 1, 100)
             .await
-            .unwrap_err();
+            .expect_err("barrier_on_shard should reject shard indices beyond configured client shards");
         assert!(matches!(err, PsError::InvalidConfig(_)));
         server.abort();
     }
@@ -1912,7 +1924,10 @@ mod tests {
 
         let addr = bind.to_string();
         let client = PsClient::connect(&[&addr]).await.unwrap();
-        let err = client.barrier("bt", 0, 2, 20).await.unwrap_err();
+        let err = client
+            .barrier("bt", 0, 2, 20)
+            .await
+            .expect_err("barrier should map coordinator timeout to PsError::Timeout");
         assert!(matches!(err, PsError::Timeout(_)));
         server.abort();
     }
@@ -1931,7 +1946,10 @@ mod tests {
         // Initializes barrier "bm" with num_workers=1.
         client.barrier("bm", 0, 1, 200).await.unwrap();
         // Reusing same barrier id with incompatible num_workers should become InvalidConfig.
-        let err = client.barrier("bm", 0, 2, 200).await.unwrap_err();
+        let err = client
+            .barrier("bm", 0, 2, 200)
+            .await
+            .expect_err("barrier should reject mismatched worker cardinality for reused barrier id");
         assert!(matches!(err, PsError::InvalidConfig(_)));
         server.abort();
     }
