@@ -2140,24 +2140,36 @@ mod tests {
         // Register a parameter server
         let ps = ServiceInfo::new("ps-0", "PS 0", "ps", "localhost", 5000)
             .with_health(HealthStatus::Healthy);
-        discovery.register(ps).unwrap();
+        discovery
+            .register(ps)
+            .expect("registering ps service should succeed");
 
         // Register workers
         let worker1 = ServiceInfo::new("worker-0", "Worker 0", "worker", "localhost", 6000);
         let worker2 = ServiceInfo::new("worker-1", "Worker 1", "worker", "localhost", 6001);
-        discovery.register(worker1).unwrap();
-        discovery.register(worker2).unwrap();
+        discovery
+            .register(worker1)
+            .expect("registering worker-0 service should succeed");
+        discovery
+            .register(worker2)
+            .expect("registering worker-1 service should succeed");
 
         // Discover by type
-        let ps_services = discovery.discover("ps").unwrap();
+        let ps_services = discovery
+            .discover("ps")
+            .expect("discover(ps) should succeed");
         assert_eq!(ps_services.len(), 1);
         assert_eq!(ps_services[0].id, "ps-0");
 
-        let worker_services = discovery.discover("worker").unwrap();
+        let worker_services = discovery
+            .discover("worker")
+            .expect("discover(worker) should succeed");
         assert_eq!(worker_services.len(), 2);
 
         // Discover non-existent type
-        let empty = discovery.discover("nonexistent").unwrap();
+        let empty = discovery
+            .discover("nonexistent")
+            .expect("discover(nonexistent) should succeed");
         assert!(empty.is_empty());
     }
 
@@ -2166,11 +2178,15 @@ mod tests {
         let discovery = InMemoryDiscovery::new();
 
         let service = ServiceInfo::new("test-1", "Test 1", "test", "localhost", 8000);
-        discovery.register(service).unwrap();
+        discovery
+            .register(service)
+            .expect("registering test-1 service should succeed");
 
         assert_eq!(discovery.len(), 1);
 
-        discovery.deregister("test-1").unwrap();
+        discovery
+            .deregister("test-1")
+            .expect("deregistering test-1 service should succeed");
         assert_eq!(discovery.len(), 0);
 
         // Deregister non-existent service should fail
@@ -2188,7 +2204,9 @@ mod tests {
         let discovery = InMemoryDiscovery::new();
 
         let service = ServiceInfo::new("dup-1", "Duplicate", "test", "localhost", 8000);
-        discovery.register(service.clone()).unwrap();
+        discovery
+            .register(service.clone())
+            .expect("initial duplicate-test registration should succeed");
 
         // Second registration should fail
         let err = discovery
@@ -2206,22 +2224,28 @@ mod tests {
 
         let service = ServiceInfo::new("health-test", "Health Test", "test", "localhost", 8000)
             .with_health(HealthStatus::Starting);
-        discovery.register(service).unwrap();
+        discovery
+            .register(service)
+            .expect("registering health-test service should succeed");
 
         // Update health
         discovery
             .update_health("health-test", HealthStatus::Healthy)
-            .unwrap();
+            .expect("updating health-test to Healthy should succeed");
 
-        let services = discovery.discover("test").unwrap();
+        let services = discovery
+            .discover("test")
+            .expect("discover(test) should succeed after first health update");
         assert_eq!(services[0].health, HealthStatus::Healthy);
 
         // Update to unhealthy
         discovery
             .update_health("health-test", HealthStatus::Unhealthy)
-            .unwrap();
+            .expect("updating health-test to Unhealthy should succeed");
 
-        let services = discovery.discover("test").unwrap();
+        let services = discovery
+            .discover("test")
+            .expect("discover(test) should succeed after second health update");
         assert_eq!(services[0].health, HealthStatus::Unhealthy);
 
         // Update non-existent service should fail
@@ -2240,13 +2264,13 @@ mod tests {
 
         discovery
             .register(ServiceInfo::new("s1", "S1", "test", "localhost", 8001))
-            .unwrap();
+            .expect("registering s1 should succeed");
         discovery
             .register(ServiceInfo::new("s2", "S2", "test", "localhost", 8002))
-            .unwrap();
+            .expect("registering s2 should succeed");
         discovery
             .register(ServiceInfo::new("s3", "S3", "other", "localhost", 8003))
-            .unwrap();
+            .expect("registering s3 should succeed");
 
         assert_eq!(discovery.len(), 3);
 
@@ -2261,23 +2285,35 @@ mod tests {
         let discovery = InMemoryDiscovery::new();
 
         // Set up a watcher before registration
-        let mut receiver = discovery.watch("ps").unwrap();
+        let mut receiver = discovery
+            .watch("ps")
+            .expect("watch(ps) should succeed");
 
         // Register a service
         let service = ServiceInfo::new("ps-watch", "PS Watch", "ps", "localhost", 5000);
-        discovery.register(service.clone()).unwrap();
+        discovery
+            .register(service.clone())
+            .expect("registering ps-watch service should succeed");
 
         // Check that we received the event
-        let event = receiver.recv().await.unwrap();
+        let event = receiver
+            .recv()
+            .await
+            .expect("watch receiver should emit ServiceAdded event");
         assert!(
             matches!(event, DiscoveryEvent::ServiceAdded(ref s) if s.id == "ps-watch"),
             "expected ServiceAdded(ps-watch), got {event:?}"
         );
 
         // Deregister and check for removal event
-        discovery.deregister("ps-watch").unwrap();
+        discovery
+            .deregister("ps-watch")
+            .expect("deregistering ps-watch should succeed");
 
-        let event = receiver.recv().await.unwrap();
+        let event = receiver
+            .recv()
+            .await
+            .expect("watch receiver should emit ServiceRemoved event");
         assert!(
             matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "ps-watch"),
             "expected ServiceRemoved(ps-watch), got {event:?}"
@@ -2290,16 +2326,23 @@ mod tests {
 
         let service = ServiceInfo::new("update-test", "Update Test", "worker", "localhost", 6000)
             .with_health(HealthStatus::Starting);
-        discovery.register(service).unwrap();
+        discovery
+            .register(service)
+            .expect("registering update-test service should succeed");
 
-        let mut receiver = discovery.watch("worker").unwrap();
+        let mut receiver = discovery
+            .watch("worker")
+            .expect("watch(worker) should succeed");
 
         // Update health status
         discovery
             .update_health("update-test", HealthStatus::Healthy)
-            .unwrap();
+            .expect("updating update-test health should succeed");
 
-        let event = receiver.recv().await.unwrap();
+        let event = receiver
+            .recv()
+            .await
+            .expect("watch receiver should emit ServiceUpdated event");
         assert!(
             matches!(
                 event,
@@ -2313,18 +2356,30 @@ mod tests {
     #[test]
     fn test_in_memory_removes_dead_watchers_after_notification() {
         let discovery = InMemoryDiscovery::new();
-        let rx = discovery.watch("ps").unwrap();
+        let rx = discovery
+            .watch("ps")
+            .expect("watch(ps) should succeed");
         assert!(
-            discovery.watchers.lock().unwrap().contains_key("ps"),
+            discovery
+                .watchers
+                .lock()
+                .expect("in-memory watchers mutex should not be poisoned")
+                .contains_key("ps"),
             "watch sender should exist after subscribing"
         );
 
         drop(rx);
 
         let service = ServiceInfo::new("ps-0", "PS 0", "ps", "localhost", 5000);
-        discovery.register(service).unwrap();
+        discovery
+            .register(service)
+            .expect("registering ps-0 service should succeed");
         assert!(
-            !discovery.watchers.lock().unwrap().contains_key("ps"),
+            !discovery
+                .watchers
+                .lock()
+                .expect("in-memory watchers mutex should not be poisoned")
+                .contains_key("ps"),
             "dead watcher sender should be removed after notification"
         );
     }

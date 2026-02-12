@@ -7075,6 +7075,19 @@
     Consul watch/register/discover lifecycle behavior under `consul zookeeper`
     feature coverage.
 
+### 526) Discovery in-memory test unwrap diagnostics tightening
+- Tightened in-memory discovery tests in
+  `crates/monolith-training/src/discovery.rs` by replacing remaining
+  register/discover/deregister/watch/recv/mutex unwrap assertions with explicit
+  `expect(...)` diagnostics across:
+  - register/discover/deregister happy-path tests,
+  - health update and clear tests,
+  - watch add/update/remove event tests,
+  - dead-watcher cleanup verification.
+- Result:
+  - reduced `discovery.rs` unwrap call-sites from **167 → 137**, preserving
+    in-memory discovery behavior and watch-event parity.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8183,6 +8196,8 @@
 1105. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/distributed_ps.rs` ✅ (verified no remaining unwrap call-sites in distributed-ps module)
 1106. `cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_ -- --nocapture` ✅ (validated consul discovery test matrix after core lock unwrap-diagnostics tightening)
 1107. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/discovery.rs` ✅ (tracked remaining discovery unwrap call-sites after consul-core tightening batch: 167)
+1108. `cargo test -p monolith-training discovery::tests::test_in_memory_ -- --nocapture` ✅ (validated in-memory discovery test matrix after unwrap-diagnostics tightening)
+1109. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/discovery.rs` ✅ (tracked remaining discovery unwrap call-sites after in-memory test tightening batch: 137)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
