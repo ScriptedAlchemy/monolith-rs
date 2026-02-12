@@ -4496,6 +4496,14 @@
     malformed endpoint configurations.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 330) Consul config-error async deregister dead-watcher compaction coverage
+- Added feature-gated regression:
+  - `test_consul_async_deregister_config_error_compacts_dead_watchers`
+- Result:
+  - Best-effort Consul async deregister semantics now explicitly verify dead
+    watcher sender compaction for config-error backend paths.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5313,6 +5321,8 @@
 814. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_async_deregister_local_only_service_returns_ok -- --nocapture` ✅ (feature-gated ZK local-only async-deregister success semantics verification)
 815. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post Consul config-error async lifecycle watcher-consistency hardening default-lane regression rerun)
 816. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture` ✅ (feature-gated Consul config-error async register/deregister watcher-consistency verification)
+817. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post Consul config-error async-deregister dead-watcher compaction coverage additions default-lane regression rerun)
+818. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister_config_error -- --nocapture` ✅ (feature-gated Consul config-error async-deregister watcher notification + dead-sender compaction verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
