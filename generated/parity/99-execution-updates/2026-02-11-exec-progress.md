@@ -5015,6 +5015,19 @@
   - Targeted PS connect-timeout lanes and default monolith-training regression
     remain green.
 
+### 373) Runner worker register-timeout assertion-contract tightening
+- Converted worker register-timeout timeout-wrapper assertions from
+  `is_ok + unwrap().unwrap_err()` to explicit
+  `expect(\"must not hang\") + expect_err(\"must surface role error\")` across:
+  - baseline timeout + custom service-type context cases
+  - cleanup-timeout variants (default/custom + index)
+  - cleanup-failure variants (default/custom + index)
+- Result:
+  - Worker register-timeout tests now enforce explicit non-hang + role-error
+    contracts with consistent diagnostics-first style.
+  - Targeted worker register-timeout lane and default monolith-training
+    regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5885,6 +5898,7 @@
 867. `ZK_AUTH=user:pass cargo test -p monolith-training connect_timeout_does_not_hang_and_attempts_disconnect -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training connect_timeout_includes_custom_service_type_context -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training connect_timeout_preserves_error_when_disconnect_cleanup_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner connect-timeout cleanup contract tightening verification plus default-lane regression rerun)
 868. `ZK_AUTH=user:pass cargo test -p monolith-training disconnect_cleanup_times_out_with_default_service_type -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training disconnect_cleanup_times_out_with_custom_service_type_and_index -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training ps_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_custom_service_type -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training ps_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_custom_service_type -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner connect-timeout cleanup follow-up contract tightening verification plus default-lane regression rerun)
 869. `ZK_AUTH=user:pass cargo test -p monolith-training ps_connect_timeout_preserves_error_when_disconnect_cleanup_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner PS connect-timeout cleanup contract tightening verification plus default-lane regression rerun)
+870. `ZK_AUTH=user:pass cargo test -p monolith-training worker_register_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner worker register-timeout contract tightening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

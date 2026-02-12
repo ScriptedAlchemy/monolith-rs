@@ -6717,16 +6717,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(900),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when worker registration blocks"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when worker registration blocks");
+        let msg = run_result
+            .expect_err("worker register timeout should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: register worker-0 as worker"),
             "unexpected worker register-timeout error: {msg}"
@@ -6754,16 +6753,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(900),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when worker registration blocks"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when worker registration blocks");
+        let msg = run_result
+            .expect_err("worker register timeout with custom service type should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: register worker-0 as trainer_custom"),
             "worker register-timeout diagnostics should include custom service-type context: {msg}"
@@ -6791,16 +6789,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when register and cleanup operations are blocked"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when register and cleanup operations are blocked");
+        let msg = run_result
+            .expect_err("worker register timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: register worker-0 as worker after 20ms"),
             "register timeout should remain primary over cleanup timeout failures: {msg}"
@@ -6824,16 +6821,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when indexed default-worker register and cleanup operations are blocked"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when indexed default-worker register and cleanup operations are blocked");
+        let msg = run_result
+            .expect_err("indexed default-worker register timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: register worker-2 as worker after 20ms"),
             "indexed default-worker register timeout should remain primary over cleanup timeout failures: {msg}"
@@ -6869,16 +6865,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when non-index default-worker register and cleanup operations are blocked"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when non-index default-worker register and cleanup operations are blocked");
+        let msg = run_result
+            .expect_err("default-worker register timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: register worker-0 as worker after 20ms"),
             "default-worker register timeout should remain primary over cleanup timeout failures: {msg}"
@@ -6915,16 +6910,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when indexed custom-worker register and cleanup operations are blocked"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when indexed custom-worker register and cleanup operations are blocked");
+        let msg = run_result
+            .expect_err("indexed custom-worker register timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains(
                 "Timed out during discovery operation: register worker-3 as trainer_custom after 20ms"
@@ -6967,16 +6961,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when custom non-index worker register and cleanup operations are blocked"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when custom non-index worker register and cleanup operations are blocked");
+        let msg = run_result
+            .expect_err("custom worker register timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains(
                 "Timed out during discovery operation: register worker-0 as trainer_custom after 20ms"
@@ -7017,16 +7010,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when register is blocked and cleanup fails"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when register is blocked and cleanup fails");
+        let msg = run_result
+            .expect_err("worker register timeout with cleanup failures should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: register worker-0 as worker after 20ms"),
             "register timeout should remain primary over cleanup-failure diagnostics: {msg}"
@@ -7065,16 +7057,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when indexed custom-worker register is blocked and cleanup fails"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when indexed custom-worker register is blocked and cleanup fails");
+        let msg = run_result
+            .expect_err("indexed custom-worker register timeout with cleanup failures should surface as a role error")
+            .to_string();
         assert!(
             msg.contains(
                 "Timed out during discovery operation: register worker-3 as trainer_custom after 20ms"
@@ -7115,16 +7106,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when custom non-index worker register is blocked and cleanup fails"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when custom non-index worker register is blocked and cleanup fails");
+        let msg = run_result
+            .expect_err("custom worker register timeout with cleanup failures should surface as a role error")
+            .to_string();
         assert!(
             msg.contains(
                 "Timed out during discovery operation: register worker-0 as trainer_custom after 20ms"
@@ -7164,16 +7154,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when indexed default-worker register is blocked and cleanup fails"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when indexed default-worker register is blocked and cleanup fails");
+        let msg = run_result
+            .expect_err("indexed default-worker register timeout with cleanup failures should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: register worker-2 as worker after 20ms"),
             "indexed default-worker register timeout should remain primary over cleanup-failure diagnostics: {msg}"
@@ -7211,16 +7200,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when non-index default-worker register is blocked and cleanup fails"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when non-index default-worker register is blocked and cleanup fails");
+        let msg = run_result
+            .expect_err("default-worker register timeout with cleanup failures should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: register worker-0 as worker after 20ms"),
             "default-worker register timeout should remain primary over cleanup-failure diagnostics: {msg}"
