@@ -6937,6 +6937,17 @@
     (**only doc-comment example remains**), preserving metrics aggregation
     behavior.
 
+### 512) Prefetch queue unwrap diagnostics completion
+- Tightened `crates/monolith-training/src/prefetch_queue.rs` unwrap usage by:
+  - replacing the multi-queue GPU branch unwrap with explicit `expect(...)`
+    diagnostics,
+  - replacing all remaining test unwrap assertions across queue roundtrip,
+    token-template preservation, control-flow enqueue side effects, and async
+    hook execution lanes.
+- Result:
+  - removed all `.unwrap()` call-sites from prefetch queue module
+    (**0 remaining**), preserving queue/hook parity behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8016,6 +8027,8 @@
 1076. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/lib.rs` ✅ (verified only doc-comment unwrap example remains in lib module)
 1077. `cargo test -p monolith-training metrics::tests:: -- --nocapture` ✅ (validated metrics recorder unit-test suite after unwrap-diagnostics tightening)
 1078. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/metrics.rs` ✅ (verified only doc-comment unwrap example remains in metrics module)
+1079. `cargo test -p monolith-training prefetch_queue::tests:: -- --nocapture` ✅ (validated prefetch queue unit-test suite after unwrap-diagnostics tightening)
+1080. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/prefetch_queue.rs` ✅ (verified no remaining unwrap call-sites in prefetch queue module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

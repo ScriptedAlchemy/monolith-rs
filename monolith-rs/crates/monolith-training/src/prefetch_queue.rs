@@ -324,7 +324,13 @@ impl<T: DevicePlacement + Clone> MultiFifoQueue<T> {
         for (dev, idx) in &self.split_indices {
             match dev {
                 Device::Cpu => out.push(cpu_parts[*idx].clone()),
-                Device::Gpu => out.push(gpu_parts.as_ref().unwrap()[*idx].clone()),
+                Device::Gpu => out.push(
+                    gpu_parts
+                        .as_ref()
+                        .expect("gpu queue parts should exist for gpu split index")
+                        [*idx]
+                        .clone(),
+                ),
             }
         }
         Ok(out)
@@ -510,10 +516,13 @@ mod tests {
     fn fifo_queue_capacity_roundtrip() {
         let q = FifoQueue::new(4);
         for _ in 0..4 {
-            q.enqueue(vec![Placed::cpu(2i64)]).unwrap();
+            q.enqueue(vec![Placed::cpu(2i64)])
+                .expect("enqueue should succeed within queue capacity");
         }
         for _ in 0..4 {
-            let v = q.dequeue().unwrap();
+            let v = q
+                .dequeue()
+                .expect("dequeue should succeed for previously enqueued items");
             assert_eq!(v[0].value, 2);
         }
     }
@@ -570,18 +579,26 @@ mod tests {
             return;
         };
         assert_eq!(
-            item0.get("b").unwrap(),
+            item0.get("b").expect("key 'b' should exist in template map"),
             &Nested::<Placed<i64>>::Str("abc".to_string())
         );
-        assert_eq!(item0.get("c").unwrap(), &Nested::<Placed<i64>>::Null);
+        assert_eq!(
+            item0.get("c").expect("key 'c' should exist in template map"),
+            &Nested::<Placed<i64>>::Null
+        );
 
         // Enqueue one element.
         let mut flat = Vec::new();
         Nested::Map(top).flatten_tensors(&mut flat);
-        res.queue.enqueue(&flat).unwrap();
+        res.queue
+            .enqueue(&flat)
+            .expect("queue enqueue should succeed for flattened payload");
 
         // Dequeue and rebuild.
-        let flat_out = res.queue.dequeue().unwrap();
+        let flat_out = res
+            .queue
+            .dequeue()
+            .expect("queue dequeue should succeed for previously enqueued payload");
         let rebuilt = res.token_template.fill_from_tokens(&flat_out);
 
         let root = if let Nested::Map(root) = rebuilt {
@@ -610,12 +627,15 @@ mod tests {
         let q2 = q.clone();
         let enqueue = move || {
             v2.fetch_add(1, Ordering::SeqCst);
-            q2.enqueue(Placed::cpu(0i64)).unwrap();
+            q2.enqueue(Placed::cpu(0i64))
+                .expect("enqueue from side-effect closure should succeed");
         };
 
         enqueue();
         assert_eq!(v.load(Ordering::SeqCst), 1);
-        let _ = q.dequeue().unwrap();
+        let _ = q
+            .dequeue()
+            .expect("dequeue should succeed after side-effect enqueue");
     }
 
     #[test]
@@ -639,7 +659,8 @@ mod tests {
         enqueue();
         let mut hooks = mgr.hooks();
         for h in hooks.iter_mut() {
-            h.before_step(0).unwrap();
+            h.before_step(0)
+                .expect("hook before_step should succeed for async manager");
         }
         assert_eq!(x.load(Ordering::SeqCst), 1);
     }
@@ -676,7 +697,8 @@ mod tests {
         enqueue();
         let mut hooks = mgr.hooks();
         for h in hooks.iter_mut() {
-            h.before_step(0).unwrap();
+            h.before_step(0)
+                .expect("hook before_step should succeed for async manager");
         }
         assert_eq!(x.load(Ordering::SeqCst), 1);
     }
