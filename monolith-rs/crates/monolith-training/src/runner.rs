@@ -13232,4 +13232,62 @@ mod tests {
     ) {
         test_run_distributed_ps_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_default_service_type_and_index();
     }
+
+    #[test]
+    fn test_run_distributed_surfaces_ps_register_failure_when_cleanup_steps_fail() {
+        test_run_distributed_preserves_ps_register_failure_when_cleanup_steps_fail();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_ps_register_failure_when_cleanup_steps_timeout() {
+        test_run_distributed_preserves_ps_register_failure_when_cleanup_steps_timeout();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_ps_register_failure_with_custom_service_type_and_index_when_cleanup_steps_fail(
+    ) {
+        test_run_distributed_preserves_ps_register_failure_with_custom_service_type_and_index_when_cleanup_steps_fail();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_ps_register_failure_with_custom_service_type_and_index_when_cleanup_steps_timeout(
+    ) {
+        test_run_distributed_preserves_ps_register_failure_with_custom_service_type_and_index_when_cleanup_steps_timeout();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_ps_register_failure_with_custom_service_type_when_cleanup_steps_fail(
+    ) {
+        test_run_distributed_preserves_ps_register_failure_with_custom_service_type_when_cleanup_steps_fail();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_ps_register_failure_with_custom_service_type_when_cleanup_steps_timeout(
+    ) {
+        test_run_distributed_preserves_ps_register_failure_with_custom_service_type_when_cleanup_steps_timeout();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_ps_register_failure_with_default_service_type_and_index_when_cleanup_steps_fail(
+    ) {
+        test_run_distributed_preserves_ps_register_failure_with_default_service_type_and_index_when_cleanup_steps_fail();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_ps_register_failure_with_default_service_type_and_index_when_cleanup_steps_timeout(
+    ) {
+        test_run_distributed_preserves_ps_register_failure_with_default_service_type_and_index_when_cleanup_steps_timeout();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_ps_register_failure_with_default_service_type_when_cleanup_steps_fail(
+    ) {
+        test_run_distributed_preserves_ps_register_failure_with_default_service_type_when_cleanup_steps_fail();
+    }
+
+    #[test]
+    fn test_run_distributed_surfaces_ps_register_failure_with_default_service_type_when_cleanup_steps_timeout(
+    ) {
+        test_run_distributed_preserves_ps_register_failure_with_default_service_type_when_cleanup_steps_timeout();
+    }
 }

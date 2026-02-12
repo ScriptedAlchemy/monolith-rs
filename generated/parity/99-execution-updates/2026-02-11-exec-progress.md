@@ -4064,6 +4064,18 @@
     families remaining (tracked separately).
   - Full monolith-training regression remains green.
 
+### 297) PS-register-failure preserves→surfaces parity completed
+- Added directional alias wrappers:
+  - `runner.rs`: 10 wrappers
+  - `native_training_parity.rs`: 40 wrappers
+- Closed family:
+  - `preserves_ -> surfaces_` for `ps_register_failure` across run/runner
+    config variants and cleanup context suffixes.
+- Result:
+  - `ps_register_failure` directional transform now reports `missing 0` in
+    both files.
+  - Full monolith-training regression remains green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4780,6 +4792,10 @@
 713. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_default_ps_connect_timeout_with_index_when_cleanup_blocks -- --nocapture` ✅
 714. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post native runner-config ps-connect-timeout preserves->surfaces batch full monolith-training regression rerun)
 715. `python3` connect-timeout directional closure audit ✅ (`preserves_ -> surfaces_` with `connect_timeout` scope `missing 0` in both `runner.rs` and `native_training_parity.rs`)
+716. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_surfaces_ps_register_failure_with_default_service_type_when_cleanup_steps_timeout -- --nocapture` ✅
+717. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_ps_register_failure_with_default_service_type_when_cleanup_blocks -- --nocapture` ✅
+718. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post ps-register-failure preserves->surfaces alias additions full monolith-training regression rerun)
+719. `python3` preserves->surfaces family audit ✅ (`ps_register_failure` `missing 0` in `runner.rs` and `native_training_parity.rs`; remaining families tracked separately)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
