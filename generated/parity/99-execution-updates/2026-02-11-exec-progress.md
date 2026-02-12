@@ -4257,6 +4257,17 @@
     terminate deterministically without waiting for subscriber drops.
   - Full monolith-training regression remains green.
 
+### 312) Feature-gated backend lifecycle verification for disconnect generations
+- Added feature-gated unit coverage in `discovery.rs`:
+  - `test_zk_disconnect_increments_watch_generation`
+  - `test_consul_disconnect_increments_watch_generation`
+- Confirms that backend disconnect lifecycle calls invalidate active watch
+  generations for both optional discovery backends.
+- Result:
+  - ZK/Consul feature builds now include explicit regression proof that
+    disconnect-driven watch lifecycle invalidation is wired correctly.
+  - Default and feature-gated monolith-training test runs remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5035,6 +5046,8 @@
 775. `ZK_AUTH=user:pass cargo test -p monolith-training test_spawn_watch_poll_loop_emits_updated_events -- --nocapture` ✅
 776. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post disconnect-aware discovery watch poll shutdown hardening full monolith-training regression rerun)
 777. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_spawn_watch_poll_loop_stops_when_continue_predicate_false -- --nocapture` ✅ (feature-gated discovery backend compile/runtime verification)
+778. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post feature-gated disconnect-generation tests addition default-lane regression rerun)
+779. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" disconnect_increments_watch_generation -- --nocapture` ✅ (feature-gated ZK/Consul disconnect-generation regression verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

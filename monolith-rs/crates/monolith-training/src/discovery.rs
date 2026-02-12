@@ -1753,6 +1753,16 @@ mod tests {
         assert!(true);
     }
 
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_disconnect_increments_watch_generation() {
+        let zk = ZkDiscovery::new("localhost:2181", "/services");
+        let before = zk.watch_generation.load(std::sync::atomic::Ordering::SeqCst);
+        zk.disconnect().await.expect("disconnect should succeed");
+        let after = zk.watch_generation.load(std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(after, before + 1);
+    }
+
     #[cfg(feature = "consul")]
     #[test]
     fn test_consul_discovery_creation() {
@@ -1762,5 +1772,21 @@ mod tests {
 
         // Just test that it can be created
         assert!(true);
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_disconnect_increments_watch_generation() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        let before = consul
+            .watch_generation
+            .load(std::sync::atomic::Ordering::SeqCst);
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        let after = consul
+            .watch_generation
+            .load(std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(after, before + 1);
     }
 }
