@@ -5633,7 +5633,10 @@ async fn distributed_runner_from_run_config_accepts_case_insensitive_http_scheme
         res.is_ok(),
         "run_distributed_from_run_config should not hang while validating case-insensitive parameter-sync target schemes"
     );
-    let err = res.unwrap().unwrap_err().to_string();
+    let err = res
+        .expect("run_distributed_from_run_config should not hang while validating case-insensitive parameter-sync target schemes")
+        .expect_err("case-insensitive parameter-sync target should still surface worker discovery timeout with empty backend")
+        .to_string();
     assert!(
         err.contains("Timed out waiting for PS discovery"),
         "case-insensitive parameter-sync target scheme should pass config validation and reach worker discovery path: {err}"
@@ -6264,7 +6267,9 @@ async fn distributed_runner_from_run_config_propagates_custom_service_type_field
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let worker_msg = worker_res.unwrap_err().to_string();
+    let worker_msg = worker_res
+        .expect_err("worker run should fail in discover loop with empty discovery backend")
+        .to_string();
     assert!(
         worker_msg.contains("Timed out waiting for PS discovery"),
         "worker run should fail in discover loop with empty discovery backend: {worker_msg}"
@@ -6279,7 +6284,9 @@ async fn distributed_runner_from_run_config_propagates_custom_service_type_field
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let ps_msg = ps_res.unwrap_err().to_string();
+    let ps_msg = ps_res
+        .expect_err("ps run should fail via forced register error in service-type propagation test")
+        .to_string();
     assert!(
         ps_msg.contains("forced register failure"),
         "ps run should fail via forced register error to avoid server startup in service-type propagation test: {ps_msg}"
@@ -6328,7 +6335,9 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("worker register failure with custom cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "worker register failure should remain primary via RunConfig: {msg}"
@@ -6379,7 +6388,9 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("worker register failure with custom disconnect-failure context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "worker register failure should remain primary via RunConfig: {msg}"
@@ -6430,7 +6441,9 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("indexed worker register failure with custom cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "indexed worker register failure should remain primary via RunConfig: {msg}"
@@ -6481,7 +6494,9 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("indexed worker register failure with custom disconnect-failure context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "indexed worker register failure should remain primary via RunConfig: {msg}"
@@ -6532,7 +6547,9 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_c
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("ps register failure with custom cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "ps register failure should remain primary via RunConfig: {msg}"
@@ -6583,7 +6600,9 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_c
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("ps register failure with custom disconnect-failure context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "ps register failure should remain primary via RunConfig: {msg}"
@@ -6634,7 +6653,9 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_c
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("indexed ps register failure with custom cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "indexed ps register failure should remain primary via RunConfig: {msg}"
@@ -6685,7 +6706,9 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_c
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("indexed ps register failure with custom disconnect-failure context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "indexed ps register failure should remain primary via RunConfig: {msg}"
@@ -6735,7 +6758,9 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("worker register failure with default cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "worker register failure should remain primary via RunConfig default service type: {msg}"
@@ -6783,7 +6808,9 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("worker register failure with default disconnect-failure context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "worker register failure should remain primary via RunConfig default service type: {msg}"
@@ -6831,7 +6858,9 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("indexed worker register failure with default cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "indexed worker register failure should remain primary via RunConfig default service type: {msg}"
@@ -6879,7 +6908,9 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("indexed worker register failure with default disconnect-failure context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "indexed worker register failure should remain primary via RunConfig default service type: {msg}"
@@ -6927,7 +6958,9 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_d
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("ps register failure with default cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "ps register failure should remain primary via RunConfig default service type: {msg}"
@@ -6975,7 +7008,9 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_d
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("ps register failure with default disconnect-failure context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "ps register failure should remain primary via RunConfig default service type: {msg}"
@@ -7023,7 +7058,9 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_d
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("indexed ps register failure with default cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "indexed ps register failure should remain primary via RunConfig default service type: {msg}"
@@ -7071,7 +7108,9 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_d
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("indexed ps register failure with default disconnect-failure context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "indexed ps register failure should remain primary via RunConfig default service type: {msg}"
