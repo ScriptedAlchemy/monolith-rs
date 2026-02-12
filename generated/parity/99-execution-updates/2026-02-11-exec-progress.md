@@ -3759,6 +3759,21 @@
   `_cleanup_context -> _disconnect_failure_context` register-failure naming
   gaps reduced from 12 to 8.
 
+### 271) PS register disconnect-context variant parity completed
+- Added RunConfig aliases:
+  - `distributed_runner_from_run_config_preserves_ps_register_failure_with_custom_service_type_disconnect_failure_context`
+  - `distributed_runner_from_run_config_preserves_ps_register_failure_with_custom_service_type_and_index_disconnect_failure_context`
+  - `distributed_runner_from_run_config_preserves_ps_register_failure_with_default_service_type_disconnect_failure_context`
+  - `distributed_runner_from_run_config_preserves_ps_register_failure_with_default_service_type_and_index_disconnect_failure_context`
+- Added RunnerConfig aliases:
+  - `distributed_runner_from_runner_config_preserves_ps_register_failure_with_custom_service_type_disconnect_failure_context`
+  - `distributed_runner_from_runner_config_preserves_ps_register_failure_with_custom_service_type_and_index_disconnect_failure_context`
+  - `distributed_runner_from_runner_config_preserves_ps_register_failure_with_default_service_type_disconnect_failure_context`
+  - `distributed_runner_from_runner_config_preserves_ps_register_failure_with_default_service_type_and_index_disconnect_failure_context`
+- Result: exploratory counterpart audit for
+  `_cleanup_context -> _disconnect_failure_context` naming now fully closes
+  (`missing 0`).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4358,6 +4373,16 @@
 596. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_worker_register_failure_with_default_service_type_and_index_disconnect_failure_context -- --nocapture` ✅
 597. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post RunnerConfig worker-register disconnect-context variant additions full monolith-training regression rerun)
 598. `python3` cleanup-context/disconnect-context alias audit (`native_training_parity.rs`) ✅ (remaining `_cleanup_context -> _disconnect_failure_context` gaps reduced from 12 to 8)
+599. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_preserves_ps_register_failure_with_custom_service_type_disconnect_failure_context -- --nocapture` ✅
+600. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_preserves_ps_register_failure_with_custom_service_type_and_index_disconnect_failure_context -- --nocapture` ✅
+601. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_preserves_ps_register_failure_with_default_service_type_disconnect_failure_context -- --nocapture` ✅
+602. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_preserves_ps_register_failure_with_default_service_type_and_index_disconnect_failure_context -- --nocapture` ✅
+603. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_ps_register_failure_with_custom_service_type_disconnect_failure_context -- --nocapture` ✅
+604. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_ps_register_failure_with_custom_service_type_and_index_disconnect_failure_context -- --nocapture` ✅
+605. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_ps_register_failure_with_default_service_type_disconnect_failure_context -- --nocapture` ✅
+606. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_ps_register_failure_with_default_service_type_and_index_disconnect_failure_context -- --nocapture` ✅
+607. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post PS-register disconnect-context variant additions full monolith-training regression rerun)
+608. `python3` cleanup-context/disconnect-context alias audit (`native_training_parity.rs`) ✅ (`missing 0` for `_cleanup_context -> _disconnect_failure_context`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
