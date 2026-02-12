@@ -4431,6 +4431,20 @@
     local discovery caches remain unchanged when backend registration fails.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 325) ZooKeeper async-deregister failure local-cleanup hardening
+- Hardened `ZkDiscovery::deregister_async(...)`:
+  - backend failures are still surfaced as errors,
+  - local service cache cleanup and watcher notifications now proceed
+    deterministically even when backend deletion fails.
+- Added feature-gated no-network regressions:
+  - `test_zk_async_deregister_failure_still_removes_local_cache_and_notifies_watchers`
+  - `test_zk_async_deregister_failure_compacts_dead_watchers`
+- Result:
+  - ZooKeeper async deregister failure paths no longer leave stale local cache
+    entries or dead watcher senders behind.
+  - Error signaling remains intact for upstream retry/diagnostics.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5238,6 +5252,8 @@
 804. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_async_register_failure -- --nocapture` ✅ (feature-gated ZooKeeper async-register failure dead-sender compaction and live-watcher preservation verification)
 805. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post async-register failure cache-isolation coverage additions default-lane regression rerun)
 806. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" async_register_failure_does_not_cache_service -- --nocapture` ✅ (feature-gated ZK/Consul async-register failure cache-isolation verification)
+807. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post ZooKeeper async-deregister failure local-cleanup hardening default-lane regression rerun)
+808. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_async_deregister_failure -- --nocapture` ✅ (feature-gated ZooKeeper async-deregister failure local-cache cleanup, watcher notification, and dead-sender compaction verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

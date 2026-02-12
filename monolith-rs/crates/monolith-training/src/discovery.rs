@@ -931,15 +931,27 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
     }
 
     async fn deregister_async(&self, service_id: &str) -> Result<()> {
-        self.connect().await?;
-        let client =
-            self.client.lock().await.as_ref().cloned().ok_or_else(|| {
-                DiscoveryError::ConnectionFailed("ZK client not connected".into())
-            })?;
+        let mut remote_error: Option<DiscoveryError> = None;
 
-        let path_opt = self.registered_paths.lock().await.remove(service_id);
-        if let Some(path) = path_opt {
-            let _ = client.delete(&path, None).await;
+        if let Err(e) = self.connect().await {
+            remote_error = Some(e);
+        } else {
+            let client_opt = self.client.lock().await.as_ref().cloned();
+            match client_opt {
+                Some(client) => {
+                    let path_opt = self.registered_paths.lock().await.remove(service_id);
+                    if let Some(path) = path_opt {
+                        if let Err(e) = client.delete(&path, None).await {
+                            remote_error =
+                                Some(DiscoveryError::Internal(format!("ZK delete failed: {e}")));
+                        }
+                    }
+                }
+                None => {
+                    remote_error =
+                        Some(DiscoveryError::ConnectionFailed("ZK client not connected".into()));
+                }
+            }
         }
 
         if let Some(service) = self.services.write().unwrap().remove(service_id) {
@@ -948,7 +960,12 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
                 DiscoveryEvent::ServiceRemoved(service_id.to_string()),
             );
         }
-        Ok(())
+
+        if let Some(err) = remote_error {
+            Err(err)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -2198,6 +2215,55 @@ mod tests {
         assert!(
             zk.discover("ps").expect("discover should succeed").is_empty(),
             "failed async register should not populate local service cache"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_failure_still_removes_local_cache_and_notifies_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+
+        let mut rx = zk.watch("ps").expect("watch should succeed");
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        assert!(
+            result.is_err(),
+            "async deregister should still surface remote ZooKeeper failure"
+        );
+        assert!(
+            zk.discover("ps").expect("discover should succeed").is_empty(),
+            "failed async deregister should still remove service from local cache"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        match event {
+            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "ps-0"),
+            other => panic!("expected ServiceRemoved, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_failure_compacts_dead_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+
+        let rx = zk.watch("ps").expect("watch should succeed");
+        drop(rx);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        assert!(
+            result.is_err(),
+            "async deregister should still surface remote ZooKeeper failure"
+        );
+        assert!(
+            !zk.watchers.lock().unwrap().contains_key("ps"),
+            "failed async deregister should compact dead watcher sender"
         );
     }
 
