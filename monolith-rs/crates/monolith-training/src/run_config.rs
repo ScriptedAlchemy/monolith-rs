@@ -356,7 +356,9 @@ mod tests {
             num_workers: 8,
             ..RunnerConfig::default()
         };
-        let merged = rc.to_runner_config(Some(base.clone())).unwrap();
+        let merged = rc
+            .to_runner_config(Some(base.clone()))
+            .expect("run config should merge with base runner config");
         assert_eq!(merged.num_ps, 3);
         assert_eq!(merged.num_workers, 8);
     }
@@ -392,7 +394,9 @@ mod tests {
             num_workers: 1,
             ..RunnerConfig::default()
         };
-        let merged = rc.to_runner_config(Some(base)).unwrap();
+        let merged = rc
+            .to_runner_config(Some(base))
+            .expect("run config should override explicit fields");
         assert_eq!(merged.index, 3);
         assert_eq!(merged.num_ps, 2);
         assert_eq!(merged.num_workers, 5);
@@ -421,7 +425,9 @@ mod tests {
             discovery_type: ServiceDiscoveryType::Consul,
             ..RunConfig::default()
         };
-        let merged = rc.to_runner_config(None).unwrap();
+        let merged = rc
+            .to_runner_config(None)
+            .expect("consul discovery type should map into runner config");
         assert_eq!(merged.discovery_type, ServiceDiscoveryType::Zk);
     }
 
@@ -433,7 +439,9 @@ mod tests {
             enable_embedding_postpush: false,
             ..RunConfig::default()
         };
-        let merged = rc.to_runner_config(None).unwrap();
+        let merged = rc
+            .to_runner_config(None)
+            .expect("cpu training adjustments should apply in runner config");
         assert_eq!(merged.embedding_prefetch_capacity, 1);
         assert!(merged.enable_embedding_postpush);
     }
@@ -449,7 +457,9 @@ mod tests {
             enable_parameter_sync: false,
             ..RunnerConfig::default()
         };
-        let merged = rc.to_runner_config(Some(base)).unwrap();
+        let merged = rc
+            .to_runner_config(Some(base))
+            .expect("parameter-sync flags should be merged into runner config");
         assert!(merged.enable_realtime_training);
         assert!(merged.enable_parameter_sync);
     }
@@ -476,50 +486,98 @@ mod tests {
             ..RunConfig::default()
         };
         let overrides = rc.user_overrides();
-        assert_eq!(overrides.get("num_ps").unwrap(), &serde_json::json!(2));
         assert_eq!(
-            overrides.get("enable_parameter_sync").unwrap(),
+            overrides
+                .get("num_ps")
+                .expect("num_ps override should be present"),
+            &serde_json::json!(2)
+        );
+        assert_eq!(
+            overrides
+                .get("enable_parameter_sync")
+                .expect("enable_parameter_sync override should be present"),
             &serde_json::json!(true)
         );
         assert_eq!(
-            overrides.get("tf_grpc_worker_cache_threads").unwrap(),
+            overrides
+                .get("tf_grpc_worker_cache_threads")
+                .expect("tf_grpc_worker_cache_threads override should be present"),
             &serde_json::json!(8)
         );
-        assert_eq!(overrides.get("connect_retries").unwrap(), &serde_json::json!(12));
-        assert_eq!(overrides.get("retry_backoff_ms").unwrap(), &serde_json::json!(345));
-        assert_eq!(overrides.get("barrier_timeout_ms").unwrap(), &serde_json::json!(9000));
         assert_eq!(
-            overrides.get("discovery_operation_timeout_ms").unwrap(),
-            &serde_json::json!(6789)
+            overrides
+                .get("connect_retries")
+                .expect("connect_retries override should be present"),
+            &serde_json::json!(12)
         );
         assert_eq!(
-            overrides.get("discovery_cleanup_timeout_ms").unwrap(),
-            &serde_json::json!(321)
-        );
-        assert_eq!(
-            overrides.get("discovery_service_type_ps").unwrap(),
-            &serde_json::json!("parameter_server")
-        );
-        assert_eq!(
-            overrides.get("discovery_service_type_worker").unwrap(),
-            &serde_json::json!("trainer")
-        );
-        assert_eq!(overrides.get("table_name").unwrap(), &serde_json::json!("item_emb"));
-        assert_eq!(overrides.get("dim").unwrap(), &serde_json::json!(256));
-        assert_eq!(
-            overrides.get("parameter_sync_targets").unwrap(),
-            &serde_json::json!(vec!["127.0.0.1:8500"])
-        );
-        assert_eq!(
-            overrides.get("parameter_sync_interval_ms").unwrap(),
+            overrides
+                .get("retry_backoff_ms")
+                .expect("retry_backoff_ms override should be present"),
             &serde_json::json!(345)
         );
         assert_eq!(
-            overrides.get("parameter_sync_model_name").unwrap(),
+            overrides
+                .get("barrier_timeout_ms")
+                .expect("barrier_timeout_ms override should be present"),
+            &serde_json::json!(9000)
+        );
+        assert_eq!(
+            overrides
+                .get("discovery_operation_timeout_ms")
+                .expect("discovery_operation_timeout_ms override should be present"),
+            &serde_json::json!(6789)
+        );
+        assert_eq!(
+            overrides
+                .get("discovery_cleanup_timeout_ms")
+                .expect("discovery_cleanup_timeout_ms override should be present"),
+            &serde_json::json!(321)
+        );
+        assert_eq!(
+            overrides
+                .get("discovery_service_type_ps")
+                .expect("discovery_service_type_ps override should be present"),
+            &serde_json::json!("parameter_server")
+        );
+        assert_eq!(
+            overrides
+                .get("discovery_service_type_worker")
+                .expect("discovery_service_type_worker override should be present"),
+            &serde_json::json!("trainer")
+        );
+        assert_eq!(
+            overrides
+                .get("table_name")
+                .expect("table_name override should be present"),
+            &serde_json::json!("item_emb")
+        );
+        assert_eq!(
+            overrides.get("dim").expect("dim override should be present"),
+            &serde_json::json!(256)
+        );
+        assert_eq!(
+            overrides
+                .get("parameter_sync_targets")
+                .expect("parameter_sync_targets override should be present"),
+            &serde_json::json!(vec!["127.0.0.1:8500"])
+        );
+        assert_eq!(
+            overrides
+                .get("parameter_sync_interval_ms")
+                .expect("parameter_sync_interval_ms override should be present"),
+            &serde_json::json!(345)
+        );
+        assert_eq!(
+            overrides
+                .get("parameter_sync_model_name")
+                .expect("parameter_sync_model_name override should be present"),
             &serde_json::json!("my_model")
         );
         assert_eq!(
-            overrides.get("parameter_sync_signature_name").unwrap(),
+            overrides
+                .get("parameter_sync_signature_name")
+                .expect("parameter_sync_signature_name override should be present"),
             &serde_json::json!("my_signature")
         );
     }
@@ -528,7 +586,9 @@ mod tests {
     fn test_apply_runtime_env_exports() {
         // Keep this test isolated from other env-var-dependent tests.
         static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let _guard = ENV_MUTEX.lock().unwrap();
+        let _guard = ENV_MUTEX
+            .lock()
+            .expect("run-config env mutex should not be poisoned");
 
         std::env::remove_var("TF_GRPC_WORKER_CACHE_THREADS");
         std::env::remove_var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER");
@@ -539,11 +599,13 @@ mod tests {
         };
         RunConfig::apply_runtime_env_exports(&rc);
         assert_eq!(
-            std::env::var("TF_GRPC_WORKER_CACHE_THREADS").unwrap(),
+            std::env::var("TF_GRPC_WORKER_CACHE_THREADS")
+                .expect("TF_GRPC_WORKER_CACHE_THREADS should be exported"),
             "16"
         );
         assert_eq!(
-            std::env::var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER").unwrap(),
+            std::env::var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER")
+                .expect("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER should be exported"),
             "3"
         );
     }

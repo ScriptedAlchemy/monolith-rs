@@ -6905,6 +6905,18 @@
   - removed all `.unwrap()` call-sites from `entry.rs` (**0 remaining**),
     preserving initializer proto coverage behavior.
 
+### 509) Run-config test unwrap diagnostics completion
+- Tightened remaining `.unwrap()` assertions in
+  `crates/monolith-training/src/run_config.rs` tests by replacing them with
+  explicit `expect(...)` diagnostics across:
+  - run-config merge/override lanes,
+  - user override map entry assertions,
+  - runtime env export assertions,
+  - test mutex lock acquisition.
+- Result:
+  - removed all `.unwrap()` call-sites from `run_config.rs` (**0 remaining**),
+    preserving run-config merge/env parity behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7978,6 +7990,8 @@
 1070. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/barrier.rs` ✅ (verified no remaining unwrap call-sites in barrier module)
 1071. `cargo test -p monolith-training entry::tests::test_initializers_as_proto -- --nocapture` ✅ (validated entry initializer proto test after unwrap-diagnostics tightening)
 1072. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/entry.rs` ✅ (verified no remaining unwrap call-sites in entry module)
+1073. `cargo test -p monolith-training run_config::tests:: -- --nocapture` ✅ (validated run-config merge/override/env unit-test suite after unwrap-diagnostics tightening)
+1074. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/run_config.rs` ✅ (verified no remaining unwrap call-sites in run_config module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
