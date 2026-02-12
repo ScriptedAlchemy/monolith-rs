@@ -6999,6 +6999,16 @@
   - removed all `.unwrap()` call-sites from native-training ragged-utils module
     (**0 remaining**) while preserving fused value-rowids behavior.
 
+### 519) Native-training consul unwrap diagnostics completion
+- Tightened `crates/monolith-training/src/native_training/consul.rs` unwrap usage by:
+  - replacing cache mutex lock unwraps in `Client::lookup` with explicit
+    `expect(...)` diagnostics,
+  - replacing remaining test unwrap assertions (JSON serialization, lookup,
+    register, deregister) with explicit `expect(...)` diagnostics.
+- Result:
+  - removed all `.unwrap()` call-sites from native-training consul module
+    (**0 remaining**) while preserving lookup/register/deregister behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8092,6 +8102,8 @@
 1090. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/logging_ops.rs` ✅ (verified no remaining unwrap call-sites in native-training logging-ops module)
 1091. `cargo test -p monolith-training ragged_utils::tests::test_basic -- --nocapture` ✅ (validated native-training ragged-utils basic test after unwrap-diagnostics tightening)
 1092. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/ragged_utils.rs` ✅ (verified no remaining unwrap call-sites in native-training ragged-utils module)
+1093. `cargo test -p monolith-training consul::tests:: -- --nocapture` ✅ (validated native-training consul unit-test suite after unwrap-diagnostics tightening)
+1094. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/consul.rs` ✅ (verified no remaining unwrap call-sites in native-training consul module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

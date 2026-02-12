@@ -231,13 +231,22 @@ impl Client {
     ) -> std::io::Result<Vec<serde_json::Value>> {
         let now = now_secs_f64();
         if cachetime_secs > 0 {
-            if let Some(cached) = self.cache.lock().unwrap().get(name).cloned() {
+            if let Some(cached) = self
+                .cache
+                .lock()
+                .expect("consul client cache mutex should not be poisoned")
+                .get(name)
+                .cloned()
+            {
                 if now - cached.cachetime <= cachetime_secs as f64 {
                     return Ok(cached.ret);
                 }
                 // When cache exists but expired, keep requested timeout.
                 let ret = self._lookup(name, Duration::from_secs(timeout_secs))?;
-                self.cache.lock().unwrap().insert(
+                self.cache
+                    .lock()
+                    .expect("consul client cache mutex should not be poisoned")
+                    .insert(
                     name.to_string(),
                     CacheEntry {
                         ret: ret.clone(),
@@ -250,7 +259,10 @@ impl Client {
             // When cache is missing, Python increases timeout to 30.
             let timeout = if timeout_secs == 0 { 30 } else { timeout_secs };
             let ret = self._lookup(name, Duration::from_secs(timeout))?;
-            self.cache.lock().unwrap().insert(
+            self.cache
+                .lock()
+                .expect("consul client cache mutex should not be poisoned")
+                .insert(
                 name.to_string(),
                 CacheEntry {
                     ret: ret.clone(),
@@ -261,7 +273,10 @@ impl Client {
         }
 
         let ret = self._lookup(name, Duration::from_secs(timeout_secs))?;
-        self.cache.lock().unwrap().insert(
+        self.cache
+            .lock()
+            .expect("consul client cache mutex should not be poisoned")
+            .insert(
             name.to_string(),
             CacheEntry {
                 ret: ret.clone(),
@@ -418,14 +433,16 @@ mod tests {
     fn test_lookup_matches_python() {
         let data =
             serde_json::json!([{"Port": 1234, "Host": "192.168.0.1", "Tags": {"index": "0"}}]);
-        let body = serde_json::to_vec(&data).unwrap();
+        let body = serde_json::to_vec(&data).expect("serializing lookup fixture JSON should succeed");
         let http = Arc::new(MockHttp {
             status: 200,
             body,
             calls: AtomicUsize::new(0),
         });
         let client = Client::with_http(http);
-        let v = client.lookup("test_name", 3, 0).unwrap();
+        let v = client
+            .lookup("test_name", 3, 0)
+            .expect("lookup should succeed with mock HTTP 200 response");
         assert_eq!(v.len(), 1);
         assert_eq!(v[0]["Port"], 1234);
     }
@@ -440,7 +457,7 @@ mod tests {
         let client = Client::with_http(http);
         client
             .register("test_name", 12345, None, None, None)
-            .unwrap();
+            .expect("register should succeed with mock HTTP 200 response");
     }
 
     #[test]
@@ -451,6 +468,8 @@ mod tests {
             calls: AtomicUsize::new(0),
         });
         let client = Client::with_http(http);
-        client.deregister("test_name", 12345, None).unwrap();
+        client
+            .deregister("test_name", 12345, None)
+            .expect("deregister should succeed with mock HTTP 200 response");
     }
 }
