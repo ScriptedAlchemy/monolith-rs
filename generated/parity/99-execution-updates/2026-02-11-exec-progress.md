@@ -6446,6 +6446,23 @@
   - config-error watch attempts no longer leave dead sender entries behind,
   - active watcher subscriptions remain stable under invalid watch attempts.
 
+### 474) Discovery watch lifecycle parity: share watcher state across poll clones
+- Refactored `ZkDiscovery` and `ConsulDiscovery` watcher sender storage to use
+  shared `Arc<Mutex<...>>` state across `clone_for_watch` poll-loop clones.
+- This allows on-exit watch poll cleanup to compact dead watcher sender entries
+  against the live discovery instance (instead of clone-local detached maps).
+- Added/strengthened async watcher lifecycle assertions:
+  - `test_zk_watch_async_deduplicates_poll_generation_entries` now asserts dead
+    watcher sender entries are compacted after all receivers drop.
+  - `test_consul_watch_async_deduplicates_poll_generation_entries` now asserts
+    dead watcher sender compaction after receiver drops.
+  - valid Consul watch acceptance tests also assert post-drop sender compaction:
+    - case-insensitive scheme lane
+    - host:port normalization lane
+- Result:
+  - async watch lifecycle state (`watch_poll_generations` + watcher senders) is
+    now consistently cleaned on receiver teardown across ZK and Consul paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7455,6 +7472,8 @@
 1006. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after watch_async acceptance/failure matrix completion)
 1007. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_config_error_ -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_ -- --nocapture` ✅ (validated config-error watch_async dead-sender compaction + live-sender preservation semantics and retained full watch_async acceptance/failure matrix behavior)
 1008. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after watch_async config-error cleanup semantics hardening)
+1009. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_watch_async_deduplicates_poll_generation_entries -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_deduplicates_poll_generation_entries -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_case_insensitive_scheme_seeds_poll_generation_entry -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_host_port_without_scheme_seeds_poll_generation_entry -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_config_error_ -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_ -- --nocapture` ✅ (validated shared watcher-state cleanup semantics and sender compaction across ZK/Consul async watch lifecycle paths)
+1010. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after shared watcher-state lifecycle refactor)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

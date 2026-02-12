@@ -579,7 +579,7 @@ pub struct ZkDiscovery {
     /// In-memory cache of services.
     services: RwLock<HashMap<String, ServiceInfo>>,
     /// Event senders for watchers.
-    watchers: Mutex<HashMap<String, Sender<DiscoveryEvent>>>,
+    watchers: Arc<Mutex<HashMap<String, Sender<DiscoveryEvent>>>>,
     /// Generation counter for watch lifecycle control.
     watch_generation: Arc<AtomicU64>,
     /// Active watch-poll generations keyed by service type.
@@ -602,7 +602,7 @@ impl ZkDiscovery {
             client: tokio::sync::Mutex::new(None),
             registered_paths: tokio::sync::Mutex::new(HashMap::new()),
             services: RwLock::new(HashMap::new()),
-            watchers: Mutex::new(HashMap::new()),
+            watchers: Arc::new(Mutex::new(HashMap::new())),
             watch_generation: Arc::new(AtomicU64::new(0)),
             watch_poll_generations: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -937,7 +937,11 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
                 "zk",
                 std::time::Duration::from_secs(1),
                 move || watch_generation.load(Ordering::SeqCst) == generation,
-                move || this_for_cleanup.cleanup_watch_poll_generation(&svc_type_for_cleanup, generation),
+                move || {
+                    this_for_cleanup
+                        .cleanup_watch_poll_generation(&svc_type_for_cleanup, generation);
+                    this_for_cleanup.compact_dead_watch_sender(&svc_type_for_cleanup);
+                },
                 move || {
                     let this = Arc::clone(&this);
                     let svc_type = svc_type.clone();
@@ -1024,7 +1028,7 @@ pub struct ConsulDiscovery {
     /// In-memory cache of services.
     services: RwLock<HashMap<String, ServiceInfo>>,
     /// Event senders for watchers.
-    watchers: Mutex<HashMap<String, Sender<DiscoveryEvent>>>,
+    watchers: Arc<Mutex<HashMap<String, Sender<DiscoveryEvent>>>>,
     /// Generation counter for watch lifecycle control.
     watch_generation: Arc<AtomicU64>,
     /// Active watch-poll generations keyed by service type.
@@ -1046,7 +1050,7 @@ impl ConsulDiscovery {
             client: tokio::sync::Mutex::new(None),
             service_name: "monolith".to_string(),
             services: RwLock::new(HashMap::new()),
-            watchers: Mutex::new(HashMap::new()),
+            watchers: Arc::new(Mutex::new(HashMap::new())),
             watch_generation: Arc::new(AtomicU64::new(0)),
             watch_poll_generations: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -1376,7 +1380,11 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
                 "consul",
                 std::time::Duration::from_secs(1),
                 move || watch_generation.load(Ordering::SeqCst) == generation,
-                move || this_for_cleanup.cleanup_watch_poll_generation(&svc_type_for_cleanup, generation),
+                move || {
+                    this_for_cleanup
+                        .cleanup_watch_poll_generation(&svc_type_for_cleanup, generation);
+                    this_for_cleanup.compact_dead_watch_sender(&svc_type_for_cleanup);
+                },
                 move || {
                     let this = Arc::clone(&this);
                     let svc_type = svc_type.clone();
@@ -1554,7 +1562,7 @@ impl ZkDiscovery {
             client: tokio::sync::Mutex::new(None),
             registered_paths: tokio::sync::Mutex::new(HashMap::new()),
             services: RwLock::new(HashMap::new()),
-            watchers: Mutex::new(HashMap::new()),
+            watchers: Arc::clone(&self.watchers),
             watch_generation: Arc::clone(&self.watch_generation),
             watch_poll_generations: Arc::clone(&self.watch_poll_generations),
         }
@@ -1571,7 +1579,7 @@ impl ConsulDiscovery {
             client: tokio::sync::Mutex::new(None),
             service_name: self.service_name.clone(),
             services: RwLock::new(HashMap::new()),
-            watchers: Mutex::new(HashMap::new()),
+            watchers: Arc::clone(&self.watchers),
             watch_generation: Arc::clone(&self.watch_generation),
             watch_poll_generations: Arc::clone(&self.watch_poll_generations),
         }
@@ -2673,6 +2681,10 @@ mod tests {
         })
         .await
         .expect("watch poll generation entries should clear after subscribers drop");
+        assert!(
+            zk.watchers.lock().unwrap().is_empty(),
+            "watch_async should compact dead watcher sender entries after all receivers drop"
+        );
         zk.disconnect().await.expect("disconnect should succeed");
         assert!(
             zk.watch_poll_generations.lock().unwrap().is_empty(),
@@ -3354,6 +3366,10 @@ mod tests {
         })
         .await
         .expect("watch poll generation entries should clear after subscribers drop");
+        assert!(
+            consul.watchers.lock().unwrap().is_empty(),
+            "watch_async should compact dead watcher sender entries after all receivers drop"
+        );
         <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
             .await
             .expect("disconnect should succeed");
@@ -3400,6 +3416,10 @@ mod tests {
         })
         .await
         .expect("poll-generation entry should clear after watcher receiver drops");
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "case-insensitive-scheme watch_async should compact dead watcher sender after receiver drops"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -3439,6 +3459,10 @@ mod tests {
         })
         .await
         .expect("poll-generation entry should clear after watcher receiver drops");
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "normalized host:port watch_async should compact dead watcher sender after receiver drops"
+        );
     }
 
     #[cfg(feature = "consul")]
