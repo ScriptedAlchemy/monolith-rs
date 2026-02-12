@@ -6526,6 +6526,20 @@
   - async lifecycle cleanup/local-cache semantics remain preserved under these
     config-error exit paths.
 
+### 478) ZooKeeper deregister parity: config-error cleanup semantics for invalid hosts/base-path
+- Expanded async deregister lifecycle coverage under configuration failures:
+  - `test_zk_async_deregister_invalid_hosts_still_notifies_and_returns_error`
+  - `test_zk_async_deregister_invalid_base_path_still_notifies_and_returns_error`
+- Both regressions validate that when `deregister_async` hits config validation
+  failures during backend connect:
+  - a deterministic `ConfigError` is returned with operation context (`connect`),
+  - watcher subscribers still receive `ServiceRemoved`,
+  - local cache removal remains committed,
+  - registered-path bookkeeping remains cleared (no stale backend path retained).
+- Result:
+  - ZooKeeper deregister now has explicit, tested failure-shape/lifecycle
+    guarantees matching existing Consul deregister error-parity semantics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7543,6 +7557,8 @@
 1014. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after ZooKeeper watch_async invalid-host hardening)
 1015. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_validate_zk_base_path_for_operation_ -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_connect_invalid_base_path_is_config_error -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_async_register_invalid_base_path_compacts_dead_watchers -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_discover_async_invalid_base_path_preserves_local_cache -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_watch_async_invalid_base_path_ -- --nocapture` ✅ (validated ZooKeeper base-path config-shape contracts and async lifecycle semantics across connect/register/discover/watch surfaces)
 1016. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after ZooKeeper base-path validation hardening)
+1017. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_async_deregister_invalid_hosts_still_notifies_and_returns_error -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_async_deregister_invalid_base_path_still_notifies_and_returns_error -- --nocapture` ✅ (validated ZooKeeper deregister config-error contracts preserve watcher notifications plus local/registered-path cleanup under invalid hosts/base-path)
+1018. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after ZooKeeper deregister config-error lifecycle coverage expansion)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

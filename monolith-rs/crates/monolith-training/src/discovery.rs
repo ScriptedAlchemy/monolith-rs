@@ -3385,6 +3385,86 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_async_deregister_invalid_hosts_still_notifies_and_returns_error() {
+        let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+        let mut rx = zk.watch("ps").expect("watch should succeed");
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        let err = result.expect_err("invalid hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("leading/trailing whitespace")),
+            "expected ConfigError containing invalid-hosts connect context, got {err:?}"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "ps-0"),
+            "expected ServiceRemoved(ps-0), got {event:?}"
+        );
+        assert!(
+            zk.discover("ps").expect("discover should succeed").is_empty(),
+            "local cache entry should remain removed even when async deregister fails on invalid hosts"
+        );
+        assert!(
+            !zk.registered_paths.lock().await.contains_key("ps-0"),
+            "registered-path bookkeeping should remain removed even on invalid-host config failure"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_invalid_base_path_still_notifies_and_returns_error() {
+        let zk = ZkDiscovery::new("127.0.0.1:2181", "services");
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+        let mut rx = zk.watch("ps").expect("watch should succeed");
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        let err = result.expect_err("invalid base_path should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid base_path")
+                    && msg.contains("path must start with /")),
+            "expected ConfigError containing invalid-base_path connect context, got {err:?}"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "ps-0"),
+            "expected ServiceRemoved(ps-0), got {event:?}"
+        );
+        assert!(
+            zk.discover("ps").expect("discover should succeed").is_empty(),
+            "local cache entry should remain removed even when async deregister fails on invalid base_path"
+        );
+        assert!(
+            !zk.registered_paths.lock().await.contains_key("ps-0"),
+            "registered-path bookkeeping should remain removed even on invalid-base_path config failure"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_async_deregister_local_only_service_returns_ok() {
         let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
         zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
