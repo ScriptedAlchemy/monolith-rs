@@ -4374,6 +4374,20 @@
   - Spawn dedupe remains deterministic within active generations.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 320) Stale-generation cleanup helper hardening for race safety
+- Added backend-local cleanup helpers:
+  - `ZkDiscovery::cleanup_watch_poll_generation(...)`
+  - `ConsulDiscovery::cleanup_watch_poll_generation(...)`
+- Watch-async `on_exit` callbacks now route through these helpers, ensuring
+  generation-mismatch safe cleanup in one place.
+- Added feature-gated race-safety regressions:
+  - `test_zk_cleanup_watch_poll_generation_preserves_newer_generation_entry`
+  - `test_consul_cleanup_watch_poll_generation_preserves_newer_generation_entry`
+- Result:
+  - Stale poll-loop exit callbacks cannot delete newer generation entries after
+    disconnect/reconnect lifecycle transitions.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5170,6 +5184,9 @@
 793. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post poll-loop on-exit cleanup refactor default-lane regression rerun)
 794. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" watch_async_deduplicates_poll_generation_entries -- --nocapture` ✅ (feature-gated automatic poll-generation cleanup verification after receiver drop)
 795. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" should_spawn_watch_poll_once_per_generation -- --nocapture` ✅ (feature-gated spawn dedupe semantics verification post on-exit cleanup refactor)
+796. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post stale-generation cleanup helper hardening default-lane regression rerun)
+797. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" cleanup_watch_poll_generation -- --nocapture` ✅ (feature-gated stale-generation cleanup race-safety verification)
+798. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" watch_async_deduplicates_poll_generation_entries -- --nocapture` ✅ (feature-gated watch-async dedupe re-verification after cleanup helper refactor)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

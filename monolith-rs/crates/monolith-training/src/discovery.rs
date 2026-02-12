@@ -675,6 +675,14 @@ impl ZkDiscovery {
             }
         }
     }
+
+    /// Cleans a poll-generation entry if it still matches the expected generation.
+    fn cleanup_watch_poll_generation(&self, service_type: &str, generation: u64) {
+        let mut active = self.watch_poll_generations.lock().unwrap();
+        if active.get(service_type).copied() == Some(generation) {
+            active.remove(service_type);
+        }
+    }
 }
 
 #[cfg(feature = "zookeeper")]
@@ -877,7 +885,7 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
             let this = Arc::new(self.clone_for_watch());
             let sender_for_poll = sender.clone();
             let watch_generation = Arc::clone(&self.watch_generation);
-            let watch_poll_generations = Arc::clone(&self.watch_poll_generations);
+            let this_for_cleanup = Arc::clone(&this);
             let generation = watch_generation.load(Ordering::SeqCst);
             let svc_type_for_cleanup = svc_type.clone();
             spawn_watch_poll_loop(
@@ -885,12 +893,7 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
                 "zk",
                 std::time::Duration::from_secs(1),
                 move || watch_generation.load(Ordering::SeqCst) == generation,
-                move || {
-                    let mut active = watch_poll_generations.lock().unwrap();
-                    if active.get(&svc_type_for_cleanup).copied() == Some(generation) {
-                        active.remove(&svc_type_for_cleanup);
-                    }
-                },
+                move || this_for_cleanup.cleanup_watch_poll_generation(&svc_type_for_cleanup, generation),
                 move || {
                     let this = Arc::clone(&this);
                     let svc_type = svc_type.clone();
@@ -1051,6 +1054,14 @@ impl ConsulDiscovery {
                 active.insert(service_type.to_string(), generation);
                 true
             }
+        }
+    }
+
+    /// Cleans a poll-generation entry if it still matches the expected generation.
+    fn cleanup_watch_poll_generation(&self, service_type: &str, generation: u64) {
+        let mut active = self.watch_poll_generations.lock().unwrap();
+        if active.get(service_type).copied() == Some(generation) {
+            active.remove(service_type);
         }
     }
 }
@@ -1248,7 +1259,7 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
             let this = Arc::new(self.clone_for_watch());
             let sender_for_poll = sender.clone();
             let watch_generation = Arc::clone(&self.watch_generation);
-            let watch_poll_generations = Arc::clone(&self.watch_poll_generations);
+            let this_for_cleanup = Arc::clone(&this);
             let generation = watch_generation.load(Ordering::SeqCst);
             let svc_type_for_cleanup = svc_type.clone();
             spawn_watch_poll_loop(
@@ -1256,12 +1267,7 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
                 "consul",
                 std::time::Duration::from_secs(1),
                 move || watch_generation.load(Ordering::SeqCst) == generation,
-                move || {
-                    let mut active = watch_poll_generations.lock().unwrap();
-                    if active.get(&svc_type_for_cleanup).copied() == Some(generation) {
-                        active.remove(&svc_type_for_cleanup);
-                    }
-                },
+                move || this_for_cleanup.cleanup_watch_poll_generation(&svc_type_for_cleanup, generation),
                 move || {
                     let this = Arc::clone(&this);
                     let svc_type = svc_type.clone();
@@ -1922,6 +1928,29 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_cleanup_watch_poll_generation_preserves_newer_generation_entry() {
+        let zk = ZkDiscovery::new("localhost:2181", "/services");
+        assert!(zk.should_spawn_watch_poll("ps"));
+        let old_generation = zk.watch_generation.load(std::sync::atomic::Ordering::SeqCst);
+
+        zk.disconnect().await.expect("disconnect should succeed");
+        assert!(zk.should_spawn_watch_poll("ps"));
+        let new_generation = zk.watch_generation.load(std::sync::atomic::Ordering::SeqCst);
+        assert!(
+            new_generation > old_generation,
+            "disconnect should advance watch generation"
+        );
+
+        zk.cleanup_watch_poll_generation("ps", old_generation);
+        assert_eq!(
+            zk.watch_poll_generations.lock().unwrap().get("ps").copied(),
+            Some(new_generation),
+            "cleanup for stale generation must not remove newer generation entry"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_sync_watch_receives_removed_event_on_deregister() {
         let zk = ZkDiscovery::new("localhost:2181", "/services");
         zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
@@ -2086,6 +2115,40 @@ mod tests {
         assert!(
             consul.should_spawn_watch_poll("ps"),
             "after disconnect generation bump should allow respawn"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_cleanup_watch_poll_generation_preserves_newer_generation_entry() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        assert!(consul.should_spawn_watch_poll("worker"));
+        let old_generation = consul
+            .watch_generation
+            .load(std::sync::atomic::Ordering::SeqCst);
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(consul.should_spawn_watch_poll("worker"));
+        let new_generation = consul
+            .watch_generation
+            .load(std::sync::atomic::Ordering::SeqCst);
+        assert!(
+            new_generation > old_generation,
+            "disconnect should advance watch generation"
+        );
+
+        consul.cleanup_watch_poll_generation("worker", old_generation);
+        assert_eq!(
+            consul
+                .watch_poll_generations
+                .lock()
+                .unwrap()
+                .get("worker")
+                .copied(),
+            Some(new_generation),
+            "cleanup for stale generation must not remove newer generation entry"
         );
     }
 
