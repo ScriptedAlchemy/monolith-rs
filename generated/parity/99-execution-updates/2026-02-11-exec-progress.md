@@ -4638,6 +4638,17 @@
     levels for Consul and ZooKeeper discover APIs.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 342) Consul async-register config-error context + cache-invariant hardening
+- Tightened malformed-endpoint (`http://[::1`) register regressions:
+  - existing live/dead watcher tests now require `ConfigError` payloads that
+    include both `invalid address` and `register_entity` context
+  - added `test_consul_async_register_config_error_does_not_cache_service`
+- Result:
+  - Consul async-register malformed-endpoint paths now enforce variant +
+    operation-context message contracts consistent with discover/deregister.
+  - Local cache non-population is now explicitly verified for config errors.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5477,6 +5488,7 @@
 836. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture` ✅ (feature-gated Consul async-deregister Internal/ConfigError message-context + cleanup-invariant verification)
 837. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_async_register_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_async_deregister_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated ZooKeeper unreachable-endpoint ConnectionFailed+message-context verification plus default-lane regression rerun)
 838. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" discover_async_connection_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" discover_async_config_error_is_classified -- --nocapture` ✅ (default-lane regression plus feature-gated Consul/ZK async-discover failure-shape and cache-preservation verification)
+839. `ZK_AUTH=user:pass cargo test -p monolith-training -q && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_register_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture` ✅ (default-lane regression plus feature-gated Consul async-register config-error context and cache-isolation verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

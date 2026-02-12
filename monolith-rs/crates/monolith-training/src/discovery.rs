@@ -3167,7 +3167,12 @@ mod tests {
         )
         .await;
         match result {
-            Err(DiscoveryError::ConfigError(_)) => {}
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address") && msg.contains("register_entity"),
+                    "config error should include invalid-address register context: {msg}"
+                );
+            }
             other => panic!("expected ConfigError, got {other:?}"),
         }
         assert!(
@@ -3192,12 +3197,44 @@ mod tests {
         )
         .await;
         match result {
-            Err(DiscoveryError::ConfigError(_)) => {}
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address") && msg.contains("register_entity"),
+                    "config error should include invalid-address register context: {msg}"
+                );
+            }
             other => panic!("expected ConfigError, got {other:?}"),
         }
         assert!(
             consul.watchers.lock().unwrap().contains_key("worker"),
             "live watcher sender should be preserved on config-error register failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_config_error_does_not_cache_service() {
+        let consul = ConsulDiscovery::new("http://[::1");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(&consul, service)
+            .await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address") && msg.contains("register_entity"),
+                    "config error should include invalid-address register context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError, got {other:?}"),
+        }
+
+        assert!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .is_empty(),
+            "config-error register failure should not populate local service cache"
         );
     }
 
