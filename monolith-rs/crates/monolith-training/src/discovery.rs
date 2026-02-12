@@ -2097,6 +2097,41 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_zk_compact_dead_watch_sender_keeps_live_sender() {
+        let zk = ZkDiscovery::new("localhost:2181", "/services");
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        zk.compact_dead_watch_sender("ps");
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "live watcher sender should not be removed by compaction"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_zk_compact_dead_watch_sender_removes_dropped_sender() {
+        let zk = ZkDiscovery::new("localhost:2181", "/services");
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        zk.compact_dead_watch_sender("ps");
+        assert!(
+            !zk.watchers.lock().unwrap().contains_key("ps"),
+            "dropped watcher sender should be removed by compaction"
+        );
+    }
+
     #[cfg(feature = "consul")]
     #[test]
     fn test_consul_discovery_creation() {

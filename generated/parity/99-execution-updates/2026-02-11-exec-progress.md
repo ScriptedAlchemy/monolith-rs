@@ -4400,6 +4400,17 @@
   - Live watcher subscriptions remain intact on transient register failures.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 322) ZooKeeper dead-watcher compaction helper coverage
+- Added feature-gated helper-level regressions:
+  - `test_zk_compact_dead_watch_sender_keeps_live_sender`
+  - `test_zk_compact_dead_watch_sender_removes_dropped_sender`
+- Result:
+  - ZooKeeper watcher compaction helper behavior is now explicitly verified for
+    both live and dropped subscriber states.
+  - This increases confidence in async register failure-path cleanup where full
+    external-free ZK failure repro is not currently available.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5201,6 +5212,8 @@
 798. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" watch_async_deduplicates_poll_generation_entries -- --nocapture` ✅ (feature-gated watch-async dedupe re-verification after cleanup helper refactor)
 799. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post async-register failure compaction hardening default-lane regression rerun)
 800. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_register_failure -- --nocapture` ✅ (feature-gated Consul async-register failure dead-sender compaction and live-watcher preservation verification)
+801. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post ZooKeeper dead-watcher compaction helper coverage additions default-lane regression rerun)
+802. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_compact_dead_watch_sender -- --nocapture` ✅ (feature-gated ZooKeeper dead-watcher compaction helper behavior verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
