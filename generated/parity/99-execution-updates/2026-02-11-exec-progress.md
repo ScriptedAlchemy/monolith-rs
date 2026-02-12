@@ -5673,6 +5673,22 @@
   - Feature-gated Consul targeted suites and default monolith-training
     regression remain green.
 
+### 420) Discovery parity: malformed-endpoint assertion tightening batch
+- Refactored additional malformed-endpoint discovery/connect/register/deregister
+  tests in `crates/monolith-training/src/discovery.rs` to replace panic fallback
+  match arms with explicit `expect_err(...)` + `matches!(...)` contracts across:
+  - ZooKeeper discover connection-failure parity tests.
+  - Consul config/internal error classification tests for discover/connect/
+    register/deregister (invalid port/scheme, userinfo/whitespace authority,
+    empty host/default endpoint, invalid IPv6 suffix).
+  - Consul deregister watcher-event assertions for malformed endpoint variants.
+- Result:
+  - Cross-backend malformed-endpoint failure-shape assertions now consistently
+    encode explicit variant + message/event payload contracts with richer
+    diagnostics and less ad-hoc panic branching.
+  - Feature-gated targeted suites and default monolith-training regression
+    remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6590,6 +6606,7 @@
 914. `cargo test -p monolith-training test_spawn_watch_poll_loop_emits_added_and_removed_events -- --nocapture && cargo test -p monolith-training test_spawn_watch_poll_loop_emits_updated_events -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (watch-poll event assertion-tightening targeted verification plus default-lane regression rerun)
 915. `cargo test -p monolith-training --features "zookeeper" test_zk_sync_deregister_missing_service_preserves_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" test_zk_async_register_failure_ -- --nocapture && cargo test -p monolith-training --features "zookeeper" test_zk_async_deregister_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (ZooKeeper lifecycle assertion-tightening targeted verification plus default-lane regression rerun)
 916. `cargo test -p monolith-training --features "consul" test_consul_sync_deregister_missing_service_preserves_watchers -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_async_deregister_ -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_async_register_failure_ -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_discover_async_connection_failure_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (Consul lifecycle assertion-tightening targeted verification plus default-lane regression rerun)
+917. `cargo test -p monolith-training --features "zookeeper" test_zk_discover_async_connection_failure_ -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_async_register_config_error_ -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_discover_async_ -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_connect_ -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_async_deregister_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (cross-backend malformed-endpoint assertion-tightening targeted verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

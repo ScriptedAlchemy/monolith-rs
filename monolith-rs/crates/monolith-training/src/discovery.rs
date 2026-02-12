@@ -3637,15 +3637,11 @@ mod tests {
     async fn test_zk_discover_async_connection_failure_is_connection_failed() {
         let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
         let result = <ZkDiscovery as ServiceDiscoveryAsync>::discover_async(&zk, "ps").await;
-        match result {
-            Err(DiscoveryError::ConnectionFailed(msg)) => {
-                assert!(
-                    msg.contains("ZK connect failed"),
-                    "connection failure should include connect-operation context: {msg}"
-                );
-            }
-            other => panic!("expected ConnectionFailed error, got {other:?}"),
-        }
+        let err = result.expect_err("discover should fail when ZooKeeper is unreachable");
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "zookeeper")]
@@ -3656,15 +3652,11 @@ mod tests {
             .expect("sync register should seed local cache");
 
         let result = <ZkDiscovery as ServiceDiscoveryAsync>::discover_async(&zk, "ps").await;
-        match result {
-            Err(DiscoveryError::ConnectionFailed(msg)) => {
-                assert!(
-                    msg.contains("ZK connect failed"),
-                    "connection failure should include connect-operation context: {msg}"
-                );
-            }
-            other => panic!("expected ConnectionFailed error, got {other:?}"),
-        }
+        let err = result.expect_err("discover should fail when ZooKeeper is unreachable");
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context, got {err:?}"
+        );
 
         let cached = zk
             .discover("ps")
@@ -3693,15 +3685,12 @@ mod tests {
             ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
         )
         .await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address") && msg.contains("register_entity"),
-                    "config error should include invalid-address register context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError, got {other:?}"),
-        }
+        let err = result.expect_err("invalid Consul address should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address") && msg.contains("register_entity")),
+            "expected ConfigError containing invalid-address register context, got {err:?}"
+        );
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "config-error register failure should compact dead watcher sender"
@@ -3723,15 +3712,12 @@ mod tests {
             ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
         )
         .await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address") && msg.contains("register_entity"),
-                    "config error should include invalid-address register context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError, got {other:?}"),
-        }
+        let err = result.expect_err("invalid Consul address should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address") && msg.contains("register_entity")),
+            "expected ConfigError containing invalid-address register context, got {err:?}"
+        );
         assert!(
             consul.watchers.lock().unwrap().contains_key("worker"),
             "live watcher sender should be preserved on config-error register failure"
@@ -3746,15 +3732,12 @@ mod tests {
 
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(&consul, service)
             .await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address") && msg.contains("register_entity"),
-                    "config error should include invalid-address register context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError, got {other:?}"),
-        }
+        let err = result.expect_err("invalid Consul address should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address") && msg.contains("register_entity")),
+            "expected ConfigError containing invalid-address register context, got {err:?}"
+        );
 
         assert!(
             consul
@@ -3771,15 +3754,12 @@ mod tests {
         let consul = ConsulDiscovery::new("http://[::1");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
             .await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address") && msg.contains("get_service_nodes"),
-                    "config error should include invalid-address discover context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError, got {other:?}"),
-        }
+        let err = result.expect_err("invalid Consul address should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address") && msg.contains("get_service_nodes")),
+            "expected ConfigError containing invalid-address discover context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -3788,15 +3768,12 @@ mod tests {
         let consul = ConsulDiscovery::new("http://127.0.0.1:notaport");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
             .await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address") && msg.contains("get_service_nodes"),
-                    "invalid-port discover failures should be classified as ConfigError with discover context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for invalid port address, got {other:?}"),
-        }
+        let err = result.expect_err("invalid-port Consul address should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address") && msg.contains("get_service_nodes")),
+            "expected ConfigError containing invalid-port discover context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -3805,15 +3782,12 @@ mod tests {
         let consul = ConsulDiscovery::new("127.0.0.1:8501");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
             .await;
-        match result {
-            Err(DiscoveryError::Internal(msg)) => {
-                assert!(
-                    msg.contains("get_service_nodes") && msg.contains("8501"),
-                    "host:port addresses without scheme should preserve configured port after normalization: {msg}"
-                );
-            }
-            other => panic!("expected Internal connection failure for host:port address, got {other:?}"),
-        }
+        let err = result.expect_err("unreachable host:port Consul address should fail");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("get_service_nodes") && msg.contains("8501")),
+            "expected Internal containing discover context and normalized port, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -3822,17 +3796,14 @@ mod tests {
         let consul = ConsulDiscovery::new("ftp://127.0.0.1:8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
             .await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address")
-                        && msg.contains("invalid scheme")
-                        && msg.contains("get_service_nodes"),
-                    "invalid-scheme discover failures should be classified as ConfigError with discover context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for invalid scheme address, got {other:?}"),
-        }
+        let err = result.expect_err("invalid-scheme Consul address should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid scheme")
+                    && msg.contains("get_service_nodes")),
+            "expected ConfigError containing invalid-scheme discover context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -3840,17 +3811,14 @@ mod tests {
     async fn test_consul_connect_invalid_scheme_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("ftp://127.0.0.1:8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address")
-                        && msg.contains("invalid scheme")
-                        && msg.contains("connect"),
-                    "invalid-scheme connect failures should be classified as ConfigError with connect context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for invalid scheme connect, got {other:?}"),
-        }
+        let err = result.expect_err("invalid-scheme Consul address should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid scheme")
+                    && msg.contains("connect")),
+            "expected ConfigError containing invalid-scheme connect context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -3858,17 +3826,14 @@ mod tests {
     async fn test_consul_connect_userinfo_authority_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("http://user@127.0.0.1:8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address")
-                        && msg.contains("userinfo in authority")
-                        && msg.contains("connect"),
-                    "userinfo-authority connect failures should be classified as ConfigError with connect context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for userinfo authority connect, got {other:?}"),
-        }
+        let err = result.expect_err("userinfo authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("userinfo in authority")
+                    && msg.contains("connect")),
+            "expected ConfigError containing userinfo-authority connect context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -3876,17 +3841,14 @@ mod tests {
     async fn test_consul_connect_whitespace_authority_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address")
-                        && msg.contains("whitespace in authority")
-                        && msg.contains("connect"),
-                    "whitespace-authority connect failures should be classified as ConfigError with connect context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for whitespace authority connect, got {other:?}"),
-        }
+        let err = result.expect_err("whitespace authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("whitespace in authority")
+                    && msg.contains("connect")),
+            "expected ConfigError containing whitespace-authority connect context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -3894,17 +3856,14 @@ mod tests {
     async fn test_consul_connect_empty_host_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("http://:8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address")
-                        && msg.contains("empty host")
-                        && msg.contains("connect"),
-                    "empty-host connect failures should be classified as ConfigError with connect context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for empty host connect, got {other:?}"),
-        }
+        let err = result.expect_err("empty-host authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("empty host")
+                    && msg.contains("connect")),
+            "expected ConfigError containing empty-host connect context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -3912,17 +3871,14 @@ mod tests {
     async fn test_consul_connect_invalid_ipv6_suffix_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("http://[::1]x:8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address")
-                        && msg.contains("invalid authority")
-                        && msg.contains("connect"),
-                    "invalid-IPv6-suffix connect failures should be classified as ConfigError with connect context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for invalid IPv6 suffix connect, got {other:?}"),
-        }
+        let err = result.expect_err("invalid IPv6 suffix authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid authority")
+                    && msg.contains("connect")),
+            "expected ConfigError containing invalid-IPv6-suffix connect context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -3931,17 +3887,14 @@ mod tests {
         let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
             .await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address")
-                        && msg.contains("whitespace in authority")
-                        && msg.contains("get_service_nodes"),
-                    "whitespace-authority discover failures should be classified as ConfigError with discover context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for whitespace authority address, got {other:?}"),
-        }
+        let err = result.expect_err("whitespace authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("whitespace in authority")
+                    && msg.contains("get_service_nodes")),
+            "expected ConfigError containing whitespace-authority discover context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -3950,17 +3903,14 @@ mod tests {
         let consul = ConsulDiscovery::new("http://user@127.0.0.1:8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
             .await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address")
-                        && msg.contains("userinfo in authority")
-                        && msg.contains("get_service_nodes"),
-                    "userinfo-authority discover failures should be classified as ConfigError with discover context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for userinfo authority address, got {other:?}"),
-        }
+        let err = result.expect_err("userinfo authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("userinfo in authority")
+                    && msg.contains("get_service_nodes")),
+            "expected ConfigError containing userinfo-authority discover context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -3969,15 +3919,12 @@ mod tests {
         let consul = ConsulDiscovery::new("");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
             .await;
-        match result {
-            Err(DiscoveryError::Internal(msg)) => {
-                assert!(
-                    msg.contains("get_service_nodes") && msg.contains("8500"),
-                    "empty-address discover path should normalize to default endpoint and preserve port context: {msg}"
-                );
-            }
-            other => panic!("expected Internal connection failure for empty Consul address, got {other:?}"),
-        }
+        let err = result.expect_err("empty-address discover should fail against local endpoint");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("get_service_nodes") && msg.contains("8500")),
+            "expected Internal containing default-endpoint discover context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -3986,17 +3933,14 @@ mod tests {
         let consul = ConsulDiscovery::new("http://[::1]x:8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
             .await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address")
-                        && msg.contains("invalid authority")
-                        && msg.contains("get_service_nodes"),
-                    "invalid-IPv6-suffix discover failures should be classified as ConfigError with discover context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for invalid IPv6 suffix address, got {other:?}"),
-        }
+        let err = result.expect_err("invalid IPv6 suffix should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid authority")
+                    && msg.contains("get_service_nodes")),
+            "expected ConfigError containing invalid-IPv6-suffix discover context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -4015,17 +3959,14 @@ mod tests {
             ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
         )
         .await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address")
-                        && msg.contains("invalid authority")
-                        && msg.contains("register_entity"),
-                    "invalid-IPv6-suffix register failures should be classified as ConfigError with register context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for invalid IPv6 suffix register, got {other:?}"),
-        }
+        let err = result.expect_err("invalid IPv6 suffix should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid authority")
+                    && msg.contains("register_entity")),
+            "expected ConfigError containing invalid-IPv6-suffix register context, got {err:?}"
+        );
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "dead watch sender should be compacted on invalid-IPv6-suffix register validation failure"
@@ -4043,26 +3984,24 @@ mod tests {
         let mut rx = consul.watch("worker").expect("watch should succeed");
 
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id).await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address")
-                        && msg.contains("invalid scheme")
-                        && msg.contains("deregister_entity"),
-                    "invalid-scheme deregister failures should be classified as ConfigError with deregister context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for invalid scheme deregister, got {other:?}"),
-        }
+        let err = result.expect_err("invalid-scheme address should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid scheme")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing invalid-scheme deregister context, got {err:?}"
+        );
 
         let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
             .await
             .expect("timed out waiting for ServiceRemoved")
             .expect("watch channel closed unexpectedly");
-        match event {
-            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, service.id),
-            other => panic!("expected ServiceRemoved event, got {other:?}"),
-        }
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == &service.id),
+            "expected ServiceRemoved({}), got {event:?}",
+            service.id
+        );
         assert!(
             consul
                 .discover("worker")
@@ -4083,26 +4022,24 @@ mod tests {
         let mut rx = consul.watch("worker").expect("watch should succeed");
 
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id).await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address")
-                        && msg.contains("userinfo in authority")
-                        && msg.contains("deregister_entity"),
-                    "userinfo-authority deregister failures should be classified as ConfigError with deregister context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for userinfo authority deregister, got {other:?}"),
-        }
+        let err = result.expect_err("userinfo authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("userinfo in authority")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing userinfo-authority deregister context, got {err:?}"
+        );
 
         let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
             .await
             .expect("timed out waiting for ServiceRemoved")
             .expect("watch channel closed unexpectedly");
-        match event {
-            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, service.id),
-            other => panic!("expected ServiceRemoved event, got {other:?}"),
-        }
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == &service.id),
+            "expected ServiceRemoved({}), got {event:?}",
+            service.id
+        );
         assert!(
             consul
                 .discover("worker")
@@ -4123,26 +4060,24 @@ mod tests {
         let mut rx = consul.watch("worker").expect("watch should succeed");
 
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id).await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address")
-                        && msg.contains("whitespace in authority")
-                        && msg.contains("deregister_entity"),
-                    "whitespace-authority deregister failures should be classified as ConfigError with deregister context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for whitespace authority deregister, got {other:?}"),
-        }
+        let err = result.expect_err("whitespace authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("whitespace in authority")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing whitespace-authority deregister context, got {err:?}"
+        );
 
         let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
             .await
             .expect("timed out waiting for ServiceRemoved")
             .expect("watch channel closed unexpectedly");
-        match event {
-            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, service.id),
-            other => panic!("expected ServiceRemoved event, got {other:?}"),
-        }
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == &service.id),
+            "expected ServiceRemoved({}), got {event:?}",
+            service.id
+        );
         assert!(
             consul
                 .discover("worker")
@@ -4158,17 +4093,14 @@ mod tests {
         let consul = ConsulDiscovery::new("http://:8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
             .await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address")
-                        && msg.contains("empty host")
-                        && msg.contains("get_service_nodes"),
-                    "empty-host discover failures should be classified as ConfigError with discover context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for empty host address, got {other:?}"),
-        }
+        let err = result.expect_err("empty-host authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("empty host")
+                    && msg.contains("get_service_nodes")),
+            "expected ConfigError containing empty-host discover context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -4187,17 +4119,14 @@ mod tests {
             ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
         )
         .await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address")
-                        && msg.contains("empty host")
-                        && msg.contains("register_entity"),
-                    "empty-host register failures should be classified as ConfigError with register context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for empty host register, got {other:?}"),
-        }
+        let err = result.expect_err("empty-host authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("empty host")
+                    && msg.contains("register_entity")),
+            "expected ConfigError containing empty-host register context, got {err:?}"
+        );
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "dead watch sender should be compacted on empty-host register validation failure"
@@ -4220,17 +4149,14 @@ mod tests {
             ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
         )
         .await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address")
-                        && msg.contains("userinfo in authority")
-                        && msg.contains("register_entity"),
-                    "userinfo-authority register failures should be classified as ConfigError with register context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for userinfo authority register, got {other:?}"),
-        }
+        let err = result.expect_err("userinfo authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("userinfo in authority")
+                    && msg.contains("register_entity")),
+            "expected ConfigError containing userinfo-authority register context, got {err:?}"
+        );
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "dead watch sender should be compacted on userinfo-authority register validation failure"
@@ -4253,17 +4179,14 @@ mod tests {
             ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
         )
         .await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address")
-                        && msg.contains("whitespace in authority")
-                        && msg.contains("register_entity"),
-                    "whitespace-authority register failures should be classified as ConfigError with register context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for whitespace authority register, got {other:?}"),
-        }
+        let err = result.expect_err("whitespace authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("whitespace in authority")
+                    && msg.contains("register_entity")),
+            "expected ConfigError containing whitespace-authority register context, got {err:?}"
+        );
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "dead watch sender should be compacted on whitespace-authority register validation failure"
@@ -4282,15 +4205,12 @@ mod tests {
 
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
             .await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address") && msg.contains("get_service_nodes"),
-                    "config error should include invalid-address discover context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError, got {other:?}"),
-        }
+        let err = result.expect_err("invalid Consul address should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address") && msg.contains("get_service_nodes")),
+            "expected ConfigError containing invalid-address discover context, got {err:?}"
+        );
 
         let cached = consul
             .discover("worker")
