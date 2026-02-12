@@ -2556,6 +2556,35 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_deregister_failure_returns_ok_and_cleans_cache() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("sync register should seed local cache");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
+            .await;
+        assert!(
+            result.is_ok(),
+            "consul async deregister is best-effort and should return Ok even if backend call fails"
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .is_empty(),
+            "async deregister should remove service from local cache"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_register_failure_compacts_dead_watchers() {
         let consul = ConsulDiscovery::new("http://localhost:8500");
         let rx = consul.watch("worker").expect("watch should succeed");

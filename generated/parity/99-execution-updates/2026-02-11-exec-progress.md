@@ -4445,6 +4445,15 @@
   - Error signaling remains intact for upstream retry/diagnostics.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 326) Consul async-deregister best-effort cache cleanup coverage
+- Added feature-gated regression:
+  - `test_consul_async_deregister_failure_returns_ok_and_cleans_cache`
+- Result:
+  - Existing best-effort Consul async deregister semantics are explicitly
+    covered: operation remains `Ok` on backend failure while local cache is
+    cleaned.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5254,6 +5263,8 @@
 806. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" async_register_failure_does_not_cache_service -- --nocapture` ✅ (feature-gated ZK/Consul async-register failure cache-isolation verification)
 807. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post ZooKeeper async-deregister failure local-cleanup hardening default-lane regression rerun)
 808. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_async_deregister_failure -- --nocapture` ✅ (feature-gated ZooKeeper async-deregister failure local-cache cleanup, watcher notification, and dead-sender compaction verification)
+809. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post Consul async-deregister best-effort cache-cleanup coverage additions default-lane regression rerun)
+810. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister_failure_returns_ok_and_cleans_cache -- --nocapture` ✅ (feature-gated Consul async-deregister best-effort cache-cleanup semantics verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
