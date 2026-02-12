@@ -42,12 +42,14 @@ fn test_writable_file_append_entry_dump_validates_shapes() {
     let path = tmp.path().join("invalid_shape.tfrecord");
     let f = WritableFile::new(&path).unwrap();
 
-    let err = f.append_entry_dump(&[1, 2], &[0.1], &[1.0, 2.0]).unwrap_err();
+    let err = f
+        .append_entry_dump(&[1, 2], &[0.1], &[1.0, 2.0])
+        .expect_err("append_entry_dump should reject ids/freqs length mismatches");
     assert_eq!(err.kind(), ErrorKind::InvalidInput);
 
     let err = f
         .append_entry_dump(&[1, 2], &[0.1, 0.2], &[1.0, 2.0, 3.0])
-        .unwrap_err();
+        .expect_err("append_entry_dump should reject invalid embedding shape");
     assert_eq!(err.kind(), ErrorKind::InvalidInput);
 }
 
@@ -57,6 +59,8 @@ fn test_writable_file_append_after_close_fails() {
     let path = tmp.path().join("closed.txt");
     let f = WritableFile::new(&path).unwrap();
     f.close().unwrap();
-    let err = f.append("x").unwrap_err();
+    let err = f
+        .append("x")
+        .expect_err("append should fail after writable file has been closed");
     assert_eq!(err.kind(), ErrorKind::BrokenPipe);
 }

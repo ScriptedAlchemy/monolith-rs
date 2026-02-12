@@ -196,7 +196,9 @@ fn test_monolith_discovery_guard_local_register_error() {
         ..RunnerConfig::default()
     };
     let guard = monolith_discovery(&rc, None).unwrap();
-    let err = guard.register("ps", 0, "127.0.0.1:1000").unwrap_err();
+    let err = guard
+        .register("ps", 0, "127.0.0.1:1000")
+        .expect_err("local-mode discovery guard should reject register calls");
     assert!(matches!(
         err,
         monolith_training::RunnerUtilsError::LocalModeNoDiscovery
