@@ -5649,6 +5649,30 @@
   - Feature-gated ZooKeeper targeted suites and default monolith-training
     regression remain green.
 
+### 419) Discovery parity: Consul lifecycle assertion tightening batch
+- Refactored Consul sync/async lifecycle tests in
+  `crates/monolith-training/src/discovery.rs` to replace panic fallback match
+  arms with explicit `expect_err(...)` + `matches!(...)` contracts in:
+  - `test_consul_sync_deregister_missing_service_preserves_watchers`
+  - `test_consul_async_watch_receives_removed_event_on_deregister`
+  - `test_consul_async_deregister_removes_dead_watchers`
+  - `test_consul_async_deregister_failure_returns_error_and_cleans_cache`
+  - `test_consul_async_deregister_missing_service_returns_not_found`
+  - `test_consul_async_deregister_missing_service_preserves_watchers`
+  - `test_consul_async_deregister_config_error_still_notifies_and_returns_error`
+  - `test_consul_async_deregister_config_error_compacts_dead_watchers`
+  - `test_consul_async_register_failure_compacts_dead_watchers`
+  - `test_consul_async_register_failure_keeps_live_watchers`
+  - `test_consul_async_register_failure_does_not_cache_service`
+  - `test_consul_discover_async_connection_failure_is_internal`
+  - `test_consul_discover_async_connection_failure_preserves_local_cache`
+- Result:
+  - Consul internal/config/not-found lifecycle and watch-event tests now assert
+    explicit error/event variant + payload shape with stronger diagnostics and
+    reduced ad-hoc panic branching.
+  - Feature-gated Consul targeted suites and default monolith-training
+    regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6565,6 +6589,7 @@
 913. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" map_consul_request_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" normalize_consul_address_for_operation_rejects -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (Consul classifier/normalizer assertion-tightening targeted verification plus default-lane regression rerun)
 914. `cargo test -p monolith-training test_spawn_watch_poll_loop_emits_added_and_removed_events -- --nocapture && cargo test -p monolith-training test_spawn_watch_poll_loop_emits_updated_events -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (watch-poll event assertion-tightening targeted verification plus default-lane regression rerun)
 915. `cargo test -p monolith-training --features "zookeeper" test_zk_sync_deregister_missing_service_preserves_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" test_zk_async_register_failure_ -- --nocapture && cargo test -p monolith-training --features "zookeeper" test_zk_async_deregister_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (ZooKeeper lifecycle assertion-tightening targeted verification plus default-lane regression rerun)
+916. `cargo test -p monolith-training --features "consul" test_consul_sync_deregister_missing_service_preserves_watchers -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_async_deregister_ -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_async_register_failure_ -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_discover_async_connection_failure_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (Consul lifecycle assertion-tightening targeted verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

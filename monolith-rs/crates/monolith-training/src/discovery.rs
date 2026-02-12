@@ -3295,10 +3295,11 @@ mod tests {
         );
 
         let result = consul.deregister("missing");
-        match result {
-            Err(DiscoveryError::NotFound(id)) => assert_eq!(id, "missing"),
-            other => panic!("expected NotFound, got {other:?}"),
-        }
+        let err = result.expect_err("sync missing-service deregister should return NotFound");
+        assert!(
+            matches!(err, DiscoveryError::NotFound(ref id) if id == "missing"),
+            "expected NotFound(missing), got {err:?}"
+        );
         assert!(
             consul.watchers.lock().unwrap().contains_key("worker"),
             "sync missing-service deregister should not mutate active watch sender entries"
@@ -3322,24 +3323,20 @@ mod tests {
         let mut rx = consul.watch("worker").expect("watch should succeed");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
-        match result {
-            Err(DiscoveryError::Internal(msg)) => {
-                assert!(
-                    msg.contains("deregister_entity"),
-                    "internal error should include deregister context: {msg}"
-                );
-            }
-            other => panic!("expected Internal error, got {other:?}"),
-        }
+        let err = result.expect_err("async deregister should return internal backend failure");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg) if msg.contains("deregister_entity")),
+            "expected Internal containing deregister_entity context, got {err:?}"
+        );
 
         let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
             .await
             .expect("timed out waiting for ServiceRemoved")
             .expect("watch channel closed unexpectedly");
-        match event {
-            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "worker-0"),
-            other => panic!("expected ServiceRemoved, got {other:?}"),
-        }
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "worker-0"),
+            "expected ServiceRemoved(worker-0), got {event:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -3365,15 +3362,11 @@ mod tests {
 
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
-        match result {
-            Err(DiscoveryError::Internal(msg)) => {
-                assert!(
-                    msg.contains("deregister_entity"),
-                    "internal error should include deregister context: {msg}"
-                );
-            }
-            other => panic!("expected Internal error, got {other:?}"),
-        }
+        let err = result.expect_err("async deregister should return internal backend failure");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg) if msg.contains("deregister_entity")),
+            "expected Internal containing deregister_entity context, got {err:?}"
+        );
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "dead watch sender should be removed after async deregister notification"
@@ -3396,15 +3389,11 @@ mod tests {
 
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
-        match result {
-            Err(DiscoveryError::Internal(msg)) => {
-                assert!(
-                    msg.contains("deregister_entity"),
-                    "internal error should include deregister context: {msg}"
-                );
-            }
-            other => panic!("expected Internal error, got {other:?}"),
-        }
+        let err = result.expect_err("async deregister should return internal backend failure");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg) if msg.contains("deregister_entity")),
+            "expected Internal containing deregister_entity context, got {err:?}"
+        );
         assert!(
             consul
                 .discover("worker")
@@ -3420,10 +3409,11 @@ mod tests {
         let consul = ConsulDiscovery::new("http://localhost:8500");
         let result =
             <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "missing").await;
-        match result {
-            Err(DiscoveryError::NotFound(id)) => assert_eq!(id, "missing"),
-            other => panic!("expected NotFound error, got {other:?}"),
-        }
+        let err = result.expect_err("missing-service async deregister should return NotFound");
+        assert!(
+            matches!(err, DiscoveryError::NotFound(ref id) if id == "missing"),
+            "expected NotFound(missing), got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -3438,10 +3428,11 @@ mod tests {
 
         let result =
             <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "missing").await;
-        match result {
-            Err(DiscoveryError::NotFound(id)) => assert_eq!(id, "missing"),
-            other => panic!("expected NotFound error, got {other:?}"),
-        }
+        let err = result.expect_err("missing-service async deregister should return NotFound");
+        assert!(
+            matches!(err, DiscoveryError::NotFound(ref id) if id == "missing"),
+            "expected NotFound(missing), got {err:?}"
+        );
         assert!(
             consul.watchers.lock().unwrap().contains_key("worker"),
             "missing-service async deregister should not mutate existing watch sender entries"
@@ -3465,15 +3456,12 @@ mod tests {
         let mut rx = consul.watch("worker").expect("watch should succeed");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address") && msg.contains("deregister_entity"),
-                    "config error should include invalid-address deregister context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError, got {other:?}"),
-        }
+        let err = result.expect_err("invalid Consul address should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address") && msg.contains("deregister_entity")),
+            "expected ConfigError containing invalid-address deregister context, got {err:?}"
+        );
         assert!(
             consul
                 .discover("worker")
@@ -3486,10 +3474,10 @@ mod tests {
             .await
             .expect("timed out waiting for ServiceRemoved")
             .expect("watch channel closed unexpectedly");
-        match event {
-            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "worker-0"),
-            other => panic!("expected ServiceRemoved, got {other:?}"),
-        }
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "worker-0"),
+            "expected ServiceRemoved(worker-0), got {event:?}"
+        );
         assert!(
             consul.watchers.lock().unwrap().contains_key("worker"),
             "live watcher sender should be preserved after successful notification"
@@ -3515,15 +3503,12 @@ mod tests {
 
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("invalid address") && msg.contains("deregister_entity"),
-                    "config error should include invalid-address deregister context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError, got {other:?}"),
-        }
+        let err = result.expect_err("invalid Consul address should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address") && msg.contains("deregister_entity")),
+            "expected ConfigError containing invalid-address deregister context, got {err:?}"
+        );
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "dropped watcher sender should be compacted on async deregister notification"
@@ -3546,15 +3531,11 @@ mod tests {
             ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
         )
         .await;
-        match result {
-            Err(DiscoveryError::Internal(msg)) => {
-                assert!(
-                    msg.contains("register_entity"),
-                    "internal error should include register context: {msg}"
-                );
-            }
-            other => panic!("expected Internal error, got {other:?}"),
-        }
+        let err = result.expect_err("async register should return internal backend failure");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg) if msg.contains("register_entity")),
+            "expected Internal containing register_entity context, got {err:?}"
+        );
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "failed async register should compact dead watcher sender"
@@ -3576,15 +3557,11 @@ mod tests {
             ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
         )
         .await;
-        match result {
-            Err(DiscoveryError::Internal(msg)) => {
-                assert!(
-                    msg.contains("register_entity"),
-                    "internal error should include register context: {msg}"
-                );
-            }
-            other => panic!("expected Internal error, got {other:?}"),
-        }
+        let err = result.expect_err("async register should return internal backend failure");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg) if msg.contains("register_entity")),
+            "expected Internal containing register_entity context, got {err:?}"
+        );
         assert!(
             consul.watchers.lock().unwrap().contains_key("worker"),
             "live watcher sender should be preserved on async register failure"
@@ -3599,15 +3576,11 @@ mod tests {
 
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(&consul, service)
             .await;
-        match result {
-            Err(DiscoveryError::Internal(msg)) => {
-                assert!(
-                    msg.contains("register_entity"),
-                    "internal error should include register context: {msg}"
-                );
-            }
-            other => panic!("expected Internal error, got {other:?}"),
-        }
+        let err = result.expect_err("async register should return internal backend failure");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg) if msg.contains("register_entity")),
+            "expected Internal containing register_entity context, got {err:?}"
+        );
         assert!(
             consul
                 .discover("worker")
@@ -3623,15 +3596,11 @@ mod tests {
         let consul = ConsulDiscovery::new("http://localhost:8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
             .await;
-        match result {
-            Err(DiscoveryError::Internal(msg)) => {
-                assert!(
-                    msg.contains("get_service_nodes"),
-                    "internal error should include discover context: {msg}"
-                );
-            }
-            other => panic!("expected Internal error, got {other:?}"),
-        }
+        let err = result.expect_err("discover should return internal backend failure");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg) if msg.contains("get_service_nodes")),
+            "expected Internal containing get_service_nodes context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -3646,15 +3615,11 @@ mod tests {
 
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
             .await;
-        match result {
-            Err(DiscoveryError::Internal(msg)) => {
-                assert!(
-                    msg.contains("get_service_nodes"),
-                    "internal error should include discover context: {msg}"
-                );
-            }
-            other => panic!("expected Internal error, got {other:?}"),
-        }
+        let err = result.expect_err("discover should return internal backend failure");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg) if msg.contains("get_service_nodes")),
+            "expected Internal containing get_service_nodes context, got {err:?}"
+        );
 
         let cached = consul
             .discover("worker")
