@@ -3996,6 +3996,18 @@
   - Companion surfaces/preserves timeout transforms remain `missing 0`.
   - Full monolith-training regression remains green.
 
+### 291) Post-success preserves→surfaces parity completed
+- Added 8 native integration alias wrappers in
+  `native_training_parity.rs` for post-success deregister-failure contexts:
+  - run-config: 4 wrappers
+  - runner-config: 4 wrappers
+- Closed post-success directional transform:
+  - `preserves_ -> surfaces_` (restricted to `after_success` families)
+- Result:
+  - `preserves_ -> surfaces_` for `after_success` families reports
+    `missing 0` in both files.
+  - Full monolith-training regression remains green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4688,6 +4700,10 @@
 689. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_preserves_custom_worker_disconnect_failure_after_success -- --nocapture` ✅
 690. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post generic surfaces->preserves alias additions full monolith-training regression rerun)
 691. `python3` surfaces/preserves + worker-timeout transform audit ✅ (`surfaces_ -> preserves_`, timeout-preserves families, and `worker_timeout -> worker_ordering_issue_timeout` all `missing 0` in both files)
+692. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_surfaces_deregister_failure_with_when_cleanup_blocks_after_success -- --nocapture` ✅
+693. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_deregister_failure_with_disconnect_failure_context_after_success -- --nocapture` ✅
+694. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post post-success preserves->surfaces alias additions full monolith-training regression rerun)
+695. `python3` post-success directional transform audit (`preserves_ -> surfaces_`, `after_success`-only) ✅ (both files `missing 0`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
