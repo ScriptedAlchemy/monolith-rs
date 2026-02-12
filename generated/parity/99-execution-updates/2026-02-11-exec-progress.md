@@ -4848,6 +4848,18 @@
   - Targeted barrier-timeout lane and default monolith-training regression
     remain green.
 
+### 360) ParameterServer/Worker lifecycle guard message-contract tightening
+- Tightened lifecycle guard regressions for distributed role primitives:
+  - `test_parameter_server_lifecycle_guards`
+  - `test_worker_lifecycle_guards`
+- Replaced variant-only assertions with explicit message-context checks for
+  index-qualified “already running” / “not running” errors.
+- Result:
+  - Primitive lifecycle tests now enforce actionable error diagnostics aligned
+    with existing distributed error-shape hardening standards.
+  - Targeted lifecycle-guard lane and default monolith-training regression
+    remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5705,6 +5717,7 @@
 854. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" disconnect_compacts_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" disconnect_preserves_live_watchers -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated mixed-state disconnect watcher compaction selectivity verification plus default-lane regression rerun)
 855. `ZK_AUTH=user:pass cargo test -p monolith-training test_local_cluster_register_parameter_requires_running_cluster -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_local_cluster_bad_worker_index -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_local_cluster_train_step_requires_running_cluster -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_local_cluster_start_is_not_reentrant -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_local_cluster_stop_requires_running_cluster -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted LocalCluster precondition error-contract verification plus default-lane regression rerun)
 856. `ZK_AUTH=user:pass cargo test -p monolith-training test_local_cluster_wait_for_barrier_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_local_cluster_wait_for_barrier_timeout_cleanup_allows_retry -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted LocalCluster barrier-timeout payload-contract verification plus default-lane regression rerun)
+857. `ZK_AUTH=user:pass cargo test -p monolith-training test_parameter_server_lifecycle_guards -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_worker_lifecycle_guards -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted ParameterServer/Worker lifecycle-guard message-contract verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

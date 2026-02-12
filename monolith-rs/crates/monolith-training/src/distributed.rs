@@ -836,16 +836,26 @@ mod tests {
     #[test]
     fn test_parameter_server_lifecycle_guards() {
         let mut ps = ParameterServer::new(1);
-        assert!(matches!(
-            ps.stop().unwrap_err(),
-            DistributedError::InvalidConfiguration(_)
-        ));
+        match ps.stop().unwrap_err() {
+            DistributedError::InvalidConfiguration(msg) => {
+                assert!(
+                    msg.contains("parameter server 1 is not running"),
+                    "stop precondition error should include server-index not-running context: {msg}"
+                );
+            }
+            other => panic!("expected InvalidConfiguration, got {other:?}"),
+        }
 
         ps.start().unwrap();
-        assert!(matches!(
-            ps.start().unwrap_err(),
-            DistributedError::InvalidConfiguration(_)
-        ));
+        match ps.start().unwrap_err() {
+            DistributedError::InvalidConfiguration(msg) => {
+                assert!(
+                    msg.contains("parameter server 1 is already running"),
+                    "start reentrancy error should include server-index running context: {msg}"
+                );
+            }
+            other => panic!("expected InvalidConfiguration, got {other:?}"),
+        }
         ps.stop().unwrap();
     }
 
@@ -919,16 +929,26 @@ mod tests {
     #[test]
     fn test_worker_lifecycle_guards() {
         let mut worker = Worker::new(1, 2);
-        assert!(matches!(
-            worker.stop().unwrap_err(),
-            DistributedError::InvalidConfiguration(_)
-        ));
+        match worker.stop().unwrap_err() {
+            DistributedError::InvalidConfiguration(msg) => {
+                assert!(
+                    msg.contains("worker 1 is not running"),
+                    "stop precondition error should include worker-index not-running context: {msg}"
+                );
+            }
+            other => panic!("expected InvalidConfiguration, got {other:?}"),
+        }
 
         worker.start().unwrap();
-        assert!(matches!(
-            worker.start().unwrap_err(),
-            DistributedError::InvalidConfiguration(_)
-        ));
+        match worker.start().unwrap_err() {
+            DistributedError::InvalidConfiguration(msg) => {
+                assert!(
+                    msg.contains("worker 1 is already running"),
+                    "start reentrancy error should include worker-index running context: {msg}"
+                );
+            }
+            other => panic!("expected InvalidConfiguration, got {other:?}"),
+        }
         worker.stop().unwrap();
     }
 
