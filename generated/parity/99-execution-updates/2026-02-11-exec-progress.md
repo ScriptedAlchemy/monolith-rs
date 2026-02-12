@@ -6798,6 +6798,17 @@
   - removed 20 additional parse-unwrap hotspots from `runner.rs`
     (from 55 -> 35) while preserving existing behavior contracts.
 
+### 500) Runner bind-address helper rollout (phase 3): eliminate remaining runner parse-unwrap hotspots
+- Completed `runner.rs` bind-address helper migration by replacing the remaining
+  `"127.0.0.1:0".parse().unwrap()` call-sites with
+  `loopback_ephemeral_bind_addr()` across:
+  - remaining `runner::tests::test_run_distributed_*` lanes,
+  - remaining ephemeral listener bootstrap helpers (`bind_ephemeral(...)`).
+- Result:
+  - removed the final 35 parse-unwrap hotspots in `runner.rs`
+    (**0 remaining**), preserving distributed timeout/cleanup failure-shape
+    behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7853,6 +7864,8 @@
 1052. `cargo test -p monolith-training runner::tests::test_run_distributed_ -- --nocapture` ✅ (validated run_distributed timeout/cleanup failure matrix after phase-1 runner bind-address helper migration)
 1053. `cargo test -p monolith-training runner::tests::test_run_distributed_ -- --nocapture` ✅ (validated run_distributed timeout/cleanup failure matrix after phase-2 runner bind-address helper migration batch)
 1054. `rg "\"127\\.0\\.0\\.1:0\"\\.parse\\(\\)\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/runner.rs` ✅ (verified remaining runner parse-unwrap hotspots reduced to 35 after phase-2 batch)
+1055. `cargo test -p monolith-training runner::tests:: -- --nocapture` ✅ (validated full runner unit-test matrix after phase-3 runner bind-address helper migration)
+1056. `rg "\"127\\.0\\.0\\.1:0\"\\.parse\\(\\)\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/runner.rs` ✅ (verified no remaining runner bind-address parse-unwrap hotspots)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

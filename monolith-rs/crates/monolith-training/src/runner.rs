@@ -3027,7 +3027,7 @@ mod tests {
         let cfg = distributed_config_from_runner(
             &rc,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            loopback_ephemeral_bind_addr(),
         );
         assert_eq!(cfg.index, 2);
         assert_eq!(cfg.num_ps, 3);
@@ -4115,7 +4115,7 @@ mod tests {
                 discovery_bg,
                 &ps_rc_bg,
                 Role::Ps,
-                "127.0.0.1:0".parse().unwrap(),
+                loopback_ephemeral_bind_addr(),
             )
             .await
         });
@@ -4125,7 +4125,7 @@ mod tests {
             Arc::clone(&discovery),
             &worker_rc,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            loopback_ephemeral_bind_addr(),
         )
         .await
         .expect("worker should succeed with active PS role in run-config smoke");
@@ -4151,7 +4151,7 @@ mod tests {
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            loopback_ephemeral_bind_addr(),
         )
         .await;
         // With no PS role started we expect timeout from worker path.
@@ -4509,7 +4509,7 @@ mod tests {
     async fn test_worker_heartbeat_task_stops_after_worker_success() {
         let discovery = Arc::new(CountingDiscovery::with_discover_delay(Duration::from_millis(30)));
         let ps = PsServer::new(0, 8);
-        let (listener, actual_addr) = bind_ephemeral("127.0.0.1:0".parse().unwrap())
+        let (listener, actual_addr) = bind_ephemeral(loopback_ephemeral_bind_addr())
             .await
             .unwrap();
         let ps_server = tokio::spawn(
@@ -6585,7 +6585,7 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
@@ -6627,7 +6627,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
@@ -6669,7 +6669,7 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_ps: "parameter_server_custom".to_string(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
@@ -7240,7 +7240,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
@@ -7272,7 +7272,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
@@ -7317,7 +7317,7 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
@@ -7362,7 +7362,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
@@ -7407,7 +7407,7 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_ps: "parameter_server_custom".to_string(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
@@ -7459,7 +7459,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_ps: "parameter_server_custom".to_string(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
@@ -7511,7 +7511,7 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_ps: "parameter_server_custom".to_string(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
@@ -7561,7 +7561,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_ps: "parameter_server_custom".to_string(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
@@ -7611,7 +7611,7 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
@@ -7656,7 +7656,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
@@ -7700,7 +7700,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_operation_timeout: Duration::from_millis(200),
             ..DistributedRunConfig::default()
         };
@@ -7735,7 +7735,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_ps: "parameter_server_custom".to_string(),
             discovery_operation_timeout: Duration::from_millis(200),
             ..DistributedRunConfig::default()
@@ -8580,7 +8580,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_ps: "parameter_server_custom".to_string(),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
@@ -8626,7 +8626,7 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_ps: "parameter_server_custom".to_string(),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
@@ -8672,7 +8672,7 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
         };
@@ -8717,7 +8717,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
         };
@@ -8948,7 +8948,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_ps: "parameter_server_custom".to_string(),
             ..DistributedRunConfig::default()
         };
@@ -8987,7 +8987,7 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_ps: "parameter_server_custom".to_string(),
             ..DistributedRunConfig::default()
         };
@@ -9026,7 +9026,7 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             ..DistributedRunConfig::default()
         };
 
@@ -9063,7 +9063,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             ..DistributedRunConfig::default()
         };
 
@@ -9094,7 +9094,7 @@ mod tests {
     #[tokio::test]
     async fn test_run_distributed_attempts_disconnect_when_deregister_fails_after_success() {
         let ps = PsServer::new(0, 8);
-        let (listener, actual_addr) = bind_ephemeral("127.0.0.1:0".parse().unwrap())
+        let (listener, actual_addr) = bind_ephemeral(loopback_ephemeral_bind_addr())
             .await
             .unwrap();
         let ps_server = tokio::spawn(
@@ -9148,7 +9148,7 @@ mod tests {
     #[tokio::test]
     async fn test_run_distributed_surfaces_deregister_timeout_after_success() {
         let ps = PsServer::new(0, 8);
-        let (listener, actual_addr) = bind_ephemeral("127.0.0.1:0".parse().unwrap())
+        let (listener, actual_addr) = bind_ephemeral(loopback_ephemeral_bind_addr())
             .await
             .unwrap();
         let ps_server = tokio::spawn(
@@ -9199,7 +9199,7 @@ mod tests {
     async fn test_run_distributed_surfaces_deregister_timeout_with_custom_service_type_after_success(
     ) {
         let ps = PsServer::new(0, 8);
-        let (listener, actual_addr) = bind_ephemeral("127.0.0.1:0".parse().unwrap())
+        let (listener, actual_addr) = bind_ephemeral(loopback_ephemeral_bind_addr())
             .await
             .unwrap();
         let ps_server = tokio::spawn(
@@ -9250,7 +9250,7 @@ mod tests {
     #[tokio::test]
     async fn test_run_distributed_surfaces_disconnect_failure_after_success() {
         let ps = PsServer::new(0, 8);
-        let (listener, actual_addr) = bind_ephemeral("127.0.0.1:0".parse().unwrap())
+        let (listener, actual_addr) = bind_ephemeral(loopback_ephemeral_bind_addr())
             .await
             .unwrap();
         let ps_server = tokio::spawn(
@@ -9304,7 +9304,7 @@ mod tests {
     #[tokio::test]
     async fn test_run_distributed_surfaces_disconnect_timeout_after_success() {
         let ps = PsServer::new(0, 8);
-        let (listener, actual_addr) = bind_ephemeral("127.0.0.1:0".parse().unwrap())
+        let (listener, actual_addr) = bind_ephemeral(loopback_ephemeral_bind_addr())
             .await
             .unwrap();
         let ps_server = tokio::spawn(
@@ -9355,7 +9355,7 @@ mod tests {
     async fn test_run_distributed_surfaces_disconnect_timeout_with_custom_service_type_after_success(
     ) {
         let ps = PsServer::new(0, 8);
-        let (listener, actual_addr) = bind_ephemeral("127.0.0.1:0".parse().unwrap())
+        let (listener, actual_addr) = bind_ephemeral(loopback_ephemeral_bind_addr())
             .await
             .unwrap();
         let ps_server = tokio::spawn(
@@ -9407,7 +9407,7 @@ mod tests {
     async fn test_run_distributed_prefers_deregister_error_when_both_post_success_cleanup_steps_fail(
     ) {
         let ps = PsServer::new(0, 8);
-        let (listener, actual_addr) = bind_ephemeral("127.0.0.1:0".parse().unwrap())
+        let (listener, actual_addr) = bind_ephemeral(loopback_ephemeral_bind_addr())
             .await
             .unwrap();
         let ps_server = tokio::spawn(
