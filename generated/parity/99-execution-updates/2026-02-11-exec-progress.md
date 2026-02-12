@@ -4504,6 +4504,16 @@
     watcher sender compaction for config-error backend paths.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 331) Missing-service async deregister watcher-preservation coverage
+- Added feature-gated regressions:
+  - `test_zk_async_deregister_missing_service_preserves_watchers`
+  - `test_consul_async_deregister_missing_service_preserves_watchers`
+- Result:
+  - Missing-service async deregister now has explicit coverage proving
+    pre-existing watcher sender entries are preserved (no unintended mutation)
+    when `NotFound` is returned.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5323,6 +5333,8 @@
 816. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture` ✅ (feature-gated Consul config-error async register/deregister watcher-consistency verification)
 817. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post Consul config-error async-deregister dead-watcher compaction coverage additions default-lane regression rerun)
 818. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister_config_error -- --nocapture` ✅ (feature-gated Consul config-error async-deregister watcher notification + dead-sender compaction verification)
+819. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post missing-service async-deregister watcher-preservation coverage additions default-lane regression rerun)
+820. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" missing_service_preserves_watchers -- --nocapture` ✅ (feature-gated ZK/Consul missing-service async-deregister watcher-preservation verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

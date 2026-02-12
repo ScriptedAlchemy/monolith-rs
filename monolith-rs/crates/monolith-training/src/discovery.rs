@@ -2327,6 +2327,27 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_missing_service_preserves_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "missing").await;
+        match result {
+            Err(DiscoveryError::NotFound(id)) => assert_eq!(id, "missing"),
+            other => panic!("expected NotFound error, got {other:?}"),
+        }
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "missing-service async deregister should not mutate existing watch sender entries"
+        );
+    }
+
     #[cfg(feature = "consul")]
     #[test]
     fn test_consul_discovery_creation() {
@@ -2653,6 +2674,28 @@ mod tests {
             Err(DiscoveryError::NotFound(id)) => assert_eq!(id, "missing"),
             other => panic!("expected NotFound error, got {other:?}"),
         }
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_missing_service_preserves_watchers() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result =
+            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "missing").await;
+        match result {
+            Err(DiscoveryError::NotFound(id)) => assert_eq!(id, "missing"),
+            other => panic!("expected NotFound error, got {other:?}"),
+        }
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "missing-service async deregister should not mutate existing watch sender entries"
+        );
     }
 
     #[cfg(feature = "consul")]
