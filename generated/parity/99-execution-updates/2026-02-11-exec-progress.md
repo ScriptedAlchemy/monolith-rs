@@ -4052,6 +4052,18 @@
     - total: `56 -> 28`
   - Full monolith-training regression remains green.
 
+### 296) Native runner-config PS-connect-timeout preserves→surfaces batch
+- Added 28 alias wrappers in `native_training_parity.rs` for runner-config
+  `ps_connect_timeout` / `default_ps_connect_timeout` directional naming:
+  `preserves_ -> surfaces_`.
+- Result:
+  - `preserves_ -> surfaces_` scoped to `connect_timeout` families is now
+    fully closed in both `runner.rs` and `native_training_parity.rs`
+    (`missing 0`).
+  - Broader generic `preserves_ -> surfaces_` still has non-connect-timeout
+    families remaining (tracked separately).
+  - Full monolith-training regression remains green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4764,6 +4776,10 @@
 709. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_default_connect_timeout_with_index_when_cleanup_blocks -- --nocapture` ✅
 710. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post native runner-config connect-timeout preserves->surfaces batch full monolith-training regression rerun)
 711. `python3` native connect-timeout directional audit by scope ✅ (run `0`, runner `56->28`, total `56->28`)
+712. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_ps_connect_timeout_with_default_service_type_cleanup_context -- --nocapture` ✅
+713. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_default_ps_connect_timeout_with_index_when_cleanup_blocks -- --nocapture` ✅
+714. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post native runner-config ps-connect-timeout preserves->surfaces batch full monolith-training regression rerun)
+715. `python3` connect-timeout directional closure audit ✅ (`preserves_ -> surfaces_` with `connect_timeout` scope `missing 0` in both `runner.rs` and `native_training_parity.rs`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
