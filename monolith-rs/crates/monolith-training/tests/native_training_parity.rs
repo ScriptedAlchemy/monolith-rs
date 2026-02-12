@@ -6006,7 +6006,7 @@ async fn distributed_runner_from_run_config_rejects_empty_parameter_sync_signatu
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -6042,7 +6042,7 @@ async fn distributed_runner_from_run_config_rejects_whitespace_padded_parameter_
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -6078,7 +6078,7 @@ async fn distributed_runner_from_run_config_rejects_internal_whitespace_paramete
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -6116,7 +6116,7 @@ async fn distributed_runner_from_run_config_propagates_custom_service_type_field
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let worker_msg = worker_res
@@ -6133,7 +6133,7 @@ async fn distributed_runner_from_run_config_propagates_custom_service_type_field
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let ps_msg = ps_res
@@ -6184,7 +6184,7 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -6237,7 +6237,7 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -6290,7 +6290,7 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -6343,7 +6343,7 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -6396,7 +6396,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_c
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -6449,7 +6449,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_c
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -6502,7 +6502,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_c
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -6555,7 +6555,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_c
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -6607,7 +6607,7 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -6657,7 +6657,7 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -6707,7 +6707,7 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -6757,7 +6757,7 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -6807,7 +6807,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_d
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -6857,7 +6857,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_d
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -6907,7 +6907,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_d
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -6957,7 +6957,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_d
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -8005,7 +8005,7 @@ async fn distributed_runner_from_run_config_surfaces_deregister_failure_after_su
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -8060,7 +8060,7 @@ async fn distributed_runner_from_run_config_surfaces_disconnect_failure_after_su
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -8116,7 +8116,7 @@ async fn distributed_runner_from_run_config_preserves_deregister_failure_with_di
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -8174,7 +8174,7 @@ async fn distributed_runner_from_run_config_surfaces_custom_worker_deregister_fa
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -8232,7 +8232,7 @@ async fn distributed_runner_from_run_config_surfaces_custom_worker_disconnect_fa
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res

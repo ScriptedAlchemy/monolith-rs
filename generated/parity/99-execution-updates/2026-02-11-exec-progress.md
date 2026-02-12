@@ -6694,6 +6694,18 @@
   - removed 30 additional parse-unwrap hotspots while preserving all existing
     timeout/cleanup/validation failure-shape assertions.
 
+### 491) Native parity bind-address helper expansion (phase 8): post-success cleanup matrix batch
+- Continued `native_training_parity` bind-address cleanup with another bounded
+  replacement batch of `"127.0.0.1:0".parse().unwrap()` call-sites migrated to
+  `test_bind_addr()`.
+- This phase covered:
+  - remaining run-config rejection matrix tail call-sites,
+  - adjacent post-success cleanup timeout/failure parity lanes in
+    `distributed_runner_from_run_config_*after_success*` tests.
+- Result:
+  - removed 26 additional parse-unwrap hotspots while preserving existing
+    cleanup-timeout/failure error-shape assertions and diagnostics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7737,6 +7749,7 @@
 1040. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after phase-6 native parity bind-address helper expansion)
 1041. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects` ✅ (validated run-config rejection guard matrix after phase-7 bind-address helper migration batch)
 1042. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_preserves_worker_ordering_and_discovery_error_timeout` ✅ (validated ordering+discovery timeout cleanup matrix after phase-7 bind-address helper migration batch)
+1043. `cargo test -p monolith-training --test native_training_parity after_success && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects` ✅ (validated post-success cleanup timeout/failure matrices plus run-config rejection guards after phase-8 bind-address helper migration batch)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
