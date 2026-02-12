@@ -3972,6 +3972,18 @@
   - All three transforms now report `missing 0` in both files.
   - Comprehensive tracked naming audit remains fully closed (`missing 0`).
 
+### 289) Worker-timeout vs ordering-issue naming parity completed
+- Added runner aliases to close
+  `worker_timeout -> worker_ordering_issue_timeout` counterparts:
+  - `test_worker_heartbeat_task_stops_after_worker_ordering_issue_timeout`
+  - helper alias `assert_worker_ordering_issue_timeout_cleanup_timeout_case`
+  - smoke use-site
+    `test_run_distributed_worker_ordering_issue_timeout_cleanup_timeout_case_alias`
+- Result:
+  - `worker_timeout -> worker_ordering_issue_timeout`: `missing 0` in both
+    `runner.rs` and `native_training_parity.rs`.
+  - Full monolith-training regression remains green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4656,6 +4668,10 @@
 681. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post surfaces/preserves alias additions full monolith-training regression rerun)
 682. `python3` surfaces/preserves timeout transform audits ✅ (all three transforms `missing 0` in `runner.rs` and `native_training_parity.rs`)
 683. `python3` comprehensive tracked naming audit (cleanup/disconnect/timeout/index/service-type/default-generic/discover/surfaces-preserves) ✅ (`missing 0` for all tracked transforms in both files)
+684. `ZK_AUTH=user:pass cargo test -p monolith-training test_worker_heartbeat_task_stops_after_worker_ordering_issue_timeout -- --nocapture` ✅
+685. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_worker_ordering_issue_timeout_cleanup_timeout_case_alias -- --nocapture` ✅
+686. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker-timeout/ordering-issue alias additions full monolith-training regression rerun)
+687. `python3` worker-timeout transform audit (`worker_timeout -> worker_ordering_issue_timeout`) ✅ (`missing 0` in `runner.rs` and `native_training_parity.rs`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

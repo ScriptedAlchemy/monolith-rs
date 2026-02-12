@@ -4481,6 +4481,11 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_worker_heartbeat_task_stops_after_worker_ordering_issue_timeout() {
+        test_worker_heartbeat_task_stops_after_worker_timeout();
+    }
+
     #[tokio::test]
     async fn test_worker_heartbeat_task_stops_after_worker_success() {
         let discovery = Arc::new(CountingDiscovery::with_discover_delay(Duration::from_millis(30)));
@@ -10902,6 +10907,37 @@ mod tests {
         assert_eq!(discovery.discover_count(), 1);
         assert_eq!(discovery.deregister_count(), 1);
         assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    async fn assert_worker_ordering_issue_timeout_cleanup_timeout_case(
+        cfg: DistributedRunConfig,
+        expected_ps_service_type: &str,
+        expected_worker_service_id: &str,
+        expected_worker_service_type: &str,
+    ) {
+        assert_worker_timeout_cleanup_timeout_case(
+            cfg,
+            expected_ps_service_type,
+            expected_worker_service_id,
+            expected_worker_service_type,
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_worker_ordering_issue_timeout_cleanup_timeout_case_alias() {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 2,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+        assert_worker_ordering_issue_timeout_cleanup_timeout_case(cfg, "ps", "worker-0", "worker")
+            .await;
     }
 
     #[tokio::test]
