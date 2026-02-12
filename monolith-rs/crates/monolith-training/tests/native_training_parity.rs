@@ -22422,10 +22422,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_register_failure
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker register fails and cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_register_failure_with_cleanup_context should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_register_failure_with_cleanup_context should return an error")
@@ -22478,10 +22474,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_register_failure
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker register fails and cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_register_failure_with_disconnect_failure_context should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_register_failure_with_disconnect_failure_context should return an error")
@@ -22534,10 +22526,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_register_failure
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed worker register fails and default-service cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_register_failure_with_default_service_type_and_index_cleanup_timeout_context should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_register_failure_with_default_service_type_and_index_cleanup_timeout_context should return an error")
@@ -22590,10 +22578,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_register_failure
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when non-index worker register fails and default-service cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_register_failure_with_default_service_type_cleanup_timeout_context should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_register_failure_with_default_service_type_cleanup_timeout_context should return an error")
@@ -22647,10 +22631,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_register_failure
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker register fails and custom-service cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_register_failure_with_custom_service_type_cleanup_timeout_context should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_register_failure_with_custom_service_type_cleanup_timeout_context should return an error")
@@ -22708,10 +22688,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_register_failure
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed worker register fails and custom-service cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_register_failure_with_custom_service_type_and_index_cleanup_timeout_context should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_register_failure_with_custom_service_type_and_index_cleanup_timeout_context should return an error")
@@ -22769,10 +22745,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_failure_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when ps register fails and cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_ps_register_failure_with_custom_service_type_cleanup_timeout_context should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_ps_register_failure_with_custom_service_type_cleanup_timeout_context should return an error")
@@ -22830,10 +22802,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_failure_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed ps register fails and cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_ps_register_failure_with_custom_service_type_and_index_cleanup_timeout_context should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_ps_register_failure_with_custom_service_type_and_index_cleanup_timeout_context should return an error")
@@ -22890,10 +22858,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_failure_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when ps register fails and cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_ps_register_failure_with_cleanup_timeout_context should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_ps_register_failure_with_cleanup_timeout_context should return an error")
@@ -22945,10 +22909,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_failure_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when ps register fails and cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_ps_register_failure_with_cleanup_context should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_ps_register_failure_with_cleanup_context should return an error")
@@ -23001,10 +22961,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_failure_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when ps register fails and cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_ps_register_failure_with_disconnect_failure_context should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_ps_register_failure_with_disconnect_failure_context should return an error")
@@ -23057,10 +23013,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_failure_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed ps register fails and default-service cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_ps_register_failure_with_default_service_type_and_index_cleanup_timeout_context should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_ps_register_failure_with_default_service_type_and_index_cleanup_timeout_context should return an error")
@@ -23113,10 +23065,6 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_failure_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when non-index ps register fails and default-service cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_ps_register_failure_with_default_service_type_cleanup_timeout_context should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_ps_register_failure_with_default_service_type_cleanup_timeout_context should return an error")
@@ -23180,10 +23128,6 @@ async fn distributed_runner_from_runner_config_surfaces_deregister_timeout_with_
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when deregister cleanup blocks after successful ps run"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_surfaces_deregister_timeout_with_custom_service_type_after_success should not hang")
         .expect_err("distributed_runner_from_runner_config_surfaces_deregister_timeout_with_custom_service_type_after_success should return an error")
@@ -23243,10 +23187,6 @@ async fn distributed_runner_from_runner_config_surfaces_disconnect_timeout_with_
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when disconnect cleanup blocks after successful ps run"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_surfaces_disconnect_timeout_with_custom_service_type_after_success should not hang")
         .expect_err("distributed_runner_from_runner_config_surfaces_disconnect_timeout_with_custom_service_type_after_success should return an error")
@@ -23303,10 +23243,6 @@ async fn distributed_runner_from_runner_config_surfaces_deregister_timeout_after
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when default-service-type deregister cleanup blocks after successful worker run"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_surfaces_deregister_timeout_after_success should not hang")
         .expect_err("distributed_runner_from_runner_config_surfaces_deregister_timeout_after_success should return an error")
@@ -23361,10 +23297,6 @@ async fn distributed_runner_from_runner_config_surfaces_disconnect_timeout_after
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when default-service-type disconnect cleanup blocks after successful worker run"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_surfaces_disconnect_timeout_after_success should not hang")
         .expect_err("distributed_runner_from_runner_config_surfaces_disconnect_timeout_after_success should return an error")
