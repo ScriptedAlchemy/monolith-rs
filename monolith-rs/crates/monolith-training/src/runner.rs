@@ -4529,8 +4529,9 @@ mod tests {
             heartbeat_interval: Some(Duration::from_millis(5)),
             ..DistributedRunConfig::default()
         };
-        let res = run_worker_role(Arc::clone(&discovery), "worker-0", cfg).await;
-        assert!(res.is_ok(), "worker should succeed with discoverable PS");
+        run_worker_role(Arc::clone(&discovery), "worker-0", cfg)
+            .await
+            .expect("worker should succeed with discoverable PS");
 
         let after_success = discovery.heartbeat_count();
         assert!(
@@ -8367,17 +8368,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(900),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when connect-failure cleanup disconnect blocks"
-        );
-        let err = res.unwrap().unwrap_err();
-        let msg = err.to_string();
+        .await
+        .expect("run_distributed should not hang when connect-failure cleanup disconnect blocks");
+        let msg = run_result
+            .expect_err("worker connect failure with disconnect cleanup timeout should surface as a role error")
+            .to_string();
         assert!(msg.contains("forced connect failure"), "unexpected error: {msg}");
         assert!(
             msg.contains("discovery cleanup encountered issues after role error"),

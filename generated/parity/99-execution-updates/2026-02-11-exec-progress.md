@@ -5057,6 +5057,18 @@
   - Targeted worker discover/connect-failure lanes and default
     monolith-training regression remain green.
 
+### 376) Runner assertion-contract cleanup for remaining `is_ok` stragglers
+- Tightened the last `assert!(res.is_ok())`/`unwrap().unwrap_err()` stragglers
+  in `runner.rs`:
+  - worker heartbeat-success test now uses direct `.expect("...")`
+  - connect-failure disconnect-blocked baseline test now uses explicit
+    timeout `.expect("must not hang")` and inner `.expect_err("must surface role error")`
+- Result:
+  - `runner.rs` no longer relies on `assert!(res.is_ok())` wrappers for these
+    lifecycle assertions; contracts remain explicit and diagnostics-forward.
+  - Targeted heartbeat/connect-failure lanes and default monolith-training
+    regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5930,6 +5942,7 @@
 870. `ZK_AUTH=user:pass cargo test -p monolith-training worker_register_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner worker register-timeout contract tightening verification plus default-lane regression rerun)
 871. `ZK_AUTH=user:pass cargo test -p monolith-training ps_register_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner PS register-timeout contract tightening verification plus default-lane regression rerun)
 872. `ZK_AUTH=user:pass cargo test -p monolith-training worker_discover_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training connect_failure_does_not_hang_when_disconnect_blocks -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner worker-discover/connect-failure timeout-wrapper contract tightening verification plus default-lane regression rerun)
+873. `ZK_AUTH=user:pass cargo test -p monolith-training test_worker_heartbeat_task_stops_after_worker_success -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_connect_failure_does_not_hang_when_disconnect_blocks -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner heartbeat/connect-failure assertion-straggler contract tightening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
