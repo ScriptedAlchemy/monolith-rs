@@ -1129,7 +1129,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.table_name = " ".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for empty table name")
+            .to_string();
         assert!(
             err.contains("--table-name must be non-empty in distributed mode"),
             "unexpected table-name validation error: {err}"
@@ -1141,7 +1144,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.table_name = " emb ".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for padded table name")
+            .to_string();
         assert!(
             err.contains("--table-name must not have leading/trailing whitespace"),
             "unexpected table-name whitespace validation error: {err}"
@@ -1153,7 +1159,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.table_name = "my table".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for table name with whitespace")
+            .to_string();
         assert!(
             err.contains("--table-name must not contain whitespace"),
             "unexpected table-name internal whitespace validation error: {err}"
@@ -1166,7 +1175,10 @@ mod tests {
         cmd.distributed = true;
         cmd.parameter_sync_targets = vec!["127.0.0.1:8500".to_string()];
         cmd.parameter_sync_interval_ms = 0;
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for zero sync interval")
+            .to_string();
         assert!(
             err.contains(
                 "--parameter-sync-interval-ms must be > 0 when --parameter-sync-target is provided"
@@ -1180,7 +1192,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.parameter_sync_targets = vec![" ".to_string()];
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for empty sync target entry")
+            .to_string();
         assert!(
             err.contains("--parameter-sync-target entries must be non-empty"),
             "unexpected parameter-sync target validation error: {err}"
@@ -1192,7 +1207,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.parameter_sync_targets = vec![" 127.0.0.1:8500 ".to_string()];
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for padded sync target entry")
+            .to_string();
         assert!(
             err.contains("--parameter-sync-target entries must not have leading/trailing whitespace"),
             "unexpected parameter-sync target whitespace validation error: {err}"
@@ -1204,7 +1222,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.parameter_sync_targets = vec!["http://".to_string()];
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for invalid sync target endpoint")
+            .to_string();
         assert!(
             err.contains("--parameter-sync-target contains invalid endpoint `http://`"),
             "unexpected parameter-sync target endpoint validation error: {err}"
@@ -1217,7 +1238,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.parameter_sync_targets = vec!["http://127.0.0.1:8500/v1?foo=bar".to_string()];
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for sync endpoint with path/query")
+            .to_string();
         assert!(
             err.contains("endpoint must not include a URL path or query"),
             "unexpected parameter-sync target path/query validation error: {err}"
@@ -1230,7 +1254,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.parameter_sync_targets = vec!["ftp://127.0.0.1:8500".to_string()];
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for unsupported sync endpoint scheme")
+            .to_string();
         assert!(
             err.contains("endpoint scheme must be http or https"),
             "unexpected parameter-sync target scheme validation error: {err}"
@@ -1242,7 +1269,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.parameter_sync_targets = vec!["http://user@127.0.0.1:8500".to_string()];
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for sync endpoint with userinfo")
+            .to_string();
         assert!(
             err.contains("endpoint must not include userinfo"),
             "unexpected parameter-sync target userinfo validation error: {err}"
@@ -1270,7 +1300,10 @@ mod tests {
             "127.0.0.1:8500".to_string(),
             "127.0.0.1:8500".to_string(),
         ];
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for duplicate sync targets")
+            .to_string();
         assert!(
             err.contains("--parameter-sync-target entries must be unique"),
             "unexpected parameter-sync target uniqueness validation error: {err}"
@@ -1286,7 +1319,10 @@ mod tests {
             "127.0.0.1:8500".to_string(),
             "http://127.0.0.1:8500".to_string(),
         ];
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for normalized duplicate sync targets")
+            .to_string();
         assert!(
             err.contains("--parameter-sync-target entries must be unique"),
             "unexpected parameter-sync target normalization uniqueness validation error: {err}"
@@ -1302,7 +1338,12 @@ mod tests {
             "127.0.0.1:8500".to_string(),
             "http://127.0.0.1:8500/".to_string(),
         ];
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err(
+                "building distributed config should fail for trailing-slash normalized duplicate sync targets",
+            )
+            .to_string();
         assert!(
             err.contains("--parameter-sync-target entries must be unique"),
             "unexpected parameter-sync target trailing-slash normalization uniqueness validation error: {err}"
@@ -1318,7 +1359,12 @@ mod tests {
             "127.0.0.1".to_string(),
             "http://127.0.0.1:80".to_string(),
         ];
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err(
+                "building distributed config should fail for default-port normalized duplicate sync targets",
+            )
+            .to_string();
         assert!(
             err.contains("--parameter-sync-target entries must be unique"),
             "unexpected parameter-sync target http default-port normalization uniqueness validation error: {err}"
@@ -1334,7 +1380,12 @@ mod tests {
             "https://127.0.0.1".to_string(),
             "https://127.0.0.1:443".to_string(),
         ];
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err(
+                "building distributed config should fail for https default-port normalized duplicates",
+            )
+            .to_string();
         assert!(
             err.contains("--parameter-sync-target entries must be unique"),
             "unexpected parameter-sync target https default-port normalization uniqueness validation error: {err}"
@@ -1350,7 +1401,12 @@ mod tests {
             "EXAMPLE.com:8500".to_string(),
             "HtTp://example.COM:8500".to_string(),
         ];
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err(
+                "building distributed config should fail for case-normalized duplicate sync targets",
+            )
+            .to_string();
         assert!(
             err.contains("--parameter-sync-target entries must be unique"),
             "unexpected parameter-sync target case-insensitive normalization uniqueness validation error: {err}"
@@ -1363,7 +1419,10 @@ mod tests {
         cmd.distributed = true;
         cmd.parameter_sync_targets = vec!["127.0.0.1:8500".to_string()];
         cmd.parameter_sync_model_name = " ".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for empty sync model name")
+            .to_string();
         assert!(
             err.contains(
                 "--parameter-sync-model-name must be non-empty when --parameter-sync-target is provided"
@@ -1379,7 +1438,10 @@ mod tests {
         cmd.distributed = true;
         cmd.parameter_sync_targets = vec!["127.0.0.1:8500".to_string()];
         cmd.parameter_sync_model_name = " model ".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for padded sync model name")
+            .to_string();
         assert!(
             err.contains(
                 "--parameter-sync-model-name must not have leading/trailing whitespace when --parameter-sync-target is provided"
@@ -1395,7 +1457,10 @@ mod tests {
         cmd.distributed = true;
         cmd.parameter_sync_targets = vec!["127.0.0.1:8500".to_string()];
         cmd.parameter_sync_model_name = "my model".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for sync model name with whitespace")
+            .to_string();
         assert!(
             err.contains(
                 "--parameter-sync-model-name must not contain whitespace when --parameter-sync-target is provided"
@@ -1410,7 +1475,10 @@ mod tests {
         cmd.distributed = true;
         cmd.parameter_sync_targets = vec!["127.0.0.1:8500".to_string()];
         cmd.parameter_sync_signature_name = "".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for empty sync signature name")
+            .to_string();
         assert!(
             err.contains(
                 "--parameter-sync-signature-name must be non-empty when --parameter-sync-target is provided"
@@ -1426,7 +1494,10 @@ mod tests {
         cmd.distributed = true;
         cmd.parameter_sync_targets = vec!["127.0.0.1:8500".to_string()];
         cmd.parameter_sync_signature_name = " signature ".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for padded sync signature name")
+            .to_string();
         assert!(
             err.contains(
                 "--parameter-sync-signature-name must not have leading/trailing whitespace when --parameter-sync-target is provided"
@@ -1442,7 +1513,12 @@ mod tests {
         cmd.distributed = true;
         cmd.parameter_sync_targets = vec!["127.0.0.1:8500".to_string()];
         cmd.parameter_sync_signature_name = "serving default".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err(
+                "building distributed config should fail for sync signature name with whitespace",
+            )
+            .to_string();
         assert!(
             err.contains(
                 "--parameter-sync-signature-name must not contain whitespace when --parameter-sync-target is provided"

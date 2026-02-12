@@ -6202,6 +6202,19 @@
     extraction diagnostics while preserving existing error-message checks.
   - Focused rejection tests and full `monolith-cli` regression remain green.
 
+### 457) CLI train parity: tighten distributed-config validation failure extraction (batch 2)
+- Refactored the remaining `build_distributed_run_config().unwrap_err().to_string()`
+  assertions in `monolith-cli/src/commands/train.rs` into explicit
+  `expect_err("...").to_string()` extraction for:
+  - table-name validation lanes,
+  - parameter-sync target endpoint/uniqueness normalization lanes,
+  - parameter-sync model/signature name validation lanes.
+- Result:
+  - All CLI train distributed-config rejection assertions now use explicit
+    failure extraction diagnostics while preserving existing error-message
+    contract checks.
+  - Targeted rejection tests and full `monolith-cli` regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7175,6 +7188,9 @@
 970. `rg "unwrap_err\\(" /workspace/monolith-rs/crates/monolith-cli/src/commands/export.rs` ✅ (verified no remaining `unwrap_err(...)` patterns in export command tests)
 971. `cargo test -p monolith-cli test_build_distributed_run_config_rejects_ -- --nocapture && cargo test -p monolith-cli test_build_distributed_run_config_disables_heartbeat_when_requested -- --nocapture && cargo test -p monolith-cli -q` ✅ (CLI train distributed-config rejection assertion-tightening batch-1 targeted verification plus full monolith-cli regression rerun)
 972. `rg "unwrap_err\\(" /workspace/monolith-rs/crates/monolith-cli/src/commands/train.rs` ✅ (verified remaining `unwrap_err(...)` occurrences are narrowed to later train validation lanes after batch-1 refactor)
+973. `cargo test -p monolith-cli test_build_distributed_run_config_rejects_ -- --nocapture && cargo test -p monolith-cli test_build_distributed_run_config_accepts_case_insensitive_http_scheme_parameter_sync_target -- --nocapture && cargo test -p monolith-cli -q` ✅ (CLI train distributed-config rejection assertion-tightening batch-2 targeted verification plus full monolith-cli regression rerun)
+974. `rg "unwrap_err\\(" /workspace/monolith-rs/crates/monolith-cli/src/commands/train.rs` ✅ (verified no remaining `unwrap_err(...)` patterns in train command tests)
+975. `rg "unwrap_err\\(" /workspace/monolith-rs` ✅ (verified no remaining `unwrap_err(...)` patterns workspace-wide)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
