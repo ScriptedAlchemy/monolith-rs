@@ -3690,6 +3690,21 @@
   `_cleanup_timeout_context -> _cleanup_context` improved from 22 missing to 18
   missing aliases.
 
+### 265) Default connect-failure cleanup-context alias parity expanded
+- Added RunConfig default connect-failure cleanup-context aliases:
+  - `distributed_runner_from_run_config_preserves_default_worker_connect_failure_with_cleanup_context`
+  - `distributed_runner_from_run_config_preserves_default_worker_connect_failure_with_index_cleanup_context`
+  - `distributed_runner_from_run_config_preserves_default_ps_connect_failure_with_cleanup_context`
+  - `distributed_runner_from_run_config_preserves_default_ps_connect_failure_with_index_cleanup_context`
+- Added RunnerConfig default connect-failure cleanup-context aliases:
+  - `distributed_runner_from_runner_config_preserves_default_worker_connect_failure_with_cleanup_context`
+  - `distributed_runner_from_runner_config_preserves_default_worker_connect_failure_with_index_cleanup_context`
+  - `distributed_runner_from_runner_config_preserves_default_ps_connect_failure_with_cleanup_context`
+  - `distributed_runner_from_runner_config_preserves_default_ps_connect_failure_with_index_cleanup_context`
+- Result: integration counterpart audit for
+  `_cleanup_timeout_context -> _cleanup_context` improved from 18 missing to 10
+  missing aliases.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4258,6 +4273,12 @@
 565. `ZK_AUTH=user:pass cargo test -p monolith-training "connect_failure_with_custom_service_type" -- --nocapture` ✅ (post run/runner custom connect-failure cleanup-context alias additions)
 566. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post custom connect-failure cleanup-context alias expansion full monolith-training regression rerun)
 567. `python3` cleanup-timeout-context alias audit (`native_training_parity.rs`) ✅ (remaining `_cleanup_timeout_context -> _cleanup_context` gaps reduced from 22 to 18 after custom connect-failure alias additions)
+568. `ZK_AUTH=user:pass cargo test -p monolith-training default_worker_connect_failure_with_cleanup_context -- --nocapture` ✅
+569. `ZK_AUTH=user:pass cargo test -p monolith-training default_ps_connect_failure_with_cleanup_context -- --nocapture` ✅
+570. `ZK_AUTH=user:pass cargo test -p monolith-training default_worker_connect_failure_with_index_cleanup_context -- --nocapture` ✅
+571. `ZK_AUTH=user:pass cargo test -p monolith-training default_ps_connect_failure_with_index_cleanup_context -- --nocapture` ✅
+572. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post default connect-failure cleanup-context alias expansion full monolith-training regression rerun)
+573. `python3` cleanup-timeout-context alias audit (`native_training_parity.rs`) ✅ (remaining `_cleanup_timeout_context -> _cleanup_context` gaps reduced from 18 to 10 after default connect-failure alias additions)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
