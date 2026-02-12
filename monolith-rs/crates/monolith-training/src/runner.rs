@@ -5751,12 +5751,10 @@ mod tests {
         expected_service_type: &str,
     ) {
         let discovery = Arc::new(FailingRegisterDiscovery::new());
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(
-            res.is_err(),
-            "register failure with failing cleanup should surface as a role error"
-        );
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("register failure with failing cleanup should surface as a role error");
+        let msg = err.to_string();
         assert!(
             msg.contains("forced register failure"),
             "register failure should remain primary over cleanup failures: {msg}"
@@ -5789,12 +5787,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(
-            res.is_err(),
-            "expected worker role timeout with no discovered ps services"
-        );
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected worker role timeout with no discovered ps services");
+        let msg = err.to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "unexpected worker timeout error: {msg}"
@@ -5829,8 +5825,14 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected connect failure");
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected connect failure");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("forced connect failure"),
+            "connect failure should surface backend connect diagnostics: {msg}"
+        );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(
             discovery.disconnect_count(),

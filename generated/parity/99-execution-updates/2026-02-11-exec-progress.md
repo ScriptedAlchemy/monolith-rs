@@ -4724,6 +4724,19 @@
   - Registration-failure targeted lane and default monolith-training regression
     remain green.
 
+### 350) Runner cleanup/connect failure assertion tightening (additional paths)
+- Tightened additional runner failure assertions to explicit contracts:
+  - helper `assert_register_failure_cleanup_fail_case` now uses `expect_err`
+  - `test_run_distributed_disconnects_when_worker_role_fails_after_registration`
+    now uses explicit timeout-failure expectation
+  - `test_run_distributed_attempts_disconnect_when_connect_fails` now asserts
+    connect-failure diagnostic payload (`forced connect failure`)
+- Result:
+  - Cleanup/connect-failure tests now enforce clearer failure-shape and message
+    expectations while retaining cleanup-call count invariants.
+  - Targeted runner-failure lanes and default monolith-training regression
+    remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5571,6 +5584,7 @@
 844. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_from_run_config_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_worker_heartbeat_task_stops_after_worker_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner timeout-smoke diagnostic assertion hardening verification plus default-lane regression rerun)
 845. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" disconnect_clears_watch_poll_generation_entries -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated ZK/Consul disconnect watch-poll-generation map cleanup verification plus default-lane regression rerun)
 846. `ZK_AUTH=user:pass cargo test -p monolith-training registration_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (runner registration-failure assertion-contract tightening verification plus default-lane regression rerun)
+847. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_preserves_ps_register_failure_with_default_service_type_when_cleanup_steps_fail -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_disconnects_when_worker_role_fails_after_registration -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_attempts_disconnect_when_connect_fails -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner cleanup/connect failure assertion tightening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
