@@ -4702,6 +4702,16 @@
     error-message contracts.
   - monolith-training default lane remains green.
 
+### 348) Disconnect lifecycle watch-poll generation map cleanup hardening
+- Added explicit disconnect cleanup regressions:
+  - `test_zk_disconnect_clears_watch_poll_generation_entries`
+  - `test_consul_disconnect_clears_watch_poll_generation_entries`
+- Result:
+  - Disconnect semantics now explicitly enforce clearing non-empty
+    watch-poll-generation tracking maps (not only preserving already-cleared
+    states), tightening lifecycle cleanup guarantees.
+  - Feature-gated and default monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5547,6 +5557,7 @@
 842. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_zk_disconnect_clears_registered_paths -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated ZK disconnect registered-path bookkeeping cleanup verification plus default-lane regression rerun)
 843. `ZK_AUTH=user:pass cargo test -p monolith-training test_cluster_config_validation -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_parameter_server_apply_gradients -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_worker -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted distributed-runtime error-shape assertion hardening verification plus default-lane regression rerun)
 844. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_from_run_config_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_worker_heartbeat_task_stops_after_worker_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner timeout-smoke diagnostic assertion hardening verification plus default-lane regression rerun)
+845. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" disconnect_clears_watch_poll_generation_entries -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated ZK/Consul disconnect watch-poll-generation map cleanup verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

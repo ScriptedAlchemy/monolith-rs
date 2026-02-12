@@ -2045,6 +2045,26 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_disconnect_clears_watch_poll_generation_entries() {
+        let zk = ZkDiscovery::new("localhost:2181", "/services");
+        assert!(zk.should_spawn_watch_poll("ps"));
+        assert!(zk.should_spawn_watch_poll("worker"));
+        assert_eq!(
+            zk.watch_poll_generations.lock().unwrap().len(),
+            2,
+            "test setup should seed watch-poll generation entries"
+        );
+
+        zk.disconnect().await.expect("disconnect should succeed");
+
+        assert!(
+            zk.watch_poll_generations.lock().unwrap().is_empty(),
+            "disconnect should clear active watch-poll generation entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_disconnect_clears_registered_paths() {
         let zk = ZkDiscovery::new("localhost:2181", "/services");
         zk.registered_paths
@@ -2623,6 +2643,28 @@ mod tests {
             .watch_generation
             .load(std::sync::atomic::Ordering::SeqCst);
         assert_eq!(after, before + 1);
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_disconnect_clears_watch_poll_generation_entries() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        assert!(consul.should_spawn_watch_poll("worker"));
+        assert!(consul.should_spawn_watch_poll("ps"));
+        assert_eq!(
+            consul.watch_poll_generations.lock().unwrap().len(),
+            2,
+            "test setup should seed watch-poll generation entries"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+
+        assert!(
+            consul.watch_poll_generations.lock().unwrap().is_empty(),
+            "disconnect should clear active watch-poll generation entries"
+        );
     }
 
     #[cfg(feature = "consul")]
