@@ -26094,6 +26094,225 @@ fn distributed_runner_from_runner_config_preserves_ps_connect_timeout_with_index
 }
 
 #[test]
+fn distributed_runner_from_run_config_preserves_ps_connect_failure_cleanup_context() {
+    distributed_runner_from_run_config_preserves_default_ps_connect_failure_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_ps_connect_failure_cleanup_timeout_context() {
+    distributed_runner_from_run_config_preserves_default_ps_connect_failure_cleanup_timeout_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_ps_connect_failure_disconnect_failure_context() {
+    distributed_runner_from_run_config_preserves_default_ps_connect_failure_disconnect_failure_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_ps_connect_failure_when_cleanup_blocks() {
+    distributed_runner_from_run_config_preserves_default_ps_connect_failure_when_cleanup_blocks();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_ps_connect_failure_with_index_cleanup_context() {
+    distributed_runner_from_run_config_preserves_default_ps_connect_failure_with_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_ps_connect_failure_with_index_cleanup_timeout_context(
+) {
+    distributed_runner_from_run_config_preserves_default_ps_connect_failure_with_index_cleanup_timeout_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_ps_connect_failure_with_index_disconnect_failure_context(
+) {
+    distributed_runner_from_run_config_preserves_default_ps_connect_failure_with_index_disconnect_failure_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_ps_connect_failure_with_index_when_cleanup_blocks()
+{
+    distributed_runner_from_run_config_preserves_default_ps_connect_failure_with_index_when_cleanup_blocks();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_ps_connect_failure_cleanup_context() {
+    distributed_runner_from_runner_config_preserves_default_ps_connect_failure_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_ps_connect_failure_cleanup_timeout_context() {
+    distributed_runner_from_runner_config_preserves_default_ps_connect_failure_cleanup_timeout_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_ps_connect_failure_disconnect_failure_context() {
+    distributed_runner_from_runner_config_preserves_default_ps_connect_failure_disconnect_failure_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_ps_connect_failure_when_cleanup_blocks() {
+    distributed_runner_from_runner_config_preserves_default_ps_connect_failure_when_cleanup_blocks();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with_index_cleanup_context() {
+    distributed_runner_from_runner_config_preserves_default_ps_connect_failure_with_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with_index_cleanup_timeout_context(
+) {
+    distributed_runner_from_runner_config_preserves_default_ps_connect_failure_with_index_cleanup_timeout_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with_index_disconnect_failure_context(
+) {
+    distributed_runner_from_runner_config_preserves_default_ps_connect_failure_with_index_disconnect_failure_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_ps_connect_failure_with_index_when_cleanup_blocks(
+) {
+    distributed_runner_from_runner_config_preserves_default_ps_connect_failure_with_index_when_cleanup_blocks();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_worker_connect_failure_cleanup_context() {
+    distributed_runner_from_run_config_preserves_default_worker_connect_failure_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_worker_connect_failure_cleanup_timeout_context() {
+    distributed_runner_from_run_config_preserves_default_worker_connect_failure_cleanup_timeout_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_worker_connect_failure_disconnect_failure_context() {
+    distributed_runner_from_run_config_preserves_default_worker_connect_failure_disconnect_failure_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_worker_connect_failure_when_cleanup_blocks() {
+    distributed_runner_from_run_config_preserves_default_worker_connect_failure_when_cleanup_blocks();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_worker_connect_failure_with_cleanup_context() {
+    distributed_runner_from_run_config_preserves_default_worker_connect_failure_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_worker_connect_failure_with_cleanup_timeout_context() {
+    distributed_runner_from_run_config_preserves_default_worker_connect_failure_with_cleanup_timeout_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_worker_connect_failure_with_disconnect_failure_context(
+) {
+    distributed_runner_from_run_config_preserves_default_worker_connect_failure_with_disconnect_failure_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_worker_connect_failure_with_index_cleanup_context() {
+    distributed_runner_from_run_config_preserves_default_worker_connect_failure_with_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_worker_connect_failure_with_index_cleanup_timeout_context(
+) {
+    distributed_runner_from_run_config_preserves_default_worker_connect_failure_with_index_cleanup_timeout_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_worker_connect_failure_with_index_disconnect_failure_context(
+) {
+    distributed_runner_from_run_config_preserves_default_worker_connect_failure_with_index_disconnect_failure_context();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_worker_connect_failure_with_index_when_cleanup_blocks(
+) {
+    distributed_runner_from_run_config_preserves_default_worker_connect_failure_with_index_when_cleanup_blocks();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_worker_connect_failure_with_when_cleanup_blocks() {
+    distributed_runner_from_run_config_preserves_default_worker_connect_failure_with_when_cleanup_blocks();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_worker_connect_failure_cleanup_context() {
+    distributed_runner_from_runner_config_preserves_default_worker_connect_failure_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_worker_connect_failure_cleanup_timeout_context()
+{
+    distributed_runner_from_runner_config_preserves_default_worker_connect_failure_cleanup_timeout_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_worker_connect_failure_disconnect_failure_context(
+) {
+    distributed_runner_from_runner_config_preserves_default_worker_connect_failure_disconnect_failure_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_worker_connect_failure_when_cleanup_blocks() {
+    distributed_runner_from_runner_config_preserves_default_worker_connect_failure_when_cleanup_blocks();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_worker_connect_failure_with_cleanup_context() {
+    distributed_runner_from_runner_config_preserves_default_worker_connect_failure_with_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_worker_connect_failure_with_cleanup_timeout_context(
+) {
+    distributed_runner_from_runner_config_preserves_default_worker_connect_failure_with_cleanup_timeout_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_worker_connect_failure_with_disconnect_failure_context(
+) {
+    distributed_runner_from_runner_config_preserves_default_worker_connect_failure_with_disconnect_failure_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_worker_connect_failure_with_index_cleanup_context(
+) {
+    distributed_runner_from_runner_config_preserves_default_worker_connect_failure_with_index_cleanup_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_worker_connect_failure_with_index_cleanup_timeout_context(
+) {
+    distributed_runner_from_runner_config_preserves_default_worker_connect_failure_with_index_cleanup_timeout_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_worker_connect_failure_with_index_disconnect_failure_context(
+) {
+    distributed_runner_from_runner_config_preserves_default_worker_connect_failure_with_index_disconnect_failure_context();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_worker_connect_failure_with_index_when_cleanup_blocks(
+) {
+    distributed_runner_from_runner_config_preserves_default_worker_connect_failure_with_index_when_cleanup_blocks();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_worker_connect_failure_with_when_cleanup_blocks()
+{
+    distributed_runner_from_runner_config_preserves_default_worker_connect_failure_with_when_cleanup_blocks();
+}
+
+#[test]
 fn estimator_from_run_config_roundtrip() {
     let run = RunConfig {
         model_dir: std::path::PathBuf::from("/tmp/parity_estimator"),

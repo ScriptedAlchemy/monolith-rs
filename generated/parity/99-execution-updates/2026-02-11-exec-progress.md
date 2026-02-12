@@ -3873,6 +3873,17 @@
   - `default_connect_timeout -> connect_timeout`: `missing 0`
   - `default_ps_connect_timeout -> ps_connect_timeout`: `missing 0`
 
+### 280) Native default connect-failure generic alias parity completed
+- Added 40 `#[test]` alias wrappers in `native_training_parity.rs` to close:
+  - `default_ps_connect_failure -> ps_connect_failure` (16 wrappers)
+  - `default_worker_connect_failure -> worker_connect_failure` (24 wrappers)
+- Coverage spans run-config + runner-config, index/no-index variants, and
+  cleanup context suffixes (`cleanup_context`, `cleanup_timeout_context`,
+  `disconnect_failure_context`, `when_cleanup_blocks`).
+- Result:
+  - `default_ps_connect_failure -> ps_connect_failure`: `missing 0`
+  - `default_worker_connect_failure -> worker_connect_failure`: `missing 0`
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4515,6 +4526,10 @@
 639. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_ps_connect_timeout_with_index_cleanup_context -- --nocapture` ✅
 640. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post default timeout alias additions full monolith-training regression rerun)
 641. `python3` default-to-generic timeout alias audit (`native_training_parity.rs`) ✅ (`default_connect_timeout->connect_timeout` and `default_ps_connect_timeout->ps_connect_timeout` both `missing 0`)
+642. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_preserves_ps_connect_failure_with_index_when_cleanup_blocks -- --nocapture` ✅
+643. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_worker_connect_failure_with_cleanup_context -- --nocapture` ✅
+644. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post default connect-failure alias additions full monolith-training regression rerun)
+645. `python3` default-to-generic connect-failure alias audit (`native_training_parity.rs`) ✅ (`default_ps_connect_failure->ps_connect_failure` and `default_worker_connect_failure->worker_connect_failure` both `missing 0`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
