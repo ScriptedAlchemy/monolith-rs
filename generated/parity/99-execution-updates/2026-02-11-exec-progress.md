@@ -7020,6 +7020,16 @@
   - removed all `.unwrap()` call-sites from native-training service-discovery
     module (**0 remaining**) while preserving lifecycle/query/close semantics.
 
+### 521) Python-style MLP discovery unwrap diagnostics completion
+- Tightened `crates/monolith-training/src/py_discovery.rs` unwrap usage by:
+  - replacing filter-mutex lock unwraps in `MlpServiceDiscovery` operations with
+    explicit `expect(...)` diagnostics,
+  - replacing all remaining unwrap assertions in MLP env/query/filter tests with
+    explicit `expect(...)` diagnostics.
+- Result:
+  - removed all `.unwrap()` call-sites from py-discovery module (**0 remaining**),
+    preserving MLP close/filter/query parity behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8117,6 +8127,8 @@
 1094. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/consul.rs` ✅ (verified no remaining unwrap call-sites in native-training consul module)
 1095. `cargo test -p monolith-training native_training::service_discovery::tests:: -- --nocapture` ✅ (validated native-training service-discovery unit-test suite after lock/assert unwrap-diagnostics tightening)
 1096. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/service_discovery.rs` ✅ (verified no remaining unwrap call-sites in native-training service-discovery module)
+1097. `cargo test -p monolith-training py_discovery::tests:: -- --nocapture` ✅ (validated py-discovery unit-test suite after MLP lock/assert unwrap-diagnostics tightening)
+1098. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/py_discovery.rs` ✅ (verified no remaining unwrap call-sites in py-discovery module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

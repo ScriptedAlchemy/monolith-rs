@@ -532,7 +532,10 @@ impl MlpServiceDiscovery {
         if self.closed.load(Ordering::SeqCst) {
             return;
         }
-        let mut filters = self.filters.lock().unwrap();
+        let mut filters = self
+            .filters
+            .lock()
+            .expect("mlp discovery filters mutex should not be poisoned");
         for (name, num) in &self.env.all_roles {
             for idx in 0..*num {
                 filters.insert(Self::key(&name.to_lowercase(), idx as i32));
@@ -634,7 +637,10 @@ impl PyServiceDiscovery for MlpServiceDiscovery {
             return Ok(());
         }
         self.validate(name, index, addr)?;
-        let mut filters = self.filters.lock().unwrap();
+        let mut filters = self
+            .filters
+            .lock()
+            .expect("mlp discovery filters mutex should not be poisoned");
         filters.remove(&Self::key(name, index));
         Ok(())
     }
@@ -644,7 +650,10 @@ impl PyServiceDiscovery for MlpServiceDiscovery {
             return Ok(());
         }
         self.validate(name, index, addr)?;
-        let mut filters = self.filters.lock().unwrap();
+        let mut filters = self
+            .filters
+            .lock()
+            .expect("mlp discovery filters mutex should not be poisoned");
         filters.insert(Self::key(name, index));
         Ok(())
     }
@@ -664,7 +673,10 @@ impl PyServiceDiscovery for MlpServiceDiscovery {
             return Ok(HashMap::new());
         }
 
-        let filters = self.filters.lock().unwrap();
+        let filters = self
+            .filters
+            .lock()
+            .expect("mlp discovery filters mutex should not be poisoned");
         let mut out = HashMap::new();
 
         for idx in 0..num {
@@ -682,7 +694,10 @@ impl PyServiceDiscovery for MlpServiceDiscovery {
 
     fn close(&self) -> Result<()> {
         self.closed.store(true, Ordering::SeqCst);
-        self.filters.lock().unwrap().clear();
+        self.filters
+            .lock()
+            .expect("mlp discovery filters mutex should not be poisoned")
+            .clear();
         Ok(())
     }
 }
@@ -889,7 +904,9 @@ mod tests {
 
     #[test]
     fn test_mlp_service_discovery_query_all_and_filters() {
-        let _guard = MLP_ENV_TEST_MUTEX.lock().unwrap();
+        let _guard = MLP_ENV_TEST_MUTEX
+            .lock()
+            .expect("mlp env test mutex should not be poisoned");
         let _env = install_default_mlp_env();
 
         let d = MlpServiceDiscovery::new();
@@ -897,35 +914,72 @@ mod tests {
         assert_eq!(d.index(), 0);
         assert_eq!(d.addr().as_deref(), Some("worker0:2222"));
 
-        let ps = d.query("ps").unwrap();
-        assert_eq!(ps.get(&0).unwrap(), "ps0:3333");
+        let ps = d.query("ps").expect("mlp query(ps) should succeed");
+        assert_eq!(ps.get(&0).expect("ps[0] should be present"), "ps0:3333");
 
-        let workers = d.query("worker").unwrap();
-        assert_eq!(workers.get(&0).unwrap(), "worker0:2222");
-        assert_eq!(workers.get(&1).unwrap(), "worker1:2223");
-
-        PyServiceDiscovery::deregister(&d, "worker", 1, "worker1:2223").unwrap();
-        let workers = d.query("worker").unwrap();
-        assert_eq!(workers.len(), 1);
-        assert_eq!(workers.get(&0).unwrap(), "worker0:2222");
-
-        let all = d.query_all().unwrap();
-        assert_eq!(all.get("ps").unwrap().get(&0).unwrap(), "ps0:3333");
+        let workers = d.query("worker").expect("mlp query(worker) should succeed");
         assert_eq!(
-            all.get("chief").unwrap().get(&0).unwrap(),
+            workers.get(&0).expect("worker[0] should be present"),
+            "worker0:2222"
+        );
+        assert_eq!(
+            workers.get(&1).expect("worker[1] should be present"),
+            "worker1:2223"
+        );
+
+        PyServiceDiscovery::deregister(&d, "worker", 1, "worker1:2223")
+            .expect("mlp deregister(worker,1) should succeed");
+        let workers = d
+            .query("worker")
+            .expect("mlp query(worker) should succeed after deregister");
+        assert_eq!(workers.len(), 1);
+        assert_eq!(
+            workers.get(&0).expect("worker[0] should remain after deregister"),
+            "worker0:2222"
+        );
+
+        let all = d.query_all().expect("mlp query_all should succeed");
+        assert_eq!(
+            all.get("ps")
+                .expect("query_all should include ps role")
+                .get(&0)
+                .expect("ps[0] should be present in query_all"),
+            "ps0:3333"
+        );
+        assert_eq!(
+            all.get("chief")
+                .expect("query_all should include chief role")
+                .get(&0)
+                .expect("chief[0] should be present in query_all"),
             "chief0:4444"
         );
 
         d.deregister_all();
-        let all = d.query_all().unwrap();
-        assert!(all.get("ps").unwrap().is_empty());
-        assert!(all.get("worker").unwrap().is_empty());
-        assert!(all.get("chief").unwrap().is_empty());
+        let all = d
+            .query_all()
+            .expect("mlp query_all should succeed after deregister_all");
+        assert!(
+            all.get("ps")
+                .expect("query_all should include ps role")
+                .is_empty()
+        );
+        assert!(
+            all.get("worker")
+                .expect("query_all should include worker role")
+                .is_empty()
+        );
+        assert!(
+            all.get("chief")
+                .expect("query_all should include chief role")
+                .is_empty()
+        );
     }
 
     #[test]
     fn test_mlp_register_rejects_unexpected_host() {
-        let _guard = MLP_ENV_TEST_MUTEX.lock().unwrap();
+        let _guard = MLP_ENV_TEST_MUTEX
+            .lock()
+            .expect("mlp env test mutex should not be poisoned");
         let _env = install_default_mlp_env();
 
         let d = MlpServiceDiscovery::new();
@@ -939,7 +993,9 @@ mod tests {
 
     #[test]
     fn test_mlp_query_requires_non_empty_name() {
-        let _guard = MLP_ENV_TEST_MUTEX.lock().unwrap();
+        let _guard = MLP_ENV_TEST_MUTEX
+            .lock()
+            .expect("mlp env test mutex should not be poisoned");
         let _env = install_default_mlp_env();
 
         let d = MlpServiceDiscovery::new();
@@ -951,33 +1007,63 @@ mod tests {
 
     #[test]
     fn test_mlp_close_disables_discovery_and_clears_filters() {
-        let _guard = MLP_ENV_TEST_MUTEX.lock().unwrap();
+        let _guard = MLP_ENV_TEST_MUTEX
+            .lock()
+            .expect("mlp env test mutex should not be poisoned");
         let _env = install_default_mlp_env();
 
         let d = MlpServiceDiscovery::new();
-        assert!(!d.query("worker").unwrap().is_empty());
-        PyServiceDiscovery::deregister(&d, "worker", 1, "worker1:2223").unwrap();
-        assert_eq!(d.query("worker").unwrap().len(), 1);
+        assert!(
+            !d.query("worker")
+                .expect("mlp query(worker) should succeed before close")
+                .is_empty()
+        );
+        PyServiceDiscovery::deregister(&d, "worker", 1, "worker1:2223")
+            .expect("mlp deregister(worker,1) should succeed before close");
+        assert_eq!(
+            d.query("worker")
+                .expect("mlp query(worker) should succeed before close")
+                .len(),
+            1
+        );
 
-        PyServiceDiscovery::close(&d).unwrap();
+        PyServiceDiscovery::close(&d).expect("mlp close should succeed");
         assert!(d.server_type().is_none());
         assert!(d.addr().is_none());
-        assert!(d.query("worker").unwrap().is_empty());
-        assert!(d.query_all().unwrap().is_empty());
+        assert!(
+            d.query("worker")
+                .expect("mlp query(worker) should succeed after close")
+                .is_empty()
+        );
+        assert!(
+            d.query_all()
+                .expect("mlp query_all should succeed after close")
+                .is_empty()
+        );
 
         // Post-close operations are no-op and should stay non-failing.
-        PyServiceDiscovery::register(&d, "worker", 1, "worker1:2223").unwrap();
-        PyServiceDiscovery::deregister(&d, "worker", 1, "worker1:2223").unwrap();
-        assert!(d.query("worker").unwrap().is_empty());
+        PyServiceDiscovery::register(&d, "worker", 1, "worker1:2223")
+            .expect("mlp register should no-op successfully after close");
+        PyServiceDiscovery::deregister(&d, "worker", 1, "worker1:2223")
+            .expect("mlp deregister should no-op successfully after close");
+        assert!(
+            d.query("worker")
+                .expect("mlp query(worker) should succeed after post-close ops")
+                .is_empty()
+        );
     }
 
     #[test]
     fn test_mlp_query_all_only_includes_supported_configured_roles() {
-        let _guard = MLP_ENV_TEST_MUTEX.lock().unwrap();
+        let _guard = MLP_ENV_TEST_MUTEX
+            .lock()
+            .expect("mlp env test mutex should not be poisoned");
         let _env = install_mlp_env_without_chief();
 
         let d = MlpServiceDiscovery::new();
-        let all = d.query_all().unwrap();
+        let all = d
+            .query_all()
+            .expect("mlp query_all should succeed for configured-role filter test");
         assert!(all.contains_key("worker"));
         assert!(all.contains_key("ps"));
         assert!(
