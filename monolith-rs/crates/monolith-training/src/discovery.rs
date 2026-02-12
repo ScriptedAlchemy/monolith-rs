@@ -719,9 +719,21 @@ impl ServiceDiscovery for ZkDiscovery {
 
         // Cache-only removal for sync API.
         let mut services = self.services.write().unwrap();
-        services
+        let service = services
             .remove(service_id)
             .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
+        drop(services);
+
+        let mut watchers = self.watchers.lock().unwrap();
+        if let Some(sender) = watchers.get(&service.service_type) {
+            if sender.receiver_count() == 0
+                || sender
+                    .send(DiscoveryEvent::ServiceRemoved(service_id.to_string()))
+                    .is_err()
+            {
+                watchers.remove(&service.service_type);
+            }
+        }
         Ok(())
     }
 }
@@ -1068,9 +1080,21 @@ impl ServiceDiscovery for ConsulDiscovery {
         );
 
         let mut services = self.services.write().unwrap();
-        services
+        let service = services
             .remove(service_id)
             .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
+        drop(services);
+
+        let mut watchers = self.watchers.lock().unwrap();
+        if let Some(sender) = watchers.get(&service.service_type) {
+            if sender.receiver_count() == 0
+                || sender
+                    .send(DiscoveryEvent::ServiceRemoved(service_id.to_string()))
+                    .is_err()
+            {
+                watchers.remove(&service.service_type);
+            }
+        }
         Ok(())
     }
 }
@@ -1834,6 +1858,27 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_sync_watch_receives_removed_event_on_deregister() {
+        let zk = ZkDiscovery::new("localhost:2181", "/services");
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("register should succeed");
+
+        let mut rx = zk.watch("ps").expect("watch should succeed");
+        zk.deregister("ps-0")
+            .expect("deregister should succeed and notify watchers");
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        match event {
+            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "ps-0"),
+            other => panic!("expected ServiceRemoved, got {other:?}"),
+        }
+    }
+
     #[cfg(feature = "consul")]
     #[test]
     fn test_consul_discovery_creation() {
@@ -1890,5 +1935,34 @@ mod tests {
             consul.should_spawn_watch_poll("ps", 1),
             "after disconnect generation bump should allow respawn"
         );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_sync_watch_receives_removed_event_on_deregister() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("register should succeed");
+
+        let mut rx = consul.watch("worker").expect("watch should succeed");
+        consul
+            .deregister("worker-0")
+            .expect("deregister should succeed and notify watchers");
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        match event {
+            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "worker-0"),
+            other => panic!("expected ServiceRemoved, got {other:?}"),
+        }
     }
 }

@@ -4299,6 +4299,19 @@
     backend disconnect cycle.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 315) Sync deregister watcher notifications for ZK/Consul cache API
+- Hardened synchronous `ServiceDiscovery` deregister semantics for optional
+  backends:
+  - `ZkDiscovery::deregister(...)` now emits `DiscoveryEvent::ServiceRemoved`.
+  - `ConsulDiscovery::deregister(...)` now emits `DiscoveryEvent::ServiceRemoved`.
+- Added feature-gated watcher regressions:
+  - `test_zk_sync_watch_receives_removed_event_on_deregister`
+  - `test_consul_sync_watch_receives_removed_event_on_deregister`
+- Result:
+  - Sync cache-mode discovery behavior now matches in-memory watcher semantics
+    for removal events, improving parity for tests and local lifecycle flows.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5084,6 +5097,8 @@
 782. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post stale-poller respawn gating refinements default-lane regression rerun)
 783. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" should_spawn_watch_poll_once_per_generation -- --nocapture` ✅ (feature-gated stale-poller respawn + dedupe semantics verification)
 784. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" disconnect_increments_watch_generation -- --nocapture` ✅ (feature-gated disconnect-generation semantics re-verification after spawn-gating changes)
+785. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post sync-deregister watcher-notification hardening default-lane regression rerun)
+786. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" sync_watch_receives_removed_event_on_deregister -- --nocapture` ✅ (feature-gated ZK/Consul sync watcher removal-event verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
