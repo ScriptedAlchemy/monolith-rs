@@ -4769,6 +4769,21 @@
   - Targeted connect+disconnect failure suite and default monolith-training
     regression remain green.
 
+### 354) Runner post-success cleanup assertion contract tightening
+- Tightened post-success cleanup failure/timeout assertions in `runner.rs` by
+  replacing generic `is_err()+unwrap_err()` checks with explicit `expect_err`
+  contracts across:
+  - deregister timeout (default/custom service type)
+  - disconnect failure
+  - disconnect timeout (default/custom service type)
+  - dual cleanup-step failures after successful role completion
+- Result:
+  - Post-success cleanup regressions now encode explicit failure contracts while
+    preserving detailed diagnostic/context checks and cleanup call-count
+    invariants.
+  - Targeted post-success cleanup lane and default monolith-training regression
+    remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5620,6 +5635,7 @@
 848. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" discover_async_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" discover_async_connection_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated discover async config/connection failure cache-invariant verification plus default-lane regression rerun)
 849. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" disconnect_preserves_local_service_cache -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated ZK/Consul disconnect local-cache preservation verification plus default-lane regression rerun)
 850. `ZK_AUTH=user:pass cargo test -p monolith-training connect_and_disconnect_fail -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (runner connect+disconnect failure assertion-contract tightening verification plus default-lane regression rerun)
+851. `ZK_AUTH=user:pass cargo test -p monolith-training after_success -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (runner post-success cleanup assertion-contract tightening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

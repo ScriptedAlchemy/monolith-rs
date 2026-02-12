@@ -9241,9 +9241,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected deregister timeout after successful run");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected deregister timeout after successful run");
+        let msg = err.to_string();
         assert!(
             msg.contains("Timed out during discovery cleanup: deregister worker-0 from worker"),
             "unexpected error: {msg}"
@@ -9292,9 +9293,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected deregister timeout after successful run");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected deregister timeout after successful run");
+        let msg = err.to_string();
         assert!(
             msg.contains("Timed out during discovery cleanup: deregister worker-0 from trainer_custom"),
             "deregister-timeout diagnostics should include custom service-type context: {msg}"
@@ -9341,9 +9343,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected disconnect failure after successful run");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected disconnect failure after successful run");
+        let msg = err.to_string();
         assert!(
             msg.contains("forced disconnect failure"),
             "unexpected error: {msg}"
@@ -9394,9 +9397,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected disconnect timeout after successful run");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected disconnect timeout after successful run");
+        let msg = err.to_string();
         assert!(
             msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker"),
             "unexpected error: {msg}"
@@ -9445,9 +9449,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected disconnect timeout after successful run");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected disconnect timeout after successful run");
+        let msg = err.to_string();
         assert!(
             msg.contains("Timed out during discovery cleanup: disconnect worker-0 via trainer_custom"),
             "disconnect-timeout diagnostics should include custom service-type context: {msg}"
@@ -9495,9 +9500,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected cleanup failures after successful run");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected cleanup failures after successful run");
+        let msg = err.to_string();
         assert!(
             msg.contains("forced deregister failure"),
             "deregister failure should take precedence when both cleanup steps fail: {msg}"
