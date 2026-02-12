@@ -162,10 +162,17 @@ impl EmbeddingTable {
                 for (i, &fid) in fids.iter().enumerate() {
                     if table.contains(fid) {
                         let mut tmp = vec![0.0f32; self.dim_size];
-                        if table.lookup(&[fid], &mut tmp).is_ok() {
-                            let start = i * self.dim_size;
-                            out[start..start + self.dim_size].copy_from_slice(&tmp);
-                            found[i] = true;
+                        match table.lookup(&[fid], &mut tmp) {
+                            Ok(()) => {
+                                let start = i * self.dim_size;
+                                out[start..start + self.dim_size].copy_from_slice(&tmp);
+                                found[i] = true;
+                            }
+                            Err(e) => {
+                                tracing::error!(
+                                    "lookup failed for fid {fid} during partial-found fallback: {e}"
+                                );
+                            }
                         }
                     }
                 }
@@ -197,8 +204,15 @@ impl EmbeddingTable {
                 let start = i * self.dim_size;
                 let end = start + self.dim_size;
                 let grad = &gradients[start..end];
-                if table.apply_gradients(&[fid], grad).is_ok() {
-                    num_updated += 1;
+                match table.apply_gradients(&[fid], grad) {
+                    Ok(()) => {
+                        num_updated += 1;
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "apply_gradients failed for fid {fid} during per-id fallback: {e}"
+                        );
+                    }
                 }
             } else {
                 num_not_found += 1;
@@ -222,9 +236,14 @@ impl EmbeddingTable {
         for &fid in fids {
             if table.contains(fid) {
                 let mut tmp = vec![0.0f32; self.dim_size];
-                if table.lookup(&[fid], &mut tmp).is_ok() {
-                    found_fids.push(fid);
-                    flat.extend_from_slice(&tmp);
+                match table.lookup(&[fid], &mut tmp) {
+                    Ok(()) => {
+                        found_fids.push(fid);
+                        flat.extend_from_slice(&tmp);
+                    }
+                    Err(e) => {
+                        tracing::error!("lookup failed for fid {fid} during export_embeddings: {e}");
+                    }
                 }
             }
         }

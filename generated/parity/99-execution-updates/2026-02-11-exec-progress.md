@@ -5829,6 +5829,21 @@
     diagnostics.
   - Focused parity tests and default monolith-training regression remain green.
 
+### 430) Distributed PS: replace implicit `is_ok()` branches with explicit error handling
+- Refactored `crates/monolith-training/src/distributed_ps.rs` to remove the
+  remaining implicit success checks:
+  - `EmbeddingTable::lookup` partial-found fallback now matches on
+    `table.lookup(&[fid], &mut tmp)` and logs per-id lookup failures.
+  - `EmbeddingTable::apply_gradients` per-id fallback now matches on
+    `table.apply_gradients(&[fid], grad)` and logs per-id apply failures.
+  - `EmbeddingTable::export_embeddings` now matches on per-id lookup results
+    and logs failures instead of silently skipping after `is_ok()`.
+- Result:
+  - Fallback paths now have explicit failure branches and diagnostics instead of
+    coarse boolean success checks.
+  - Distributed PS-focused tests and full monolith-training regression remain
+    green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6760,6 +6775,7 @@
 928. `cargo test -p monolith-training distributed_runner_from_run_config_preserves_discover_timeout_with_default_service_type_when_cleanup_fails -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_preserves_discover_timeout_with_custom_service_types_and_index_when_cleanup_fails -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_preserves_discover_timeout_with_custom_service_type_when_cleanup_times_out -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_preserves_discover_timeout_with_custom_service_types_when_cleanup_times_out -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_preserves_discover_timeout_with_custom_service_type_when_cleanup_fails -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_preserves_discover_timeout_with_custom_service_types_when_cleanup_fails -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_propagates_retry_backoff_controls -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_preserves_worker_discovery_error_when_cleanup_times_out -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (run-config cleanup/worker-timeout assertion-tightening targeted verification plus default-lane regression rerun)
 929. `cargo test -p monolith-training distributed_runner_from_run_config_propagates_custom_discover_service_type_into_worker_discovery_error_when_cleanup_times_out -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_preserves_worker_timeout_with_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_preserves_worker_ordering_issue_timeout_with_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (run-config worker-timeout/ordering-timeout assertion-tightening targeted verification plus default-lane regression rerun)
 930. `cargo test -p monolith-training distributed_runner_from_run_config_preserves_worker_ordering_issue_timeout_with_custom_service_types_and_index_when_cleanup_times_out -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_preserves_worker_ordering_and_discovery_error_timeout_with_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (run-config ordering+discovery timeout assertion-tightening targeted verification plus default-lane regression rerun)
+931. `cargo test -p monolith-training distributed_ps -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (distributed_ps explicit error-branch refactor verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
