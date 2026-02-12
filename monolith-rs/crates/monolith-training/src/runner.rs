@@ -10177,12 +10177,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(
-            res.is_err(),
-            "discover failure with failing cleanup should surface as a role error with custom non-index service types"
-        );
-        let msg = res.unwrap_err().to_string();
+        let msg = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("discover failure with failing cleanup should surface as a role error with custom non-index service types")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker discover failure should still surface as worker-role timeout diagnostic with custom non-index service types when cleanup fails: {msg}"
@@ -10235,12 +10233,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(
-            res.is_err(),
-            "discover failure with failing cleanup should surface as a role error with custom non-index service types"
-        );
-        let msg = res.unwrap_err().to_string();
+        let msg = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("discover failure with failing cleanup should surface as a role error with custom non-index service types")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker discover failure should still surface as worker-role timeout diagnostic with custom non-index service types when cleanup fails: {msg}"
@@ -10290,12 +10286,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(
-            res.is_err(),
-            "worker timeout with failing cleanup should surface as a role error"
-        );
-        let msg = res.unwrap_err().to_string();
+        let msg = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("worker timeout with failing cleanup should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker timeout should remain primary over cleanup failures: {msg}"
@@ -10336,12 +10330,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(
-            res.is_err(),
-            "worker timeout with failing cleanup should surface as a role error with custom service types/index"
-        );
-        let msg = res.unwrap_err().to_string();
+        let msg = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("worker timeout with failing cleanup should surface as a role error with custom service types/index")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker timeout should remain primary over cleanup failures with custom service types/index: {msg}"
@@ -10390,12 +10382,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(
-            res.is_err(),
-            "worker timeout with failing cleanup should surface as a role error with custom non-index service types"
-        );
-        let msg = res.unwrap_err().to_string();
+        let msg = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("worker timeout with failing cleanup should surface as a role error with custom non-index service types")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker timeout should remain primary over cleanup failures with custom non-index service types: {msg}"
@@ -10444,12 +10434,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(
-            res.is_err(),
-            "worker timeout with failing cleanup should surface as a role error with custom non-index service types"
-        );
-        let msg = res.unwrap_err().to_string();
+        let msg = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("worker timeout with failing cleanup should surface as a role error with custom non-index service types")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker timeout should remain primary over cleanup failures with custom non-index service types: {msg}"
@@ -10496,12 +10484,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(
-            res.is_err(),
-            "worker timeout with failing cleanup should surface as a role error with default service type and index"
-        );
-        let msg = res.unwrap_err().to_string();
+        let msg = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("worker timeout with failing cleanup should surface as a role error with default service type and index")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker timeout should remain primary over cleanup failures with default service type and index: {msg}"
@@ -10548,12 +10534,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(
-            res.is_err(),
-            "worker timeout with failing cleanup should surface as a role error with default-service non-index path"
-        );
-        let msg = res.unwrap_err().to_string();
+        let msg = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("worker timeout with failing cleanup should surface as a role error with default-service non-index path")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker timeout should remain primary over cleanup failures with default service type: {msg}"
