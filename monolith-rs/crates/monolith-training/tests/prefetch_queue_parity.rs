@@ -52,8 +52,18 @@ fn test_enqueue_dicts_preserves_non_tensor_structure() {
         assert!(false, "expected map as first list element, got {first:?}");
         return;
     };
-    assert_eq!(item0.get("b").unwrap(), &Nested::Str("hello".to_string()));
-    assert_eq!(item0.get("c").unwrap(), &Nested::Null);
+    assert_eq!(
+        item0
+            .get("b")
+            .expect("nested map entry 'b' should exist in token template"),
+        &Nested::Str("hello".to_string())
+    );
+    assert_eq!(
+        item0
+            .get("c")
+            .expect("nested map entry 'c' should exist in token template"),
+        &Nested::Null
+    );
 
     // Flatten + enqueue + dequeue + rebuild.
     let mut flat = Vec::new();

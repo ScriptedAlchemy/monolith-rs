@@ -6585,6 +6585,19 @@
     improving diagnosis for discovery wiring and checkpoint-restore parity
     failures.
 
+### 482) Save/prefetch parity: remove final unwrap hotspots in test assertions
+- Tightened remaining unwrap hotspots in:
+  - `crates/monolith-training/tests/prefetch_queue_parity.rs`
+  - `crates/monolith-training/tests/native_training_save_utils_parity.rs`
+- Changes:
+  - replaced map-entry `.unwrap()` assertions with explicit `.expect("...")`
+    key-context diagnostics in prefetch nested-structure checks,
+  - replaced optional checkpoint-state `.unwrap()` extraction with explicit
+    `.expect("...")` presence diagnostics in save-utils parity tests.
+- Result:
+  - these parity suites now emit deterministic, operation-specific assertion
+    failures end-to-end, eliminating residual generic unwrap panic surfaces.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7610,6 +7623,8 @@
 1022. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after parity-test diagnostics tightening)
 1023. `cargo test -p monolith-training --test runner_utils_parity -- --nocapture` ✅ (validated runner-utils parity suite after replacing unwrap chains with explicit discovery/restore diagnostics)
 1024. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after runner-utils parity diagnostics tightening)
+1025. `cargo test -p monolith-training --test prefetch_queue_parity -- --nocapture && cargo test -p monolith-training --test native_training_save_utils_parity -- --nocapture` ✅ (validated prefetch/save parity suites after replacing final unwrap hotspots with explicit diagnostics)
+1026. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after save/prefetch diagnostics tightening)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

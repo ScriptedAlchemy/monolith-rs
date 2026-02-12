@@ -23,7 +23,7 @@ fn monolith_checkpoint_state_roundtrip_pbtxt() {
 
     let parsed = get_monolith_checkpoint_state(dir.path(), None, false)
         .expect("get_monolith_checkpoint_state should succeed")
-        .unwrap();
+        .expect("monolith checkpoint state should be present after write");
     assert_eq!(parsed.exempt_model_checkpoint_paths, vec!["a".to_string()]);
     assert_eq!(parsed.last_checkpoint_save_timestamp, Some(123));
     assert_eq!(
@@ -50,7 +50,7 @@ builtin_hash_table_type: CUCKOO_HASH_MAP
 
     let parsed = get_monolith_checkpoint_state(dir.path(), None, true)
         .expect("get_monolith_checkpoint_state should succeed")
-        .unwrap();
+        .expect("monolith checkpoint state should be present when pbtxt exists");
     assert_eq!(
         parsed.exempt_model_checkpoint_paths,
         vec![existing.to_string_lossy().to_string()]
