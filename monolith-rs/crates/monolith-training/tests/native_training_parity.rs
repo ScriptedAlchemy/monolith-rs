@@ -3703,10 +3703,6 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_issue_time
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when worker discovery times out due to ordering issue and custom cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when worker discovery times out due to ordering issue and custom cleanup blocks")
         .expect_err("indexed custom ordering-issue timeout with cleanup timeouts should surface as a worker role error")
@@ -3983,10 +3979,6 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_and_discov
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when worker discovery times out with ordering+discovery errors and cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when worker discovery times out with ordering+discovery errors and cleanup blocks")
         .expect_err("indexed default ordering+discovery timeout with cleanup timeouts should surface as a worker role error")
@@ -4061,10 +4053,6 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_and_discov
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when worker discovery times out with ordering+discovery errors and default-service non-index cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when worker discovery times out with ordering+discovery errors and default-service non-index cleanup blocks")
         .expect_err("default ordering+discovery timeout with cleanup timeouts should surface as a worker role error")
@@ -4141,10 +4129,6 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_and_discov
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when worker discovery times out with ordering+discovery errors and custom non-index cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when worker discovery times out with ordering+discovery errors and custom non-index cleanup blocks")
         .expect_err("custom ordering+discovery timeout with cleanup timeouts should surface as a worker role error")
@@ -4225,10 +4209,6 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_and_discov
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when worker discovery times out with ordering+discovery errors and custom non-index cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when worker discovery times out with ordering+discovery errors and custom non-index cleanup blocks")
         .expect_err("custom-service ordering+discovery timeout with cleanup timeouts should surface as a worker role error")
