@@ -7145,6 +7145,25 @@
     `.unwrap()` call-sites (**doc examples only**), while preserving
     zookeeper/consul watch lifecycle parity behavior.
 
+### 532) Discovery Consul invalid-port failure-shape parity expansion
+- Expanded Consul config-error parity coverage in
+  `crates/monolith-training/src/discovery.rs` for invalid-port authorities
+  (`http://127.0.0.1:notaport`) across additional lifecycle paths:
+  - `watch_async` now has explicit invalid-port contract coverage asserting:
+    - `ConfigError` shape contains `watch_service` + `invalid port`,
+    - no watcher/poll-generation bookkeeping is created on validation failure.
+  - `connect` now has explicit invalid-port classification coverage asserting
+    `ConfigError` with `connect` context.
+  - `register_async` now has invalid-port watcher-lifecycle coverage for both:
+    - dead watcher compaction,
+    - live watcher preservation.
+  - `deregister_async` now has invalid-port cleanup parity coverage asserting:
+    - `ServiceRemoved` watch event still fires,
+    - local cache entry remains removed despite backend config failure.
+- Result:
+  - strengthened explicit failure-shape contracts for Consul invalid-port
+    validation and watcher/cache cleanup semantics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8265,6 +8284,8 @@
 1117. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/discovery.rs` ✅ (tracked remaining discovery unwrap call-sites after consul watcher-state helper migration: 69)
 1118. `cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_zk_ -- --nocapture && cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_ -- --nocapture` ✅ (validated full zookeeper/consul discovery test matrices after final watcher-state unwrap-diagnostics completion)
 1119. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/discovery.rs` ✅ (verified only doc-comment unwrap examples remain in discovery module; no runtime/test unwrap call-sites remain)
+1120. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_invalid_port_rejects_without_state_changes -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_connect_invalid_port_is_classified_as_config_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_invalid_port_ -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_invalid_port_still_notifies_and_returns_error -- --nocapture` ✅ (validated new Consul invalid-port watch/connect/register/deregister failure-shape and watcher/cache cleanup regressions)
+1121. `rg "test_consul_.*invalid_port" crates/monolith-training/src/discovery.rs` ✅ (verified targeted invalid-port Consul lifecycle regression coverage is present in discovery test suite)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
