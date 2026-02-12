@@ -1075,8 +1075,9 @@ impl ConsulDiscovery {
         if guard.is_some() {
             return Ok(());
         }
+        let normalized_address = normalize_consul_address_for_operation("connect", &self.address)?;
         let mut cfg = consul::Config {
-            address: self.address.clone(),
+            address: normalized_address,
             token: self.token.clone(),
             ..Default::default()
         };
@@ -1233,7 +1234,7 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
     }
 
     async fn register_async(&self, service: ServiceInfo) -> Result<()> {
-        validate_consul_address_for_operation("register_entity", &self.address).map_err(|e| {
+        normalize_consul_address_for_operation("register_entity", &self.address).map_err(|e| {
             self.compact_dead_watch_sender(&service.service_type);
             e
         })?;
@@ -1296,7 +1297,7 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
     }
 
     async fn discover_async(&self, service_type: &str) -> Result<Vec<ServiceInfo>> {
-        validate_consul_address_for_operation("get_service_nodes", &self.address)?;
+        normalize_consul_address_for_operation("get_service_nodes", &self.address)?;
         self.connect().await?;
         let client = self.client.lock().await.as_ref().cloned().ok_or_else(|| {
             DiscoveryError::ConnectionFailed("Consul client not connected".into())
@@ -1385,7 +1386,7 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
             DiscoveryEvent::ServiceRemoved(service_id.to_string()),
         );
 
-        validate_consul_address_for_operation("deregister_entity", &self.address)?;
+        normalize_consul_address_for_operation("deregister_entity", &self.address)?;
         self.connect().await?;
         let client = self.client.lock().await.as_ref().cloned().ok_or_else(|| {
             DiscoveryError::ConnectionFailed("Consul client not connected".into())
@@ -1445,7 +1446,7 @@ fn map_consul_request_error(context: &str, err: impl std::fmt::Debug) -> Discove
 }
 
 #[cfg(feature = "consul")]
-fn validate_consul_address_for_operation(context: &str, address: &str) -> Result<()> {
+fn normalize_consul_address_for_operation(context: &str, address: &str) -> Result<String> {
     let cfg_err = |detail: &str| {
         DiscoveryError::ConfigError(format!("Consul {context} invalid address: {detail}"))
     };
@@ -1493,7 +1494,7 @@ fn validate_consul_address_for_operation(context: &str, address: &str) -> Result
         } else if !trailing.is_empty() {
             return Err(cfg_err("invalid authority"));
         }
-        return Ok(());
+        return Ok(normalized);
     }
 
     let (host, maybe_port) = match authority.rsplit_once(':') {
@@ -1510,7 +1511,7 @@ fn validate_consul_address_for_operation(context: &str, address: &str) -> Result
         port.parse::<u16>()
             .map_err(|_| cfg_err("invalid port"))?;
     }
-    Ok(())
+    Ok(normalized)
 }
 
 #[cfg(feature = "zookeeper")]
@@ -1657,6 +1658,17 @@ mod tests {
             }
             other => panic!("expected Internal for runtime failure marker, got {other:?}"),
         }
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_normalize_consul_address_for_operation_adds_http_scheme() {
+        let normalized = normalize_consul_address_for_operation("get_service_nodes", "127.0.0.1:8501")
+            .expect("host:port address should normalize to explicit http URL");
+        assert_eq!(
+            normalized, "http://127.0.0.1:8501",
+            "host:port Consul address should normalize by prepending http scheme"
+        );
     }
 
     #[test]
@@ -3772,6 +3784,23 @@ mod tests {
                 );
             }
             other => panic!("expected ConfigError for invalid port address, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_host_port_without_scheme_keeps_port_context() {
+        let consul = ConsulDiscovery::new("127.0.0.1:8501");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        match result {
+            Err(DiscoveryError::Internal(msg)) => {
+                assert!(
+                    msg.contains("get_service_nodes") && msg.contains("8501"),
+                    "host:port addresses without scheme should preserve configured port after normalization: {msg}"
+                );
+            }
+            other => panic!("expected Internal connection failure for host:port address, got {other:?}"),
         }
     }
 

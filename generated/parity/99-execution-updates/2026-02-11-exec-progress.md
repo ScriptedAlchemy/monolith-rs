@@ -5417,6 +5417,26 @@
   - Feature-gated Consul config/deregister suites and default monolith-training
     regression remain green.
 
+### 404) Discovery parity: Consul host:port normalization with operation-context validation
+- Extended Consul address validation flow in
+  `crates/monolith-training/src/discovery.rs`:
+  - Refactored validation into `normalize_consul_address_for_operation(...)`
+    returning a normalized endpoint string.
+  - Consul `connect` now uses normalized addresses so raw `host:port` inputs are
+    treated as `http://host:port` instead of falling back to ambiguous defaults.
+  - Register/discover/deregister async flows continue to enforce
+    operation-context malformed-address validation before transport operations.
+- Added coverage:
+  - Unit test validating `host:port` normalization behavior.
+  - Async discover test asserting `host:port` addresses without scheme preserve
+    the configured port context in runtime error diagnostics.
+- Result:
+  - Consul address handling now supports scheme-less `host:port` inputs with
+    deterministic normalization while preserving strict malformed-address
+    classification.
+  - Feature-gated Consul validation/deregister suites and default
+    monolith-training regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6318,6 +6338,7 @@
 898. `ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_accepts_case_insensitive_http_scheme_parameter_sync_target -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_preserves_worker_register_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_preserves_ps_register_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_surfaces_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_preserves_deregister_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_preserves_register_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_preserves_ps_register_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_honors_cleanup_timeout_after_register_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity runner-config register/post-success contract closure verification plus default-lane regression rerun)
 899. `ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_run_config_rejects_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_rejects_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity distributed-config validation rejection contract tightening verification plus default-lane regression rerun)
 900. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_map_consul_request_error_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_invalid_port_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul invalid-address classifier/validation tightening verification plus default-lane regression rerun)
+901. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_map_consul_request_error_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_normalize_consul_address_for_operation_adds_http_scheme -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_invalid_port_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_host_port_without_scheme_keeps_port_context -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul host:port normalization + malformed-address classification verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
