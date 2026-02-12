@@ -2135,6 +2135,27 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[test]
+    fn test_zk_sync_deregister_missing_service_preserves_watchers() {
+        let zk = ZkDiscovery::new("localhost:2181", "/services");
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = zk.deregister("missing");
+        match result {
+            Err(DiscoveryError::NotFound(id)) => assert_eq!(id, "missing"),
+            other => panic!("expected NotFound, got {other:?}"),
+        }
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "sync missing-service deregister should not mutate active watch sender entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
     fn test_zk_compact_dead_watch_sender_keeps_live_sender() {
         let zk = ZkDiscovery::new("localhost:2181", "/services");
         let _rx = zk.watch("ps").expect("watch should succeed");
@@ -2599,6 +2620,27 @@ mod tests {
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "dead watch sender should be removed after deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_consul_sync_deregister_missing_service_preserves_watchers() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = consul.deregister("missing");
+        match result {
+            Err(DiscoveryError::NotFound(id)) => assert_eq!(id, "missing"),
+            other => panic!("expected NotFound, got {other:?}"),
+        }
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "sync missing-service deregister should not mutate active watch sender entries"
         );
     }
 

@@ -4524,6 +4524,16 @@
     accumulates stale path entries on repeated NotFound deregister attempts.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 333) Sync missing-service deregister watcher-preservation coverage
+- Added feature-gated regressions:
+  - `test_zk_sync_deregister_missing_service_preserves_watchers`
+  - `test_consul_sync_deregister_missing_service_preserves_watchers`
+- Result:
+  - Sync `deregister(...)` NotFound paths now have explicit coverage proving
+    existing watcher sender entries are preserved (no unintended mutation),
+    mirroring async missing-service watcher-preservation guarantees.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5347,6 +5357,8 @@
 820. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" missing_service_preserves_watchers -- --nocapture` ✅ (feature-gated ZK/Consul missing-service async-deregister watcher-preservation verification)
 821. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post ZK NotFound stale-path cleanup hardening default-lane regression rerun)
 822. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" stale_registered_path -- --nocapture` ✅ (feature-gated ZK stale registered-path cleanup on async-deregister NotFound verification)
+823. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post sync missing-service deregister watcher-preservation coverage additions default-lane regression rerun)
+824. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" sync_deregister_missing_service_preserves_watchers -- --nocapture` ✅ (feature-gated ZK/Consul sync missing-service deregister watcher-preservation verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
