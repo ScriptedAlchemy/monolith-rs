@@ -4924,7 +4924,7 @@ async fn distributed_runner_from_run_config_rejects_zero_operation_timeout() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires discovery_operation_timeout > 0"),
@@ -4955,7 +4955,7 @@ async fn distributed_runner_from_run_config_rejects_zero_cleanup_timeout() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires discovery_cleanup_timeout > 0"),
@@ -4986,7 +4986,7 @@ async fn distributed_runner_from_run_config_rejects_zero_barrier_timeout() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires barrier_timeout_ms > 0"),
@@ -5017,7 +5017,7 @@ async fn distributed_runner_from_run_config_rejects_negative_barrier_timeout() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires barrier_timeout_ms > 0"),
@@ -5047,7 +5047,7 @@ async fn distributed_runner_from_run_config_rejects_zero_num_ps() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires num_ps > 0"),
@@ -5077,7 +5077,7 @@ async fn distributed_runner_from_run_config_rejects_zero_num_workers() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires num_workers > 0"),
@@ -5108,7 +5108,7 @@ async fn distributed_runner_from_run_config_rejects_zero_dim() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires dim > 0"),
@@ -5139,7 +5139,7 @@ async fn distributed_runner_from_run_config_rejects_worker_index_out_of_range() 
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires index < num_workers for worker role"),
@@ -5170,7 +5170,7 @@ async fn distributed_runner_from_run_config_rejects_ps_index_out_of_range() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires index < num_ps for ps role"),
@@ -5201,7 +5201,7 @@ async fn distributed_runner_from_run_config_rejects_empty_ps_service_type() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires non-empty discovery_service_type_ps"),
@@ -5232,7 +5232,7 @@ async fn distributed_runner_from_run_config_rejects_whitespace_padded_ps_service
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -5265,7 +5265,7 @@ async fn distributed_runner_from_run_config_rejects_internal_whitespace_ps_servi
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires discovery_service_type_ps without whitespace characters"),
@@ -5296,7 +5296,7 @@ async fn distributed_runner_from_run_config_rejects_empty_worker_service_type() 
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires non-empty discovery_service_type_worker"),
@@ -5327,7 +5327,7 @@ async fn distributed_runner_from_run_config_rejects_whitespace_padded_worker_ser
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -5360,7 +5360,7 @@ async fn distributed_runner_from_run_config_rejects_internal_whitespace_worker_s
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires discovery_service_type_worker without whitespace characters"),
@@ -5392,7 +5392,7 @@ async fn distributed_runner_from_run_config_rejects_identical_ps_and_worker_serv
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -5427,7 +5427,7 @@ async fn distributed_runner_from_run_config_rejects_case_insensitive_identical_p
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -5460,7 +5460,7 @@ async fn distributed_runner_from_run_config_rejects_empty_table_name() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires non-empty table_name"),
@@ -5491,7 +5491,7 @@ async fn distributed_runner_from_run_config_rejects_whitespace_padded_table_name
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires table_name without leading/trailing whitespace"),
@@ -5522,7 +5522,7 @@ async fn distributed_runner_from_run_config_rejects_internal_whitespace_table_na
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires table_name without whitespace characters"),
@@ -5555,7 +5555,7 @@ async fn distributed_runner_from_run_config_rejects_zero_parameter_sync_interval
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -5589,7 +5589,7 @@ async fn distributed_runner_from_run_config_rejects_empty_parameter_sync_target_
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires non-empty parameter_sync_targets entries"),
@@ -5668,7 +5668,7 @@ async fn distributed_runner_from_run_config_rejects_whitespace_padded_parameter_
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -5702,7 +5702,7 @@ async fn distributed_runner_from_run_config_rejects_invalid_parameter_sync_targe
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config has invalid parameter_sync_targets entry `http://`"),
@@ -5735,7 +5735,7 @@ async fn distributed_runner_from_run_config_rejects_parameter_sync_target_endpoi
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("endpoint must not include a URL path or query"),
@@ -5768,7 +5768,7 @@ async fn distributed_runner_from_run_config_rejects_parameter_sync_target_endpoi
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("endpoint scheme must be http or https"),
@@ -5801,7 +5801,7 @@ async fn distributed_runner_from_run_config_rejects_parameter_sync_target_endpoi
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("endpoint must not include userinfo"),
@@ -5836,7 +5836,7 @@ async fn distributed_runner_from_run_config_rejects_duplicate_parameter_sync_tar
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires unique parameter_sync_targets entries"),
@@ -5872,7 +5872,7 @@ async fn distributed_runner_from_run_config_rejects_duplicate_parameter_sync_tar
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires unique parameter_sync_targets entries"),
@@ -5908,7 +5908,7 @@ async fn distributed_runner_from_run_config_rejects_duplicate_parameter_sync_tar
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires unique parameter_sync_targets entries"),
@@ -5944,7 +5944,7 @@ async fn distributed_runner_from_run_config_rejects_duplicate_parameter_sync_tar
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires unique parameter_sync_targets entries"),
@@ -5980,7 +5980,7 @@ async fn distributed_runner_from_run_config_rejects_duplicate_parameter_sync_tar
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires unique parameter_sync_targets entries"),
@@ -6016,7 +6016,7 @@ async fn distributed_runner_from_run_config_rejects_duplicate_parameter_sync_tar
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires unique parameter_sync_targets entries"),
@@ -6049,7 +6049,7 @@ async fn distributed_runner_from_run_config_rejects_empty_parameter_sync_model_n
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -6085,7 +6085,7 @@ async fn distributed_runner_from_run_config_rejects_whitespace_padded_parameter_
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -6121,7 +6121,7 @@ async fn distributed_runner_from_run_config_rejects_internal_whitespace_paramete
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -6157,7 +6157,7 @@ async fn distributed_runner_from_run_config_rejects_empty_parameter_sync_signatu
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -6193,7 +6193,7 @@ async fn distributed_runner_from_run_config_rejects_whitespace_padded_parameter_
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -6229,7 +6229,7 @@ async fn distributed_runner_from_run_config_rejects_internal_whitespace_paramete
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -20966,7 +20966,7 @@ async fn distributed_runner_from_runner_config_rejects_zero_operation_timeout() 
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires discovery_operation_timeout > 0"),
@@ -20997,7 +20997,7 @@ async fn distributed_runner_from_runner_config_rejects_zero_cleanup_timeout() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires discovery_cleanup_timeout > 0"),
@@ -21028,7 +21028,7 @@ async fn distributed_runner_from_runner_config_rejects_zero_barrier_timeout() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires barrier_timeout_ms > 0"),
@@ -21059,7 +21059,7 @@ async fn distributed_runner_from_runner_config_rejects_negative_barrier_timeout(
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires barrier_timeout_ms > 0"),
@@ -21089,7 +21089,7 @@ async fn distributed_runner_from_runner_config_rejects_zero_num_ps() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires num_ps > 0"),
@@ -21119,7 +21119,7 @@ async fn distributed_runner_from_runner_config_rejects_zero_num_workers() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires num_workers > 0"),
@@ -21150,7 +21150,7 @@ async fn distributed_runner_from_runner_config_rejects_zero_dim() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires dim > 0"),
@@ -21180,7 +21180,7 @@ async fn distributed_runner_from_runner_config_rejects_worker_index_out_of_range
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires index < num_workers for worker role"),
@@ -21210,7 +21210,7 @@ async fn distributed_runner_from_runner_config_rejects_ps_index_out_of_range() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires index < num_ps for ps role"),
@@ -21241,7 +21241,7 @@ async fn distributed_runner_from_runner_config_rejects_empty_ps_service_type() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires non-empty discovery_service_type_ps"),
@@ -21272,7 +21272,7 @@ async fn distributed_runner_from_runner_config_rejects_whitespace_padded_ps_serv
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -21305,7 +21305,7 @@ async fn distributed_runner_from_runner_config_rejects_internal_whitespace_ps_se
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires discovery_service_type_ps without whitespace characters"),
@@ -21336,7 +21336,7 @@ async fn distributed_runner_from_runner_config_rejects_empty_worker_service_type
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires non-empty discovery_service_type_worker"),
@@ -21367,7 +21367,7 @@ async fn distributed_runner_from_runner_config_rejects_whitespace_padded_worker_
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -21400,7 +21400,7 @@ async fn distributed_runner_from_runner_config_rejects_internal_whitespace_worke
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires discovery_service_type_worker without whitespace characters"),
@@ -21432,7 +21432,7 @@ async fn distributed_runner_from_runner_config_rejects_identical_ps_and_worker_s
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -21467,7 +21467,7 @@ async fn distributed_runner_from_runner_config_rejects_case_insensitive_identica
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -21500,7 +21500,7 @@ async fn distributed_runner_from_runner_config_rejects_empty_table_name() {
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires non-empty table_name"),
@@ -21531,7 +21531,7 @@ async fn distributed_runner_from_runner_config_rejects_whitespace_padded_table_n
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires table_name without leading/trailing whitespace"),
@@ -21562,7 +21562,7 @@ async fn distributed_runner_from_runner_config_rejects_internal_whitespace_table
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires table_name without whitespace characters"),
@@ -21595,7 +21595,7 @@ async fn distributed_runner_from_runner_config_rejects_zero_parameter_sync_inter
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -21629,7 +21629,7 @@ async fn distributed_runner_from_runner_config_rejects_empty_parameter_sync_targ
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires non-empty parameter_sync_targets entries"),
@@ -21707,7 +21707,7 @@ async fn distributed_runner_from_runner_config_rejects_whitespace_padded_paramet
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -21741,7 +21741,7 @@ async fn distributed_runner_from_runner_config_rejects_invalid_parameter_sync_ta
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config has invalid parameter_sync_targets entry `http://`"),
@@ -21774,7 +21774,7 @@ async fn distributed_runner_from_runner_config_rejects_parameter_sync_target_end
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("endpoint must not include a URL path or query"),
@@ -21807,7 +21807,7 @@ async fn distributed_runner_from_runner_config_rejects_parameter_sync_target_end
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("endpoint scheme must be http or https"),
@@ -21840,7 +21840,7 @@ async fn distributed_runner_from_runner_config_rejects_parameter_sync_target_end
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("endpoint must not include userinfo"),
@@ -21875,7 +21875,7 @@ async fn distributed_runner_from_runner_config_rejects_duplicate_parameter_sync_
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires unique parameter_sync_targets entries"),
@@ -21911,7 +21911,7 @@ async fn distributed_runner_from_runner_config_rejects_duplicate_parameter_sync_
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires unique parameter_sync_targets entries"),
@@ -21947,7 +21947,7 @@ async fn distributed_runner_from_runner_config_rejects_duplicate_parameter_sync_
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires unique parameter_sync_targets entries"),
@@ -21983,7 +21983,7 @@ async fn distributed_runner_from_runner_config_rejects_duplicate_parameter_sync_
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires unique parameter_sync_targets entries"),
@@ -22019,7 +22019,7 @@ async fn distributed_runner_from_runner_config_rejects_duplicate_parameter_sync_
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires unique parameter_sync_targets entries"),
@@ -22055,7 +22055,7 @@ async fn distributed_runner_from_runner_config_rejects_duplicate_parameter_sync_
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains("distributed config requires unique parameter_sync_targets entries"),
@@ -22089,7 +22089,7 @@ async fn distributed_runner_from_runner_config_rejects_empty_parameter_sync_mode
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -22125,7 +22125,7 @@ async fn distributed_runner_from_runner_config_rejects_whitespace_padded_paramet
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -22161,7 +22161,7 @@ async fn distributed_runner_from_runner_config_rejects_internal_whitespace_param
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -22197,7 +22197,7 @@ async fn distributed_runner_from_runner_config_rejects_empty_parameter_sync_sign
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -22233,7 +22233,7 @@ async fn distributed_runner_from_runner_config_rejects_whitespace_padded_paramet
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
@@ -22269,7 +22269,7 @@ async fn distributed_runner_from_runner_config_rejects_internal_whitespace_param
         "127.0.0.1:0".parse().unwrap(),
     )
     .await
-    .unwrap_err()
+    .expect_err("distributed config validation lane should return an error")
     .to_string();
     assert!(
         err.contains(
