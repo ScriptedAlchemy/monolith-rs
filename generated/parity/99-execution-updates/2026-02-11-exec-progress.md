@@ -3417,6 +3417,29 @@
   non-indexed custom-service-types paths across runner + RunConfig +
   RunnerConfig entrypoints.
 
+### 249) Ordering+discover-error + last-discover-error custom-service-types non-index parity expanded
+- Added runner-level custom-service-types non-index ordering+discover-error
+  timeout cleanup regressions:
+  - `test_run_distributed_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_when_cleanup_steps_timeout`
+  - `test_run_distributed_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_when_cleanup_steps_fail`
+- Added RunConfig integration custom-service-types non-index
+  ordering+discover-error timeout cleanup regressions:
+  - `distributed_runner_from_run_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_when_cleanup_times_out`
+  - `distributed_runner_from_run_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_when_cleanup_fails`
+- Added RunnerConfig integration custom-service-types non-index
+  ordering+discover-error timeout cleanup regressions:
+  - `distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_when_cleanup_times_out`
+  - `distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_when_cleanup_fails`
+- Added RunConfig + RunnerConfig custom-service-types non-index
+  `last discovery error` cleanup regressions:
+  - `distributed_runner_from_run_config_preserves_last_discover_error_with_custom_service_types_when_cleanup_times_out`
+  - `distributed_runner_from_run_config_preserves_last_discover_error_with_custom_service_types_when_cleanup_fails`
+  - `distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_types_when_cleanup_times_out`
+  - `distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_types_when_cleanup_fails`
+- Result: custom-service-types parity matrix for non-index worker paths now
+  includes ordering+discover-error and last-discover-error cleanup timeout/fail
+  diagnostics across runner + RunConfig + RunnerConfig entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3937,6 +3960,9 @@
 517. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post ordering-issue custom-service-types non-index parity expansion across runner/config entrypoints)
 518. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post ordering-issue custom-service-types non-index parity compatibility verification)
 519. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post ordering-issue custom-service-types non-index parity expansion full workspace rerun under ambient ZK auth env)
+520. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post ordering+discover-error + last-discover-error custom-service-types non-index parity expansion across runner/config entrypoints)
+521. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post ordering+discover-error + last-discover-error custom-service-types non-index parity compatibility verification)
+522. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post ordering+discover-error + last-discover-error custom-service-types non-index parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

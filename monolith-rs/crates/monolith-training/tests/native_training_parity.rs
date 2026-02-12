@@ -1915,6 +1915,82 @@ async fn distributed_runner_from_run_config_preserves_last_discover_error_with_c
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_preserves_last_discover_error_with_custom_service_types_when_cleanup_times_out(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(DiscoverErrorWithHangingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when discover returns an error with custom non-index service types and cleanup steps block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "discover-error worker timeout should remain primary over cleanup timeout failures with custom non-index service types via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("service type: parameter_server_custom"),
+        "discover-error diagnostics via RunConfig should include custom PS service type context for custom non-index paths: {msg}"
+    );
+    assert!(
+        msg.contains("for worker-0"),
+        "discover-error diagnostics via RunConfig should include worker service-id context for custom non-index paths: {msg}"
+    );
+    assert!(
+        msg.contains("last discovery error: Internal error: forced discover failure"),
+        "discover-error diagnostics via RunConfig should preserve last discovery error details with custom non-index service types: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "discover-error diagnostics via RunConfig should include cleanup issue context when cleanup times out with custom non-index service types: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: deregister worker-0 from trainer_custom after 20ms"
+        ),
+        "discover-error cleanup context via RunConfig should include custom worker service-type deregister-timeout diagnostics for non-index paths: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
+        ),
+        "discover-error cleanup context via RunConfig should include custom worker service-type disconnect-timeout diagnostics for non-index paths: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_preserves_last_discover_error_when_cleanup_fails() {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
     use std::sync::Arc;
@@ -2099,6 +2175,72 @@ async fn distributed_runner_from_run_config_preserves_last_discover_error_with_d
 
 #[tokio::test]
 async fn distributed_runner_from_run_config_preserves_last_discover_error_with_custom_service_type_when_cleanup_fails(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(DiscoverErrorWithFailingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_operation_timeout_ms: 200,
+        ..RunConfig::default()
+    };
+
+    let res = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "discover-error worker timeout should remain primary over cleanup failures with custom non-index service types via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("service type: parameter_server_custom"),
+        "discover-error diagnostics via RunConfig should include custom PS service type context for custom non-index paths when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains("for worker-0"),
+        "discover-error diagnostics via RunConfig should include worker service-id context for custom non-index paths when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains("last discovery error: Internal error: forced discover failure"),
+        "discover-error diagnostics via RunConfig should preserve last discovery error details with custom non-index service types when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "discover-error diagnostics via RunConfig should include cleanup issue context when cleanup fails with custom non-index service types: {msg}"
+    );
+    assert!(
+        msg.contains("deregister worker-0 from trainer_custom")
+            && msg.contains("forced deregister failure"),
+        "discover-error cleanup context via RunConfig should include custom worker service-type deregister-failure diagnostics for non-index paths: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-0 via trainer_custom")
+            && msg.contains("forced disconnect failure"),
+        "discover-error cleanup context via RunConfig should include custom worker service-type disconnect-failure diagnostics for non-index paths: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_preserves_last_discover_error_with_custom_service_types_when_cleanup_fails(
 ) {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
     use std::sync::Arc;
@@ -3229,6 +3371,87 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_and_discov
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_when_cleanup_times_out(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery =
+        Arc::new(OrderingAndDiscoverErrorWithHangingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 2,
+        num_workers: 1,
+        connect_retries: 1,
+        retry_backoff_ms: 1,
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when worker discovery times out with ordering+discovery errors and custom non-index cleanup blocks"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "worker ordering+discovery-error timeout should remain primary over cleanup timeout failures with custom service types via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("service type: parameter_server_custom"),
+        "worker ordering+discovery-error timeout diagnostics via RunConfig should include custom PS service type context when cleanup blocks: {msg}"
+    );
+    assert!(
+        msg.contains("for worker-0"),
+        "worker ordering+discovery-error timeout diagnostics via RunConfig should include propagated worker service-id context when cleanup blocks with custom service types: {msg}"
+    );
+    assert!(
+        msg.contains("last ordering issue: MixedIndexMetadataPresence"),
+        "worker ordering+discovery-error timeout diagnostics via RunConfig should preserve ordering issue details with custom service types when cleanup blocks: {msg}"
+    );
+    assert!(
+        msg.contains("last discovery error: Internal error: forced discover failure"),
+        "worker ordering+discovery-error timeout diagnostics via RunConfig should preserve discovery error details with custom service types when cleanup blocks: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "worker ordering+discovery-error timeout diagnostics via RunConfig should include cleanup issue context when cleanup blocks with custom service types: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: deregister worker-0 from trainer_custom after 20ms"
+        ),
+        "worker ordering+discovery-error timeout cleanup context via RunConfig should include custom worker service-type deregister-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
+        ),
+        "worker ordering+discovery-error timeout cleanup context via RunConfig should include custom worker service-type disconnect-timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 2);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_and_index_when_cleanup_fails(
 ) {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -3451,6 +3674,77 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_and_discov
 
 #[tokio::test]
 async fn distributed_runner_from_run_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_type_when_cleanup_fails(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery =
+        Arc::new(OrderingAndDiscoverErrorWithFailingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 2,
+        num_workers: 1,
+        connect_retries: 1,
+        retry_backoff_ms: 1,
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_operation_timeout_ms: 200,
+        ..RunConfig::default()
+    };
+
+    let res = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "worker ordering+discovery-error timeout should remain primary over cleanup failures with custom service types via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("service type: parameter_server_custom"),
+        "worker ordering+discovery-error timeout diagnostics via RunConfig should include custom PS service type context when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains("for worker-0"),
+        "worker ordering+discovery-error timeout diagnostics via RunConfig should include propagated worker service-id context when cleanup fails with custom service types: {msg}"
+    );
+    assert!(
+        msg.contains("last ordering issue: MixedIndexMetadataPresence"),
+        "worker ordering+discovery-error timeout diagnostics via RunConfig should preserve ordering issue details with custom service types when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains("last discovery error: Internal error: forced discover failure"),
+        "worker ordering+discovery-error timeout diagnostics via RunConfig should preserve discovery error details with custom service types when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "worker ordering+discovery-error timeout diagnostics via RunConfig should include cleanup issue context when cleanup fails with custom service types: {msg}"
+    );
+    assert!(
+        msg.contains("deregister worker-0 from trainer_custom")
+            && msg.contains("forced deregister failure"),
+        "worker ordering+discovery-error timeout cleanup context via RunConfig should include custom worker service-type deregister-failure diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-0 via trainer_custom")
+            && msg.contains("forced disconnect failure"),
+        "worker ordering+discovery-error timeout cleanup context via RunConfig should include custom worker service-type disconnect-failure diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 2);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_when_cleanup_fails(
 ) {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
     use std::sync::Arc;
@@ -13850,6 +14144,81 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_wit
 }
 
 #[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_types_when_cleanup_times_out(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(DiscoverErrorWithHangingCleanupFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when discover returns an error with custom non-index service types and cleanup steps block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "discover-error worker timeout should remain primary over cleanup timeout failures with custom non-index service types via RunnerConfig: {msg}"
+    );
+    assert!(
+        msg.contains("service type: parameter_server_custom"),
+        "discover-error diagnostics via RunnerConfig should include custom PS service type context for custom non-index paths: {msg}"
+    );
+    assert!(
+        msg.contains("for worker-0"),
+        "discover-error diagnostics via RunnerConfig should include worker service-id context for custom non-index paths: {msg}"
+    );
+    assert!(
+        msg.contains("last discovery error: Internal error: forced discover failure"),
+        "discover-error diagnostics via RunnerConfig should preserve last discovery error details with custom non-index service types: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "discover-error diagnostics via RunnerConfig should include cleanup issue context when cleanup times out with custom non-index service types: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: deregister worker-0 from trainer_custom after 20ms"
+        ),
+        "discover-error cleanup context via RunnerConfig should include custom worker service-type deregister-timeout diagnostics for non-index paths: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
+        ),
+        "discover-error cleanup context via RunnerConfig should include custom worker service-type disconnect-timeout diagnostics for non-index paths: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_runner_config_preserves_last_discover_error_when_cleanup_fails() {
     use monolith_training::runner::{run_distributed_from_runner_config, Role};
     use std::sync::Arc;
@@ -14031,6 +14400,71 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_wit
 
 #[tokio::test]
 async fn distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_type_when_cleanup_fails(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(DiscoverErrorWithFailingCleanupFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_operation_timeout_ms: 200,
+        ..RunnerConfig::default()
+    };
+
+    let res = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "discover-error worker timeout should remain primary over cleanup failures with custom non-index service types via RunnerConfig: {msg}"
+    );
+    assert!(
+        msg.contains("service type: parameter_server_custom"),
+        "discover-error diagnostics via RunnerConfig should include custom PS service type context for custom non-index paths when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains("for worker-0"),
+        "discover-error diagnostics via RunnerConfig should include worker service-id context for custom non-index paths when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains("last discovery error: Internal error: forced discover failure"),
+        "discover-error diagnostics via RunnerConfig should preserve last discovery error details with custom non-index service types when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "discover-error diagnostics via RunnerConfig should include cleanup issue context when cleanup fails with custom non-index service types: {msg}"
+    );
+    assert!(
+        msg.contains("deregister worker-0 from trainer_custom")
+            && msg.contains("forced deregister failure"),
+        "discover-error cleanup context via RunnerConfig should include custom worker service-type deregister-failure diagnostics for non-index paths: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-0 via trainer_custom")
+            && msg.contains("forced disconnect failure"),
+        "discover-error cleanup context via RunnerConfig should include custom worker service-type disconnect-failure diagnostics for non-index paths: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_types_when_cleanup_fails(
 ) {
     use monolith_training::runner::{run_distributed_from_runner_config, Role};
     use std::sync::Arc;
@@ -15145,6 +15579,86 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_dis
 }
 
 #[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_when_cleanup_times_out(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery =
+        Arc::new(OrderingAndDiscoverErrorWithHangingCleanupFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 2,
+        num_workers: 1,
+        connect_retries: 1,
+        retry_backoff_ms: 1,
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when worker discovery times out with ordering+discovery errors and custom non-index cleanup blocks"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "worker ordering+discovery-error timeout should remain primary over cleanup timeout failures with custom service types via RunnerConfig: {msg}"
+    );
+    assert!(
+        msg.contains("service type: parameter_server_custom"),
+        "worker ordering+discovery-error timeout diagnostics via RunnerConfig should include custom PS service type context when cleanup blocks: {msg}"
+    );
+    assert!(
+        msg.contains("for worker-0"),
+        "worker ordering+discovery-error timeout diagnostics via RunnerConfig should include propagated worker service-id context when cleanup blocks with custom service types: {msg}"
+    );
+    assert!(
+        msg.contains("last ordering issue: MixedIndexMetadataPresence"),
+        "worker ordering+discovery-error timeout diagnostics via RunnerConfig should preserve ordering issue details with custom service types when cleanup blocks: {msg}"
+    );
+    assert!(
+        msg.contains("last discovery error: Internal error: forced discover failure"),
+        "worker ordering+discovery-error timeout diagnostics via RunnerConfig should preserve discovery error details with custom service types when cleanup blocks: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "worker ordering+discovery-error timeout diagnostics via RunnerConfig should include cleanup issue context when cleanup blocks with custom service types: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: deregister worker-0 from trainer_custom after 20ms"
+        ),
+        "worker ordering+discovery-error timeout cleanup context via RunnerConfig should include custom worker service-type deregister-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains(
+            "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
+        ),
+        "worker ordering+discovery-error timeout cleanup context via RunnerConfig should include custom worker service-type disconnect-timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 2);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_and_index_when_cleanup_fails(
 ) {
     use monolith_training::runner::{run_distributed_from_runner_config, Role};
@@ -15424,6 +15938,76 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_dis
             "Timed out during discovery cleanup: disconnect worker-3 via trainer_custom after 20ms"
         ),
         "worker ordering+discovery-error timeout cleanup context via RunnerConfig should include custom worker service-type/index disconnect-timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.discover_count.load(Ordering::SeqCst), 2);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_when_cleanup_fails(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery =
+        Arc::new(OrderingAndDiscoverErrorWithFailingCleanupFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 2,
+        num_workers: 1,
+        connect_retries: 1,
+        retry_backoff_ms: 1,
+        discovery_service_type_ps: "parameter_server_custom".to_string(),
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_operation_timeout_ms: 200,
+        ..RunnerConfig::default()
+    };
+
+    let res = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out waiting for PS discovery"),
+        "worker ordering+discovery-error timeout should remain primary over cleanup failures with custom service types via RunnerConfig: {msg}"
+    );
+    assert!(
+        msg.contains("service type: parameter_server_custom"),
+        "worker ordering+discovery-error timeout diagnostics via RunnerConfig should include custom PS service type context when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains("for worker-0"),
+        "worker ordering+discovery-error timeout diagnostics via RunnerConfig should include propagated worker service-id context when cleanup fails with custom service types: {msg}"
+    );
+    assert!(
+        msg.contains("last ordering issue: MixedIndexMetadataPresence"),
+        "worker ordering+discovery-error timeout diagnostics via RunnerConfig should preserve ordering issue details with custom service types when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains("last discovery error: Internal error: forced discover failure"),
+        "worker ordering+discovery-error timeout diagnostics via RunnerConfig should preserve discovery error details with custom service types when cleanup fails: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "worker ordering+discovery-error timeout diagnostics via RunnerConfig should include cleanup issue context when cleanup fails with custom service types: {msg}"
+    );
+    assert!(
+        msg.contains("deregister worker-0 from trainer_custom")
+            && msg.contains("forced deregister failure"),
+        "worker ordering+discovery-error timeout cleanup context via RunnerConfig should include custom worker service-type deregister-failure diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-0 via trainer_custom")
+            && msg.contains("forced disconnect failure"),
+        "worker ordering+discovery-error timeout cleanup context via RunnerConfig should include custom worker service-type disconnect-failure diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
