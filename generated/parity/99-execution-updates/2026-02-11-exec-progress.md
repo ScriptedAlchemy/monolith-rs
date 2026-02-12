@@ -4205,6 +4205,16 @@
       - `_when_cleanup_times_out`: 2
   - Full monolith-training regression remains green.
 
+### 308) Native when-cleanup-blocks + worker-discovery-error directional closure
+- Added alias wrappers in `native_training_parity.rs` for:
+  - `_when_cleanup_blocks` directional transform (+76 wrappers)
+  - final worker-discovery-error cleanup-fail/timeout directional tails (+4 wrappers)
+- Result:
+  - Native generic `preserves_ -> surfaces_`: `80 -> 0`.
+  - Combined with runner-side completion, both tracked files now report
+    `preserves_ -> surfaces_ missing 0`.
+  - Full monolith-training regression remains green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4967,6 +4977,12 @@
 759. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_ps_register_timeout_with_default_service_type_disconnect_failure_context -- --nocapture` ✅
 760. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post native disconnect-failure-context preserves->surfaces alias additions full monolith-training regression rerun)
 761. `python3` native suffix-audit ✅ (`_disconnect_failure_context` `76->0`; native generic `preserves_ -> surfaces_` `156 -> 80`)
+762. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_surfaces_connect_failure_with_default_service_type_when_cleanup_blocks -- --nocapture` ✅
+763. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_ps_register_timeout_with_default_service_type_when_cleanup_blocks -- --nocapture` ✅
+764. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_surfaces_worker_discovery_error_when_cleanup_fails -- --nocapture` ✅
+765. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_worker_discovery_error_when_cleanup_times_out -- --nocapture` ✅
+766. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post native when-cleanup-blocks + worker-discovery-error preserves->surfaces alias additions full monolith-training regression rerun)
+767. `python3` final directional audit ✅ (`runner.rs` and `native_training_parity.rs` generic `preserves_ -> surfaces_` both `missing 0`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
