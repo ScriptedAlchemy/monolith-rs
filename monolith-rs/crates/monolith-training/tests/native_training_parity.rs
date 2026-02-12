@@ -6184,7 +6184,109 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_preserves_worker_register_failure_with_custom_service_type_disconnect_failure_context(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(FailingRegisterWithFailingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("forced register failure"),
+        "worker register failure should remain primary via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "worker register-failure diagnostics via RunConfig should include cleanup issue context: {msg}"
+    );
+    assert!(
+        msg.contains("deregister worker-0 from trainer_custom")
+            && msg.contains("forced deregister failure"),
+        "worker register-failure cleanup context via RunConfig should include custom worker service-type deregister failure diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-0 via trainer_custom")
+            && msg.contains("forced disconnect failure"),
+        "worker register-failure cleanup context via RunConfig should include custom worker service-type disconnect failure diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_preserves_worker_register_failure_with_custom_service_type_and_index_cleanup_context(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(FailingRegisterWithFailingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 3,
+        num_ps: 1,
+        num_workers: 4,
+        discovery_service_type_worker: "trainer_custom".to_string(),
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("forced register failure"),
+        "indexed worker register failure should remain primary via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "indexed worker register-failure diagnostics via RunConfig should include cleanup issue context: {msg}"
+    );
+    assert!(
+        msg.contains("deregister worker-3 from trainer_custom")
+            && msg.contains("forced deregister failure"),
+        "indexed worker register-failure cleanup context via RunConfig should include custom worker service-type/index deregister failure diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-3 via trainer_custom")
+            && msg.contains("forced disconnect failure"),
+        "indexed worker register-failure cleanup context via RunConfig should include custom worker service-type/index disconnect failure diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_preserves_worker_register_failure_with_custom_service_type_and_index_disconnect_failure_context(
 ) {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
     use std::sync::Arc;
@@ -6385,7 +6487,103 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_preserves_worker_register_failure_with_default_service_type_disconnect_failure_context(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(FailingRegisterWithFailingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("forced register failure"),
+        "worker register failure should remain primary via RunConfig default service type: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "worker register-failure diagnostics via RunConfig default service type should include cleanup issue context: {msg}"
+    );
+    assert!(
+        msg.contains("deregister worker-0 from worker") && msg.contains("forced deregister failure"),
+        "worker register-failure cleanup context via RunConfig default service type should include worker deregister failure diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-0 via worker") && msg.contains("forced disconnect failure"),
+        "worker register-failure cleanup context via RunConfig default service type should include worker disconnect failure diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_preserves_worker_register_failure_with_default_service_type_and_index_cleanup_context(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(FailingRegisterWithFailingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 3,
+        num_ps: 1,
+        num_workers: 4,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await;
+    let msg = res.unwrap_err().to_string();
+    assert!(
+        msg.contains("forced register failure"),
+        "indexed worker register failure should remain primary via RunConfig default service type: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "indexed worker register-failure diagnostics via RunConfig default service type should include cleanup issue context: {msg}"
+    );
+    assert!(
+        msg.contains("deregister worker-3 from worker") && msg.contains("forced deregister failure"),
+        "indexed worker register-failure cleanup context via RunConfig default service type should include worker service-type/index deregister failure diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-3 via worker") && msg.contains("forced disconnect failure"),
+        "indexed worker register-failure cleanup context via RunConfig default service type should include worker service-type/index disconnect failure diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_preserves_worker_register_failure_with_default_service_type_and_index_disconnect_failure_context(
 ) {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
     use std::sync::Arc;
