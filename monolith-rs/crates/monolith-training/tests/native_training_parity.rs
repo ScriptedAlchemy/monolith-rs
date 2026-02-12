@@ -4294,7 +4294,7 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_and_discov
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -4365,7 +4365,7 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_and_discov
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -4516,7 +4516,7 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_and_discov
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -4777,7 +4777,7 @@ async fn distributed_runner_from_run_config_rejects_zero_operation_timeout() {
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -4808,7 +4808,7 @@ async fn distributed_runner_from_run_config_rejects_zero_cleanup_timeout() {
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -4839,7 +4839,7 @@ async fn distributed_runner_from_run_config_rejects_zero_barrier_timeout() {
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -4870,7 +4870,7 @@ async fn distributed_runner_from_run_config_rejects_negative_barrier_timeout() {
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -4900,7 +4900,7 @@ async fn distributed_runner_from_run_config_rejects_zero_num_ps() {
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -4930,7 +4930,7 @@ async fn distributed_runner_from_run_config_rejects_zero_num_workers() {
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -4961,7 +4961,7 @@ async fn distributed_runner_from_run_config_rejects_zero_dim() {
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -4992,7 +4992,7 @@ async fn distributed_runner_from_run_config_rejects_worker_index_out_of_range() 
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
