@@ -3960,6 +3960,18 @@
   - Updated broad transform audit remains fully closed (`missing 0` for all
     tracked transforms).
 
+### 288) Surfaces/preserves timeout naming parity completed
+- Added 14 alias wrappers:
+  - 4 in `runner.rs`
+  - 10 in `native_training_parity.rs`
+- Closed transforms:
+  - `surfaces_disconnect_timeout_with -> preserves_disconnect_timeout_with`
+  - `surfaces_deregister_timeout_with -> preserves_deregister_timeout_with`
+  - `preserves_deregister_timeout_with -> surfaces_deregister_timeout_with`
+- Result:
+  - All three transforms now report `missing 0` in both files.
+  - Comprehensive tracked naming audit remains fully closed (`missing 0`).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4638,6 +4650,12 @@
 675. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post discover-timeout alias additions full monolith-training regression rerun)
 676. `python3` discover-timeout transform audit (`discover_timeout -> last_discover_error`) ✅ (both files `missing 0`)
 677. `python3` latest broad transform audit (including discover-timeout transform) ✅ (`missing 0` for all tracked transforms in both files)
+678. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_preserves_disconnect_timeout_with_default_service_type_after_success -- --nocapture` ✅
+679. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_disconnect_timeout_with_default_service_type_after_success -- --nocapture` ✅
+680. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_surfaces_deregister_timeout_with_disconnect_timeout_context_after_success -- --nocapture` ✅
+681. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post surfaces/preserves alias additions full monolith-training regression rerun)
+682. `python3` surfaces/preserves timeout transform audits ✅ (all three transforms `missing 0` in `runner.rs` and `native_training_parity.rs`)
+683. `python3` comprehensive tracked naming audit (cleanup/disconnect/timeout/index/service-type/default-generic/discover/surfaces-preserves) ✅ (`missing 0` for all tracked transforms in both files)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

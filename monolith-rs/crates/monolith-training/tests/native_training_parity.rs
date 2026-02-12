@@ -26194,6 +26194,66 @@ fn distributed_runner_from_runner_config_honors_last_discover_error_controls() {
 }
 
 #[test]
+fn distributed_runner_from_run_config_preserves_disconnect_timeout_with_custom_service_type_after_success(
+) {
+    distributed_runner_from_run_config_surfaces_disconnect_timeout_with_custom_service_type_after_success();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_disconnect_timeout_with_default_service_type_after_success(
+) {
+    distributed_runner_from_run_config_surfaces_disconnect_timeout_with_default_service_type_after_success();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_disconnect_timeout_with_custom_service_type_after_success(
+) {
+    distributed_runner_from_runner_config_surfaces_disconnect_timeout_with_custom_service_type_after_success();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_disconnect_timeout_with_default_service_type_after_success(
+) {
+    distributed_runner_from_runner_config_surfaces_disconnect_timeout_with_default_service_type_after_success();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_deregister_timeout_with_custom_service_type_after_success(
+) {
+    distributed_runner_from_run_config_surfaces_deregister_timeout_with_custom_service_type_after_success();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_deregister_timeout_with_default_service_type_after_success(
+) {
+    distributed_runner_from_run_config_surfaces_deregister_timeout_with_default_service_type_after_success();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_deregister_timeout_with_custom_service_type_after_success(
+) {
+    distributed_runner_from_runner_config_surfaces_deregister_timeout_with_custom_service_type_after_success();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_deregister_timeout_with_default_service_type_after_success(
+) {
+    distributed_runner_from_runner_config_surfaces_deregister_timeout_with_default_service_type_after_success();
+}
+
+#[test]
+fn distributed_runner_from_run_config_surfaces_deregister_timeout_with_disconnect_timeout_context_after_success(
+) {
+    distributed_runner_from_run_config_preserves_deregister_timeout_with_disconnect_timeout_context_after_success();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_surfaces_deregister_timeout_with_disconnect_timeout_context_after_success(
+) {
+    distributed_runner_from_runner_config_preserves_deregister_timeout_with_disconnect_timeout_context_after_success();
+}
+
+#[test]
 fn distributed_runner_from_runner_config_preserves_discover_timeout_and_index_when_cleanup_times_out(
 ) {
     distributed_runner_from_runner_config_preserves_discover_timeout_with_default_service_types_and_index_when_cleanup_times_out();

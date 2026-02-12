@@ -13055,4 +13055,24 @@ mod tests {
     fn test_run_worker_role_last_discover_error_includes_service_type_context() {
         test_run_worker_role_discover_timeout_includes_service_type_context();
     }
+
+    #[test]
+    fn test_run_distributed_preserves_disconnect_timeout_with_custom_service_type_after_success() {
+        test_run_distributed_surfaces_disconnect_timeout_with_custom_service_type_after_success();
+    }
+
+    #[test]
+    fn test_run_distributed_preserves_disconnect_timeout_with_default_service_type_after_success() {
+        test_run_distributed_surfaces_disconnect_timeout_with_default_service_type_after_success();
+    }
+
+    #[test]
+    fn test_run_distributed_preserves_deregister_timeout_with_custom_service_type_after_success() {
+        test_run_distributed_surfaces_deregister_timeout_with_custom_service_type_after_success();
+    }
+
+    #[test]
+    fn test_run_distributed_preserves_deregister_timeout_with_default_service_type_after_success() {
+        test_run_distributed_surfaces_deregister_timeout_with_default_service_type_after_success();
+    }
 }
