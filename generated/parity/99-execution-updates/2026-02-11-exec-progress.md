@@ -7030,6 +7030,18 @@
   - removed all `.unwrap()` call-sites from py-discovery module (**0 remaining**),
     preserving MLP close/filter/query parity behavior.
 
+### 522) Distributed runtime test unwrap diagnostics completion
+- Tightened `crates/monolith-training/src/distributed.rs` unwrap usage by
+  replacing remaining runtime-test unwrap assertions with explicit
+  `expect(...)` diagnostics across:
+  - parameter-server lifecycle and apply-gradients lanes,
+  - worker lifecycle/step/barrier lanes,
+  - local-cluster start/stop/register/train/barrier/wait/pruning lanes.
+- Result:
+  - removed all non-doc `.unwrap()` call-sites from distributed module
+    (**only doc-comment example remains**), preserving distributed runtime
+    parity behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8129,6 +8141,8 @@
 1096. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/service_discovery.rs` ✅ (verified no remaining unwrap call-sites in native-training service-discovery module)
 1097. `cargo test -p monolith-training py_discovery::tests:: -- --nocapture` ✅ (validated py-discovery unit-test suite after MLP lock/assert unwrap-diagnostics tightening)
 1098. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/py_discovery.rs` ✅ (verified no remaining unwrap call-sites in py-discovery module)
+1099. `cargo test -p monolith-training distributed::tests:: -- --nocapture` ✅ (validated distributed module unit-test suite after runtime unwrap-diagnostics tightening)
+1100. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/distributed.rs` ✅ (verified only doc-comment unwrap example remains in distributed module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

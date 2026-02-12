@@ -819,14 +819,16 @@ mod tests {
         let mut ps = ParameterServer::new(0);
         assert!(!ps.is_running());
 
-        ps.start().unwrap();
+        ps.start()
+            .expect("parameter server start should succeed in basic lifecycle test");
         assert!(ps.is_running());
 
         ps.set_parameter("weights", vec![1.0, 2.0, 3.0]);
         assert_eq!(ps.get_parameter("weights"), Some(vec![1.0, 2.0, 3.0]));
         assert!(ps.get_parameter("biases").is_none());
 
-        ps.stop().unwrap();
+        ps.stop()
+            .expect("parameter server stop should succeed in basic lifecycle test");
         assert!(!ps.is_running());
     }
 
@@ -842,7 +844,8 @@ mod tests {
             "expected InvalidConfiguration mentioning not-running parameter server, got {err:?}"
         );
 
-        ps.start().unwrap();
+        ps.start()
+            .expect("parameter server start should succeed before duplicate-start check");
         let err = ps
             .start()
             .expect_err("starting an already running parameter server should fail");
@@ -851,7 +854,8 @@ mod tests {
                 if msg.contains("parameter server 1 is already running")),
             "expected InvalidConfiguration mentioning already-running parameter server, got {err:?}"
         );
-        ps.stop().unwrap();
+        ps.stop()
+            .expect("parameter server stop should succeed after duplicate-start check");
     }
 
     #[test]
@@ -859,7 +863,9 @@ mod tests {
         let mut ps = ParameterServer::new(0);
         ps.set_parameter("w", vec![1.0, 2.0, 3.0]);
 
-        let updated = ps.apply_gradients("w", &[0.1, 0.2, 0.3], 1.0).unwrap();
+        let updated = ps
+            .apply_gradients("w", &[0.1, 0.2, 0.3], 1.0)
+            .expect("apply_gradients should succeed for matching parameter and gradient sizes");
         assert_eq!(updated, vec![0.9, 1.8, 2.7]);
 
         // Wrong gradient size
@@ -898,19 +904,29 @@ mod tests {
             "expected CommunicationError(\"Worker is not running\"), got {err:?}"
         );
 
-        worker.start().unwrap();
+        worker
+            .start()
+            .expect("worker start should succeed in worker lifecycle test");
         assert!(worker.is_running());
 
-        worker.step().unwrap();
+        worker
+            .step()
+            .expect("first worker step should succeed while running");
         assert_eq!(worker.current_step(), 1);
 
-        worker.step().unwrap();
+        worker
+            .step()
+            .expect("second worker step should succeed while running");
         assert_eq!(worker.current_step(), 2);
 
         // Barrier works while running.
-        worker.sync_barrier().unwrap();
+        worker
+            .sync_barrier()
+            .expect("worker barrier should succeed while running");
 
-        worker.stop().unwrap();
+        worker
+            .stop()
+            .expect("worker stop should succeed in worker lifecycle test");
         assert!(!worker.is_running());
 
         // Barrier fails once stopped.
@@ -935,7 +951,9 @@ mod tests {
             "expected InvalidConfiguration mentioning not-running worker, got {err:?}"
         );
 
-        worker.start().unwrap();
+        worker
+            .start()
+            .expect("worker start should succeed before duplicate-start check");
         let err = worker
             .start()
             .expect_err("starting an already running worker should fail");
@@ -944,7 +962,9 @@ mod tests {
                 if msg.contains("worker 1 is already running")),
             "expected InvalidConfiguration mentioning already-running worker, got {err:?}"
         );
-        worker.stop().unwrap();
+        worker
+            .stop()
+            .expect("worker stop should succeed after duplicate-start check");
     }
 
     #[test]
@@ -973,25 +993,40 @@ mod tests {
             0,
             false,
         );
-        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
-        cluster.start().unwrap();
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for train_step test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for train_step test");
 
-        let ps_idx = cluster.register_parameter("w", vec![1.0, 2.0]).unwrap();
+        let ps_idx = cluster
+            .register_parameter("w", vec![1.0, 2.0])
+            .expect("register_parameter should succeed in train_step test");
         assert_eq!(ps_idx, get_ps_index("w", cluster.num_ps()));
 
         let mut grads = HashMap::new();
         grads.insert("w".to_string(), vec![0.5, 1.0]);
-        let updated = cluster.train_step(0, &grads).unwrap();
+        let updated = cluster
+            .train_step(0, &grads)
+            .expect("train_step should succeed for worker 0");
         assert_eq!(updated["w"], vec![0.95, 1.9]);
-        assert_eq!(cluster.worker_step(0).unwrap(), 1);
+        assert_eq!(
+            cluster
+                .worker_step(0)
+                .expect("worker_step(0) should be available after one train_step"),
+            1
+        );
 
-        cluster.stop().unwrap();
+        cluster
+            .stop()
+            .expect("local cluster stop should succeed for train_step test");
     }
 
     #[test]
     fn test_local_cluster_register_parameter_requires_running_cluster() {
         let cfg = ClusterConfig::new(vec![make_addr(5000)], vec![make_addr(6000)], 0, false);
-        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed");
         let err = cluster
             .register_parameter("w", vec![1.0, 2.0])
             .expect_err("register_parameter should fail when cluster is not running");
@@ -1001,7 +1036,9 @@ mod tests {
             "expected InvalidConfiguration mentioning not-fully-running cluster, got {err:?}"
         );
 
-        cluster.start().unwrap();
+        cluster
+            .start()
+            .expect("local cluster start should succeed");
         cluster
             .register_parameter("w", vec![1.0, 2.0])
             .expect("register_parameter should succeed after cluster start");
@@ -1010,8 +1047,11 @@ mod tests {
     #[test]
     fn test_local_cluster_bad_worker_index() {
         let cfg = ClusterConfig::new(vec![make_addr(5000)], vec![make_addr(6000)], 0, false);
-        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
-        cluster.start().unwrap();
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed");
+        cluster
+            .start()
+            .expect("local cluster start should succeed");
         let grads: HashMap<String, Vec<f32>> = HashMap::new();
         let err = cluster
             .train_step(5, &grads)
@@ -1026,9 +1066,14 @@ mod tests {
     #[test]
     fn test_local_cluster_train_step_requires_running_cluster() {
         let cfg = ClusterConfig::new(vec![make_addr(5000)], vec![make_addr(6000)], 0, false);
-        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
-        cluster.start().unwrap();
-        cluster.stop().unwrap();
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed");
+        cluster
+            .start()
+            .expect("local cluster start should succeed");
+        cluster
+            .stop()
+            .expect("local cluster stop should succeed");
 
         let grads: HashMap<String, Vec<f32>> = HashMap::new();
         let err = cluster
@@ -1049,11 +1094,16 @@ mod tests {
             0,
             false,
         );
-        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
-        cluster.start().unwrap();
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for barrier-release test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for barrier-release test");
 
         // Epoch 0 barrier: first caller waits, second caller releases.
-        let first = cluster.sync_barrier(0).unwrap();
+        let first = cluster
+            .sync_barrier(0)
+            .expect("first worker barrier call should succeed at epoch 0");
         assert_eq!(
             first,
             BarrierStatus::Waiting {
@@ -1062,7 +1112,9 @@ mod tests {
                 required: 2
             }
         );
-        let second = cluster.sync_barrier(1).unwrap();
+        let second = cluster
+            .sync_barrier(1)
+            .expect("second worker barrier call should succeed and release epoch 0");
         assert_eq!(
             second,
             BarrierStatus::Released {
@@ -1073,12 +1125,20 @@ mod tests {
 
         // Advance both workers to step 1 and verify next barrier epoch.
         let grads: HashMap<String, Vec<f32>> = HashMap::new();
-        cluster.train_step(0, &grads).unwrap();
-        cluster.train_step(1, &grads).unwrap();
+        cluster
+            .train_step(0, &grads)
+            .expect("worker 0 train_step should succeed before epoch-1 barrier");
+        cluster
+            .train_step(1, &grads)
+            .expect("worker 1 train_step should succeed before epoch-1 barrier");
 
-        let first = cluster.sync_barrier(0).unwrap();
+        let first = cluster
+            .sync_barrier(0)
+            .expect("first worker barrier call should succeed at epoch 1");
         assert!(matches!(first, BarrierStatus::Waiting { epoch: 1, .. }));
-        let second = cluster.sync_barrier(1).unwrap();
+        let second = cluster
+            .sync_barrier(1)
+            .expect("second worker barrier call should succeed and release epoch 1");
         assert_eq!(
             second,
             BarrierStatus::Released {
@@ -1088,7 +1148,9 @@ mod tests {
         );
 
         // Re-checking a released epoch from first worker now reports released.
-        let again = cluster.sync_barrier(0).unwrap();
+        let again = cluster
+            .sync_barrier(0)
+            .expect("released barrier should be observable by prior participant");
         assert_eq!(
             again,
             BarrierStatus::Released {
@@ -1106,8 +1168,11 @@ mod tests {
             0,
             false,
         );
-        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
-        cluster.start().unwrap();
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for barrier-timeout test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for barrier-timeout test");
 
         let err = cluster
             .wait_for_barrier(
@@ -1130,10 +1195,15 @@ mod tests {
             0,
             false,
         );
-        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
-        cluster.start().unwrap();
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for barrier-success test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for barrier-success test");
 
-        let first = cluster.sync_barrier(0).unwrap();
+        let first = cluster
+            .sync_barrier(0)
+            .expect("first worker barrier call should succeed at epoch 0");
         assert!(matches!(first, BarrierStatus::Waiting { epoch: 0, .. }));
         let second = cluster.wait_for_barrier(
             1,
@@ -1141,7 +1211,7 @@ mod tests {
             std::time::Duration::from_millis(1),
         );
         assert!(matches!(
-            second.unwrap(),
+            second.expect("second worker wait_for_barrier should succeed"),
             BarrierStatus::Released {
                 epoch: 0,
                 participants: 2
@@ -1157,8 +1227,11 @@ mod tests {
             0,
             false,
         );
-        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
-        cluster.start().unwrap();
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for barrier-timeout cleanup test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for barrier-timeout cleanup test");
 
         // Worker 0 times out waiting at epoch 0.
         let timeout_err = cluster
@@ -1175,7 +1248,9 @@ mod tests {
 
         // Cleanup should have removed worker 0 from waiter set, so worker 1 alone
         // should still be in waiting state instead of incorrectly releasing.
-        let worker1_first = cluster.sync_barrier(1).unwrap();
+        let worker1_first = cluster
+            .sync_barrier(1)
+            .expect("worker 1 barrier call should succeed while waiting after timeout cleanup");
         assert_eq!(
             worker1_first,
             BarrierStatus::Waiting {
@@ -1186,7 +1261,9 @@ mod tests {
         );
 
         // Worker 0 retries and now barrier can release correctly.
-        let worker0_retry = cluster.sync_barrier(0).unwrap();
+        let worker0_retry = cluster
+            .sync_barrier(0)
+            .expect("worker 0 retry barrier call should succeed and release");
         assert_eq!(
             worker0_retry,
             BarrierStatus::Released {
@@ -1204,32 +1281,47 @@ mod tests {
             0,
             false,
         );
-        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
-        cluster.start().unwrap();
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for released-barrier pruning test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for released-barrier pruning test");
 
         // Release epoch 0 barrier.
         assert!(matches!(
-            cluster.sync_barrier(0).unwrap(),
+            cluster
+                .sync_barrier(0)
+                .expect("worker 0 barrier call should succeed at epoch 0"),
             BarrierStatus::Waiting { epoch: 0, .. }
         ));
         assert!(matches!(
-            cluster.sync_barrier(1).unwrap(),
+            cluster
+                .sync_barrier(1)
+                .expect("worker 1 barrier call should succeed and release epoch 0"),
             BarrierStatus::Released { epoch: 0, .. }
         ));
         assert!(cluster.released_barriers.contains_key(&0));
 
         // Advance only worker 0; worker 1 should still observe epoch 0 as released.
         let grads: HashMap<String, Vec<f32>> = HashMap::new();
-        cluster.train_step(0, &grads).unwrap();
+        cluster
+            .train_step(0, &grads)
+            .expect("worker 0 train_step should succeed before stale-release check");
         assert!(matches!(
-            cluster.sync_barrier(1).unwrap(),
+            cluster
+                .sync_barrier(1)
+                .expect("worker 1 barrier call should observe released epoch 0"),
             BarrierStatus::Released { epoch: 0, .. }
         ));
         assert!(cluster.released_barriers.contains_key(&0));
 
         // Once worker 1 advances too, epoch 0 is obsolete and can be pruned.
-        cluster.train_step(1, &grads).unwrap();
-        let _ = cluster.sync_barrier(0).unwrap(); // triggers prune pass
+        cluster
+            .train_step(1, &grads)
+            .expect("worker 1 train_step should succeed before prune");
+        let _ = cluster
+            .sync_barrier(0)
+            .expect("worker 0 barrier call should trigger prune pass"); // triggers prune pass
         assert!(!cluster.released_barriers.contains_key(&0));
     }
 
@@ -1241,8 +1333,11 @@ mod tests {
             0,
             false,
         );
-        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
-        cluster.start().unwrap();
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for non-reentrant start test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for non-reentrant start test");
 
         let err = cluster
             .start()
@@ -1262,7 +1357,8 @@ mod tests {
             0,
             false,
         );
-        let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for stop-requires-running test");
         let err = cluster
             .stop()
             .expect_err("stopping a non-running local cluster should fail");
