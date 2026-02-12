@@ -3721,6 +3721,15 @@
 - Result: `_cleanup_timeout_context -> _cleanup_context` integration alias audit
   is now fully closed (`TOTAL 0` missing counterparts).
 
+### 267) Worker register disconnect-context alias parity started
+- Added RunConfig alias:
+  - `distributed_runner_from_run_config_preserves_worker_register_failure_with_disconnect_failure_context`
+- Added RunnerConfig alias:
+  - `distributed_runner_from_runner_config_preserves_worker_register_failure_with_disconnect_failure_context`
+- Result: exploratory counterpart audit for
+  `_cleanup_context -> _disconnect_failure_context` register-failure naming
+  gaps reduced from 20 to 18.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4302,6 +4311,9 @@
 578. `ZK_AUTH=user:pass cargo test -p monolith-training ps_register_failure_with_cleanup_context -- --nocapture` ✅
 579. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post PS connect/register cleanup-context alias expansion full monolith-training regression rerun)
 580. `python3` cleanup-timeout-context alias audit (`native_training_parity.rs`) ✅ (`TOTAL 0` missing `_cleanup_timeout_context -> _cleanup_context` counterparts)
+581. `ZK_AUTH=user:pass cargo test -p monolith-training worker_register_failure_with_disconnect_failure_context -- --nocapture` ✅
+582. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker register disconnect-context alias additions full monolith-training regression rerun)
+583. `python3` cleanup-context/disconnect-context alias audit (`native_training_parity.rs`) ✅ (remaining `_cleanup_context -> _disconnect_failure_context` gaps reduced from 20 to 18)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
