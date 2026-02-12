@@ -7753,7 +7753,10 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_c
         res.is_ok(),
         "run_distributed_from_run_config should not hang when ps register fails and cleanup steps block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when ps register fails and cleanup steps block")
+        .expect_err("ps register failure with cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "ps register failure should remain primary over cleanup timeout failures via RunConfig: {msg}"
@@ -7807,7 +7810,10 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_d
         res.is_ok(),
         "run_distributed_from_run_config should not hang when ps register fails and cleanup steps block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when ps register fails and cleanup steps block")
+        .expect_err("ps register failure with disconnect-failure context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "ps register failure should remain primary over cleanup timeout failures via RunConfig: {msg}"
@@ -7861,7 +7867,10 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_d
         res.is_ok(),
         "run_distributed_from_run_config should not hang when indexed ps register fails and default-service cleanup steps block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when indexed ps register fails and default-service cleanup steps block")
+        .expect_err("indexed ps register failure with default cleanup timeouts should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "indexed ps register failure should remain primary over default-service cleanup timeout failures via RunConfig: {msg}"
@@ -7915,7 +7924,10 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_d
         res.is_ok(),
         "run_distributed_from_run_config should not hang when non-index ps register fails and default-service cleanup steps block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when non-index ps register fails and default-service cleanup steps block")
+        .expect_err("ps register failure with default cleanup timeouts should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced register failure"),
         "ps register failure should remain primary over default-service cleanup timeout failures via RunConfig: {msg}"
@@ -7980,7 +7992,10 @@ async fn distributed_runner_from_run_config_surfaces_deregister_timeout_with_cus
         res.is_ok(),
         "run_distributed_from_run_config should not hang when deregister cleanup blocks after successful ps run"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when custom-service deregister times out after successful run")
+        .expect_err("deregister timeout after success should surface as role error")
+        .to_string();
     assert!(
         msg.contains(
             "Timed out during discovery cleanup: deregister worker-0 from trainer_custom after 20ms"
@@ -8041,7 +8056,10 @@ async fn distributed_runner_from_run_config_surfaces_disconnect_timeout_with_cus
         res.is_ok(),
         "run_distributed_from_run_config should not hang when disconnect cleanup blocks after successful ps run"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when custom-service disconnect times out after successful run")
+        .expect_err("disconnect timeout after success should surface as role error")
+        .to_string();
     assert!(
         msg.contains(
             "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
@@ -8099,7 +8117,10 @@ async fn distributed_runner_from_run_config_surfaces_deregister_timeout_after_su
         res.is_ok(),
         "run_distributed_from_run_config should not hang when default-service-type deregister cleanup blocks after successful worker run"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when deregister times out after successful run")
+        .expect_err("default-service deregister timeout after success should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery cleanup: deregister worker-0 from worker after 20ms"),
         "default-service-type deregister timeout diagnostics should be preserved after successful worker run via RunConfig: {msg}"
@@ -8155,7 +8176,10 @@ async fn distributed_runner_from_run_config_surfaces_disconnect_timeout_after_su
         res.is_ok(),
         "run_distributed_from_run_config should not hang when default-service-type disconnect cleanup blocks after successful worker run"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when disconnect times out after successful run")
+        .expect_err("default-service disconnect timeout after success should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker after 20ms"),
         "default-service-type disconnect timeout diagnostics should be preserved after successful worker run via RunConfig: {msg}"
@@ -8204,7 +8228,9 @@ async fn distributed_runner_from_run_config_surfaces_deregister_failure_after_su
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("deregister failure after success should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced deregister failure"),
         "default-service-type deregister failure should be preserved after successful worker run via RunConfig: {msg}"
@@ -8257,7 +8283,9 @@ async fn distributed_runner_from_run_config_surfaces_disconnect_failure_after_su
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("disconnect failure after success should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced disconnect failure"),
         "default-service-type disconnect failure should be preserved after successful worker run via RunConfig: {msg}"
@@ -8311,7 +8339,9 @@ async fn distributed_runner_from_run_config_preserves_deregister_failure_with_di
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("deregister failure with disconnect-failure context after success should surface as role error")
+        .to_string();
     assert!(
         msg.contains("deregister worker-0 from worker") && msg.contains("forced deregister failure"),
         "run-config post-success both-failure diagnostics should preserve deregister failure with operation context: {msg}"
@@ -8367,7 +8397,9 @@ async fn distributed_runner_from_run_config_surfaces_custom_worker_deregister_fa
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("custom worker deregister failure after success should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced deregister failure"),
         "custom-worker deregister failure should be preserved after successful worker run via RunConfig: {msg}"
@@ -8423,7 +8455,9 @@ async fn distributed_runner_from_run_config_surfaces_custom_worker_disconnect_fa
         "127.0.0.1:0".parse().unwrap(),
     )
     .await;
-    let msg = res.unwrap_err().to_string();
+    let msg = res
+        .expect_err("custom worker disconnect failure after success should surface as role error")
+        .to_string();
     assert!(
         msg.contains("forced disconnect failure"),
         "custom-worker disconnect failure should be preserved after successful worker run via RunConfig: {msg}"
@@ -8486,7 +8520,10 @@ async fn distributed_runner_from_run_config_preserves_deregister_timeout_with_di
         res.is_ok(),
         "run_distributed_from_run_config should not hang when both cleanup steps block after successful worker run"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when deregister/disconnect both time out after successful run")
+        .expect_err("deregister timeout with disconnect-timeout context after success should surface as role error")
+        .to_string();
     assert!(
         msg.contains(
             "Timed out during discovery cleanup: deregister worker-0 from trainer_custom after 20ms"
