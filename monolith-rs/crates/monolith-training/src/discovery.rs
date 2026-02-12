@@ -2186,10 +2186,10 @@ mod tests {
             .await
             .expect("timed out waiting for ServiceAdded after transient discover error")
             .expect("watch channel closed unexpectedly");
-        match added {
-            DiscoveryEvent::ServiceAdded(s) => assert_eq!(s.id, "ps-0"),
-            other => panic!("expected ServiceAdded, got {other:?}"),
-        }
+        assert!(
+            matches!(added, DiscoveryEvent::ServiceAdded(ref s) if s.id == "ps-0"),
+            "expected ServiceAdded(ps-0), got {added:?}"
+        );
 
         assert!(
             poll_calls.load(std::sync::atomic::Ordering::SeqCst) >= 2,
@@ -2487,10 +2487,10 @@ mod tests {
             .await
             .expect("timed out waiting for ServiceRemoved")
             .expect("watch channel closed unexpectedly");
-        match event {
-            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "ps-0"),
-            other => panic!("expected ServiceRemoved, got {other:?}"),
-        }
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "ps-0"),
+            "expected ServiceRemoved(ps-0), got {event:?}"
+        );
     }
 
     #[cfg(feature = "zookeeper")]
@@ -2766,10 +2766,10 @@ mod tests {
             .await
             .expect("timed out waiting for ServiceRemoved")
             .expect("watch channel closed unexpectedly");
-        match event {
-            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "ps-0"),
-            other => panic!("expected ServiceRemoved, got {other:?}"),
-        }
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "ps-0"),
+            "expected ServiceRemoved(ps-0), got {event:?}"
+        );
     }
 
     #[cfg(feature = "zookeeper")]
@@ -3172,10 +3172,10 @@ mod tests {
             .await
             .expect("timed out waiting for ServiceRemoved")
             .expect("watch channel closed unexpectedly");
-        match event {
-            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "worker-0"),
-            other => panic!("expected ServiceRemoved, got {other:?}"),
-        }
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "worker-0"),
+            "expected ServiceRemoved(worker-0), got {event:?}"
+        );
     }
 
     #[cfg(feature = "consul")]

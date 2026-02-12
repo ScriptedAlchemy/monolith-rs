@@ -5689,6 +5689,19 @@
   - Feature-gated targeted suites and default monolith-training regression
     remain green.
 
+### 421) Discovery parity: final panic fallback elimination in discovery tests
+- Refactored the last remaining panic fallback match arms in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_spawn_watch_poll_loop_recovers_after_transient_discover_error`
+  - `test_zk_sync_watch_receives_removed_event_on_deregister`
+  - `test_zk_async_deregister_local_only_service_returns_ok`
+  - `test_consul_sync_watch_receives_removed_event_on_deregister`
+- Result:
+  - All discovery test event assertions now use explicit `matches!(...)`
+    contracts without ad-hoc panic fallback branches.
+  - `discovery.rs` no longer contains `panic!` statements.
+  - Focused test suites and default monolith-training regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6607,6 +6620,8 @@
 915. `cargo test -p monolith-training --features "zookeeper" test_zk_sync_deregister_missing_service_preserves_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" test_zk_async_register_failure_ -- --nocapture && cargo test -p monolith-training --features "zookeeper" test_zk_async_deregister_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (ZooKeeper lifecycle assertion-tightening targeted verification plus default-lane regression rerun)
 916. `cargo test -p monolith-training --features "consul" test_consul_sync_deregister_missing_service_preserves_watchers -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_async_deregister_ -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_async_register_failure_ -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_discover_async_connection_failure_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (Consul lifecycle assertion-tightening targeted verification plus default-lane regression rerun)
 917. `cargo test -p monolith-training --features "zookeeper" test_zk_discover_async_connection_failure_ -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_async_register_config_error_ -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_discover_async_ -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_connect_ -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_async_deregister_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (cross-backend malformed-endpoint assertion-tightening targeted verification plus default-lane regression rerun)
+918. `cargo test -p monolith-training test_spawn_watch_poll_loop_recovers_after_transient_discover_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" test_zk_sync_watch_receives_removed_event_on_deregister -- --nocapture && cargo test -p monolith-training --features "zookeeper" test_zk_async_deregister_local_only_service_returns_ok -- --nocapture && cargo test -p monolith-training --features "consul" test_consul_sync_watch_receives_removed_event_on_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (final discovery panic-fallback assertion-tightening targeted verification plus default-lane regression rerun)
+919. `rg "panic!\\(" monolith-rs/crates/monolith-training/src/discovery.rs` ✅ (verified discovery.rs is panic-free after final assertion refactor batch)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
