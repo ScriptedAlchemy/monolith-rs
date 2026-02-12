@@ -76,7 +76,8 @@ all_model_checkpoint_paths: "model.ckpt-0"
 #[test]
 fn entry_batch_softmax_initializer_errors_like_python() {
     // Python raises ValueError when init_step_interval < 1.
-    let err = monolith_training::BatchSoftmaxInitializer::new(0.9).unwrap_err();
+    let err = monolith_training::BatchSoftmaxInitializer::new(0.9)
+        .expect_err("batch softmax initializer should reject probabilities below 1.0");
     match err {
         EntryError::InvalidInitStepInterval(v) => assert!((v - 0.9).abs() < 1e-6),
         other => panic!("unexpected error: {other:?}"),
@@ -259,7 +260,10 @@ async fn distributed_runner_from_run_config_propagates_barrier_timeout_controls(
         "worker run should return promptly when barrier timeout is configured"
     );
     let elapsed = started.elapsed();
-    let msg = worker_res.unwrap().unwrap_err().to_string();
+    let msg = worker_res
+        .expect("worker run should return promptly when barrier timeout is configured")
+        .expect_err("worker should fail with barrier timeout when only one of two workers runs")
+        .to_string();
     assert!(
         msg.contains("Barrier timeout"),
         "worker should fail with barrier timeout when only one of two workers runs: {msg}"
@@ -497,7 +501,10 @@ async fn distributed_runner_from_run_config_honors_discover_timeout_controls() {
         res.is_ok(),
         "run_distributed_from_run_config should not hang when discover blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when discover blocks")
+        .expect_err("discover timeout should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: discover worker-0 for ps after 20ms"),
         "run-config timeout controls should propagate into discover timeout diagnostics: {msg}"
@@ -542,7 +549,10 @@ async fn distributed_runner_from_run_config_propagates_discover_service_type_int
         res.is_ok(),
         "run_distributed_from_run_config should not hang when discover blocks"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when discover blocks")
+        .expect_err("custom-service discover timeout should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains(
             "Timed out during discovery operation: discover worker-0 for parameter_server_custom after 20ms"
@@ -587,7 +597,10 @@ async fn distributed_runner_from_run_config_propagates_discover_retry_controls()
         res.is_ok(),
         "run_distributed_from_run_config should not hang when discover repeatedly times out"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when discover repeatedly times out")
+        .expect_err("discover retry exhaustion should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: discover worker-0 for ps after 20ms"),
         "discover timeout diagnostics should include configured operation timeout: {msg}"
@@ -638,7 +651,10 @@ async fn distributed_runner_from_run_config_preserves_discover_timeout_with_cust
         res.is_ok(),
         "run_distributed_from_run_config should not hang when indexed custom discover times out and cleanup steps block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when indexed custom discover times out and cleanup steps block")
+        .expect_err("indexed custom discover timeout with cleanup timeouts should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover timeout should remain primary over cleanup timeout failures via RunConfig: {msg}"
@@ -713,7 +729,10 @@ async fn distributed_runner_from_run_config_preserves_discover_timeout_with_defa
         res.is_ok(),
         "run_distributed_from_run_config should not hang when indexed default discover times out and cleanup steps block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when indexed default discover times out and cleanup steps block")
+        .expect_err("indexed default discover timeout with cleanup timeouts should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover timeout should remain primary over cleanup timeout failures via RunConfig: {msg}"
