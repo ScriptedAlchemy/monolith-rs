@@ -5,9 +5,16 @@ use monolith_training::{
     RunConfig, RunnerConfig,
 };
 use std::fs;
+use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use tempfile::tempdir;
+
+fn test_bind_addr() -> SocketAddr {
+    "127.0.0.1:0"
+        .parse()
+        .expect("loopback ephemeral bind address parsing should succeed")
+}
 
 #[test]
 fn tf_config_discovery_matches_python_indexing() {
@@ -107,9 +114,7 @@ async fn distributed_runner_in_memory_ps_and_worker() {
         index: 0,
         num_ps: 1,
         num_workers: 1,
-        bind_addr: "127.0.0.1:0"
-            .parse()
-            .expect("PS bind_addr parsing should succeed"),
+        bind_addr: test_bind_addr(),
         ..Default::default()
     };
 
@@ -118,9 +123,7 @@ async fn distributed_runner_in_memory_ps_and_worker() {
         index: 0,
         num_ps: 1,
         num_workers: 1,
-        bind_addr: "127.0.0.1:0"
-            .parse()
-            .expect("worker bind_addr parsing should succeed"),
+        bind_addr: test_bind_addr(),
         connect_retries: 50,
         retry_backoff_ms: 20,
         ..Default::default()
@@ -165,9 +168,7 @@ async fn distributed_runner_from_runner_config_smoke() {
             discovery_bg,
             &ps_rc_bg,
             Role::Ps,
-            "127.0.0.1:0"
-                .parse()
-                .expect("PS bind_addr parsing should succeed"),
+            test_bind_addr(),
         )
         .await
     });
@@ -177,9 +178,7 @@ async fn distributed_runner_from_runner_config_smoke() {
         Arc::clone(&discovery),
         &worker_rc,
         Role::Worker,
-        "127.0.0.1:0"
-            .parse()
-            .expect("worker bind_addr parsing should succeed"),
+        test_bind_addr(),
     )
     .await
     .expect("worker should succeed in distributed_runner_from_runner_config_smoke");
@@ -208,9 +207,7 @@ async fn distributed_runner_from_run_config_smoke() {
             &run_bg,
             None,
             Role::Ps,
-            "127.0.0.1:0"
-                .parse()
-                .expect("PS bind_addr parsing should succeed"),
+            test_bind_addr(),
         )
         .await
     });
@@ -221,9 +218,7 @@ async fn distributed_runner_from_run_config_smoke() {
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0"
-            .parse()
-            .expect("worker bind_addr parsing should succeed"),
+        test_bind_addr(),
     )
     .await
     .expect("worker should succeed in distributed_runner_from_run_config_smoke");
@@ -256,9 +251,7 @@ async fn distributed_runner_from_run_config_propagates_barrier_timeout_controls(
             &run_bg,
             None,
             Role::Ps,
-            "127.0.0.1:0"
-                .parse()
-                .expect("PS bind_addr parsing should succeed"),
+            test_bind_addr(),
         )
         .await
     });
@@ -272,9 +265,7 @@ async fn distributed_runner_from_run_config_propagates_barrier_timeout_controls(
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0"
-                .parse()
-                .expect("worker bind_addr parsing should succeed"),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -514,7 +505,7 @@ async fn distributed_runner_from_run_config_honors_discover_timeout_controls() {
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -558,7 +549,7 @@ async fn distributed_runner_from_run_config_propagates_discover_service_type_int
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -602,7 +593,7 @@ async fn distributed_runner_from_run_config_propagates_discover_retry_controls()
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -652,7 +643,7 @@ async fn distributed_runner_from_run_config_preserves_discover_timeout_with_cust
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
