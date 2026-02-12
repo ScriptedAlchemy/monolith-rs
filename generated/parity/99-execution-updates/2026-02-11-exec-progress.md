@@ -6847,6 +6847,19 @@
   - removed 13 `.unwrap()` call-sites from the core estimator test lanes,
     preserving behavior while improving failure diagnostics.
 
+### 504) Estimator unwrap diagnostics completion (runtime-init/env/restore lanes)
+- Completed estimator test diagnostics tightening in
+  `crates/monolith-training/src/estimator.rs` by replacing remaining
+  non-doc `.unwrap()` assertions with explicit `expect(...)` diagnostics across:
+  - env mutex and env var assertions in runner-config construction tests,
+  - tempdir/filesystem/checkpoint setup paths,
+  - runner/run-config restore initialization paths,
+  - restore checkpoint basename extraction assertions,
+  - remaining early-stopping training assertion.
+- Result:
+  - removed the final non-doc `.unwrap()` call-sites in estimator tests
+    (**0 runtime/test unwraps remaining; only one doc-comment example remains**).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7910,6 +7923,8 @@
 1060. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/tests/native_training_parity.rs` ✅ (verified no remaining unwrap call-sites in native training parity suite)
 1061. `cargo test -p monolith-training estimator::tests::test_estimator_ -- --nocapture && cargo test -p monolith-training estimator::tests::test_estimator_spec_replace_same_mode_allowed -- --nocapture` ✅ (validated estimator core unit-test lanes after unwrap-diagnostics tightening batch)
 1062. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/estimator.rs` ✅ (tracked remaining estimator unwrap count after bounded core-lane tightening batch)
+1063. `cargo test -p monolith-training estimator::tests::test_estimator_from_runner_config -- --nocapture && cargo test -p monolith-training estimator::tests::test_estimator_from_runner_config_initialized -- --nocapture && cargo test -p monolith-training estimator::tests::test_estimator_from_run_config -- --nocapture && cargo test -p monolith-training estimator::tests::test_estimator_from_run_config_initialized -- --nocapture && cargo test -p monolith-training estimator::tests::test_initialize_runtime_from_runner_config_restore -- --nocapture && cargo test -p monolith-training estimator::tests::test_initialize_runtime_from_run_config_restore -- --nocapture && cargo test -p monolith-training estimator::tests::test_estimator_early_stopping -- --nocapture` ✅ (validated estimator runtime-init/env/restore and early-stopping lanes after final unwrap-diagnostics completion batch)
+1064. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/estimator.rs` ✅ (verified only remaining unwrap is doc-comment example in estimator module; no runtime/test unwraps remain)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

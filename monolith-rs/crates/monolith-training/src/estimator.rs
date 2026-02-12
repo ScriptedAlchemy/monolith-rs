@@ -709,7 +709,9 @@ mod tests {
     #[test]
     fn test_estimator_from_runner_config() {
         static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let _guard = ENV_MUTEX.lock().unwrap();
+        let _guard = ENV_MUTEX
+            .lock()
+            .expect("estimator runner-config env mutex should not be poisoned");
         std::env::remove_var("TF_GRPC_WORKER_CACHE_THREADS");
         std::env::remove_var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER");
 
@@ -730,22 +732,24 @@ mod tests {
             Some(PathBuf::from("model.ckpt-88"))
         );
         assert_eq!(
-            std::env::var("TF_GRPC_WORKER_CACHE_THREADS").unwrap(),
+            std::env::var("TF_GRPC_WORKER_CACHE_THREADS")
+                .expect("TF_GRPC_WORKER_CACHE_THREADS should be set by runner config"),
             "11"
         );
         assert_eq!(
-            std::env::var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER").unwrap(),
+            std::env::var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER")
+                .expect("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER should be set by runner config"),
             "9"
         );
     }
 
     #[test]
     fn test_estimator_from_runner_config_initialized() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("tempdir creation should succeed");
         let restore_dir = tmp.path().join("restore");
         let model_dir = tmp.path().join("model");
-        std::fs::create_dir_all(&restore_dir).unwrap();
-        std::fs::create_dir_all(&model_dir).unwrap();
+        std::fs::create_dir_all(&restore_dir).expect("restore dir creation should succeed");
+        std::fs::create_dir_all(&model_dir).expect("model dir creation should succeed");
         std::fs::write(
             restore_dir.join("checkpoint"),
             r#"
@@ -754,7 +758,7 @@ all_model_checkpoint_paths: "model.ckpt-61"
 all_model_checkpoint_paths: "model.ckpt-30"
 "#,
         )
-        .unwrap();
+        .expect("checkpoint file write should succeed");
 
         let runner = crate::run_config::RunnerConfig {
             is_local: true,
@@ -764,12 +768,13 @@ all_model_checkpoint_paths: "model.ckpt-30"
             ..crate::run_config::RunnerConfig::default()
         };
         let (estimator, st) =
-            Estimator::from_runner_config_initialized(&runner, ConstantModelFn::new(0.3)).unwrap();
+            Estimator::from_runner_config_initialized(&runner, ConstantModelFn::new(0.3))
+                .expect("estimator initialization from runner config should succeed");
         let st = st.expect("restore state");
         assert_eq!(
             std::path::Path::new(&st.model_checkpoint_path)
                 .file_name()
-                .unwrap(),
+                .expect("restore checkpoint path should have file name"),
             "model.ckpt-30"
         );
         assert_eq!(estimator.config().model_dir, model_dir);
@@ -785,7 +790,8 @@ all_model_checkpoint_paths: "model.ckpt-30"
             ..crate::run_config::RunConfig::default()
         };
         let model_fn = ConstantModelFn::new(0.1);
-        let estimator = Estimator::from_run_config(&run, None, model_fn).unwrap();
+        let estimator = Estimator::from_run_config(&run, None, model_fn)
+            .expect("estimator construction from run config should succeed");
         assert_eq!(estimator.config().model_dir, PathBuf::from("/tmp/model_from_run"));
         assert_eq!(estimator.config().log_step_count_steps, 13);
         assert_eq!(
@@ -796,11 +802,11 @@ all_model_checkpoint_paths: "model.ckpt-30"
 
     #[test]
     fn test_initialize_runtime_from_runner_config_restore() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("tempdir creation should succeed");
         let restore_dir = tmp.path().join("restore");
         let model_dir = tmp.path().join("model");
-        std::fs::create_dir_all(&restore_dir).unwrap();
-        std::fs::create_dir_all(&model_dir).unwrap();
+        std::fs::create_dir_all(&restore_dir).expect("restore dir creation should succeed");
+        std::fs::create_dir_all(&model_dir).expect("model dir creation should succeed");
         std::fs::write(
             restore_dir.join("checkpoint"),
             r#"
@@ -809,7 +815,7 @@ all_model_checkpoint_paths: "model.ckpt-61"
 all_model_checkpoint_paths: "model.ckpt-30"
 "#,
         )
-        .unwrap();
+        .expect("checkpoint file write should succeed");
 
         let runner = crate::run_config::RunnerConfig {
             is_local: true,
@@ -820,12 +826,12 @@ all_model_checkpoint_paths: "model.ckpt-30"
         };
 
         let st = Estimator::<ConstantModelFn>::initialize_runtime_from_runner_config(&runner)
-            .unwrap()
-            .unwrap();
+            .expect("runtime initialization from runner config should succeed")
+            .expect("restore runtime state should be present");
         assert_eq!(
             std::path::Path::new(&st.model_checkpoint_path)
                 .file_name()
-                .unwrap(),
+                .expect("restore checkpoint path should have file name"),
             "model.ckpt-30"
         );
         assert!(model_dir.join("restore_ckpt").exists());
@@ -834,11 +840,11 @@ all_model_checkpoint_paths: "model.ckpt-30"
 
     #[test]
     fn test_estimator_from_run_config_initialized() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("tempdir creation should succeed");
         let restore_dir = tmp.path().join("restore");
         let model_dir = tmp.path().join("model");
-        std::fs::create_dir_all(&restore_dir).unwrap();
-        std::fs::create_dir_all(&model_dir).unwrap();
+        std::fs::create_dir_all(&restore_dir).expect("restore dir creation should succeed");
+        std::fs::create_dir_all(&model_dir).expect("model dir creation should succeed");
         std::fs::write(
             restore_dir.join("checkpoint"),
             r#"
@@ -847,7 +853,7 @@ all_model_checkpoint_paths: "model.ckpt-61"
 all_model_checkpoint_paths: "model.ckpt-30"
 "#,
         )
-        .unwrap();
+        .expect("checkpoint file write should succeed");
 
         let run = crate::run_config::RunConfig {
             is_local: true,
@@ -857,12 +863,13 @@ all_model_checkpoint_paths: "model.ckpt-30"
             ..crate::run_config::RunConfig::default()
         };
         let (estimator, st) =
-            Estimator::from_run_config_initialized(&run, None, ConstantModelFn::new(0.3)).unwrap();
+            Estimator::from_run_config_initialized(&run, None, ConstantModelFn::new(0.3))
+                .expect("estimator initialization from run config should succeed");
         let st = st.expect("restore state");
         assert_eq!(
             std::path::Path::new(&st.model_checkpoint_path)
                 .file_name()
-                .unwrap(),
+                .expect("restore checkpoint path should have file name"),
             "model.ckpt-30"
         );
         assert_eq!(estimator.config().model_dir, model_dir);
@@ -870,11 +877,11 @@ all_model_checkpoint_paths: "model.ckpt-30"
 
     #[test]
     fn test_initialize_runtime_from_run_config_restore() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("tempdir creation should succeed");
         let restore_dir = tmp.path().join("restore");
         let model_dir = tmp.path().join("model");
-        std::fs::create_dir_all(&restore_dir).unwrap();
-        std::fs::create_dir_all(&model_dir).unwrap();
+        std::fs::create_dir_all(&restore_dir).expect("restore dir creation should succeed");
+        std::fs::create_dir_all(&model_dir).expect("model dir creation should succeed");
         std::fs::write(
             restore_dir.join("checkpoint"),
             r#"
@@ -883,7 +890,7 @@ all_model_checkpoint_paths: "model.ckpt-61"
 all_model_checkpoint_paths: "model.ckpt-30"
 "#,
         )
-        .unwrap();
+        .expect("checkpoint file write should succeed");
 
         let run = crate::run_config::RunConfig {
             is_local: true,
@@ -894,12 +901,12 @@ all_model_checkpoint_paths: "model.ckpt-30"
         };
         let st =
             Estimator::<ConstantModelFn>::initialize_runtime_from_run_config(&run, None)
-                .unwrap()
-                .unwrap();
+                .expect("runtime initialization from run config should succeed")
+                .expect("restore runtime state should be present");
         assert_eq!(
             std::path::Path::new(&st.model_checkpoint_path)
                 .file_name()
-                .unwrap(),
+                .expect("restore checkpoint path should have file name"),
             "model.ckpt-30"
         );
         assert!(model_dir.join("restore_ckpt").exists());
@@ -1015,7 +1022,9 @@ all_model_checkpoint_paths: "model.ckpt-30"
         // Will stop after 5 steps with no improvement
         estimator.add_hook(EarlyStoppingHook::new("loss", 5, 0.001));
 
-        let result = estimator.train().unwrap();
+        let result = estimator
+            .train()
+            .expect("estimator training with early stopping should succeed");
         assert!(result.stopped_early);
         assert!(result.global_step < 1000);
     }
