@@ -6986,6 +6986,140 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_worker_discover_timeout_preserves_error_when_cleanup_times_out_with_custom_service_type(
+    ) {
+        let discovery = Arc::new(HangingDiscoverWithHangingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            discovery_operation_timeout: Duration::from_millis(20),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(700),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when custom non-index discover times out and cleanup steps block"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "discover timeout should remain primary over cleanup timeouts with custom service types: {msg}"
+        );
+        assert!(
+            msg.contains("service type: parameter_server_custom"),
+            "discover-timeout diagnostics should include custom PS service-type context: {msg}"
+        );
+        assert!(
+            msg.contains("for worker-0"),
+            "discover-timeout diagnostics should include worker service-id context for custom non-index paths: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "last discovery error: Timed out during discovery operation: discover worker-0 for parameter_server_custom after 20ms"
+            ),
+            "discover-timeout diagnostics should preserve custom discover operation-timeout details for custom non-index paths: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "discover-timeout diagnostics should include cleanup issue context when cleanup steps time out: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: deregister worker-0 from trainer_custom after 20ms"
+            ),
+            "discover-timeout cleanup issue context should include custom worker service-type deregister-timeout diagnostics for non-index paths: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
+            ),
+            "discover-timeout cleanup issue context should include custom worker service-type disconnect-timeout diagnostics for non-index paths: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_worker_discover_timeout_preserves_error_when_cleanup_fails_with_custom_service_type(
+    ) {
+        let discovery = Arc::new(HangingDiscoverWithFailingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            discovery_operation_timeout: Duration::from_millis(20),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(700),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when custom non-index discover times out and cleanup steps fail"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "discover timeout should remain primary over cleanup failures with custom service types: {msg}"
+        );
+        assert!(
+            msg.contains("service type: parameter_server_custom"),
+            "discover-timeout diagnostics should include custom PS service-type context: {msg}"
+        );
+        assert!(
+            msg.contains("for worker-0"),
+            "discover-timeout diagnostics should include worker service-id context for custom non-index paths: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "last discovery error: Timed out during discovery operation: discover worker-0 for parameter_server_custom after 20ms"
+            ),
+            "discover-timeout diagnostics should preserve custom discover operation-timeout details for custom non-index paths: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "discover-timeout diagnostics should include cleanup issue context when cleanup steps fail: {msg}"
+        );
+        assert!(
+            msg.contains("deregister worker-0 from trainer_custom")
+                && msg.contains("forced deregister failure"),
+            "discover-timeout cleanup issue context should include custom worker service-type deregister-failure diagnostics for non-index paths: {msg}"
+        );
+        assert!(
+            msg.contains("disconnect worker-0 via trainer_custom")
+                && msg.contains("forced disconnect failure"),
+            "discover-timeout cleanup issue context should include custom worker service-type disconnect-failure diagnostics for non-index paths: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_connect_failure_does_not_hang_when_disconnect_blocks() {
         let discovery = Arc::new(FailingConnectWithHangingDisconnectDiscovery::new());
         let cfg = DistributedRunConfig {
