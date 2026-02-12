@@ -5195,6 +5195,17 @@
   - Targeted run-config timeout lanes and default monolith-training regression
     remain green.
 
+### 388) Native parity discover-timeout cleanup contract tightening (batch 2)
+- Tightened additional run-config discover-timeout cleanup-failure/timeout
+  lanes in `tests/native_training_parity.rs` by replacing remaining
+  `res.unwrap().unwrap_err().to_string()` chains with explicit
+  `res.expect(\"...\").expect_err(\"...\").to_string()` contracts.
+- Result:
+  - These run-config discover-timeout cleanup tests now provide explicit
+    non-hang + role-error diagnostics on unexpected success paths.
+  - Targeted discover-timeout cleanup lanes and default monolith-training
+    regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6080,6 +6091,7 @@
 882. `ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_run_config_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity smoke success-contract tightening verification plus default-lane regression rerun)
 883. `ZK_AUTH=user:pass cargo test -p monolith-training test_writable_file_append_entry_dump_validates_shapes -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_writable_file_append_after_close_fails -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_monolith_discovery_guard_local_register_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted file-ops/runner-utils parity expect_err contract tightening verification plus default-lane regression rerun)
 884. `ZK_AUTH=user:pass cargo test -p monolith-training batch_softmax_initializer -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_run_config_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity run-config timeout expect_err contract tightening verification plus default-lane regression rerun)
+885. `ZK_AUTH=user:pass cargo test -p monolith-training preserves_discover_timeout_with_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity discover-timeout cleanup contract tightening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

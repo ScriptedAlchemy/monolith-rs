@@ -803,7 +803,10 @@ async fn distributed_runner_from_run_config_preserves_discover_timeout_with_defa
         res.is_ok(),
         "run_distributed_from_run_config should not hang when indexed default discover times out and cleanup fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when indexed default discover times out and cleanup fails")
+        .expect_err("indexed default discover timeout with cleanup failures should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover timeout should remain primary over cleanup failures via RunConfig: {msg}"
@@ -876,7 +879,10 @@ async fn distributed_runner_from_run_config_preserves_discover_timeout_with_defa
         res.is_ok(),
         "run_distributed_from_run_config should not hang when default-service non-index discover times out and cleanup steps block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when default-service non-index discover times out and cleanup steps block")
+        .expect_err("default-service discover timeout with cleanup timeouts should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover timeout should remain primary over cleanup timeout failures via RunConfig: {msg}"
@@ -947,7 +953,10 @@ async fn distributed_runner_from_run_config_preserves_discover_timeout_with_defa
         res.is_ok(),
         "run_distributed_from_run_config should not hang when default-service non-index discover times out and cleanup fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when default-service non-index discover times out and cleanup fails")
+        .expect_err("default-service discover timeout with cleanup failures should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover timeout should remain primary over cleanup failures via RunConfig: {msg}"
@@ -1022,7 +1031,10 @@ async fn distributed_runner_from_run_config_preserves_discover_timeout_with_cust
         res.is_ok(),
         "run_distributed_from_run_config should not hang when indexed custom discover times out and cleanup fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when indexed custom discover times out and cleanup fails")
+        .expect_err("indexed custom discover timeout with cleanup failures should surface as a worker role error")
+        .to_string();
     assert!(
         msg.contains("Timed out waiting for PS discovery"),
         "discover timeout should remain primary over cleanup failures via RunConfig: {msg}"
