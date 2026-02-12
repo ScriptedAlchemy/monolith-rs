@@ -3639,6 +3639,15 @@
 - Result: runner `_when_cleanup_steps_timeout` ↔ `_when_cleanup_steps_fail`
   counterpart audit now reports zero missing aliases in both directions.
 
+### 260) Runner PS register-timeout cleanup timeout/failure symmetry closed
+- Added runner-level plain cleanup-failure counterpart:
+  - `test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_fails`
+- This closes the final `_when_cleanup_times_out` naming gap for the plain
+  PS register-timeout case (`ps-0` / default service type) alongside existing
+  default/custom indexed/non-indexed cleanup-failure variants.
+- Result: runner `_when_cleanup_times_out` ↔ `_when_cleanup_fails` counterpart
+  audit now reports zero missing aliases in both directions.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4191,6 +4200,9 @@
 549. `ZK_AUTH=user:pass cargo test -p monolith-training cleanup_steps_fail -- --nocapture` ✅ (post runner cleanup-step cleanup-failure alias expansion across worker/ps register-failure and worker-timeout naming variants)
 550. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner cleanup-step timeout/failure matrix closure full monolith-training regression rerun)
 551. `python3` cleanup-step counterpart audit (`runner.rs`) ✅ (reports zero missing aliases for both `_when_cleanup_steps_timeout -> _when_cleanup_steps_fail` and reverse direction)
+552. `ZK_AUTH=user:pass cargo test -p monolith-training ps_register_timeout_preserves_error_when_cleanup_ -- --nocapture` ✅ (post runner plain PS register-timeout cleanup-failure counterpart addition)
+553. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner plain PS register-timeout cleanup timeout/failure symmetry closure full monolith-training rerun)
+554. `python3` cleanup-timeout/failure counterpart audit (`runner.rs`) ✅ (reports zero missing aliases for both `_when_cleanup_times_out -> _when_cleanup_fails` and reverse direction)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

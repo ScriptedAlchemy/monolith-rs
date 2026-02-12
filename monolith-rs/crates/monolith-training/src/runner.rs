@@ -7286,6 +7286,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_fails() {
+        let discovery = Arc::new(HangingRegisterWithFailingCleanupDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_operation_timeout: Duration::from_millis(20),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(700),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when ps register is blocked and cleanup fails"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out during discovery operation: register ps-0 as ps after 20ms"),
+            "ps register timeout should remain primary over cleanup-failure diagnostics: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "ps register-timeout failures should include cleanup issue context when cleanup fails: {msg}"
+        );
+        assert!(
+            msg.contains("deregister ps-0 from ps") && msg.contains("forced deregister failure"),
+            "ps register-timeout cleanup issue context should include default-service-type deregister-failure diagnostics: {msg}"
+        );
+        assert!(
+            msg.contains("disconnect ps-0 via ps") && msg.contains("forced disconnect failure"),
+            "ps register-timeout cleanup issue context should include default-service-type disconnect-failure diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_times_out_with_default_service_type_and_index(
     ) {
         let discovery = Arc::new(HangingRegisterWithHangingCleanupDiscovery::new());
