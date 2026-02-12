@@ -6776,6 +6776,18 @@
   `Timed out waiting for PS discovery`, preserving explicit timeout diagnostic
   behavior under blocked heartbeat conditions.
 
+### 498) Runner bind-address helper rollout (phase 1): default config + run_distributed failure matrix batch
+- Added shared helper in `crates/monolith-training/src/runner.rs`:
+  - `loopback_ephemeral_bind_addr()`
+  providing explicit parse diagnostics for loopback ephemeral bind addresses.
+- Migrated a bounded batch of `runner.rs` parse-unwrap call-sites to this helper:
+  - `DistributedRunConfig::default().bind_addr`,
+  - first block of `run_distributed` unit-test failure/cleanup matrix cases in
+    `runner::tests` (worker/ps register/connect/cleanup lanes).
+- Result:
+  - removed 21 parse-unwrap hotspots from `runner.rs`
+    (from 76 -> 55), while preserving existing timeout/cleanup contracts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7827,6 +7839,8 @@
 1048. `rg "\"127\\.0\\.0\\.1:0\"\\.parse\\(\\)\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/tests/native_training_parity.rs` ✅ (verified no remaining bind-address parse-unwrap hotspots in native parity suite)
 1049. `cargo test -p monolith-training --test native_training_parity` ✅ (full native-training parity regression suite after completing bind-address helper migration)
 1050. `cargo test -p monolith-training test_run_worker_role_does_not_hang_when_heartbeat_blocks -- --nocapture` ✅ (validated heartbeat-blocked worker lane now asserts explicit PS-discovery timeout diagnostic shape)
+1051. `cargo test -p monolith-training runner::tests::test_ps_heartbeat_task_stops_after_ps_task_abort -- --nocapture` ✅ (validated heartbeat lifecycle lane after runner bind-address helper introduction)
+1052. `cargo test -p monolith-training runner::tests::test_run_distributed_ -- --nocapture` ✅ (validated run_distributed timeout/cleanup failure matrix after phase-1 runner bind-address helper migration)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
