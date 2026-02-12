@@ -5954,6 +5954,22 @@
     cleanup-context diagnostic contracts.
   - Focused parity tests and default monolith-training regression remain green.
 
+### 439) Native parity: run/runner barrier and runner-config connect-timeout guard tightening
+- Refactored additional parity timeout lanes in
+  `crates/monolith-training/tests/native_training_parity.rs` to remove
+  redundant `assert!(res.is_ok())` timeout guards and rely on explicit
+  `.expect("...")` diagnostics across:
+  - run-config barrier-timeout propagation worker lane,
+  - runner-config barrier-timeout propagation worker lane,
+  - runner-config worker/PS connect-timeout diagnostic propagation lanes,
+  - runner-config PS connect-timeout cleanup-context lanes
+    (default/custom service-type and indexed/non-indexed variants).
+- Result:
+  - Barrier-timeout and runner-config connect-timeout parity assertions now
+    avoid coarse timeout-success predicates while preserving explicit
+    diagnostic contracts.
+  - Focused parity tests and default monolith-training regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6894,6 +6910,7 @@
 937. `cargo test -p monolith-training distributed_runner_from_run_config_preserves_ps_register_timeout_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_propagates_ps_service_type_into_register_timeout_diagnostics -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (run-config PS register-timeout assertion-tightening targeted verification plus default-lane regression rerun)
 938. `cargo test -p monolith-training distributed_runner_from_runner_config_preserves_connect_timeout_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_preserves_default_connect_timeout_with_index_disconnect_failure_context -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_preserves_connect_failure_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (runner-config connect assertion-tightening targeted verification plus default-lane regression rerun)
 939. `cargo test -p monolith-training distributed_runner_from_runner_config_preserves_default_worker_connect_failure_with_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_preserves_default_ps_connect_failure_with_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_preserves_ps_connect_failure_with_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (runner-config default/custom connect-failure timeout-guard assertion-tightening targeted verification plus default-lane regression rerun)
+940. `cargo test -p monolith-training distributed_runner_from_run_config_propagates_barrier_timeout_controls -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_propagates_worker_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_preserves_ps_connect_timeout_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_preserves_default_ps_connect_timeout_with_index_disconnect_failure_context -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_propagates_ps_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (run/runner barrier plus runner-config connect-timeout assertion-tightening targeted verification and default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
