@@ -3902,6 +3902,26 @@
   - `runner.rs` now reports
     `with_custom_service_type -> with_default_service_type: missing 0`
 
+### 283) Native custom→default service-type parity aliases completed
+- Added 92 `#[test]` alias wrappers in `native_training_parity.rs` to close
+  `with_custom_service_type -> with_default_service_type`:
+  - 46 run-config wrappers
+  - 46 runner-config wrappers
+- Coverage includes connect/connect-timeout/ps-connect/worker-timeout and
+  discovery-timeout/error families, including index variants and cleanup
+  context suffixes.
+- Result:
+  - `native_training_parity.rs` now reports
+    `with_custom_service_type -> with_default_service_type: missing 0`.
+
+### 284) Full tracked naming matrix closure confirmed
+- Added final 10 runner aliases for
+  `with_default_service_type -> with_custom_service_type` (`*_and_index_*`
+  cleanup-step timeout/fail families) in `runner.rs`.
+- Final broad audit across `runner.rs` and `native_training_parity.rs`
+  confirms `missing 0` for all tracked transform families
+  (cleanup/disconnect/timeout/index/service-type/default-generic).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4556,6 +4576,14 @@
 651. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_surfaces_disconnect_timeout_with_default_service_type_after_success -- --nocapture` ✅
 652. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner custom->default service-type alias additions full monolith-training regression rerun)
 653. `python3` custom->default service-type audit (`runner.rs`) ✅ (`missing 0`; native still pending for this transform)
+654. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_preserves_connect_failure_with_default_service_type_cleanup_context -- --nocapture` ✅
+655. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_disconnect_timeout_with_default_service_type_after_success -- --nocapture` ✅
+656. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post native custom->default service-type alias additions full monolith-training regression rerun)
+657. `python3` service-type direction audit (`runner.rs` + `native_training_parity.rs`) ✅ (`with_custom_service_type->with_default_service_type` now missing 0 in both files)
+658. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_preserves_worker_timeout_with_custom_service_type_and_index_when_cleanup_steps_fail -- --nocapture` ✅
+659. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_preserves_worker_discover_failure_with_custom_service_type_and_index_when_cleanup_steps_timeout -- --nocapture` ✅
+660. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post final runner default->custom index alias additions full monolith-training regression rerun)
+661. `python3` broad transform audit (cleanup/disconnect/timeout/index/service-type/default-generic) ✅ (`missing 0` for every tracked transform in both `runner.rs` and `native_training_parity.rs`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
