@@ -6834,6 +6834,19 @@
     `native_training_parity.rs` (**0 remaining**), preserving parity behavior
     while improving failure diagnostics.
 
+### 503) Estimator unit-test unwrap diagnostics tightening (core train/eval/predict lanes)
+- Tightened a bounded batch of coarse `.unwrap()` assertions in
+  `crates/monolith-training/src/estimator.rs` unit tests by replacing them with
+  explicit `expect(...)` diagnostics across:
+  - hook-driven training (`test_estimator_with_hooks`, early stopping),
+  - evaluation/evaluate_with_steps,
+  - train_with_limits variants,
+  - predict/predict_with_inputs,
+  - estimator spec replace success lane.
+- Result:
+  - removed 13 `.unwrap()` call-sites from the core estimator test lanes,
+    preserving behavior while improving failure diagnostics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7895,6 +7908,8 @@
 1058. `rg "\"127\\.0\\.0\\.1:0\"\\.parse\\(\\)\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/estimator.rs` ✅ (verified no remaining estimator bind-address parse-unwrap hotspots)
 1059. `cargo test -p monolith-training --test native_training_parity estimator_from_run_config_roundtrip -- --nocapture && cargo test -p monolith-training --test native_training_parity runner_discovery_query_primus_roundtrip -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_propagates_discover_service_type_into_timeout_diagnostics -- --nocapture` ✅ (validated native-training parity lanes touched by final unwrap diagnostics tightening)
 1060. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/tests/native_training_parity.rs` ✅ (verified no remaining unwrap call-sites in native training parity suite)
+1061. `cargo test -p monolith-training estimator::tests::test_estimator_ -- --nocapture && cargo test -p monolith-training estimator::tests::test_estimator_spec_replace_same_mode_allowed -- --nocapture` ✅ (validated estimator core unit-test lanes after unwrap-diagnostics tightening batch)
+1062. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/estimator.rs` ✅ (tracked remaining estimator unwrap count after bounded core-lane tightening batch)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

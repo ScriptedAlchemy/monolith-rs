@@ -698,7 +698,9 @@ mod tests {
         let model_fn = ConstantModelFn::new(0.5);
         let mut estimator = Estimator::new(config, model_fn);
 
-        let result = estimator.train().unwrap();
+        let result = estimator
+            .train()
+            .expect("estimator training with logging hook should succeed");
         assert_eq!(result.global_step, 10);
         assert!(!result.stopped_early);
         assert!(result.final_metrics.is_some());
@@ -997,7 +999,9 @@ all_model_checkpoint_paths: "model.ckpt-30"
 
         estimator.add_hook(LoggingHook::new(10));
 
-        let result = estimator.train().unwrap();
+        let result = estimator
+            .train()
+            .expect("estimator training with early stopping hook should succeed");
         assert_eq!(result.global_step, 100);
     }
 
@@ -1023,7 +1027,9 @@ all_model_checkpoint_paths: "model.ckpt-30"
         let model_fn = ConstantModelFn::new(0.5);
         let mut estimator = Estimator::new(config, model_fn);
 
-        let result = estimator.evaluate().unwrap();
+        let result = estimator
+            .evaluate()
+            .expect("estimator evaluation should succeed");
         assert_eq!(result.eval_steps, 10);
         assert!((result.metrics.loss - 0.5).abs() < 1e-10);
     }
@@ -1034,9 +1040,13 @@ all_model_checkpoint_paths: "model.ckpt-30"
         let model_fn = ConstantModelFn::new(0.5);
         let mut estimator = Estimator::new(config, model_fn);
 
-        let r1 = estimator.train_with_limits(Some(3), None).unwrap();
+        let r1 = estimator
+            .train_with_limits(Some(3), None)
+            .expect("relative-limits training step 1 should succeed");
         assert_eq!(r1.global_step, 3);
-        let r2 = estimator.train_with_limits(Some(2), None).unwrap();
+        let r2 = estimator
+            .train_with_limits(Some(2), None)
+            .expect("relative-limits training step 2 should succeed");
         assert_eq!(r2.global_step, 5);
     }
 
@@ -1046,8 +1056,12 @@ all_model_checkpoint_paths: "model.ckpt-30"
         let model_fn = ConstantModelFn::new(0.5);
         let mut estimator = Estimator::new(config, model_fn);
 
-        estimator.train_with_limits(Some(5), None).unwrap();
-        let r = estimator.train_with_limits(None, Some(7)).unwrap();
+        estimator
+            .train_with_limits(Some(5), None)
+            .expect("warmup training before max-steps cap should succeed");
+        let r = estimator
+            .train_with_limits(None, Some(7))
+            .expect("max-steps absolute training cap should succeed");
         assert_eq!(r.global_step, 7);
     }
 
@@ -1057,8 +1071,12 @@ all_model_checkpoint_paths: "model.ckpt-30"
         let model_fn = ConstantModelFn::new(0.5);
         let mut estimator = Estimator::new(config, model_fn);
 
-        estimator.train_with_limits(Some(5), None).unwrap();
-        let r = estimator.train_with_limits(Some(10), Some(12)).unwrap();
+        estimator
+            .train_with_limits(Some(5), None)
+            .expect("warmup training before combined limits should succeed");
+        let r = estimator
+            .train_with_limits(Some(10), Some(12))
+            .expect("combined steps/max-steps training should succeed");
         assert_eq!(r.global_step, 12);
     }
 
@@ -1068,7 +1086,9 @@ all_model_checkpoint_paths: "model.ckpt-30"
         let model_fn = ConstantModelFn::new(0.5);
         let mut estimator = Estimator::new(config, model_fn);
 
-        let result = estimator.evaluate_with_steps(Some(3)).unwrap();
+        let result = estimator
+            .evaluate_with_steps(Some(3))
+            .expect("evaluation with explicit step override should succeed");
         assert_eq!(result.eval_steps, 3);
         assert!((result.metrics.loss - 0.5).abs() < 1e-10);
     }
@@ -1079,7 +1099,9 @@ all_model_checkpoint_paths: "model.ckpt-30"
         let model_fn = ConstantModelFn::new(0.5);
         let mut estimator = Estimator::new(config, model_fn);
 
-        let result = estimator.predict(5).unwrap();
+        let result = estimator
+            .predict(5)
+            .expect("prediction with explicit example count should succeed");
         assert_eq!(result.num_examples, 5);
         assert_eq!(result.predictions.len(), 5);
     }
@@ -1103,7 +1125,7 @@ all_model_checkpoint_paths: "model.ckpt-30"
                 classification: Some(false),
                 ..EstimatorSpecUpdate::default()
             })
-            .unwrap();
+            .expect("estimator spec replace with same mode should succeed");
         assert_eq!(next.loss, Some(0.5));
         assert!(!next.classification);
     }
@@ -1149,7 +1171,9 @@ all_model_checkpoint_paths: "model.ckpt-30"
         let mut estimator = Estimator::new(config, model_fn);
 
         let inputs = vec![vec![1.0, 2.0, 3.0], vec![4.0]];
-        let result = estimator.predict_with_inputs(&inputs).unwrap();
+        let result = estimator
+            .predict_with_inputs(&inputs)
+            .expect("prediction with explicit input batches should succeed");
         assert_eq!(result.num_examples, 2);
         assert_eq!(result.predictions, vec![vec![6.0, 3.0], vec![4.0, 1.0]]);
     }
