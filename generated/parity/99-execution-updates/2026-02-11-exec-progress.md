@@ -6540,6 +6540,20 @@
   - ZooKeeper deregister now has explicit, tested failure-shape/lifecycle
     guarantees matching existing Consul deregister error-parity semantics.
 
+### 479) Hook parity: tighten test failure diagnostics by replacing coarse unwraps
+- Refined `crates/monolith-training/src/hooks.rs` test assertions to replace
+  coarse `.unwrap()` calls with explicit `.expect("...")` diagnostics.
+- Updated coverage paths include:
+  - logging hook step assertions,
+  - checkpoint hook step assertions and tempdir setup,
+  - early-stopping baseline/improvement/no-improvement assertions,
+  - hook-list after_step assertions,
+  - max-to-keep checkpoint pruning assertions.
+- Result:
+  - hook regression failures now surface actionable, operation-specific context
+    instead of generic unwrap panics, aligning with explicit diagnostics parity
+    standards used across the Rust port.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7559,6 +7573,8 @@
 1016. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after ZooKeeper base-path validation hardening)
 1017. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_async_deregister_invalid_hosts_still_notifies_and_returns_error -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_async_deregister_invalid_base_path_still_notifies_and_returns_error -- --nocapture` ✅ (validated ZooKeeper deregister config-error contracts preserve watcher notifications plus local/registered-path cleanup under invalid hosts/base-path)
 1018. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after ZooKeeper deregister config-error lifecycle coverage expansion)
+1019. `cargo test -p monolith-training hooks::tests:: -- --nocapture` ✅ (validated hook regression suite after replacing unwrap-based assertions with explicit expect diagnostics)
+1020. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after hook diagnostics tightening)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
