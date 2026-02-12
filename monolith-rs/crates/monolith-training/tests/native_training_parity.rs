@@ -10727,7 +10727,7 @@ async fn distributed_runner_from_run_config_propagates_ps_index_into_connect_tim
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -10776,7 +10776,7 @@ async fn distributed_runner_from_run_config_propagates_ps_service_type_into_conn
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -10827,7 +10827,7 @@ async fn distributed_runner_from_run_config_propagates_ps_service_type_and_index
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -10875,7 +10875,7 @@ async fn distributed_runner_from_run_config_honors_cleanup_timeout_with_blocked_
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -12120,7 +12120,7 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_when_clea
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -12184,7 +12184,7 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_disconnec
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -12251,7 +12251,7 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_disc
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -12308,7 +12308,7 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_cust
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -12364,7 +12364,7 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_defa
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -12420,7 +12420,7 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_defa
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -12476,7 +12476,7 @@ async fn distributed_runner_from_run_config_propagates_worker_service_type_into_
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -12543,7 +12543,7 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_cust
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -12598,7 +12598,7 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_cust
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -12653,7 +12653,7 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_cust
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -12707,7 +12707,7 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_defa
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -12761,7 +12761,7 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_defa
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -12815,7 +12815,7 @@ async fn distributed_runner_from_run_config_honors_cleanup_timeout_after_registe
             &run,
             None,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -12869,7 +12869,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_when_c
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -12934,7 +12934,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_discon
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13001,7 +13001,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_d
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13060,7 +13060,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_c
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13118,7 +13118,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_d
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13172,7 +13172,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_d
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13226,7 +13226,7 @@ async fn distributed_runner_from_run_config_propagates_ps_service_type_into_regi
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13293,7 +13293,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_c
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13354,7 +13354,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_c
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13415,7 +13415,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_c
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13475,7 +13475,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_d
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13529,7 +13529,7 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_d
             &run,
             None,
             Role::Ps,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13581,7 +13581,7 @@ async fn distributed_runner_from_runner_config_preserves_connect_timeout_when_cl
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13628,7 +13628,7 @@ async fn distributed_runner_from_runner_config_preserves_connect_timeout_disconn
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13676,7 +13676,7 @@ async fn distributed_runner_from_runner_config_preserves_connect_timeout_with_cu
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13724,7 +13724,7 @@ async fn distributed_runner_from_runner_config_preserves_connect_timeout_with_di
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13773,7 +13773,7 @@ async fn distributed_runner_from_runner_config_preserves_connect_timeout_with_cu
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13821,7 +13821,7 @@ async fn distributed_runner_from_runner_config_preserves_default_connect_timeout
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13869,7 +13869,7 @@ async fn distributed_runner_from_runner_config_preserves_connect_failure_with_cl
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13917,7 +13917,7 @@ async fn distributed_runner_from_runner_config_preserves_connect_failure_with_cl
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -13966,7 +13966,7 @@ async fn distributed_runner_from_runner_config_preserves_connect_failure_with_cu
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -14015,7 +14015,7 @@ async fn distributed_runner_from_runner_config_preserves_connect_failure_with_cu
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -14064,7 +14064,7 @@ async fn distributed_runner_from_runner_config_preserves_connect_failure_with_cu
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
