@@ -5437,6 +5437,21 @@
   - Feature-gated Consul validation/deregister suites and default
     monolith-training regression remain green.
 
+### 405) Discovery parity: invalid-scheme Consul lifecycle coverage expansion
+- Added feature-gated Consul parity coverage in
+  `crates/monolith-training/src/discovery.rs` for invalid-scheme endpoints:
+  - `test_consul_discover_async_invalid_scheme_is_classified_as_config_error`
+    verifies discover paths return `ConfigError` with invalid-scheme and
+    discover-operation context.
+  - `test_consul_async_deregister_invalid_scheme_still_notifies_and_returns_error`
+    verifies deregister still emits `ServiceRemoved`, clears local cache, and
+    surfaces operation-context `ConfigError` when endpoint scheme is invalid.
+- Result:
+  - Consul invalid-scheme behavior is now covered end-to-end across discover
+    and deregister lifecycle paths, including watcher/local-cache invariants.
+  - Feature-gated Consul suites and default monolith-training regression remain
+    green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6339,6 +6354,7 @@
 899. `ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_run_config_rejects_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_rejects_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity distributed-config validation rejection contract tightening verification plus default-lane regression rerun)
 900. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_map_consul_request_error_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_invalid_port_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul invalid-address classifier/validation tightening verification plus default-lane regression rerun)
 901. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_map_consul_request_error_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_normalize_consul_address_for_operation_adds_http_scheme -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_invalid_port_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_host_port_without_scheme_keeps_port_context -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul host:port normalization + malformed-address classification verification plus default-lane regression rerun)
+902. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_invalid_scheme_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_async_deregister_invalid_scheme_still_notifies_and_returns_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul invalid-scheme discover/deregister lifecycle coverage verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

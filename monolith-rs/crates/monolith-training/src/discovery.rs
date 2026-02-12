@@ -3806,6 +3806,65 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_discover_async_invalid_scheme_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new("ftp://127.0.0.1:8500");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address")
+                        && msg.contains("invalid scheme")
+                        && msg.contains("get_service_nodes"),
+                    "invalid-scheme discover failures should be classified as ConfigError with discover context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for invalid scheme address, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_invalid_scheme_still_notifies_and_returns_error() {
+        let consul = ConsulDiscovery::new("ftp://127.0.0.1:8500");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let mut rx = consul.watch("worker").expect("watch should succeed");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id).await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address")
+                        && msg.contains("invalid scheme")
+                        && msg.contains("deregister_entity"),
+                    "invalid-scheme deregister failures should be classified as ConfigError with deregister context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for invalid scheme deregister, got {other:?}"),
+        }
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        match event {
+            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, service.id),
+            other => panic!("expected ServiceRemoved event, got {other:?}"),
+        }
+        assert!(
+            consul
+                .discover("worker")
+                .expect("sync discover should succeed after async deregister failure")
+                .is_empty(),
+            "local cache entry should remain removed even when async deregister fails due to invalid scheme"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_discover_async_config_error_preserves_local_cache() {
         let consul = ConsulDiscovery::new("http://[::1");
         consul
