@@ -4677,6 +4677,19 @@
     registration path state, reducing stale-path drift risk after reconnects.
   - Feature-gated and default monolith-training regressions remain green.
 
+### 346) Distributed runtime core error-shape assertion tightening
+- Strengthened `distributed.rs` unit tests from generic `is_err()` checks to
+  explicit variant + context assertions for:
+  - cluster config validation failures (missing PS/workers, out-of-range index,
+    duplicate addresses)
+  - parameter-server gradient application failures (shape mismatch, missing param)
+  - worker non-running step/barrier failures
+- Result:
+  - Distributed runtime semantics now have stricter regression contracts for
+    exact error classes and message content instead of coarse failure checks.
+  - Added missing-worker validation coverage in cluster config tests.
+  - monolith-training default lane remains green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5520,6 +5533,7 @@
 840. `ZK_AUTH=user:pass cargo test -p monolith-training test_spawn_watch_poll_loop_recovers_after_discover_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted transient discover-error recovery poll-loop verification plus default-lane regression rerun)
 841. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_async_deregister_local_only_service -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated local-only ZK async-deregister dead-watcher compaction verification plus default-lane regression rerun)
 842. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_zk_disconnect_clears_registered_paths -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated ZK disconnect registered-path bookkeeping cleanup verification plus default-lane regression rerun)
+843. `ZK_AUTH=user:pass cargo test -p monolith-training test_cluster_config_validation -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_parameter_server_apply_gradients -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_worker -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted distributed-runtime error-shape assertion hardening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

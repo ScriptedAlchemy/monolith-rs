@@ -748,11 +748,39 @@ mod tests {
 
         // Invalid: no PS
         let config = ClusterConfig::new(vec![], vec![make_addr(6000)], 0, false);
-        assert!(config.validate().is_err());
+        match config.validate() {
+            Err(DistributedError::InvalidConfiguration(msg)) => {
+                assert!(
+                    msg.contains("At least one parameter server is required"),
+                    "validation error should include missing-PS context: {msg}"
+                );
+            }
+            other => panic!("expected InvalidConfiguration, got {other:?}"),
+        }
+
+        // Invalid: no workers
+        let config = ClusterConfig::new(vec![make_addr(5000)], vec![], 0, true);
+        match config.validate() {
+            Err(DistributedError::InvalidConfiguration(msg)) => {
+                assert!(
+                    msg.contains("At least one worker is required"),
+                    "validation error should include missing-worker context: {msg}"
+                );
+            }
+            other => panic!("expected InvalidConfiguration, got {other:?}"),
+        }
 
         // Invalid: task index out of range
         let config = ClusterConfig::new(vec![make_addr(5000)], vec![make_addr(6000)], 5, false);
-        assert!(config.validate().is_err());
+        match config.validate() {
+            Err(DistributedError::InvalidConfiguration(msg)) => {
+                assert!(
+                    msg.contains("Task index 5 is out of range"),
+                    "validation error should include task-index range context: {msg}"
+                );
+            }
+            other => panic!("expected InvalidConfiguration, got {other:?}"),
+        }
 
         // Invalid: duplicate PS addresses
         let config = ClusterConfig::new(
@@ -761,7 +789,15 @@ mod tests {
             0,
             true,
         );
-        assert!(config.validate().is_err());
+        match config.validate() {
+            Err(DistributedError::InvalidConfiguration(msg)) => {
+                assert!(
+                    msg.contains("Parameter server addresses must be unique"),
+                    "validation error should include duplicate-PS context: {msg}"
+                );
+            }
+            other => panic!("expected InvalidConfiguration, got {other:?}"),
+        }
 
         // Invalid: duplicate worker addresses
         let config = ClusterConfig::new(
@@ -770,7 +806,15 @@ mod tests {
             0,
             false,
         );
-        assert!(config.validate().is_err());
+        match config.validate() {
+            Err(DistributedError::InvalidConfiguration(msg)) => {
+                assert!(
+                    msg.contains("Worker addresses must be unique"),
+                    "validation error should include duplicate-worker context: {msg}"
+                );
+            }
+            other => panic!("expected InvalidConfiguration, got {other:?}"),
+        }
     }
 
     #[test]
@@ -814,10 +858,23 @@ mod tests {
         assert_eq!(updated, vec![0.9, 1.8, 2.7]);
 
         // Wrong gradient size
-        assert!(ps.apply_gradients("w", &[0.1], 1.0).is_err());
+        match ps.apply_gradients("w", &[0.1], 1.0) {
+            Err(DistributedError::CommunicationError(msg)) => {
+                assert!(
+                    msg.contains("Gradient size mismatch"),
+                    "gradient-size error should include mismatch context: {msg}"
+                );
+            }
+            other => panic!("expected CommunicationError, got {other:?}"),
+        }
 
         // Unknown parameter
-        assert!(ps.apply_gradients("unknown", &[0.1], 1.0).is_err());
+        match ps.apply_gradients("unknown", &[0.1], 1.0) {
+            Err(DistributedError::ParameterNotFound(name)) => {
+                assert_eq!(name, "unknown");
+            }
+            other => panic!("expected ParameterNotFound, got {other:?}"),
+        }
     }
 
     #[test]
@@ -828,7 +885,12 @@ mod tests {
         assert!(!worker.is_running());
 
         // Can't step when not running
-        assert!(worker.step().is_err());
+        match worker.step() {
+            Err(DistributedError::CommunicationError(msg)) => {
+                assert_eq!(msg, "Worker is not running");
+            }
+            other => panic!("expected CommunicationError, got {other:?}"),
+        }
 
         worker.start().unwrap();
         assert!(worker.is_running());
@@ -846,7 +908,12 @@ mod tests {
         assert!(!worker.is_running());
 
         // Barrier fails once stopped.
-        assert!(worker.sync_barrier().is_err());
+        match worker.sync_barrier() {
+            Err(DistributedError::CommunicationError(msg)) => {
+                assert_eq!(msg, "Worker is not running");
+            }
+            other => panic!("expected CommunicationError, got {other:?}"),
+        }
     }
 
     #[test]
