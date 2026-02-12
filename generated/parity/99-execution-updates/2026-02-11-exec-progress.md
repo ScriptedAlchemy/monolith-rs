@@ -7042,6 +7042,17 @@
     (**only doc-comment example remains**), preserving distributed runtime
     parity behavior.
 
+### 523) Runner-utils unwrap diagnostics completion
+- Tightened `crates/monolith-training/src/runner_utils.rs` unwrap usage by:
+  - replacing the remaining restore-checkpoint path-selection unwrap in
+    `copy_checkpoint_from_restore_dir(...)` with explicit `expect(...)`,
+  - replacing all remaining runner-utils test unwrap assertions with explicit
+    `expect(...)` diagnostics across discovery, checkpoint override, restore
+    initialization, and monolith discovery-guard lifecycle lanes.
+- Result:
+  - removed all `.unwrap()` call-sites from runner-utils module (**0 remaining**),
+    preserving checkpoint/discovery parity behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8143,6 +8154,8 @@
 1098. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/py_discovery.rs` ✅ (verified no remaining unwrap call-sites in py-discovery module)
 1099. `cargo test -p monolith-training distributed::tests:: -- --nocapture` ✅ (validated distributed module unit-test suite after runtime unwrap-diagnostics tightening)
 1100. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/distributed.rs` ✅ (verified only doc-comment unwrap example remains in distributed module)
+1101. `cargo test -p monolith-training runner_utils::tests:: -- --nocapture` ✅ (validated runner-utils unit-test suite after checkpoint/discovery unwrap-diagnostics tightening)
+1102. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/runner_utils.rs` ✅ (verified no remaining unwrap call-sites in runner-utils module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

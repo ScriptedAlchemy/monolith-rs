@@ -491,7 +491,7 @@ pub fn copy_checkpoint_from_restore_dir(
                 .iter()
                 .find(|p| Path::new(p).file_name().and_then(|s| s.to_str()) == Some(base))
                 .cloned()
-                .unwrap();
+                .expect("matching restore checkpoint path should exist after basename match");
             found
         } else {
             return Err(RunnerUtilsError::RestoreCkptNotFound {
@@ -697,10 +697,10 @@ mod tests {
 
     #[test]
     fn test_copy_checkpoint_from_restore_dir() {
-        let tmp = tempdir().unwrap();
+        let tmp = tempdir().expect("tempdir creation should succeed");
         let restore_dir = tmp.path().join("restore_dir");
         let model_dir = tmp.path().join("model_dir");
-        fs::create_dir_all(&restore_dir).unwrap();
+        fs::create_dir_all(&restore_dir).expect("restore_dir creation should succeed");
 
         let pbtxt = r#"
 model_checkpoint_path: "model.ckpt-61"
@@ -708,13 +708,16 @@ all_model_checkpoint_paths: "model.ckpt-61"
 all_model_checkpoint_paths: "model.ckpt-30"
 all_model_checkpoint_paths: "model.ckpt-0"
 "#;
-        fs::write(restore_dir.join("checkpoint"), pbtxt).unwrap();
+        fs::write(restore_dir.join("checkpoint"), pbtxt)
+            .expect("checkpoint fixture write should succeed");
 
         let state =
             copy_checkpoint_from_restore_dir(&restore_dir, &model_dir, Some("model.ckpt-30"))
-                .unwrap();
+                .expect("copy checkpoint from restore_dir should succeed");
         assert_eq!(
-            Path::new(&state.model_checkpoint_path).file_name().unwrap(),
+            Path::new(&state.model_checkpoint_path)
+                .file_name()
+                .expect("checkpoint path should include file name"),
             "model.ckpt-30"
         );
         assert!(model_dir.join("monolith_checkpoint").exists());
@@ -735,7 +738,8 @@ all_model_checkpoint_paths: "model.ckpt-0"
             is_local: true,
             ..RunnerConfig::default()
         };
-        let discovery = get_discovery(&rc, None).unwrap();
+        let discovery =
+            get_discovery(&rc, None).expect("local mode get_discovery should succeed");
         assert!(discovery.is_none());
     }
 
@@ -756,11 +760,15 @@ all_model_checkpoint_paths: "model.ckpt-0"
             tf_config: Some(tf_config),
             ..RunnerConfig::default()
         };
-        let discovery = get_discovery(&rc, None).unwrap();
+        let discovery =
+            get_discovery(&rc, None).expect("primus get_discovery should succeed");
         let d = discovery.expect("expected discovery");
         assert_eq!(d.kind(), "tf_config");
-        let ps = d.query("ps").unwrap();
-        assert_eq!(ps.get(&0).unwrap(), "host1:2222");
+        let ps = d.query("ps").expect("tf_config query(ps) should succeed");
+        assert_eq!(
+            ps.get(&0).expect("ps[0] should be present in tf_config cluster"),
+            "host1:2222"
+        );
     }
 
     #[test]
@@ -782,8 +790,9 @@ all_model_checkpoint_paths: "model.ckpt-0"
             discovery_type: ServiceDiscoveryType::Consul,
             ..RunnerConfig::default()
         };
-        let discovery = get_discovery(&rc, Some("test_psm")).unwrap();
-        assert_eq!(discovery.unwrap().kind(), "consul");
+        let discovery = get_discovery(&rc, Some("test_psm"))
+            .expect("consul get_discovery should succeed when psm provided");
+        assert_eq!(discovery.expect("consul discovery should exist").kind(), "consul");
     }
 
     #[test]
@@ -804,7 +813,7 @@ all_model_checkpoint_paths: "model.ckpt-0"
             ..crate::run_config::RunConfig::default()
         };
         let d = get_discovery_from_run_config(&run, None, None)
-            .unwrap()
+            .expect("get_discovery_from_run_config should succeed for primus config")
             .expect("discovery");
         assert_eq!(d.kind(), "tf_config");
     }
@@ -818,7 +827,9 @@ all_model_checkpoint_paths: "model.ckpt-0"
             zk_server: "127.0.0.1:2181".to_string(),
             ..RunnerConfig::default()
         };
-        let discovery = get_discovery(&rc, None).unwrap().expect("discovery");
+        let discovery = get_discovery(&rc, None)
+            .expect("zk get_discovery should succeed")
+            .expect("discovery");
         assert_eq!(discovery.kind(), "zk");
         let (job, zk) = discovery.zk_config().expect("zk config");
         assert_eq!(job, "test_job");
@@ -831,18 +842,19 @@ all_model_checkpoint_paths: "model.ckpt-0"
 
     #[test]
     fn test_prepare_restore_checkpoint_non_chief_waits_for_chief_sync() {
-        let tmp = tempdir().unwrap();
+        let tmp = tempdir().expect("tempdir creation should succeed");
         let restore_dir = tmp.path().join("restore");
         let model_dir = tmp.path().join("model");
-        fs::create_dir_all(&restore_dir).unwrap();
+        fs::create_dir_all(&restore_dir).expect("restore_dir creation should succeed");
 
         let pbtxt = r#"
 model_checkpoint_path: "model.ckpt-61"
 all_model_checkpoint_paths: "model.ckpt-61"
 all_model_checkpoint_paths: "model.ckpt-30"
 "#;
-        fs::write(restore_dir.join("checkpoint"), pbtxt).unwrap();
-        fs::create_dir_all(&model_dir).unwrap();
+        fs::write(restore_dir.join("checkpoint"), pbtxt)
+            .expect("checkpoint fixture write should succeed");
+        fs::create_dir_all(&model_dir).expect("model_dir creation should succeed");
 
         let restore_dir_bg = restore_dir.clone();
         let model_dir_bg = model_dir.clone();
@@ -859,20 +871,22 @@ all_model_checkpoint_paths: "model.ckpt-30"
             Duration::from_secs(2),
             Duration::from_millis(20),
         )
-        .unwrap();
+        .expect("non-chief restore checkpoint preparation should succeed");
         assert_eq!(
-            Path::new(&st.model_checkpoint_path).file_name().unwrap(),
+            Path::new(&st.model_checkpoint_path)
+                .file_name()
+                .expect("checkpoint path should include file name"),
             "model.ckpt-61"
         );
     }
 
     #[test]
     fn test_prepare_restore_checkpoint_non_chief_timeout() {
-        let tmp = tempdir().unwrap();
+        let tmp = tempdir().expect("tempdir creation should succeed");
         let restore_dir = tmp.path().join("restore");
         let model_dir = tmp.path().join("model");
-        fs::create_dir_all(&restore_dir).unwrap();
-        fs::create_dir_all(&model_dir).unwrap();
+        fs::create_dir_all(&restore_dir).expect("restore_dir creation should succeed");
+        fs::create_dir_all(&model_dir).expect("model_dir creation should succeed");
 
         let err = prepare_restore_checkpoint(
             &restore_dir,
@@ -892,7 +906,8 @@ all_model_checkpoint_paths: "model.ckpt-30"
             is_local: true,
             ..RunnerConfig::default()
         };
-        let guard = monolith_discovery(&rc, None).unwrap();
+        let guard = monolith_discovery(&rc, None)
+            .expect("local monolith_discovery construction should succeed");
         assert_eq!(guard.kind(), None);
         let err = guard
             .register("ps", 0, "127.0.0.1:1000")
@@ -917,11 +932,18 @@ all_model_checkpoint_paths: "model.ckpt-30"
             tf_config: Some(tf_config),
             ..RunnerConfig::default()
         };
-        let guard = monolith_discovery(&rc, None).unwrap();
+        let guard = monolith_discovery(&rc, None)
+            .expect("primus monolith_discovery construction should succeed");
         assert_eq!(guard.kind(), Some("tf_config"));
-        let ps = guard.query("ps").unwrap();
-        assert_eq!(ps.get(&0).unwrap(), "host1:2222");
-        assert_eq!(ps.get(&1).unwrap(), "host2:2222");
+        let ps = guard.query("ps").expect("primus guard query(ps) should succeed");
+        assert_eq!(
+            ps.get(&0).expect("ps[0] should be present in primus cluster"),
+            "host1:2222"
+        );
+        assert_eq!(
+            ps.get(&1).expect("ps[1] should be present in primus cluster"),
+            "host2:2222"
+        );
     }
 
     #[test]
@@ -932,14 +954,17 @@ all_model_checkpoint_paths: "model.ckpt-30"
             deep_insight_name: "uuid-like-job".to_string(),
             ..RunnerConfig::default()
         };
-        let guard = monolith_discovery(&rc, None).unwrap();
+        let guard = monolith_discovery(&rc, None)
+            .expect("consul monolith_discovery construction should succeed");
         let d = guard.discovery().expect("consul discovery");
         assert_eq!(d.kind(), "consul");
     }
 
     #[test]
     fn test_monolith_discovery_guard_mlp_close_is_idempotent() {
-        let _env_lock = MLP_ENV_TEST_MUTEX.lock().unwrap();
+        let _env_lock = MLP_ENV_TEST_MUTEX
+            .lock()
+            .expect("mlp env test mutex should not be poisoned");
         let _env = EnvSnapshot::install(
             &[
                 ("MLP_ROLE", "worker"),
@@ -964,13 +989,19 @@ all_model_checkpoint_paths: "model.ckpt-30"
             discovery_type: ServiceDiscoveryType::Mlp,
             ..RunnerConfig::default()
         };
-        let mut guard = monolith_discovery(&rc, None).unwrap();
+        let mut guard = monolith_discovery(&rc, None)
+            .expect("mlp monolith_discovery construction should succeed");
         assert_eq!(guard.kind(), Some("mlp"));
-        let workers = guard.query("worker").unwrap();
-        assert_eq!(workers.get(&0).unwrap(), "worker0:2222");
+        let workers = guard
+            .query("worker")
+            .expect("mlp guard query(worker) should succeed");
+        assert_eq!(
+            workers.get(&0).expect("worker[0] should be present"),
+            "worker0:2222"
+        );
 
-        guard.close().unwrap();
-        guard.close().unwrap();
+        guard.close().expect("first guard close should succeed");
+        guard.close().expect("second guard close should succeed");
         assert_eq!(guard.kind(), None);
         let err = guard
             .query("worker")
@@ -995,15 +1026,16 @@ all_model_checkpoint_paths: "model.ckpt-30"
             tf_config: Some(tf_config),
             ..crate::run_config::RunConfig::default()
         };
-        let guard = monolith_discovery_from_run_config(&run, None, None).unwrap();
+        let guard = monolith_discovery_from_run_config(&run, None, None)
+            .expect("monolith_discovery_from_run_config should succeed");
         assert_eq!(guard.kind(), Some("tf_config"));
     }
 
     #[test]
     fn test_get_checkpoint_state_with_restore_override_train() {
-        let tmp = tempdir().unwrap();
+        let tmp = tempdir().expect("tempdir creation should succeed");
         let model_dir = tmp.path().join("model");
-        fs::create_dir_all(&model_dir).unwrap();
+        fs::create_dir_all(&model_dir).expect("model_dir creation should succeed");
         fs::write(
             model_dir.join("checkpoint"),
             r#"
@@ -1012,7 +1044,7 @@ all_model_checkpoint_paths: "model.ckpt-61"
 all_model_checkpoint_paths: "model.ckpt-30"
 "#,
         )
-        .unwrap();
+        .expect("checkpoint fixture write should succeed");
 
         let st = get_checkpoint_state_with_restore_override(
             &model_dir,
@@ -1022,10 +1054,12 @@ all_model_checkpoint_paths: "model.ckpt-30"
             1,
             Duration::from_millis(1),
         )
-        .unwrap()
-        .unwrap();
+        .expect("checkpoint state lookup should succeed")
+        .expect("checkpoint state should be present");
         assert_eq!(
-            Path::new(&st.model_checkpoint_path).file_name().unwrap(),
+            Path::new(&st.model_checkpoint_path)
+                .file_name()
+                .expect("checkpoint path should include file name"),
             "model.ckpt-30"
         );
         assert!(model_dir.join("restore_ckpt").exists());
@@ -1033,9 +1067,9 @@ all_model_checkpoint_paths: "model.ckpt-30"
 
     #[test]
     fn test_get_checkpoint_state_with_restore_override_train_marker_blocks() {
-        let tmp = tempdir().unwrap();
+        let tmp = tempdir().expect("tempdir creation should succeed");
         let model_dir = tmp.path().join("model");
-        fs::create_dir_all(&model_dir).unwrap();
+        fs::create_dir_all(&model_dir).expect("model_dir creation should succeed");
         fs::write(
             model_dir.join("checkpoint"),
             r#"
@@ -1044,8 +1078,9 @@ all_model_checkpoint_paths: "model.ckpt-61"
 all_model_checkpoint_paths: "model.ckpt-30"
 "#,
         )
-        .unwrap();
-        fs::write(model_dir.join("restore_ckpt"), "model.ckpt-30").unwrap();
+        .expect("checkpoint fixture write should succeed");
+        fs::write(model_dir.join("restore_ckpt"), "model.ckpt-30")
+            .expect("restore_ckpt marker write should succeed");
 
         let st = get_checkpoint_state_with_restore_override(
             &model_dir,
@@ -1055,19 +1090,21 @@ all_model_checkpoint_paths: "model.ckpt-30"
             1,
             Duration::from_millis(1),
         )
-        .unwrap()
-        .unwrap();
+        .expect("checkpoint state lookup should succeed")
+        .expect("checkpoint state should be present");
         assert_eq!(
-            Path::new(&st.model_checkpoint_path).file_name().unwrap(),
+            Path::new(&st.model_checkpoint_path)
+                .file_name()
+                .expect("checkpoint path should include file name"),
             "model.ckpt-61"
         );
     }
 
     #[test]
     fn test_get_checkpoint_state_with_restore_override_eval_always_applies() {
-        let tmp = tempdir().unwrap();
+        let tmp = tempdir().expect("tempdir creation should succeed");
         let model_dir = tmp.path().join("model");
-        fs::create_dir_all(&model_dir).unwrap();
+        fs::create_dir_all(&model_dir).expect("model_dir creation should succeed");
         fs::write(
             model_dir.join("checkpoint"),
             r#"
@@ -1076,8 +1113,9 @@ all_model_checkpoint_paths: "model.ckpt-61"
 all_model_checkpoint_paths: "model.ckpt-30"
 "#,
         )
-        .unwrap();
-        fs::write(model_dir.join("restore_ckpt"), "model.ckpt-30").unwrap();
+        .expect("checkpoint fixture write should succeed");
+        fs::write(model_dir.join("restore_ckpt"), "model.ckpt-30")
+            .expect("restore_ckpt marker write should succeed");
 
         let st = get_checkpoint_state_with_restore_override(
             &model_dir,
@@ -1087,20 +1125,23 @@ all_model_checkpoint_paths: "model.ckpt-30"
             1,
             Duration::from_millis(1),
         )
-        .unwrap()
-        .unwrap();
+        .expect("checkpoint state lookup should succeed")
+        .expect("checkpoint state should be present");
         assert_eq!(
-            Path::new(&st.model_checkpoint_path).file_name().unwrap(),
+            Path::new(&st.model_checkpoint_path)
+                .file_name()
+                .expect("checkpoint path should include file name"),
             "model.ckpt-30"
         );
     }
 
     #[test]
     fn test_get_checkpoint_state_with_restore_override_read_error() {
-        let tmp = tempdir().unwrap();
+        let tmp = tempdir().expect("tempdir creation should succeed");
         let model_dir = tmp.path().join("model");
-        fs::create_dir_all(&model_dir).unwrap();
-        fs::write(model_dir.join("checkpoint"), "not a checkpoint state").unwrap();
+        fs::create_dir_all(&model_dir).expect("model_dir creation should succeed");
+        fs::write(model_dir.join("checkpoint"), "not a checkpoint state")
+            .expect("invalid checkpoint fixture write should succeed");
 
         let err = get_checkpoint_state_with_restore_override(
             &model_dir,
@@ -1116,9 +1157,9 @@ all_model_checkpoint_paths: "model.ckpt-30"
 
     #[test]
     fn test_get_checkpoint_state_with_restore_override_matches_basename_to_full_path() {
-        let tmp = tempdir().unwrap();
+        let tmp = tempdir().expect("tempdir creation should succeed");
         let model_dir = tmp.path().join("model");
-        fs::create_dir_all(&model_dir).unwrap();
+        fs::create_dir_all(&model_dir).expect("model_dir creation should succeed");
         fs::write(
             model_dir.join("checkpoint"),
             r#"
@@ -1127,7 +1168,7 @@ all_model_checkpoint_paths: "/restore/model.ckpt-61"
 all_model_checkpoint_paths: "/restore/model.ckpt-30"
 "#,
         )
-        .unwrap();
+        .expect("checkpoint fixture write should succeed");
 
         let st = get_checkpoint_state_with_restore_override(
             &model_dir,
@@ -1137,16 +1178,16 @@ all_model_checkpoint_paths: "/restore/model.ckpt-30"
             1,
             Duration::from_millis(1),
         )
-        .unwrap()
-        .unwrap();
+        .expect("checkpoint state lookup should succeed")
+        .expect("checkpoint state should be present");
         assert_eq!(st.model_checkpoint_path, "/restore/model.ckpt-30");
     }
 
     #[test]
     fn test_get_checkpoint_state_with_restore_override_non_checkpoint_filename_no_override() {
-        let tmp = tempdir().unwrap();
+        let tmp = tempdir().expect("tempdir creation should succeed");
         let model_dir = tmp.path().join("model");
-        fs::create_dir_all(&model_dir).unwrap();
+        fs::create_dir_all(&model_dir).expect("model_dir creation should succeed");
         fs::write(
             model_dir.join("ckpt_state.pbtxt"),
             r#"
@@ -1155,7 +1196,7 @@ all_model_checkpoint_paths: "model.ckpt-61"
 all_model_checkpoint_paths: "model.ckpt-30"
 "#,
         )
-        .unwrap();
+        .expect("checkpoint-state fixture write should succeed");
 
         let st = get_checkpoint_state_with_restore_override(
             &model_dir,
@@ -1165,10 +1206,12 @@ all_model_checkpoint_paths: "model.ckpt-30"
             1,
             Duration::from_millis(1),
         )
-        .unwrap()
-        .unwrap();
+        .expect("checkpoint state lookup should succeed")
+        .expect("checkpoint state should be present");
         assert_eq!(
-            Path::new(&st.model_checkpoint_path).file_name().unwrap(),
+            Path::new(&st.model_checkpoint_path)
+                .file_name()
+                .expect("checkpoint path should include file name"),
             "model.ckpt-61"
         );
     }
@@ -1176,7 +1219,9 @@ all_model_checkpoint_paths: "model.ckpt-30"
     #[test]
     fn test_initialize_restore_checkpoint_from_runner_none_when_restore_missing() {
         static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let _env_guard = ENV_MUTEX.lock().unwrap();
+        let _env_guard = ENV_MUTEX
+            .lock()
+            .expect("runner env mutex should not be poisoned");
         std::env::remove_var("TF_GRPC_WORKER_CACHE_THREADS");
         std::env::remove_var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER");
 
@@ -1188,25 +1233,27 @@ all_model_checkpoint_paths: "model.ckpt-30"
         };
         let st =
             initialize_restore_checkpoint_from_runner(&rc, Duration::from_secs(1), Duration::from_millis(1))
-                .unwrap();
+                .expect("restore checkpoint initialization should succeed without restore_dir");
         assert!(st.is_none());
         assert_eq!(
-            std::env::var("TF_GRPC_WORKER_CACHE_THREADS").unwrap(),
+            std::env::var("TF_GRPC_WORKER_CACHE_THREADS")
+                .expect("TF_GRPC_WORKER_CACHE_THREADS should be exported"),
             "6"
         );
         assert_eq!(
-            std::env::var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER").unwrap(),
+            std::env::var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER")
+                .expect("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER should be exported"),
             "4"
         );
     }
 
     #[test]
     fn test_initialize_restore_checkpoint_from_runner_worker_waits_for_chief() {
-        let tmp = tempdir().unwrap();
+        let tmp = tempdir().expect("tempdir creation should succeed");
         let restore_dir = tmp.path().join("restore");
         let model_dir = tmp.path().join("model");
-        fs::create_dir_all(&restore_dir).unwrap();
-        fs::create_dir_all(&model_dir).unwrap();
+        fs::create_dir_all(&restore_dir).expect("restore_dir creation should succeed");
+        fs::create_dir_all(&model_dir).expect("model_dir creation should succeed");
         fs::write(
             restore_dir.join("checkpoint"),
             r#"
@@ -1215,7 +1262,7 @@ all_model_checkpoint_paths: "model.ckpt-61"
 all_model_checkpoint_paths: "model.ckpt-30"
 "#,
         )
-        .unwrap();
+        .expect("checkpoint fixture write should succeed");
 
         let chief = RunnerConfig {
             is_local: false,
@@ -1249,10 +1296,12 @@ all_model_checkpoint_paths: "model.ckpt-30"
             Duration::from_secs(2),
             Duration::from_millis(10),
         )
-        .unwrap()
-        .unwrap();
+        .expect("worker restore checkpoint initialization should succeed")
+        .expect("worker should observe restore checkpoint state after chief sync");
         assert_eq!(
-            Path::new(&st.model_checkpoint_path).file_name().unwrap(),
+            Path::new(&st.model_checkpoint_path)
+                .file_name()
+                .expect("checkpoint path should include file name"),
             "model.ckpt-30"
         );
     }
@@ -1265,7 +1314,8 @@ all_model_checkpoint_paths: "model.ckpt-30"
             restore_sync_poll_interval_ms: 50,
             ..RunnerConfig::default()
         };
-        let st = initialize_restore_checkpoint_from_runner_defaults(&rc).unwrap();
+        let st = initialize_restore_checkpoint_from_runner_defaults(&rc)
+            .expect("runner default restore checkpoint initialization should succeed");
         assert!(st.is_none());
     }
 
@@ -1275,17 +1325,18 @@ all_model_checkpoint_paths: "model.ckpt-30"
             is_local: true,
             ..crate::run_config::RunConfig::default()
         };
-        let st = initialize_restore_checkpoint_from_run_config_defaults(&rc, None).unwrap();
+        let st = initialize_restore_checkpoint_from_run_config_defaults(&rc, None)
+            .expect("run-config default restore checkpoint initialization should succeed");
         assert!(st.is_none());
     }
 
     #[test]
     fn test_initialize_restore_checkpoint_from_run_config_chief_path() {
-        let tmp = tempdir().unwrap();
+        let tmp = tempdir().expect("tempdir creation should succeed");
         let restore_dir = tmp.path().join("restore");
         let model_dir = tmp.path().join("model");
-        fs::create_dir_all(&restore_dir).unwrap();
-        fs::create_dir_all(&model_dir).unwrap();
+        fs::create_dir_all(&restore_dir).expect("restore_dir creation should succeed");
+        fs::create_dir_all(&model_dir).expect("model_dir creation should succeed");
         fs::write(
             restore_dir.join("checkpoint"),
             r#"
@@ -1294,7 +1345,7 @@ all_model_checkpoint_paths: "model.ckpt-61"
 all_model_checkpoint_paths: "model.ckpt-30"
 "#,
         )
-        .unwrap();
+        .expect("checkpoint fixture write should succeed");
 
         let run = crate::run_config::RunConfig {
             is_local: true,
@@ -1309,10 +1360,12 @@ all_model_checkpoint_paths: "model.ckpt-30"
             Duration::from_secs(1),
             Duration::from_millis(10),
         )
-        .unwrap()
-        .unwrap();
+        .expect("run-config restore checkpoint initialization should succeed")
+        .expect("run-config chief path should return restore checkpoint state");
         assert_eq!(
-            Path::new(&st.model_checkpoint_path).file_name().unwrap(),
+            Path::new(&st.model_checkpoint_path)
+                .file_name()
+                .expect("checkpoint path should include file name"),
             "model.ckpt-30"
         );
     }
