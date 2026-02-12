@@ -6754,6 +6754,18 @@
   - removed 70 additional parse-unwrap hotspots while preserving preserve/guard
     error-shape assertions.
 
+### 496) Native parity bind-address helper completion (phase 13): eliminate remaining parse-unwrap hotspots
+- Completed migration of the remaining
+  `"127.0.0.1:0".parse().unwrap()` call-sites in
+  `crates/monolith-training/tests/native_training_parity.rs` to
+  `test_bind_addr()`.
+- This final phase covered the trailing runner-config/run-config parity matrix
+  sections (preserve/surfaces/validation lanes) across the lower half of the
+  test module.
+- Result:
+  - removed the final 90 parse-unwrap hotspots in `native_training_parity.rs`
+    (**0 remaining**), with parity behavior unchanged.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7802,6 +7814,8 @@
 1045. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_propagates_ps_ && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_preserves_register_timeout && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_preserves_ps_register_timeout && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_honors_cleanup_timeout` ✅ (validated run-config connect/register timeout and cleanup-context matrices after phase-10 bind-address helper migration batch)
 1046. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_preserves_` ✅ (validated runner-config preserve timeout/cleanup/order/discovery matrices after phase-11 bind-address helper migration batch)
 1047. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_preserves_ && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_` ✅ (validated runner-config preserve + rejection matrices after phase-12 bind-address helper migration batch)
+1048. `rg "\"127\\.0\\.0\\.1:0\"\\.parse\\(\\)\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/tests/native_training_parity.rs` ✅ (verified no remaining bind-address parse-unwrap hotspots in native parity suite)
+1049. `cargo test -p monolith-training --test native_training_parity` ✅ (full native-training parity regression suite after completing bind-address helper migration)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
