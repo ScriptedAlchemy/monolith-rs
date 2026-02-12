@@ -10870,16 +10870,15 @@ mod tests {
         expected_worker_service_type: &str,
     ) {
         let discovery = Arc::new(WorkerTimeoutWithHangingCleanupDiscovery::new());
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1500),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when worker timeout cleanup steps time out"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when worker timeout cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker timeout should remain primary over cleanup timeout errors: {msg}"
@@ -10960,16 +10959,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1500),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when worker discovery times out due to ordering issue and cleanup steps time out"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when worker discovery times out due to ordering issue and cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker ordering-issue timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker ordering-issue timeout should remain primary over cleanup timeout errors: {msg}"
@@ -11019,16 +11017,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1500),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when worker discovery times out due to ordering issue and default-service non-index cleanup steps time out"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when worker discovery times out due to ordering issue and default-service non-index cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker ordering-issue timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker ordering-issue timeout should remain primary over cleanup timeout errors with default service type: {msg}"
@@ -11080,16 +11077,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1500),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when worker discovery times out due to ordering issue with custom service types and cleanup steps time out"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when worker discovery times out due to ordering issue with custom service types and cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker ordering-issue timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker ordering-issue timeout should remain primary over cleanup timeout errors with custom service types: {msg}"
@@ -11145,16 +11141,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1500),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when worker discovery times out due to ordering issue with custom service types and cleanup steps time out"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when worker discovery times out due to ordering issue with custom service types and cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker ordering-issue timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker ordering-issue timeout should remain primary over cleanup timeout errors with custom service types: {msg}"
@@ -11374,16 +11369,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1500),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when worker discovery times out due to ordering issue and custom cleanup steps time out"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when worker discovery times out due to ordering issue and custom cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker ordering-issue timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker ordering-issue timeout should remain primary over cleanup timeout errors with custom service types/index: {msg}"
@@ -11437,16 +11431,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1500),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when worker discovery times out with ordering+discovery errors and cleanup steps time out"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when worker discovery times out with ordering+discovery errors and cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker ordering+discovery-error timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker ordering+discovery-error timeout should remain primary over cleanup timeout errors: {msg}"
@@ -11500,16 +11493,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1500),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when worker discovery times out with ordering+discovery errors and default-service non-index cleanup steps time out"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when worker discovery times out with ordering+discovery errors and default-service non-index cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker ordering+discovery-error timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker ordering+discovery-error timeout should remain primary over cleanup timeout errors with default service type: {msg}"
@@ -11565,16 +11557,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1500),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when worker discovery times out with ordering+discovery errors and custom non-index cleanup steps time out"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when worker discovery times out with ordering+discovery errors and custom non-index cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker ordering+discovery-error timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker ordering+discovery-error timeout should remain primary over cleanup timeout errors with custom service types: {msg}"
@@ -11634,16 +11625,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1500),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when worker discovery times out with ordering+discovery errors and custom non-index cleanup steps time out"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when worker discovery times out with ordering+discovery errors and custom non-index cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker ordering+discovery-error timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker ordering+discovery-error timeout should remain primary over cleanup timeout errors with custom service types: {msg}"
@@ -12111,16 +12101,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(1500),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when worker discovery times out with ordering+discovery errors and custom cleanup steps time out"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when worker discovery times out with ordering+discovery errors and custom cleanup steps time out");
+        let msg = run_result
+            .expect_err("worker ordering+discovery-error timeout with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
             "worker ordering+discovery-error timeout should remain primary over cleanup timeout errors with custom service types/index: {msg}"
