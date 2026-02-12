@@ -3440,6 +3440,18 @@
   includes ordering+discover-error and last-discover-error cleanup timeout/fail
   diagnostics across runner + RunConfig + RunnerConfig entrypoints.
 
+### 250) Runner register-failure custom-service-type non-index naming parity completed
+- Added runner-level custom-service-type non-index register-failure aliases to
+  complete indexed/non-index naming matrix coverage:
+  - `test_run_distributed_worker_registration_failure_with_custom_service_type_includes_cleanup_context`
+  - `test_run_distributed_ps_registration_failure_with_custom_service_type_includes_cleanup_context`
+- New regressions mirror existing custom-service-type non-index semantics and
+  assert register-failure primary precedence plus appended cleanup issue context
+  (`deregister ... missing`) for worker and ps roles.
+- Result: no remaining
+  `with_custom_service_type_and_index -> with_custom_service_type` counterpart
+  naming gaps remain in `runner.rs`.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3963,6 +3975,9 @@
 520. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post ordering+discover-error + last-discover-error custom-service-types non-index parity expansion across runner/config entrypoints)
 521. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post ordering+discover-error + last-discover-error custom-service-types non-index parity compatibility verification)
 522. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post ordering+discover-error + last-discover-error custom-service-types non-index parity expansion full workspace rerun under ambient ZK auth env)
+523. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner register-failure custom-service-type non-index naming parity alias expansion)
+524. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post runner register-failure custom-service-type non-index naming parity compatibility verification)
+525. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post runner register-failure custom-service-type non-index naming parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
