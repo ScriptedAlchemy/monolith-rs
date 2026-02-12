@@ -25670,6 +25670,26 @@ fn estimator_from_run_config_roundtrip() {
 }
 
 #[test]
+fn estimator_from_runner_config_roundtrip() {
+    let runner = RunnerConfig {
+        model_dir: std::path::PathBuf::from("/tmp/parity_estimator_runner"),
+        log_step_count_steps: 21,
+        restore_ckpt: Some("model.ckpt-33".to_string()),
+        ..RunnerConfig::default()
+    };
+    let estimator = Estimator::from_runner_config(&runner, ConstantModelFn::new(0.2));
+    assert_eq!(
+        estimator.config().model_dir,
+        std::path::PathBuf::from("/tmp/parity_estimator_runner")
+    );
+    assert_eq!(estimator.config().log_step_count_steps, 21);
+    assert_eq!(
+        estimator.config().warm_start_from,
+        Some(std::path::PathBuf::from("model.ckpt-33"))
+    );
+}
+
+#[test]
 fn runner_discovery_query_primus_roundtrip() {
     let tf_config = serde_json::json!({
       "cluster": {

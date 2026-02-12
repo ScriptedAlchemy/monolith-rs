@@ -3830,6 +3830,16 @@
 - Result: runner unit-test cleanup naming audits are fully closed for both
   transformations (`missing 0`).
 
+### 276) Estimator run/runner roundtrip parity completed
+- Added missing integration counterpart:
+  - `estimator_from_runner_config_roundtrip`
+- Mirrors existing run-config roundtrip assertions for estimator config mapping:
+  - `model_dir`
+  - `log_step_count_steps`
+  - `restore_ckpt -> warm_start_from`
+- Result: run-config to runner-config counterpart audit in
+  `native_training_parity.rs` is now fully closed (`run->runner missing 0`).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4456,6 +4466,9 @@
 623. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_ps_registration_failure_with_default_service_type_includes_disconnect_failure_context -- --nocapture` ✅
 624. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_worker_registration_failure_with_default_service_type_includes_cleanup_timeout_context -- --nocapture` ✅
 625. `ZK_AUTH=user:pass cargo test -p monolith-training -q && python3 runner cleanup naming audit` ✅ (`runner.rs` `_cleanup_context -> _disconnect_failure_context` and `_cleanup_context -> _cleanup_timeout_context` both `missing 0`)
+626. `ZK_AUTH=user:pass cargo test -p monolith-training estimator_from_runner_config_roundtrip -- --nocapture` ✅
+627. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post estimator runner-config roundtrip counterpart addition full monolith-training regression rerun)
+628. `python3` run/runner counterpart audit (`native_training_parity.rs`) ✅ (`run->runner missing 0`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
