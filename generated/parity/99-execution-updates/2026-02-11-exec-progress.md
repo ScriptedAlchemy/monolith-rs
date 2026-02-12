@@ -3817,6 +3817,19 @@
 - Result: `_cleanup_context -> _cleanup_timeout_context` naming audit now fully
   closes (`missing 0`).
 
+### 275) Runner registration-failure cleanup naming parity completed
+- Added runner unit-test alias wrappers in `runner.rs` to close remaining
+  registration-failure naming symmetry gaps:
+  - `_cleanup_context -> _disconnect_failure_context`
+  - `_cleanup_context -> _cleanup_timeout_context`
+- Scope covered:
+  - PS registration failure variants (default/custom service types, with/without
+    index)
+  - Worker registration failure variants (default/custom service types,
+    with/without index)
+- Result: runner unit-test cleanup naming audits are fully closed for both
+  transformations (`missing 0`).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4440,6 +4453,9 @@
 620. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_connect_timeout_cleanup_timeout_context -- --nocapture` ✅
 621. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_ps_register_timeout_with_custom_service_type_cleanup_timeout_context -- --nocapture` ✅
 622. `ZK_AUTH=user:pass cargo test -p monolith-training -q && python3 cleanup-to-cleanup-timeout audit` ✅ (`_cleanup_context -> _cleanup_timeout_context` `missing 0`)
+623. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_ps_registration_failure_with_default_service_type_includes_disconnect_failure_context -- --nocapture` ✅
+624. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_worker_registration_failure_with_default_service_type_includes_cleanup_timeout_context -- --nocapture` ✅
+625. `ZK_AUTH=user:pass cargo test -p monolith-training -q && python3 runner cleanup naming audit` ✅ (`runner.rs` `_cleanup_context -> _disconnect_failure_context` and `_cleanup_context -> _cleanup_timeout_context` both `missing 0`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
