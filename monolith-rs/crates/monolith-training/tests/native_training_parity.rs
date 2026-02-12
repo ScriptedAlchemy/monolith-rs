@@ -11260,7 +11260,10 @@ async fn distributed_runner_from_run_config_honors_cleanup_timeout_with_blocked_
         "run_distributed_from_run_config should not hang when connect and cleanup are blocked"
     );
     let elapsed = started.elapsed();
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when cleanup is blocked")
+        .expect_err("blocked cleanup with operation timeout should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: connect worker-0 via worker after 10ms"),
         "operation timeout diagnostics should include configured operation timeout: {msg}"
@@ -12505,7 +12508,10 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_when_clea
         res.is_ok(),
         "run_distributed_from_run_config should not hang when register and cleanup block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when register and cleanup block")
+        .expect_err("register timeout with blocked cleanup should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register worker-0 as worker after 20ms"),
         "register timeout should remain primary over cleanup timeout when configured via RunConfig: {msg}"
@@ -12570,7 +12576,10 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_disconnec
         res.is_ok(),
         "run_distributed_from_run_config should not hang when register and cleanup block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when register and cleanup block")
+        .expect_err("register timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register worker-0 as worker after 20ms"),
         "register timeout should remain primary over cleanup timeout when configured via RunConfig: {msg}"
@@ -12638,7 +12647,10 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_disc
         res.is_ok(),
         "run_distributed_from_run_config should not hang when indexed custom-worker register blocks and cleanup fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when indexed custom worker register blocks and cleanup disconnect fails")
+        .expect_err("indexed custom worker register timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register worker-3 as trainer_custom after 20ms"),
         "indexed custom-worker register timeout should remain primary over cleanup failure via RunConfig: {msg}"
@@ -12696,7 +12708,10 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_cust
         res.is_ok(),
         "run_distributed_from_run_config should not hang when custom non-index worker register blocks and cleanup fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when custom worker register blocks and cleanup disconnect fails")
+        .expect_err("custom worker register timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register worker-0 as trainer_custom after 20ms"),
         "custom non-index worker register timeout should remain primary over cleanup failure via RunConfig: {msg}"
@@ -12753,7 +12768,10 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_defa
         res.is_ok(),
         "run_distributed_from_run_config should not hang when indexed default-worker register blocks and cleanup fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when indexed default worker register blocks and cleanup disconnect fails")
+        .expect_err("indexed default worker register timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register worker-2 as worker after 20ms"),
         "indexed default-worker register timeout should remain primary over cleanup failure via RunConfig: {msg}"
@@ -12810,7 +12828,10 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_defa
         res.is_ok(),
         "run_distributed_from_run_config should not hang when non-index default-worker register blocks and cleanup fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when default worker register blocks and cleanup disconnect fails")
+        .expect_err("default worker register timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register worker-0 as worker after 20ms"),
         "default-worker register timeout should remain primary over cleanup failure via RunConfig for non-index path: {msg}"
@@ -12867,7 +12888,10 @@ async fn distributed_runner_from_run_config_propagates_worker_service_type_into_
         res.is_ok(),
         "run_distributed_from_run_config should not hang when worker register and cleanup block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when register blocks for worker service-type diagnostics")
+        .expect_err("worker service-type register timeout diagnostics should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register worker-0 as trainer_custom after 20ms"),
         "custom worker service type from RunConfig should appear in timeout diagnostics: {msg}"
@@ -12935,7 +12959,10 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_cust
         res.is_ok(),
         "run_distributed_from_run_config should not hang when custom non-index worker register and cleanup block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when custom worker register and cleanup block")
+        .expect_err("custom worker register timeout with blocked cleanup should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register worker-0 as trainer_custom after 20ms"),
         "custom non-index worker register timeout should remain primary over cleanup timeout via RunConfig: {msg}"
@@ -12991,7 +13018,10 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_cust
         res.is_ok(),
         "run_distributed_from_run_config should not hang when indexed custom-worker register and cleanup block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when indexed custom worker register and cleanup block")
+        .expect_err("indexed custom worker register timeout with blocked cleanup should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register worker-3 as trainer_custom after 20ms"),
         "indexed custom-worker register timeout should remain primary over cleanup timeout via RunConfig: {msg}"
@@ -13047,7 +13077,10 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_cust
         res.is_ok(),
         "run_distributed_from_run_config should not hang when indexed custom-worker register and cleanup block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when indexed custom worker register blocks and cleanup disconnect fails")
+        .expect_err("indexed custom worker register timeout with disconnect-failure context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register worker-3 as trainer_custom after 20ms"),
         "indexed custom-worker register timeout should remain primary over cleanup timeout via RunConfig: {msg}"
@@ -13102,7 +13135,10 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_defa
         res.is_ok(),
         "run_distributed_from_run_config should not hang when indexed default-worker register and cleanup block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when indexed default worker register and cleanup block")
+        .expect_err("indexed default worker register timeout with blocked cleanup should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register worker-2 as worker after 20ms"),
         "indexed default-worker register timeout should remain primary over cleanup timeout via RunConfig: {msg}"
@@ -13157,7 +13193,10 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_defa
         res.is_ok(),
         "run_distributed_from_run_config should not hang when non-index default-worker register and cleanup block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when default worker register and cleanup block")
+        .expect_err("default worker register timeout with blocked cleanup should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register worker-0 as worker after 20ms"),
         "default-worker register timeout should remain primary over cleanup timeout via RunConfig for non-index path: {msg}"
@@ -13213,7 +13252,10 @@ async fn distributed_runner_from_run_config_honors_cleanup_timeout_after_registe
         "run_distributed_from_run_config should not hang when register and cleanup are blocked"
     );
     let elapsed = started.elapsed();
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when register timeout is followed by blocked cleanup")
+        .expect_err("register timeout with cleanup timeout bounds should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register worker-0 as worker after 10ms"),
         "operation timeout diagnostics should include configured operation timeout: {msg}"
@@ -13267,7 +13309,10 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_when_c
         res.is_ok(),
         "run_distributed_from_run_config should not hang when ps register and cleanup block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when ps register and cleanup block")
+        .expect_err("ps register timeout with blocked cleanup should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register ps-0 as ps after 20ms"),
         "ps register timeout should remain primary over cleanup timeout when configured via RunConfig: {msg}"
@@ -13333,7 +13378,10 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_discon
         res.is_ok(),
         "run_distributed_from_run_config should not hang when ps register and cleanup block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when ps register and cleanup block")
+        .expect_err("ps register timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register ps-0 as ps after 20ms"),
         "ps register timeout should remain primary over cleanup timeout when configured via RunConfig: {msg}"
@@ -13401,7 +13449,10 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_d
         res.is_ok(),
         "run_distributed_from_run_config should not hang when indexed custom-ps register blocks and cleanup fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when indexed custom-ps register blocks and cleanup disconnect fails")
+        .expect_err("indexed custom ps register timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains(
             "Timed out during discovery operation: register ps-2 as parameter_server_custom after 20ms"
@@ -13461,7 +13512,10 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_c
         res.is_ok(),
         "run_distributed_from_run_config should not hang when custom non-index ps register blocks and cleanup fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when custom-ps register blocks and cleanup disconnect fails")
+        .expect_err("custom ps register timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains(
             "Timed out during discovery operation: register ps-0 as parameter_server_custom after 20ms"
@@ -13520,7 +13574,10 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_d
         res.is_ok(),
         "run_distributed_from_run_config should not hang when indexed default-ps register blocks and cleanup fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when indexed default-ps register blocks and cleanup disconnect fails")
+        .expect_err("indexed default ps register timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register ps-2 as ps after 20ms"),
         "indexed default-ps register timeout should remain primary over cleanup failure via RunConfig: {msg}"
@@ -13575,7 +13632,10 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_d
         res.is_ok(),
         "run_distributed_from_run_config should not hang when non-index default-ps register blocks and cleanup fails"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when default-ps register blocks and cleanup disconnect fails")
+        .expect_err("default ps register timeout with disconnect-failure cleanup context should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register ps-0 as ps after 20ms"),
         "default-ps register timeout should remain primary over cleanup failure via RunConfig for non-index path: {msg}"
@@ -13630,7 +13690,10 @@ async fn distributed_runner_from_run_config_propagates_ps_service_type_into_regi
         res.is_ok(),
         "run_distributed_from_run_config should not hang when ps register and cleanup block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when register blocks for ps service-type diagnostics")
+        .expect_err("ps service-type register timeout diagnostics should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register ps-0 as ps_custom after 20ms"),
         "custom ps service type from RunConfig should appear in timeout diagnostics: {msg}"
@@ -13698,7 +13761,10 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_c
         res.is_ok(),
         "run_distributed_from_run_config should not hang when custom non-index ps register and cleanup block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when custom-ps register and cleanup block")
+        .expect_err("custom ps register timeout with blocked cleanup should surface as role error")
+        .to_string();
     assert!(
         msg.contains(
             "Timed out during discovery operation: register ps-0 as parameter_server_custom after 20ms"
@@ -13760,7 +13826,10 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_c
         res.is_ok(),
         "run_distributed_from_run_config should not hang when indexed custom-ps register and cleanup block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when indexed custom-ps register and cleanup block")
+        .expect_err("indexed custom ps register timeout with blocked cleanup should surface as role error")
+        .to_string();
     assert!(
         msg.contains(
             "Timed out during discovery operation: register ps-2 as parameter_server_custom after 20ms"
@@ -13822,7 +13891,10 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_c
         res.is_ok(),
         "run_distributed_from_run_config should not hang when indexed custom-ps register and cleanup block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when indexed custom-ps register blocks and cleanup disconnect fails")
+        .expect_err("indexed custom ps register timeout with disconnect-failure context should surface as role error")
+        .to_string();
     assert!(
         msg.contains(
             "Timed out during discovery operation: register ps-2 as parameter_server_custom after 20ms"
@@ -13883,7 +13955,10 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_d
         res.is_ok(),
         "run_distributed_from_run_config should not hang when indexed default-ps register and cleanup block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when indexed default-ps register and cleanup block")
+        .expect_err("indexed default ps register timeout with blocked cleanup should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register ps-2 as ps after 20ms"),
         "indexed default-ps register timeout should remain primary over cleanup timeout via RunConfig: {msg}"
@@ -13938,7 +14013,10 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_d
         res.is_ok(),
         "run_distributed_from_run_config should not hang when non-index default-ps register and cleanup block"
     );
-    let msg = res.unwrap().unwrap_err().to_string();
+    let msg = res
+        .expect("run_distributed_from_run_config should not hang when default-ps register and cleanup block")
+        .expect_err("default ps register timeout with blocked cleanup should surface as role error")
+        .to_string();
     assert!(
         msg.contains("Timed out during discovery operation: register ps-0 as ps after 20ms"),
         "default-ps register timeout should remain primary over cleanup timeout via RunConfig for non-index path: {msg}"

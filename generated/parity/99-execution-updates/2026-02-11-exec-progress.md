@@ -5323,6 +5323,21 @@
   - Targeted connect-timeout/connect-failure suites and default
     monolith-training regression remain green.
 
+### 398) Native parity register-timeout contract tightening (batch 12)
+- Tightened additional run-config register-timeout parity lanes in
+  `tests/native_training_parity.rs` by replacing unwrap-based extraction with
+  explicit `expect(...).expect_err(...)` contracts:
+  - Worker register-timeout families (cleanup-blocks, disconnect-failure, and
+    service-type/index diagnostics).
+  - PS register-timeout families (cleanup-blocks, disconnect-failure, and
+    service-type/index diagnostics).
+  - Cleanup-timeout boundary checks around register-timeout lanes.
+- Result:
+  - Register-timeout parity families now enforce explicit non-hang + role-error
+    contracts with clearer diagnostics.
+  - Targeted register-timeout suites and default monolith-training regression
+    remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6218,6 +6233,7 @@
 892. `ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_register_failure_with_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training preserves_ps_register_failure_with_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity register-failure cleanup-timeout contract tightening verification plus default-lane regression rerun)
 893. `ZK_AUTH=user:pass cargo test -p monolith-training preserves_ps_register_failure_with_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training after_success -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity post-success cleanup and ps register-failure context contract tightening verification plus default-lane regression rerun)
 894. `ZK_AUTH=user:pass cargo test -p monolith-training preserves_connect_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training preserves_connect_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training connect_timeout_diagnostics -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training preserves_ps_connect_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training preserves_ps_connect_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training honors_cleanup_timeout_with_blocked_cleanup -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity connect-timeout/connect-failure contract tightening verification plus default-lane regression rerun)
+895. `ZK_AUTH=user:pass cargo test -p monolith-training register_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training honors_cleanup_timeout_with_blocked_cleanup -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training honors_cleanup_timeout_after_register_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity register-timeout contract tightening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
