@@ -3774,6 +3774,21 @@
   `_cleanup_context -> _disconnect_failure_context` naming now fully closes
   (`missing 0`).
 
+### 272) Disconnect-to-cleanup counterpart parity completed
+- Added RunConfig cleanup-context counterparts for disconnect-failure-context
+  naming family:
+  - connect-timeout variants (`connect_timeout*`, `ps_connect_timeout*`)
+  - register-timeout variants (`register_timeout*`, `ps_register_timeout*`)
+  - post-success cleanup (`deregister_failure_with_*_after_success`)
+- Added RunnerConfig cleanup-context counterparts for the same naming family.
+- Implementation approach:
+  - Added direct `#[test]` alias wrappers that invoke the existing
+    `*_disconnect_failure_context*` test functions, avoiding async-nesting
+    pitfalls while preserving validated execution paths.
+- Result: `_disconnect_failure_context -> _cleanup_context` parity audit now
+  fully closes (`missing 0`), and key cleanup naming families are symmetric in
+  both directions.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4383,6 +4398,12 @@
 606. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_ps_register_failure_with_default_service_type_and_index_disconnect_failure_context -- --nocapture` ✅
 607. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post PS-register disconnect-context variant additions full monolith-training regression rerun)
 608. `python3` cleanup-context/disconnect-context alias audit (`native_training_parity.rs`) ✅ (`missing 0` for `_cleanup_context -> _disconnect_failure_context`)
+609. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_preserves_connect_timeout_cleanup_context -- --nocapture` ✅
+610. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_preserves_ps_register_timeout_with_default_service_type_cleanup_context -- --nocapture` ✅
+611. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_connect_timeout_cleanup_context -- --nocapture` ✅
+612. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_ps_register_timeout_with_default_service_type_cleanup_context -- --nocapture` ✅
+613. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post disconnect->cleanup wrapper alias expansion full monolith-training regression rerun)
+614. `python3` multi-family naming audit (`native_training_parity.rs`) ✅ (`_disconnect_failure_context -> _cleanup_context` and related cleanup symmetry families all `missing 0`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
