@@ -16802,10 +16802,6 @@ async fn distributed_runner_from_runner_config_propagates_retry_backoff_controls
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when PS list remains empty"
-    );
     let elapsed = started.elapsed();
     let msg = res
         .expect("distributed_runner_from_runner_config_propagates_retry_backoff_controls should not hang")
@@ -16857,10 +16853,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_discovery_error_
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker discovery fails and cleanup steps block"
-    );
     let elapsed = started.elapsed();
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_discovery_error_when_cleanup_times_out should not hang")
@@ -17360,10 +17352,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_when_cle
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker timeout cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_timeout_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_timeout_when_cleanup_times_out should return an error")
@@ -17428,10 +17416,6 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_whe
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when discover returns an error and cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_last_discover_error_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_last_discover_error_when_cleanup_times_out should return an error")
@@ -17494,10 +17478,6 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when discover returns an error with custom service types/index and cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_types_and_index_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_types_and_index_when_cleanup_times_out should return an error")
@@ -17570,10 +17550,6 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when discover returns an error with indexed default service types and cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_last_discover_error_with_default_service_type_and_index_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_last_discover_error_with_default_service_type_and_index_when_cleanup_times_out should return an error")
@@ -17642,10 +17618,6 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when discover returns an error with default-service non-index path and cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_last_discover_error_with_default_service_type_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_last_discover_error_with_default_service_type_when_cleanup_times_out should return an error")
@@ -17716,10 +17688,6 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when discover returns an error with custom non-index service types and cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_type_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_type_when_cleanup_times_out should return an error")
@@ -17794,10 +17762,6 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_wit
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when discover returns an error with custom non-index service types and cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_types_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_last_discover_error_with_custom_service_types_when_cleanup_times_out should return an error")
@@ -18256,10 +18220,6 @@ async fn distributed_runner_from_runner_config_propagates_custom_discover_servic
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker discovery fails and cleanup steps block with custom discover service type"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_propagates_custom_discover_service_type_into_worker_discovery_error_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_propagates_custom_discover_service_type_into_worker_discovery_error_when_cleanup_times_out should return an error")
@@ -18389,10 +18349,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_with_cus
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed custom worker timeout cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_timeout_with_custom_service_types_and_index_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_timeout_with_custom_service_types_and_index_when_cleanup_times_out should return an error")
@@ -18461,10 +18417,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_with_def
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when indexed default worker timeout cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_timeout_with_default_service_type_and_index_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_timeout_with_default_service_type_and_index_when_cleanup_times_out should return an error")
@@ -18529,10 +18481,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_with_def
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when default-service non-index worker timeout cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_timeout_with_default_service_type_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_timeout_with_default_service_type_when_cleanup_times_out should return an error")
@@ -18599,10 +18547,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_with_cus
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when custom non-index worker timeout cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_timeout_with_custom_service_type_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_timeout_with_custom_service_type_when_cleanup_times_out should return an error")
@@ -18673,10 +18617,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_with_cus
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when custom non-index worker timeout cleanup steps block"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_timeout_with_custom_service_types_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_timeout_with_custom_service_types_when_cleanup_times_out should return an error")
@@ -18745,10 +18685,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_issue_t
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker discovery times out due to ordering issue and cleanup blocks"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_ordering_issue_timeout_with_default_service_type_and_index_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_ordering_issue_timeout_with_default_service_type_and_index_when_cleanup_times_out should return an error")
@@ -18817,10 +18753,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_issue_t
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker discovery times out due to ordering issue and default-service non-index cleanup blocks"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_ordering_issue_timeout_with_default_service_type_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_ordering_issue_timeout_with_default_service_type_when_cleanup_times_out should return an error")
@@ -18891,10 +18823,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_issue_t
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker discovery times out due to ordering issue with custom service types and cleanup blocks"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_ordering_issue_timeout_with_custom_service_type_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_ordering_issue_timeout_with_custom_service_type_when_cleanup_times_out should return an error")
@@ -18969,10 +18897,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_issue_t
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker discovery times out due to ordering issue with custom service types and cleanup blocks"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_ordering_issue_timeout_with_custom_service_types_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_ordering_issue_timeout_with_custom_service_types_when_cleanup_times_out should return an error")
@@ -19179,10 +19103,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_issue_t
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker discovery times out due to ordering issue and custom cleanup blocks"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_ordering_issue_timeout_with_custom_service_types_and_index_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_ordering_issue_timeout_with_custom_service_types_and_index_when_cleanup_times_out should return an error")
@@ -19455,10 +19375,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_dis
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker discovery times out with ordering+discovery errors and cleanup blocks"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_default_service_type_and_index_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_default_service_type_and_index_when_cleanup_times_out should return an error")
@@ -19532,10 +19448,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_dis
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker discovery times out with ordering+discovery errors and default-service non-index cleanup blocks"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_default_service_type_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_default_service_type_when_cleanup_times_out should return an error")
@@ -19611,10 +19523,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_dis
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker discovery times out with ordering+discovery errors and custom non-index cleanup blocks"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_type_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_type_when_cleanup_times_out should return an error")
@@ -19694,10 +19602,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_dis
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker discovery times out with ordering+discovery errors and custom non-index cleanup blocks"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_when_cleanup_times_out should return an error")
@@ -20061,10 +19965,6 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_dis
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when worker discovery times out with ordering+discovery errors and custom cleanup blocks"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_and_index_when_cleanup_times_out should not hang")
         .expect_err("distributed_runner_from_runner_config_preserves_worker_ordering_and_discovery_error_timeout_with_custom_service_types_and_index_when_cleanup_times_out should return an error")
@@ -20213,10 +20113,6 @@ async fn distributed_runner_from_runner_config_propagates_worker_index_into_ps_d
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang when PS discovery remains empty for worker index propagation diagnostics"
-    );
     let msg = res
         .expect("distributed_runner_from_runner_config_propagates_worker_index_into_ps_discovery_timeout_diagnostics should not hang")
         .expect_err("distributed_runner_from_runner_config_propagates_worker_index_into_ps_discovery_timeout_diagnostics should return an error")
@@ -20960,10 +20856,6 @@ async fn distributed_runner_from_runner_config_accepts_case_insensitive_http_sch
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_runner_config should not hang while validating case-insensitive parameter-sync target schemes"
-    );
     let err = res
         .expect("distributed_runner_from_runner_config_accepts_case_insensitive_http_scheme_parameter_sync_target should not hang")
         .expect_err("distributed_runner_from_runner_config_accepts_case_insensitive_http_scheme_parameter_sync_target should return an error")
