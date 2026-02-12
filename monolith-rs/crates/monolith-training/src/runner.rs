@@ -6511,16 +6511,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when indexed default-ps connect is blocked and cleanup disconnect fails"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when indexed default-ps connect is blocked and cleanup disconnect fails");
+        let msg = run_result
+            .expect_err("indexed default-ps connect timeout with cleanup disconnect failure should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: connect ps-2 via ps after 20ms"),
             "indexed default-ps connect timeout should remain primary even if cleanup disconnect fails: {msg}"
@@ -6552,16 +6551,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when non-index default-ps connect is blocked and cleanup disconnect fails"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when non-index default-ps connect is blocked and cleanup disconnect fails");
+        let msg = run_result
+            .expect_err("default-ps connect timeout with cleanup disconnect failure should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: connect ps-0 via ps after 20ms"),
             "default-ps connect timeout should remain primary even if cleanup disconnect fails: {msg}"
@@ -6593,16 +6591,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when indexed default-ps connect and cleanup disconnect are both blocked"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when indexed default-ps connect and cleanup disconnect are both blocked");
+        let msg = run_result
+            .expect_err("indexed default-ps connect timeout with cleanup disconnect timeout should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: connect ps-2 via ps after 20ms"),
             "indexed default-ps connect timeout should remain primary even if cleanup disconnect also times out: {msg}"
@@ -6636,16 +6633,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when non-index default-ps connect and cleanup disconnect are both blocked"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when non-index default-ps connect and cleanup disconnect are both blocked");
+        let msg = run_result
+            .expect_err("default-ps connect timeout with cleanup disconnect timeout should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("Timed out during discovery operation: connect ps-0 via ps after 20ms"),
             "default-ps connect timeout should remain primary even if cleanup disconnect also times out: {msg}"
@@ -6680,16 +6676,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(700),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when indexed custom-ps connect and cleanup disconnect are both blocked"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when indexed custom-ps connect and cleanup disconnect are both blocked");
+        let msg = run_result
+            .expect_err("indexed custom-ps connect timeout with cleanup disconnect timeout should surface as a role error")
+            .to_string();
         assert!(
             msg.contains(
                 "Timed out during discovery operation: connect ps-2 via parameter_server_custom after 20ms"
