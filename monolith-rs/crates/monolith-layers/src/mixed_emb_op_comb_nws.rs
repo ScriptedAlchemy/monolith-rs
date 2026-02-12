@@ -253,7 +253,9 @@ mod tests {
         assert_eq!(y.shape(), &[4, 5]);
 
         let bad = Tensor::ones(&[4, 6]);
-        assert!(layer.forward(&bad, 10).is_err());
+        layer
+            .forward(&bad, 10)
+            .expect_err("mixed embedding op should fail for mismatched feature dimension");
     }
 
     #[test]

@@ -711,13 +711,19 @@ mod tests {
     #[test]
     fn test_mlp_config_invalid() {
         let config = MLPConfig::new(0);
-        assert!(config.validate().is_err());
+        config
+            .validate()
+            .expect_err("MLP config with zero input dimension should fail validation");
 
         let config = MLPConfig::new(128);
-        assert!(config.validate().is_err()); // No layers
+        config
+            .validate()
+            .expect_err("MLP config with no layers should fail validation");
 
         let config = MLPConfig::new(128).add_layer(0, ActivationType::relu());
-        assert!(config.validate().is_err()); // Zero dimension
+        config
+            .validate()
+            .expect_err("MLP config with zero-sized layer should fail validation");
     }
 
     #[test]

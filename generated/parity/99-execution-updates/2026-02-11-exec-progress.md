@@ -6118,6 +6118,27 @@
   - Targeted failure-path tests and full `monolith-core` regression remain
     green.
 
+### 451) Layers parity: tighten failure assertions to explicit `expect_err` contracts
+- Refactored remaining coarse `assert!(...is_err())` assertions in
+  `monolith-layers` tests into explicit `expect_err("...")` extraction paths
+  across:
+  - AGRU invalid-input and attention-shape failures (`agru.rs`),
+  - DCN cross-layer dimension/batch mismatch + clear-cache backward failure (`dcn.rs`),
+  - Dense invalid forward and invalid from-weights construction (`dense.rs`),
+  - DIEN invalid config/input/mask/aux-loss/cache-miss failures (`dien.rs`),
+  - DIN invalid config/query/key/batch/mask/cache-miss failures (`din.rs`),
+  - FFM invalid field index/shape and clear-cache backward failure (`ffm.rs`),
+  - Group-interaction invalid forward dim and clear-cache backward failure (`group_interaction.rs`),
+  - mixed embedding op invalid feature-width failure (`mixed_emb_op_comb_nws.rs`),
+  - MLP invalid config failures (`mlp.rs`),
+  - MMoE invalid expert/config/forward input failures (`mmoe.rs`),
+  - SENet invalid config/input and cache-miss backward failures (`senet.rs`).
+- Result:
+  - Layer failure-path tests now provide explicit diagnostics while preserving
+    existing error-shape behavior contracts.
+  - Targeted failure-path tests and full `monolith-layers` regression remain
+    green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7075,6 +7096,9 @@
 954. `cargo test -p monolith-core test_result_type -- --nocapture && cargo test -p monolith-core test_feature_slice_validate -- --nocapture && cargo test -p monolith-core test_sparse_feature_column_slice -- --nocapture && cargo test -p monolith-core test_dense_feature_column_example_features -- --nocapture && cargo test -p monolith-core test_embedding_config_validate -- --nocapture && cargo test -p monolith-core test_initializer_config -- --nocapture && cargo test -p monolith-core test_training_params_validate -- --nocapture && cargo test -p monolith-core test_legal_param_names -- --nocapture && cargo test -p monolith-core test_set_and_get -- --nocapture && cargo test -p monolith-core test_set_and_get_nested_param -- --nocapture && cargo test -p monolith-core test_freeze -- --nocapture && cargo test -p monolith-core test_env_make_fid_invalid -- --nocapture` ✅ (core failure-path `expect_err` assertion-tightening targeted verification)
 955. `cargo test -p monolith-core -q` ✅ (full monolith-core regression rerun after failure-path assertion tightening)
 956. `rg "assert!\\([^\\n]*is_err\\(" /workspace/monolith-rs/crates/monolith-core` ✅ (verified no remaining coarse `assert!(...is_err())` patterns in monolith-core)
+957. `cargo test -p monolith-layers test_agru_invalid_input -- --nocapture && cargo test -p monolith-layers test_cross_layer_invalid_input_dim -- --nocapture && cargo test -p monolith-layers test_dense_forward_invalid_input -- --nocapture && cargo test -p monolith-layers test_dien_invalid_behavior_shape -- --nocapture && cargo test -p monolith-layers test_din_invalid_query_shape -- --nocapture && cargo test -p monolith-layers test_ffm_forward_invalid_field_index -- --nocapture && cargo test -p monolith-layers test_forward_invalid_dim -- --nocapture && cargo test -p monolith-layers test_mask_output_shape_and_dim_validation -- --nocapture && cargo test -p monolith-layers test_mlp_config_invalid -- --nocapture && cargo test -p monolith-layers test_mmoe_forward_invalid_input -- --nocapture && cargo test -p monolith-layers test_senet_from_config_error -- --nocapture && cargo test -p monolith-layers test_senet_backward_without_forward -- --nocapture` ✅ (layers failure-path `expect_err` assertion-tightening targeted verification)
+958. `cargo test -p monolith-layers -q` ✅ (full monolith-layers regression rerun after failure-path assertion tightening)
+959. `rg "assert!\\([^\\n]*is_err\\(" /workspace/monolith-rs/crates/monolith-layers` ✅ (verified no remaining coarse `assert!(...is_err())` patterns in monolith-layers)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

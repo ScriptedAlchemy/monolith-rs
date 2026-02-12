@@ -488,7 +488,7 @@ mod tests {
         let input = Tensor::rand(&[2, 8]); // 2D instead of 3D
 
         let result = agru.forward(&input);
-        assert!(result.is_err());
+        result.expect_err("AGRU forward should fail for non-3D input");
     }
 
     #[test]
@@ -497,7 +497,7 @@ mod tests {
         let input = Tensor::rand(&[2, 5, 16]); // Wrong input dim
 
         let result = agru.forward(&input);
-        assert!(result.is_err());
+        result.expect_err("AGRU forward should fail for mismatched input dimension");
     }
 
     #[test]
@@ -507,7 +507,7 @@ mod tests {
         let attention = Tensor::ones(&[2, 3]); // Wrong attention shape
 
         let result = agru.forward_with_attention(&input, &attention);
-        assert!(result.is_err());
+        result.expect_err("AGRU forward should fail when attention shape mismatches");
     }
 
     #[test]

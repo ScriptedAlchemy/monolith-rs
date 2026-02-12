@@ -1719,7 +1719,7 @@ mod tests {
         let expert = Expert::new(64, &[32], 16, ActivationType::relu());
         let input = Tensor::rand(&[8, 128]); // wrong dimension
         let result = expert.forward(&input);
-        assert!(result.is_err());
+        result.expect_err("expert forward should fail for mismatched input dimension");
     }
 
     #[test]
@@ -1790,16 +1790,24 @@ mod tests {
     #[test]
     fn test_mmoe_config_invalid() {
         let config = MMoEConfig::new(0, 4, 2);
-        assert!(config.validate().is_err());
+        config
+            .validate()
+            .expect_err("MMoE config with zero input dimension should fail validation");
 
         let config = MMoEConfig::new(64, 0, 2);
-        assert!(config.validate().is_err());
+        config
+            .validate()
+            .expect_err("MMoE config with zero experts should fail validation");
 
         let config = MMoEConfig::new(64, 4, 0);
-        assert!(config.validate().is_err());
+        config
+            .validate()
+            .expect_err("MMoE config with zero tasks should fail validation");
 
         let config = MMoEConfig::new(64, 4, 2).with_expert_hidden_units(vec![0]);
-        assert!(config.validate().is_err());
+        config
+            .validate()
+            .expect_err("MMoE config with zero hidden unit should fail validation");
     }
 
     #[test]
@@ -1837,11 +1845,14 @@ mod tests {
 
         // Wrong number of dimensions
         let input = Tensor::rand(&[8, 64, 1]);
-        assert!(mmoe.forward(&input).is_err());
+        mmoe.forward(&input)
+            .expect_err("MMoE forward should fail for non-2D inputs");
 
         // Wrong input dimension
         let input = Tensor::rand(&[8, 128]);
-        assert!(mmoe.forward(&input).is_err());
+        mmoe
+            .forward(&input)
+            .expect_err("MMoE forward should fail for mismatched input dimension");
     }
 
     #[test]
