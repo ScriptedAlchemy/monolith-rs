@@ -618,6 +618,8 @@ impl ZkDiscovery {
     ///
     /// This is a placeholder that would establish a connection to ZooKeeper.
     pub async fn connect(&self) -> Result<()> {
+        validate_zk_hosts_for_operation("connect", &self.hosts)?;
+
         tracing::info!(hosts = %self.hosts, base_path = %self.base_path, "Connecting to ZooKeeper");
 
         let mut guard = self.client.lock().await;
@@ -1446,6 +1448,26 @@ async fn ensure_zk_path(client: &zk::Client, path: &str) -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "zookeeper")]
+fn validate_zk_hosts_for_operation(context: &str, hosts: &str) -> Result<()> {
+    let cfg_err =
+        |detail: &str| DiscoveryError::ConfigError(format!("ZooKeeper {context} invalid hosts: {detail}"));
+
+    if hosts.trim() != hosts {
+        return Err(cfg_err("leading/trailing whitespace"));
+    }
+    if hosts.is_empty() {
+        return Err(cfg_err("empty hosts"));
+    }
+    if hosts.chars().any(char::is_whitespace) {
+        return Err(cfg_err("whitespace in hosts"));
+    }
+    if hosts.split(',').any(|entry| entry.is_empty()) {
+        return Err(cfg_err("empty host entry"));
+    }
+    Ok(())
+}
+
 #[cfg(feature = "consul")]
 fn map_consul_request_error(context: &str, err: impl std::fmt::Debug) -> DiscoveryError {
     let detail = format!("{err:?}");
@@ -1847,6 +1869,69 @@ mod tests {
                     && msg.contains("invalid address")
                     && msg.contains("userinfo in authority")),
             "expected ConfigError containing userinfo-authority details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_validate_zk_hosts_for_operation_accepts_comma_separated_hosts() {
+        validate_zk_hosts_for_operation("connect", "127.0.0.1:2181,127.0.0.1:2182")
+            .expect("valid comma-separated ZooKeeper hosts should pass validation");
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_validate_zk_hosts_for_operation_rejects_leading_trailing_whitespace() {
+        let err = validate_zk_hosts_for_operation("connect", " 127.0.0.1:2181 ")
+            .expect_err("leading/trailing whitespace should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("leading/trailing whitespace")),
+            "expected ConfigError containing leading/trailing-whitespace host details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_validate_zk_hosts_for_operation_rejects_whitespace_in_hosts() {
+        let err = validate_zk_hosts_for_operation("connect", "127.0.0.1:2181, 127.0.0.1:2182")
+            .expect_err("internal whitespace should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("whitespace in hosts")),
+            "expected ConfigError containing whitespace-in-hosts details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_validate_zk_hosts_for_operation_rejects_empty_hosts() {
+        let err = validate_zk_hosts_for_operation("connect", "")
+            .expect_err("empty hosts should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("empty hosts")),
+            "expected ConfigError containing empty-hosts details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_validate_zk_hosts_for_operation_rejects_empty_host_entry() {
+        let err = validate_zk_hosts_for_operation("connect", "127.0.0.1:2181,,127.0.0.1:2182")
+            .expect_err("empty host entry should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("empty host entry")),
+            "expected ConfigError containing empty-host-entry details, got {err:?}"
         );
     }
 
@@ -2859,6 +2944,74 @@ mod tests {
         assert!(
             zk.discover("ps").expect("discover should succeed").is_empty(),
             "failed async register should not populate local service cache"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_connect_invalid_hosts_is_config_error() {
+        let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let err = result.expect_err("whitespace-padded hosts should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("leading/trailing whitespace")),
+            "expected ConfigError containing invalid-hosts connect context, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_register_invalid_hosts_compacts_dead_watchers() {
+        let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(
+            &zk,
+            ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
+        )
+        .await;
+        let err = result.expect_err("invalid hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("leading/trailing whitespace")),
+            "expected ConfigError containing invalid-hosts register context, got {err:?}"
+        );
+        assert!(
+            !zk.watchers.lock().unwrap().contains_key("ps"),
+            "config-error register should compact dead watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_discover_async_invalid_hosts_preserves_local_cache() {
+        let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::discover_async(&zk, "ps").await;
+        let err = result.expect_err("invalid hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("leading/trailing whitespace")),
+            "expected ConfigError containing invalid-hosts discover context, got {err:?}"
+        );
+        assert_eq!(
+            zk.discover("ps").expect("discover should succeed after config failure").len(),
+            1,
+            "config-error async discover should preserve local cache entries"
         );
     }
 
