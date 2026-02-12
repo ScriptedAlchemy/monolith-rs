@@ -5729,6 +5729,17 @@
   - Focused prefetch-queue tests and default monolith-training regression
     remain green.
 
+### 424) Parity test-suite assertion tightening (native + prefetch parity tests)
+- Refactored remaining panic fallback assertions in
+  `crates/monolith-training/tests`:
+  - `native_training_parity.rs` (`entry_batch_softmax_initializer_errors_like_python`)
+  - `prefetch_queue_parity.rs`
+- Result:
+  - Integration parity tests now assert explicit error/shape contracts without
+    ad-hoc `panic!` fallback branches.
+  - `monolith-training/tests` parity suites are now panic-free.
+  - Focused parity tests and default monolith-training regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6653,6 +6664,8 @@
 921. `rg "panic!\\(" monolith-rs/crates/monolith-training/src/distributed.rs && rg "panic!\\(" monolith-rs/crates/monolith-training/src/native_training/service_discovery.rs` ✅ (verified distributed.rs and service_discovery.rs are panic-free after assertion refactor batch)
 922. `cargo test -p monolith-training enqueue_dicts_with_queue_return_preserves_non_tensor_leaves -- --nocapture && cargo test -p monolith-training prefetch_queue -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (prefetch-queue assertion-tightening targeted verification plus default-lane regression rerun)
 923. `rg "panic!\\(" monolith-rs/crates/monolith-training/src/prefetch_queue.rs` ✅ (verified prefetch_queue.rs is panic-free after assertion refactor)
+924. `cargo test -p monolith-training entry_batch_softmax_initializer_errors_like_python -- --nocapture && cargo test -p monolith-training --test prefetch_queue_parity test_enqueue_dicts_preserves_non_tensor_structure -- --nocapture && cargo test -p monolith-training --test prefetch_queue_parity -q && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (native/prefetch parity integration assertion-tightening targeted verification plus default-lane regression rerun)
+925. `rg "panic!\\(" monolith-rs/crates/monolith-training/tests` ✅ (verified monolith-training parity tests are panic-free after assertion refactor batch)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

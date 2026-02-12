@@ -32,9 +32,26 @@ fn test_enqueue_dicts_preserves_non_tensor_structure() {
     let q = q.expect("queue");
 
     // Non-tensor leaves are already present in template.
-    let Nested::Map(m) = templ else { panic!("expected map") };
-    let Nested::Seq(items) = m.get("list").unwrap() else { panic!("expected seq") };
-    let Nested::Map(item0) = &items[0] else { panic!("expected map item") };
+    let m = if let Nested::Map(m) = templ {
+        m
+    } else {
+        assert!(false, "expected map template root");
+        return;
+    };
+    let list_node = m.get("list").expect("list key should exist");
+    let items = if let Nested::Seq(items) = list_node {
+        items
+    } else {
+        assert!(false, "expected sequence at key 'list', got {list_node:?}");
+        return;
+    };
+    let first = &items[0];
+    let item0 = if let Nested::Map(item0) = first {
+        item0
+    } else {
+        assert!(false, "expected map as first list element, got {first:?}");
+        return;
+    };
     assert_eq!(item0.get("b").unwrap(), &Nested::Str("hello".to_string()));
     assert_eq!(item0.get("c").unwrap(), &Nested::Null);
 
@@ -45,8 +62,19 @@ fn test_enqueue_dicts_preserves_non_tensor_structure() {
     let flat_out = q.queue.dequeue().unwrap();
     let rebuilt = q.token_template.fill_from_tokens(&flat_out);
 
-    let Nested::Map(m) = rebuilt else { panic!("expected map") };
-    let Nested::Tensor(v) = m.get("v").unwrap() else { panic!("expected tensor v") };
+    let m = if let Nested::Map(m) = rebuilt {
+        m
+    } else {
+        assert!(false, "expected map rebuilt root");
+        return;
+    };
+    let v_node = m.get("v").expect("v key should exist");
+    let v = if let Nested::Tensor(v) = v_node {
+        v
+    } else {
+        assert!(false, "expected tensor at key 'v', got {v_node:?}");
+        return;
+    };
     assert_eq!(v.value, 5);
 }
 

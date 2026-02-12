@@ -78,10 +78,10 @@ fn entry_batch_softmax_initializer_errors_like_python() {
     // Python raises ValueError when init_step_interval < 1.
     let err = monolith_training::BatchSoftmaxInitializer::new(0.9)
         .expect_err("batch softmax initializer should reject probabilities below 1.0");
-    match err {
-        EntryError::InvalidInitStepInterval(v) => assert!((v - 0.9).abs() < 1e-6),
-        other => panic!("unexpected error: {other:?}"),
-    }
+    assert!(
+        matches!(err, EntryError::InvalidInitStepInterval(v) if (v - 0.9).abs() < 1e-6),
+        "expected InvalidInitStepInterval(0.9), got {err:?}"
+    );
 }
 
 #[tokio::test]
