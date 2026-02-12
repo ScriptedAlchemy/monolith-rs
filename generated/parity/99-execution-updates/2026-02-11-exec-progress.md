@@ -6660,6 +6660,17 @@
     ordering/discovery parity tests while keeping timeout/cleanup error-shape
     expectations unchanged.
 
+### 488) Native parity bind-address helper batch migration (phase 5): broad worker/discover timeout lanes
+- Applied a broad batch replacement in
+  `crates/monolith-training/tests/native_training_parity.rs` that converts an
+  additional set of repeated `"127.0.0.1:0".parse().unwrap()` call-sites to
+  `test_bind_addr()`.
+- This batch targets more run-config worker/discover timeout matrices and keeps
+  error-shape assertions unchanged.
+- Result:
+  - removed another substantial chunk of parse-unwrap hotspots while preserving
+    existing parity behavior and diagnostics expectations.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7697,6 +7708,8 @@
 1034. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after phase-3 native parity bind-address helper expansion)
 1035. `cargo test -p monolith-training distributed_runner_from_run_config_preserves_worker_ordering_issue_timeout_with_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_preserves_worker_ordering_and_discovery_error_timeout_with_default_service_type_and_index_when_cleanup_times_out -- --nocapture` ✅ (validated ordering-issue and ordering+discovery timeout parity lanes after phase-4 bind-address helper migration)
 1036. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after phase-4 native parity bind-address helper expansion)
+1037. `cargo test -p monolith-training distributed_runner_from_run_config_preserves_worker_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_preserves_last_discover_error_with_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_propagates_custom_discover_service_type_into_worker_discovery_error_when_cleanup_ -- --nocapture` ✅ (validated broad worker/discover timeout parity lanes after phase-5 bind-address helper migration batch)
+1038. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after phase-5 native parity bind-address helper batch)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
