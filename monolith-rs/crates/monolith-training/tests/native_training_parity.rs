@@ -12861,10 +12861,6 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_when_c
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when ps register and cleanup block"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when ps register and cleanup block")
         .expect_err("ps register timeout with blocked cleanup should surface as role error")
@@ -12930,10 +12926,6 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_discon
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when ps register and cleanup block"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when ps register and cleanup block")
         .expect_err("ps register timeout with disconnect-failure cleanup context should surface as role error")
@@ -13001,10 +12993,6 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_d
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when indexed custom-ps register blocks and cleanup fails"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when indexed custom-ps register blocks and cleanup disconnect fails")
         .expect_err("indexed custom ps register timeout with disconnect-failure cleanup context should surface as role error")
@@ -13064,10 +13052,6 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_c
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when custom non-index ps register blocks and cleanup fails"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when custom-ps register blocks and cleanup disconnect fails")
         .expect_err("custom ps register timeout with disconnect-failure cleanup context should surface as role error")
@@ -13126,10 +13110,6 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_d
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when indexed default-ps register blocks and cleanup fails"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when indexed default-ps register blocks and cleanup disconnect fails")
         .expect_err("indexed default ps register timeout with disconnect-failure cleanup context should surface as role error")
@@ -13184,10 +13164,6 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_d
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when non-index default-ps register blocks and cleanup fails"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when default-ps register blocks and cleanup disconnect fails")
         .expect_err("default ps register timeout with disconnect-failure cleanup context should surface as role error")
@@ -13242,10 +13218,6 @@ async fn distributed_runner_from_run_config_propagates_ps_service_type_into_regi
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when ps register and cleanup block"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when register blocks for ps service-type diagnostics")
         .expect_err("ps service-type register timeout diagnostics should surface as role error")
@@ -13313,10 +13285,6 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_c
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when custom non-index ps register and cleanup block"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when custom-ps register and cleanup block")
         .expect_err("custom ps register timeout with blocked cleanup should surface as role error")
@@ -13378,10 +13346,6 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_c
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when indexed custom-ps register and cleanup block"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when indexed custom-ps register and cleanup block")
         .expect_err("indexed custom ps register timeout with blocked cleanup should surface as role error")
@@ -13443,10 +13407,6 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_c
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when indexed custom-ps register and cleanup block"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when indexed custom-ps register blocks and cleanup disconnect fails")
         .expect_err("indexed custom ps register timeout with disconnect-failure context should surface as role error")
@@ -13507,10 +13467,6 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_d
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when indexed default-ps register and cleanup block"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when indexed default-ps register and cleanup block")
         .expect_err("indexed default ps register timeout with blocked cleanup should surface as role error")
@@ -13565,10 +13521,6 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_d
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when non-index default-ps register and cleanup block"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when default-ps register and cleanup block")
         .expect_err("default ps register timeout with blocked cleanup should surface as role error")
