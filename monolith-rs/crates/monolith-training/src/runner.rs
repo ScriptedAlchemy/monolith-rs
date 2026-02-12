@@ -13111,4 +13111,19 @@ mod tests {
     fn test_run_distributed_preserves_deregister_timeout_with_default_service_type_after_success() {
         test_run_distributed_surfaces_deregister_timeout_with_default_service_type_after_success();
     }
+
+    #[test]
+    fn test_run_distributed_preserves_deregister_timeout_after_success() {
+        test_run_distributed_surfaces_deregister_timeout_after_success();
+    }
+
+    #[test]
+    fn test_run_distributed_preserves_disconnect_failure_after_success() {
+        test_run_distributed_surfaces_disconnect_failure_after_success();
+    }
+
+    #[test]
+    fn test_run_distributed_preserves_disconnect_timeout_after_success() {
+        test_run_distributed_surfaces_disconnect_timeout_after_success();
+    }
 }

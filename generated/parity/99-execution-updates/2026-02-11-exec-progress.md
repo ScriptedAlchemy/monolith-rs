@@ -3984,6 +3984,18 @@
     `runner.rs` and `native_training_parity.rs`.
   - Full monolith-training regression remains green.
 
+### 290) Generic surfaces→preserves naming parity completed
+- Added 15 alias wrappers:
+  - 3 in `runner.rs`
+  - 12 in `native_training_parity.rs`
+- Closed broad `surfaces_ -> preserves_` naming families for post-success
+  disconnect/deregister failure/timeout diagnostics (including custom-worker
+  variants).
+- Result:
+  - `surfaces_ -> preserves_`: `missing 0` in both files.
+  - Companion surfaces/preserves timeout transforms remain `missing 0`.
+  - Full monolith-training regression remains green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4672,6 +4684,10 @@
 685. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_worker_ordering_issue_timeout_cleanup_timeout_case_alias -- --nocapture` ✅
 686. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker-timeout/ordering-issue alias additions full monolith-training regression rerun)
 687. `python3` worker-timeout transform audit (`worker_timeout -> worker_ordering_issue_timeout`) ✅ (`missing 0` in `runner.rs` and `native_training_parity.rs`)
+688. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_preserves_disconnect_timeout_after_success -- --nocapture` ✅
+689. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_preserves_custom_worker_disconnect_failure_after_success -- --nocapture` ✅
+690. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post generic surfaces->preserves alias additions full monolith-training regression rerun)
+691. `python3` surfaces/preserves + worker-timeout transform audit ✅ (`surfaces_ -> preserves_`, timeout-preserves families, and `worker_timeout -> worker_ordering_issue_timeout` all `missing 0` in both files)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

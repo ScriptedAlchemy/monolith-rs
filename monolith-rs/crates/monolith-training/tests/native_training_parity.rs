@@ -26242,6 +26242,68 @@ fn distributed_runner_from_runner_config_preserves_deregister_timeout_with_defau
 }
 
 #[test]
+fn distributed_runner_from_run_config_preserves_custom_worker_deregister_failure_after_success() {
+    distributed_runner_from_run_config_surfaces_custom_worker_deregister_failure_after_success();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_custom_worker_disconnect_failure_after_success() {
+    distributed_runner_from_run_config_surfaces_custom_worker_disconnect_failure_after_success();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_deregister_failure_after_success() {
+    distributed_runner_from_run_config_surfaces_deregister_failure_after_success();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_deregister_timeout_after_success() {
+    distributed_runner_from_run_config_surfaces_deregister_timeout_after_success();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_disconnect_failure_after_success() {
+    distributed_runner_from_run_config_surfaces_disconnect_failure_after_success();
+}
+
+#[test]
+fn distributed_runner_from_run_config_preserves_disconnect_timeout_after_success() {
+    distributed_runner_from_run_config_surfaces_disconnect_timeout_after_success();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_custom_worker_deregister_failure_after_success(
+) {
+    distributed_runner_from_runner_config_surfaces_custom_worker_deregister_failure_after_success();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_custom_worker_disconnect_failure_after_success(
+) {
+    distributed_runner_from_runner_config_surfaces_custom_worker_disconnect_failure_after_success();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_deregister_failure_after_success() {
+    distributed_runner_from_runner_config_surfaces_deregister_failure_after_success();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_deregister_timeout_after_success() {
+    distributed_runner_from_runner_config_surfaces_deregister_timeout_after_success();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_disconnect_failure_after_success() {
+    distributed_runner_from_runner_config_surfaces_disconnect_failure_after_success();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_preserves_disconnect_timeout_after_success() {
+    distributed_runner_from_runner_config_surfaces_disconnect_timeout_after_success();
+}
+
+#[test]
 fn distributed_runner_from_run_config_surfaces_deregister_timeout_with_disconnect_timeout_context_after_success(
 ) {
     distributed_runner_from_run_config_preserves_deregister_timeout_with_disconnect_timeout_context_after_success();
