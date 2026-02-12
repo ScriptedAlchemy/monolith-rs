@@ -6926,6 +6926,17 @@
     (**only doc-comment example remains**), preserving end-to-end smoke
     behavior.
 
+### 511) Metrics recorder test unwrap diagnostics tightening
+- Tightened remaining runtime `.unwrap()` assertions in
+  `crates/monolith-training/src/metrics.rs` tests by replacing them with
+  explicit `expect(...)` diagnostics for:
+  - average accuracy extraction in recorder record test,
+  - aggregated accuracy/custom metric extraction in aggregate test.
+- Result:
+  - removed all non-doc unwrap call-sites from metrics module
+    (**only doc-comment example remains**), preserving metrics aggregation
+    behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8003,6 +8014,8 @@
 1074. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/run_config.rs` ✅ (verified no remaining unwrap call-sites in run_config module)
 1075. `cargo test -p monolith-training test_full_training_flow -- --nocapture` ✅ (validated top-level training/eval/predict smoke flow after unwrap-diagnostics tightening)
 1076. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/lib.rs` ✅ (verified only doc-comment unwrap example remains in lib module)
+1077. `cargo test -p monolith-training metrics::tests:: -- --nocapture` ✅ (validated metrics recorder unit-test suite after unwrap-diagnostics tightening)
+1078. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/metrics.rs` ✅ (verified only doc-comment unwrap example remains in metrics module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
