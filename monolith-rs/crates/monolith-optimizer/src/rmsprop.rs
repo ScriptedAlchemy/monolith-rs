@@ -258,7 +258,7 @@ mod tests {
             learning_rate: 0.01,
         };
         let result = Rmsprop::new(config);
-        assert!(result.is_err());
+        result.expect_err("RMSprop constructor should fail when config variant is not RMSprop");
     }
 
     #[test]

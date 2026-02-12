@@ -109,7 +109,7 @@ mod tests {
             epsilon: 1e-8,
         };
         let result = Sgd::new(config);
-        assert!(result.is_err());
+        result.expect_err("SGD constructor should fail when config variant is not SGD");
     }
 
     #[test]

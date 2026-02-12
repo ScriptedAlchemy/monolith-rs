@@ -6139,6 +6139,18 @@
   - Targeted failure-path tests and full `monolith-layers` regression remain
     green.
 
+### 452) Optimizer parity: tighten config-mismatch failure assertions
+- Refactored remaining coarse `assert!(result.is_err())` config-mismatch checks
+  in `monolith-optimizer` tests into explicit `expect_err("...")` extraction
+  across optimizer constructors:
+  - `sgd.rs`, `rmsprop.rs`, `momentum.rs`, `adam.rs`,
+  - `adagrad.rs`, `amsgrad.rs`, `ftrl.rs`, `adadelta.rs`.
+- Result:
+  - Optimizer config-mismatch failure paths now emit explicit diagnostics while
+    preserving constructor error-shape behavior.
+  - Targeted mismatch tests and full `monolith-optimizer` regression remain
+    green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7099,6 +7111,9 @@
 957. `cargo test -p monolith-layers test_agru_invalid_input -- --nocapture && cargo test -p monolith-layers test_cross_layer_invalid_input_dim -- --nocapture && cargo test -p monolith-layers test_dense_forward_invalid_input -- --nocapture && cargo test -p monolith-layers test_dien_invalid_behavior_shape -- --nocapture && cargo test -p monolith-layers test_din_invalid_query_shape -- --nocapture && cargo test -p monolith-layers test_ffm_forward_invalid_field_index -- --nocapture && cargo test -p monolith-layers test_forward_invalid_dim -- --nocapture && cargo test -p monolith-layers test_mask_output_shape_and_dim_validation -- --nocapture && cargo test -p monolith-layers test_mlp_config_invalid -- --nocapture && cargo test -p monolith-layers test_mmoe_forward_invalid_input -- --nocapture && cargo test -p monolith-layers test_senet_from_config_error -- --nocapture && cargo test -p monolith-layers test_senet_backward_without_forward -- --nocapture` ✅ (layers failure-path `expect_err` assertion-tightening targeted verification)
 958. `cargo test -p monolith-layers -q` ✅ (full monolith-layers regression rerun after failure-path assertion tightening)
 959. `rg "assert!\\([^\\n]*is_err\\(" /workspace/monolith-rs/crates/monolith-layers` ✅ (verified no remaining coarse `assert!(...is_err())` patterns in monolith-layers)
+960. `cargo test -p monolith-optimizer test_sgd_config_mismatch -- --nocapture && cargo test -p monolith-optimizer test_rmsprop_config_mismatch -- --nocapture && cargo test -p monolith-optimizer test_momentum_config_mismatch -- --nocapture && cargo test -p monolith-optimizer test_adam_config_mismatch -- --nocapture && cargo test -p monolith-optimizer test_adagrad_config_mismatch -- --nocapture && cargo test -p monolith-optimizer test_amsgrad_config_mismatch -- --nocapture && cargo test -p monolith-optimizer test_ftrl_config_mismatch -- --nocapture && cargo test -p monolith-optimizer test_adadelta_config_mismatch -- --nocapture` ✅ (optimizer config-mismatch failure-path `expect_err` assertion-tightening targeted verification)
+961. `cargo test -p monolith-optimizer -q` ✅ (full monolith-optimizer regression rerun after failure-path assertion tightening)
+962. `rg "assert!\\([^\\n]*is_err\\(" /workspace/monolith-rs/crates/monolith-optimizer` ✅ (verified no remaining coarse `assert!(...is_err())` patterns in monolith-optimizer)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

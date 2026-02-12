@@ -254,7 +254,7 @@ mod tests {
             learning_rate: 0.01,
         };
         let result = Adam::new(config);
-        assert!(result.is_err());
+        result.expect_err("Adam constructor should fail when config variant is not Adam");
     }
 
     #[test]
