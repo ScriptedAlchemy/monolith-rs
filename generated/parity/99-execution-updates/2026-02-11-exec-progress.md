@@ -3862,6 +3862,17 @@
     `runner.rs` and `native_training_parity.rs` now reports `missing 0`
     for all tracked transforms.
 
+### 279) Native default-timeout generic alias parity completed
+- Added 16 `#[test]` alias wrappers in `native_training_parity.rs` to close:
+  - `default_connect_timeout -> connect_timeout` (8 wrappers)
+  - `default_ps_connect_timeout -> ps_connect_timeout` (8 wrappers)
+- Coverage spans run-config + runner-config and all cleanup context variants
+  (`cleanup_context`, `cleanup_timeout_context`,
+  `disconnect_failure_context`, `when_cleanup_blocks`).
+- Result:
+  - `default_connect_timeout -> connect_timeout`: `missing 0`
+  - `default_ps_connect_timeout -> ps_connect_timeout`: `missing 0`
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4500,6 +4511,10 @@
 635. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post native `*_when_cleanup_blocks` alias additions full monolith-training regression rerun)
 636. `python3` disconnect->when-cleanup-blocks audit (`runner.rs` + `native_training_parity.rs`) ✅ (both `missing 0`)
 637. `python3` broad transform audit across tracked cleanup/disconnect/timeout/index families ✅ (both files report `missing 0` for all tracked transforms)
+638. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_preserves_connect_timeout_with_index_when_cleanup_blocks -- --nocapture` ✅
+639. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_ps_connect_timeout_with_index_cleanup_context -- --nocapture` ✅
+640. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post default timeout alias additions full monolith-training regression rerun)
+641. `python3` default-to-generic timeout alias audit (`native_training_parity.rs`) ✅ (`default_connect_timeout->connect_timeout` and `default_ps_connect_timeout->ps_connect_timeout` both `missing 0`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
