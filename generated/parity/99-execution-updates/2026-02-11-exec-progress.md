@@ -6309,6 +6309,24 @@
   - Consul-featured normalization tests and full `monolith-training` regression
     remain green.
 
+### 464) Consul async parity: enforce endpoint-suffix failure-shape contracts across operations
+- Expanded operation-level Consul discovery regression coverage to verify the
+  tightened endpoint-suffix contracts are enforced consistently in async flows:
+  - connect path rejection:
+    - `test_consul_connect_address_path_is_classified_as_config_error`
+  - discover query rejection:
+    - `test_consul_discover_async_address_query_is_classified_as_config_error`
+  - register fragment rejection + dead-watcher compaction:
+    - `test_consul_async_register_address_fragment_compacts_dead_watchers`
+  - deregister path rejection while preserving local removal + watcher event:
+    - `test_consul_async_deregister_address_path_still_notifies_and_returns_error`
+- Result:
+  - `connect` / `discover_async` / `register_async` / `deregister_async`
+    consistently surface operation-scoped `ConfigError` diagnostics for invalid
+    path/query/fragment address suffixes.
+  - Existing local-cache and watcher-notification semantics remain intact under
+    config-error exit paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7298,6 +7316,8 @@
 986. `rg "panic!\\(" /workspace/monolith-rs` ✅ (verified workspace no longer contains `panic!` macros)
 987. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" normalize_consul_address_for_operation -- --nocapture` ✅ (validated stricter Consul endpoint normalization contracts including case-insensitive scheme acceptance and path/query/fragment rejections)
 988. `cargo test -p monolith-training -q` ✅ (full monolith-training regression rerun after discovery normalization tightening)
+989. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_connect_address_path_is_classified_as_config_error -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_discover_async_address_query_is_classified_as_config_error -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_async_register_address_fragment_compacts_dead_watchers -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_async_deregister_address_path_still_notifies_and_returns_error -- --nocapture` ✅ (validated operation-scoped Consul path/query/fragment failure-shape contracts across connect/discover/register/deregister flows)
+990. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (full consul/zookeeper-featured monolith-training regression rerun after async endpoint-suffix contract coverage expansion)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

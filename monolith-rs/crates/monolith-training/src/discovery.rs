@@ -3884,6 +3884,21 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_connect_address_path_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
+        let err = result.expect_err("address path should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("path is not allowed")
+                    && msg.contains("connect")),
+            "expected ConfigError containing address-path connect context, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_connect_userinfo_authority_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("http://user@127.0.0.1:8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
@@ -3909,6 +3924,22 @@ mod tests {
                     && msg.contains("whitespace in authority")
                     && msg.contains("connect")),
             "expected ConfigError containing whitespace-authority connect context, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_address_query_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500?dc=prod");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result.expect_err("address query should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("query is not allowed")
+                    && msg.contains("get_service_nodes")),
+            "expected ConfigError containing address-query discover context, got {err:?}"
         );
     }
 
@@ -4036,6 +4067,36 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_register_address_fragment_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500#consul");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("address fragment should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("fragment is not allowed")
+                    && msg.contains("register_entity")),
+            "expected ConfigError containing address-fragment register context, got {err:?}"
+        );
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "dead watch sender should be compacted on address-fragment register validation failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_deregister_invalid_scheme_still_notifies_and_returns_error() {
         let consul = ConsulDiscovery::new("ftp://127.0.0.1:8500");
         let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
@@ -4145,6 +4206,46 @@ mod tests {
                 .expect("sync discover should succeed after async deregister failure")
                 .is_empty(),
             "local cache entry should remain removed even when async deregister fails due to whitespace authority"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_address_path_still_notifies_and_returns_error() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let mut rx = consul.watch("worker").expect("watch should succeed");
+
+        let result =
+            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id)
+                .await;
+        let err = result.expect_err("address path should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("path is not allowed")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing address-path deregister context, got {err:?}"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == &service.id),
+            "expected ServiceRemoved({}), got {event:?}",
+            service.id
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("sync discover should succeed after async deregister failure")
+                .is_empty(),
+            "local cache entry should remain removed even when async deregister fails due to address path"
         );
     }
 
