@@ -3187,7 +3187,7 @@ mod tests {
             "expected ConfigError containing watch_service invalid-hosts context, got {err:?}"
         );
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "invalid-hosts watch_async should preserve live watcher sender entries"
         );
     }
@@ -3208,11 +3208,11 @@ mod tests {
             "expected ConfigError containing watch_service invalid-base_path context, got {err:?}"
         );
         assert!(
-            !zk.watchers.lock().unwrap().contains_key("ps"),
+            !zk_has_watcher(&zk, "ps"),
             "invalid-base_path watch_async should not create watcher sender entries"
         );
         assert!(
-            !zk.watch_poll_generations.lock().unwrap().contains_key("ps"),
+            !zk_has_watch_poll_generation(&zk, "ps"),
             "invalid-base_path watch_async should not seed poll-generation bookkeeping"
         );
     }
@@ -3223,7 +3223,7 @@ mod tests {
         let zk = ZkDiscovery::new("127.0.0.1:2181", "services");
         let rx = zk.watch("ps").expect("watch should succeed");
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -3239,7 +3239,7 @@ mod tests {
             "expected ConfigError containing watch_service invalid-base_path context, got {err:?}"
         );
         assert!(
-            !zk.watchers.lock().unwrap().contains_key("ps"),
+            !zk_has_watcher(&zk, "ps"),
             "invalid-base_path watch_async should compact dead watcher sender entries"
         );
     }
@@ -3250,7 +3250,7 @@ mod tests {
         let zk = ZkDiscovery::new("127.0.0.1:2181", "services");
         let _rx = zk.watch("ps").expect("watch should succeed");
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "watch sender should exist after subscribing"
         );
 
@@ -3265,7 +3265,7 @@ mod tests {
             "expected ConfigError containing watch_service invalid-base_path context, got {err:?}"
         );
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "invalid-base_path watch_async should preserve live watcher sender entries"
         );
     }
@@ -3276,7 +3276,7 @@ mod tests {
         let zk = ZkDiscovery::new("localhost:2181", "/services");
         let rx = zk.watch("ps").expect("watch should succeed");
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "watch sender should exist after subscribing"
         );
 
@@ -3284,7 +3284,7 @@ mod tests {
         zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
             .expect("register should succeed");
         assert!(
-            !zk.watchers.lock().unwrap().contains_key("ps"),
+            !zk_has_watcher(&zk, "ps"),
             "dead watch sender should be removed after notification"
         );
     }
@@ -3298,7 +3298,7 @@ mod tests {
 
         let rx = zk.watch("ps").expect("watch should succeed");
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -3306,7 +3306,7 @@ mod tests {
         zk.deregister("ps-0")
             .expect("deregister should succeed and trigger cleanup");
         assert!(
-            !zk.watchers.lock().unwrap().contains_key("ps"),
+            !zk_has_watcher(&zk, "ps"),
             "dead watch sender should be removed after deregister notification"
         );
     }
@@ -3317,7 +3317,7 @@ mod tests {
         let zk = ZkDiscovery::new("localhost:2181", "/services");
         let _rx = zk.watch("ps").expect("watch should succeed");
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "watch sender should exist after subscribing"
         );
 
@@ -3328,7 +3328,7 @@ mod tests {
             "expected NotFound(missing), got {err:?}"
         );
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "sync missing-service deregister should not mutate active watch sender entries"
         );
     }
@@ -3339,13 +3339,13 @@ mod tests {
         let zk = ZkDiscovery::new("localhost:2181", "/services");
         let _rx = zk.watch("ps").expect("watch should succeed");
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "watch sender should exist after subscribing"
         );
 
         zk.compact_dead_watch_sender("ps");
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "live watcher sender should not be removed by compaction"
         );
     }
@@ -3356,14 +3356,14 @@ mod tests {
         let zk = ZkDiscovery::new("localhost:2181", "/services");
         let rx = zk.watch("ps").expect("watch should succeed");
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
 
         zk.compact_dead_watch_sender("ps");
         assert!(
-            !zk.watchers.lock().unwrap().contains_key("ps"),
+            !zk_has_watcher(&zk, "ps"),
             "dropped watcher sender should be removed by compaction"
         );
     }
@@ -3374,7 +3374,7 @@ mod tests {
         let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
         let rx = zk.watch("ps").expect("watch should succeed");
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -3390,7 +3390,7 @@ mod tests {
             "expected ConnectionFailed containing ZK connect context, got {err:?}"
         );
         assert!(
-            !zk.watchers.lock().unwrap().contains_key("ps"),
+            !zk_has_watcher(&zk, "ps"),
             "failed async register should compact dead watcher sender"
         );
     }
@@ -3401,7 +3401,7 @@ mod tests {
         let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
         let _rx = zk.watch("ps").expect("watch should succeed");
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "watch sender should exist after subscribing"
         );
 
@@ -3416,7 +3416,7 @@ mod tests {
             "expected ConnectionFailed containing ZK connect context, got {err:?}"
         );
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "live watcher sender should be preserved on async register failure"
         );
     }

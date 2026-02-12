@@ -7109,6 +7109,17 @@
   - reduced `discovery.rs` unwrap call-sites from **124 → 110**, preserving
     shared discovery and zk invalid-host watcher-state parity behavior.
 
+### 529) Discovery zk watcher-state unwrap diagnostics tightening
+- Tightened additional zookeeper watcher-state diagnostics in
+  `crates/monolith-training/src/discovery.rs` by replacing remaining direct
+  lock unwrap assertions in invalid-base-path, sync register/deregister, compact
+  dead-watcher, and async register-failure watcher checks with helper-based
+  assertions (`zk_has_watcher`, `zk_has_watch_poll_generation`) and explicit
+  `expect(...)` diagnostics.
+- Result:
+  - reduced `discovery.rs` unwrap call-sites from **110 → 89**, preserving zk
+    watcher/poll-generation lifecycle and failure-path parity behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8223,6 +8234,8 @@
 1111. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/discovery.rs` ✅ (tracked remaining discovery unwrap call-sites after zk watcher-lock tightening batch: 124)
 1112. `cargo test -p monolith-training discovery::tests::test_shared_discovery -- --nocapture && cargo test -p monolith-training discovery::tests::test_multiple_service_types -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_deduplicates_poll_generation_entries -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_invalid_hosts_ -- --nocapture` ✅ (validated shared/multi-service + zk invalid-host watcher-state lanes after latest unwrap-diagnostics tightening)
 1113. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/discovery.rs` ✅ (tracked remaining discovery unwrap call-sites after shared/zk invalid-host tightening batch: 110)
+1114. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_invalid_base_path_ -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_sync_ -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_compact_dead_watch_sender_ -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_failure_ -- --nocapture` ✅ (validated zk invalid-base-path + sync watcher cleanup + async register-failure watcher-state lanes after helper migration)
+1115. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/discovery.rs` ✅ (tracked remaining discovery unwrap call-sites after zk watcher-state tightening batch: 89)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
