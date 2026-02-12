@@ -278,17 +278,19 @@ impl ServiceDiscoveryAsync for InMemoryDiscovery {
 }
 
 #[cfg(any(feature = "zookeeper", feature = "consul", test))]
-fn spawn_watch_poll_loop<F, Fut, C>(
+fn spawn_watch_poll_loop<F, Fut, C, E>(
     sender: Sender<DiscoveryEvent>,
     backend: &'static str,
     poll_interval: std::time::Duration,
     should_continue: C,
+    on_exit: E,
     mut poll_discover: F,
 ) -> tokio::task::JoinHandle<()>
 where
     F: FnMut() -> Fut + Send + 'static,
     Fut: Future<Output = Result<Vec<ServiceInfo>>> + Send + 'static,
     C: Fn() -> bool + Send + 'static,
+    E: FnOnce() + Send + 'static,
 {
     tokio::spawn(async move {
         let mut prev: HashMap<String, ServiceInfo> = HashMap::new();
@@ -351,6 +353,8 @@ where
             prev = next;
             tokio::time::sleep(poll_interval).await;
         }
+
+        on_exit();
     })
 }
 
@@ -571,7 +575,7 @@ pub struct ZkDiscovery {
     /// Generation counter for watch lifecycle control.
     watch_generation: Arc<AtomicU64>,
     /// Active watch-poll generations keyed by service type.
-    watch_poll_generations: Mutex<HashMap<String, u64>>,
+    watch_poll_generations: Arc<Mutex<HashMap<String, u64>>>,
 }
 
 #[cfg(feature = "zookeeper")]
@@ -592,7 +596,7 @@ impl ZkDiscovery {
             services: RwLock::new(HashMap::new()),
             watchers: Mutex::new(HashMap::new()),
             watch_generation: Arc::new(AtomicU64::new(0)),
-            watch_poll_generations: Mutex::new(HashMap::new()),
+            watch_poll_generations: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -660,11 +664,11 @@ impl ZkDiscovery {
     }
 
     /// Returns true only when a new poll loop should be spawned for the service type.
-    fn should_spawn_watch_poll(&self, service_type: &str, receiver_count: usize) -> bool {
+    fn should_spawn_watch_poll(&self, service_type: &str) -> bool {
         let generation = self.watch_generation.load(Ordering::SeqCst);
         let mut active = self.watch_poll_generations.lock().unwrap();
         match active.get(service_type).copied() {
-            Some(g) if g == generation && receiver_count > 1 => false,
+            Some(g) if g == generation => false,
             _ => {
                 active.insert(service_type.to_string(), generation);
                 true
@@ -867,19 +871,26 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
         // relying on ZK persistent watch semantics (which can be lossy during reconnect).
         let sender = self.get_or_create_sender(service_type);
         let rx = sender.subscribe();
-        let receiver_count = sender.receiver_count();
 
-        if self.should_spawn_watch_poll(service_type, receiver_count) {
+        if self.should_spawn_watch_poll(service_type) {
             let svc_type = service_type.to_string();
             let this = Arc::new(self.clone_for_watch());
             let sender_for_poll = sender.clone();
             let watch_generation = Arc::clone(&self.watch_generation);
+            let watch_poll_generations = Arc::clone(&self.watch_poll_generations);
             let generation = watch_generation.load(Ordering::SeqCst);
+            let svc_type_for_cleanup = svc_type.clone();
             spawn_watch_poll_loop(
                 sender_for_poll,
                 "zk",
                 std::time::Duration::from_secs(1),
                 move || watch_generation.load(Ordering::SeqCst) == generation,
+                move || {
+                    let mut active = watch_poll_generations.lock().unwrap();
+                    if active.get(&svc_type_for_cleanup).copied() == Some(generation) {
+                        active.remove(&svc_type_for_cleanup);
+                    }
+                },
                 move || {
                     let this = Arc::clone(&this);
                     let svc_type = svc_type.clone();
@@ -943,7 +954,7 @@ pub struct ConsulDiscovery {
     /// Generation counter for watch lifecycle control.
     watch_generation: Arc<AtomicU64>,
     /// Active watch-poll generations keyed by service type.
-    watch_poll_generations: Mutex<HashMap<String, u64>>,
+    watch_poll_generations: Arc<Mutex<HashMap<String, u64>>>,
 }
 
 #[cfg(feature = "consul")]
@@ -963,7 +974,7 @@ impl ConsulDiscovery {
             services: RwLock::new(HashMap::new()),
             watchers: Mutex::new(HashMap::new()),
             watch_generation: Arc::new(AtomicU64::new(0)),
-            watch_poll_generations: Mutex::new(HashMap::new()),
+            watch_poll_generations: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -1031,11 +1042,11 @@ impl ConsulDiscovery {
     }
 
     /// Returns true only when a new poll loop should be spawned for the service type.
-    fn should_spawn_watch_poll(&self, service_type: &str, receiver_count: usize) -> bool {
+    fn should_spawn_watch_poll(&self, service_type: &str) -> bool {
         let generation = self.watch_generation.load(Ordering::SeqCst);
         let mut active = self.watch_poll_generations.lock().unwrap();
         match active.get(service_type).copied() {
-            Some(g) if g == generation && receiver_count > 1 => false,
+            Some(g) if g == generation => false,
             _ => {
                 active.insert(service_type.to_string(), generation);
                 true
@@ -1231,19 +1242,26 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
         // Poll-based watcher to avoid depending on Consul long-poll semantics here.
         let sender = self.get_or_create_sender(service_type);
         let rx = sender.subscribe();
-        let receiver_count = sender.receiver_count();
 
-        if self.should_spawn_watch_poll(service_type, receiver_count) {
+        if self.should_spawn_watch_poll(service_type) {
             let svc_type = service_type.to_string();
             let this = Arc::new(self.clone_for_watch());
             let sender_for_poll = sender.clone();
             let watch_generation = Arc::clone(&self.watch_generation);
+            let watch_poll_generations = Arc::clone(&self.watch_poll_generations);
             let generation = watch_generation.load(Ordering::SeqCst);
+            let svc_type_for_cleanup = svc_type.clone();
             spawn_watch_poll_loop(
                 sender_for_poll,
                 "consul",
                 std::time::Duration::from_secs(1),
                 move || watch_generation.load(Ordering::SeqCst) == generation,
+                move || {
+                    let mut active = watch_poll_generations.lock().unwrap();
+                    if active.get(&svc_type_for_cleanup).copied() == Some(generation) {
+                        active.remove(&svc_type_for_cleanup);
+                    }
+                },
                 move || {
                     let this = Arc::clone(&this);
                     let svc_type = svc_type.clone();
@@ -1309,7 +1327,7 @@ impl ZkDiscovery {
             services: RwLock::new(HashMap::new()),
             watchers: Mutex::new(HashMap::new()),
             watch_generation: Arc::clone(&self.watch_generation),
-            watch_poll_generations: Mutex::new(HashMap::new()),
+            watch_poll_generations: Arc::clone(&self.watch_poll_generations),
         }
     }
 }
@@ -1326,7 +1344,7 @@ impl ConsulDiscovery {
             services: RwLock::new(HashMap::new()),
             watchers: Mutex::new(HashMap::new()),
             watch_generation: Arc::clone(&self.watch_generation),
-            watch_poll_generations: Mutex::new(HashMap::new()),
+            watch_poll_generations: Arc::clone(&self.watch_poll_generations),
         }
     }
 }
@@ -1593,6 +1611,7 @@ mod tests {
             "test",
             std::time::Duration::from_millis(5),
             || true,
+            || {},
             move || {
                 let call = poll_calls_for_loop.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 async move {
@@ -1648,6 +1667,7 @@ mod tests {
             "test",
             std::time::Duration::from_millis(5),
             || true,
+            || {},
             move || {
                 let call = poll_calls_for_loop.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 async move {
@@ -1706,6 +1726,7 @@ mod tests {
             "test",
             std::time::Duration::from_millis(5),
             || true,
+            || {},
             move || {
                 poll_calls_for_loop.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 async move { Ok(Vec::new()) }
@@ -1739,6 +1760,7 @@ mod tests {
             "test",
             std::time::Duration::from_millis(5),
             move || keep_running_for_loop.load(std::sync::atomic::Ordering::SeqCst),
+            || {},
             move || {
                 poll_calls_for_loop.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 async move { Ok(Vec::new()) }
@@ -1756,6 +1778,31 @@ mod tests {
             .await
             .expect("watch loop should stop when continue predicate flips false")
             .expect("watch task join failed");
+    }
+
+    #[tokio::test]
+    async fn test_spawn_watch_poll_loop_runs_on_exit_callback() {
+        let (sender, _rx) = tokio::sync::broadcast::channel(16);
+        let on_exit_called = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let on_exit_called_for_loop = std::sync::Arc::clone(&on_exit_called);
+
+        let handle = spawn_watch_poll_loop(
+            sender,
+            "test",
+            std::time::Duration::from_millis(5),
+            || false,
+            move || on_exit_called_for_loop.store(true, std::sync::atomic::Ordering::SeqCst),
+            move || async move { Ok(Vec::new()) },
+        );
+
+        tokio::time::timeout(std::time::Duration::from_millis(200), handle)
+            .await
+            .expect("watch loop should stop immediately")
+            .expect("watch task join failed");
+        assert!(
+            on_exit_called.load(std::sync::atomic::Ordering::SeqCst),
+            "on_exit callback should run when poll loop exits"
+        );
     }
 
     #[test]
@@ -1849,25 +1896,26 @@ mod tests {
         let zk = ZkDiscovery::new("localhost:2181", "/services");
 
         assert!(
-            zk.should_spawn_watch_poll("ps", 1),
+            zk.should_spawn_watch_poll("ps"),
             "first watch on service type should spawn poller"
         );
         assert!(
-            !zk.should_spawn_watch_poll("ps", 2),
+            !zk.should_spawn_watch_poll("ps"),
             "second watch on same service type and generation should not respawn poller"
         );
+        zk.watch_poll_generations.lock().unwrap().remove("ps");
         assert!(
-            zk.should_spawn_watch_poll("ps", 1),
-            "single-receiver state should allow poller respawn after stale shutdown"
+            zk.should_spawn_watch_poll("ps"),
+            "poller should respawn once prior generation entry is cleaned"
         );
         assert!(
-            zk.should_spawn_watch_poll("worker", 1),
+            zk.should_spawn_watch_poll("worker"),
             "different service type should spawn its own poller"
         );
 
         zk.disconnect().await.expect("disconnect should succeed");
         assert!(
-            zk.should_spawn_watch_poll("ps", 1),
+            zk.should_spawn_watch_poll("ps"),
             "after disconnect generation bump should allow respawn"
         );
     }
@@ -1891,6 +1939,54 @@ mod tests {
             DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "ps-0"),
             other => panic!("expected ServiceRemoved, got {other:?}"),
         }
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_watch_async_deduplicates_poll_generation_entries() {
+        let zk = ZkDiscovery::new("localhost:2181", "/services");
+
+        let rx1 = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect("first watch_async should succeed");
+        assert_eq!(zk.watch_poll_generations.lock().unwrap().len(), 1);
+
+        let rx2 = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect("second watch_async should succeed");
+        assert_eq!(
+            zk.watch_poll_generations.lock().unwrap().len(),
+            1,
+            "same service type should not create duplicate poll-generation entries"
+        );
+
+        let rx3 = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "worker")
+            .await
+            .expect("watch_async for second service type should succeed");
+        assert_eq!(
+            zk.watch_poll_generations.lock().unwrap().len(),
+            2,
+            "second service type should create a second poll-generation entry"
+        );
+
+        drop(rx1);
+        drop(rx2);
+        drop(rx3);
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                if zk.watch_poll_generations.lock().unwrap().is_empty() {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        })
+        .await
+        .expect("watch poll generation entries should clear after subscribers drop");
+        zk.disconnect().await.expect("disconnect should succeed");
+        assert!(
+            zk.watch_poll_generations.lock().unwrap().is_empty(),
+            "disconnect should preserve cleared watch poll generation state"
+        );
     }
 
     #[cfg(feature = "zookeeper")]
@@ -1967,19 +2063,20 @@ mod tests {
         let consul = ConsulDiscovery::new("http://localhost:8500");
 
         assert!(
-            consul.should_spawn_watch_poll("ps", 1),
+            consul.should_spawn_watch_poll("ps"),
             "first watch on service type should spawn poller"
         );
         assert!(
-            !consul.should_spawn_watch_poll("ps", 2),
+            !consul.should_spawn_watch_poll("ps"),
             "second watch on same service type and generation should not respawn poller"
         );
+        consul.watch_poll_generations.lock().unwrap().remove("ps");
         assert!(
-            consul.should_spawn_watch_poll("ps", 1),
-            "single-receiver state should allow poller respawn after stale shutdown"
+            consul.should_spawn_watch_poll("ps"),
+            "poller should respawn once prior generation entry is cleaned"
         );
         assert!(
-            consul.should_spawn_watch_poll("worker", 1),
+            consul.should_spawn_watch_poll("worker"),
             "different service type should spawn its own poller"
         );
 
@@ -1987,7 +2084,7 @@ mod tests {
             .await
             .expect("disconnect should succeed");
         assert!(
-            consul.should_spawn_watch_poll("ps", 1),
+            consul.should_spawn_watch_poll("ps"),
             "after disconnect generation bump should allow respawn"
         );
     }
@@ -2019,6 +2116,56 @@ mod tests {
             DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "worker-0"),
             other => panic!("expected ServiceRemoved, got {other:?}"),
         }
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_deduplicates_poll_generation_entries() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+
+        let rx1 = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("first watch_async should succeed");
+        assert_eq!(consul.watch_poll_generations.lock().unwrap().len(), 1);
+
+        let rx2 = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("second watch_async should succeed");
+        assert_eq!(
+            consul.watch_poll_generations.lock().unwrap().len(),
+            1,
+            "same service type should not create duplicate poll-generation entries"
+        );
+
+        let rx3 = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "ps")
+            .await
+            .expect("watch_async for second service type should succeed");
+        assert_eq!(
+            consul.watch_poll_generations.lock().unwrap().len(),
+            2,
+            "second service type should create a second poll-generation entry"
+        );
+
+        drop(rx1);
+        drop(rx2);
+        drop(rx3);
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                if consul.watch_poll_generations.lock().unwrap().is_empty() {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        })
+        .await
+        .expect("watch poll generation entries should clear after subscribers drop");
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            consul.watch_poll_generations.lock().unwrap().is_empty(),
+            "disconnect should preserve cleared watch poll generation state"
+        );
     }
 
     #[cfg(feature = "consul")]

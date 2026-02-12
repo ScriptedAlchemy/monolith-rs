@@ -4355,6 +4355,25 @@
     semantics and dead-sender compaction behavior.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 319) Poll-loop exit callback + automatic generation-entry cleanup
+- Refactored `spawn_watch_poll_loop(...)` to accept an `on_exit` callback that
+  executes when the loop terminates.
+- `watch_async(...)` for ZK/Consul now installs cleanup hooks that remove the
+  `(service_type, generation)` poll-entry on loop exit.
+- `watch_poll_generations` state moved to shared `Arc<Mutex<...>>` so cleanup
+  hooks and clone-backed poll loops mutate the same lifecycle map.
+- Added/updated regressions:
+  - `test_spawn_watch_poll_loop_runs_on_exit_callback`
+  - `test_zk_watch_async_deduplicates_poll_generation_entries`
+  - `test_consul_watch_async_deduplicates_poll_generation_entries`
+  - `test_zk_should_spawn_watch_poll_once_per_generation`
+  - `test_consul_should_spawn_watch_poll_once_per_generation`
+- Result:
+  - Poll-generation entries now clear automatically after receiver-drop loop
+    exits (no disconnect required for stale entry cleanup).
+  - Spawn dedupe remains deterministic within active generations.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5148,6 +5167,9 @@
 790. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" sync_deregister_removes_dead_watchers -- --nocapture` ✅ (feature-gated ZK/Consul sync-deregister dead-sender cleanup verification)
 791. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post async-deregister watcher notification hardening default-lane regression rerun)
 792. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async -- --nocapture` ✅ (feature-gated Consul async deregister watcher-event and dead-sender cleanup verification)
+793. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post poll-loop on-exit cleanup refactor default-lane regression rerun)
+794. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" watch_async_deduplicates_poll_generation_entries -- --nocapture` ✅ (feature-gated automatic poll-generation cleanup verification after receiver drop)
+795. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" should_spawn_watch_poll_once_per_generation -- --nocapture` ✅ (feature-gated spawn dedupe semantics verification post on-exit cleanup refactor)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
