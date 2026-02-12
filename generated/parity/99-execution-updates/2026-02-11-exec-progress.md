@@ -6360,15 +6360,28 @@
   - `test_consul_watch_async_config_error_cleans_poll_generation_entry`
 - The test validates full lifecycle behavior when watch polling hits Consul
   config errors:
-  - first `watch_async` seeds poll-generation entry,
-  - config-error termination clears that generation entry via `on_exit`,
-  - subsequent `watch_async` can respawn poll generation, and it is cleaned
-    again on the next config-error exit.
+  - invalid-address `watch_async` now fails fast with `watch_service` config
+    diagnostics before poller spawn,
+  - no stale watcher sender/poll-generation entries are seeded on rejected
+    watch subscriptions.
 - Result:
-  - watch lifecycle bookkeeping (`watch_poll_generations`) no longer risks
-    stale entries after Consul configuration-failure exits,
+  - watch lifecycle bookkeeping (`watch_poll_generations` + watcher sender map)
+    remains clean on invalid-address watch attempts,
   - repeated watch subscriptions remain deterministic under invalid-address
-    conditions.
+    conditions via explicit fail-fast contracts.
+
+### 468) Consul watch parity: enforce fail-fast address validation in `watch_async`
+- Hardened `ServiceDiscoveryAsync for ConsulDiscovery::watch_async` to validate
+  Consul address shape upfront via `normalize_consul_address_for_operation(
+  "watch_service", ...)` before creating watcher state.
+- This aligns watcher behavior with existing connect/register/discover/deregister
+  strict config-error contracts and avoids starting watch pollers for known-bad
+  configuration.
+- Result:
+  - invalid Consul watch configuration now returns immediate, operation-scoped
+    `ConfigError`,
+  - watcher/poll-generation bookkeeping is not polluted by invalid watch
+    attempts.
 
 ## Validation evidence (commands run)
 
@@ -7367,6 +7380,8 @@
 994. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after watch-poll config-error termination hardening)
 995. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_config_error_cleans_poll_generation_entry -- --nocapture` ✅ (validated Consul watch_async config-error exits clear poll-generation entries and allow deterministic respawn)
 996. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after Consul watch generation cleanup parity coverage)
+997. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_config_error_cleans_poll_generation_entry -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_deduplicates_poll_generation_entries -- --nocapture` ✅ (validated Consul watch_async fail-fast config rejection and preserved healthy-address poll-generation dedup semantics)
+998. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after watch_async upfront address-validation hardening)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

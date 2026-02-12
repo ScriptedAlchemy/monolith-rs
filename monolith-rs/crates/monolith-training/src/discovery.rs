@@ -1353,6 +1353,8 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
     }
 
     async fn watch_async(&self, service_type: &str) -> Result<Receiver<DiscoveryEvent>> {
+        normalize_consul_address_for_operation("watch_service", &self.address)?;
+
         // Poll-based watcher to avoid depending on Consul long-poll semantics here.
         let sender = self.get_or_create_sender(service_type);
         let rx = sender.subscribe();
@@ -3362,67 +3364,28 @@ mod tests {
     async fn test_consul_watch_async_config_error_cleans_poll_generation_entry() {
         let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
 
-        let rx1 = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
             .await
-            .expect("watch_async should still return receiver before poller run");
-        assert_eq!(
-            consul
-                .watch_poll_generations
-                .lock()
-                .unwrap()
-                .get("worker")
-                .copied(),
-            Some(consul.watch_generation.load(std::sync::atomic::Ordering::SeqCst)),
-            "watch_async should seed poll-generation entry for worker"
-        );
-
-        tokio::time::timeout(std::time::Duration::from_millis(300), async {
-            loop {
-                if !consul
-                    .watch_poll_generations
-                    .lock()
-                    .unwrap()
-                    .contains_key("worker")
-                {
-                    break;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-            }
-        })
-        .await
-        .expect("config-error poller should clean poll-generation entry via on_exit");
-
-        drop(rx1);
-
-        let rx2 = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
-            .await
-            .expect("watch_async should be able to spawn a new poller after cleanup");
+            .expect_err("invalid watch address should be rejected before poll loop spawn");
         assert!(
-            consul
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("path is not allowed")),
+            "expected ConfigError containing watch_service address-path context, got {err:?}"
+        );
+        assert!(
+            !consul
                 .watch_poll_generations
                 .lock()
                 .unwrap()
                 .contains_key("worker"),
-            "subsequent watch_async should respawn poll-generation entry after cleanup"
+            "invalid watch_service config should not seed poll-generation bookkeeping entries"
         );
-
-        tokio::time::timeout(std::time::Duration::from_millis(300), async {
-            loop {
-                if !consul
-                    .watch_poll_generations
-                    .lock()
-                    .unwrap()
-                    .contains_key("worker")
-                {
-                    break;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-            }
-        })
-        .await
-        .expect("respawned config-error poller should also clean poll-generation entry");
-
-        drop(rx2);
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "invalid watch_service config should not create watcher sender entries"
+        );
     }
 
     #[cfg(feature = "consul")]
