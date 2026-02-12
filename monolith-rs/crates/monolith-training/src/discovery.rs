@@ -1570,7 +1570,12 @@ mod tests {
 
         // Deregister non-existent service should fail
         let result = discovery.deregister("nonexistent");
-        assert!(matches!(result, Err(DiscoveryError::NotFound(_))));
+        match result {
+            Err(DiscoveryError::NotFound(service_id)) => {
+                assert_eq!(service_id, "nonexistent");
+            }
+            other => panic!("expected NotFound, got {other:?}"),
+        }
     }
 
     #[test]
@@ -1582,7 +1587,12 @@ mod tests {
 
         // Second registration should fail
         let result = discovery.register(service);
-        assert!(matches!(result, Err(DiscoveryError::AlreadyRegistered(_))));
+        match result {
+            Err(DiscoveryError::AlreadyRegistered(service_id)) => {
+                assert_eq!(service_id, "dup-1");
+            }
+            other => panic!("expected AlreadyRegistered, got {other:?}"),
+        }
     }
 
     #[test]
@@ -1611,7 +1621,12 @@ mod tests {
 
         // Update non-existent service should fail
         let result = discovery.update_health("nonexistent", HealthStatus::Healthy);
-        assert!(matches!(result, Err(DiscoveryError::NotFound(_))));
+        match result {
+            Err(DiscoveryError::NotFound(service_id)) => {
+                assert_eq!(service_id, "nonexistent");
+            }
+            other => panic!("expected NotFound, got {other:?}"),
+        }
     }
 
     #[test]
