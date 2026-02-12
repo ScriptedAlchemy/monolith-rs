@@ -154,7 +154,10 @@ mod tests {
         let addr = bind.to_string();
         let client = PsClient::connect(&[&addr]).await.unwrap();
         let barrier = PsBarrier::new(client, 20);
-        let err = barrier.wait("timeout_case", 0, 2).await.unwrap_err();
+        let err = barrier
+            .wait("timeout_case", 0, 2)
+            .await
+            .expect_err("barrier wait should map PS timeout to BarrierError::Timeout");
         assert!(matches!(err, BarrierError::Timeout));
 
         server.abort();
@@ -175,7 +178,10 @@ mod tests {
         let addr = bind.to_string();
         let client = PsClient::connect(&[&addr]).await.unwrap();
         let barrier = PsBarrier::new(client, 100);
-        let err = barrier.wait("bad_cfg", -1, 2).await.unwrap_err();
+        let err = barrier
+            .wait("bad_cfg", -1, 2)
+            .await
+            .expect_err("barrier wait should map invalid worker id to BarrierError::InvalidConfig");
         assert!(matches!(err, BarrierError::InvalidConfig(_)));
 
         server.abort();

@@ -1110,7 +1110,7 @@ all_model_checkpoint_paths: "model.ckpt-30"
                 mode: Some(EstimatorMode::Eval),
                 ..EstimatorSpecUpdate::default()
             })
-            .unwrap_err();
+            .expect_err("changing estimator spec mode should be rejected");
         assert!(matches!(
             err,
             EstimatorError::SpecModeChange {

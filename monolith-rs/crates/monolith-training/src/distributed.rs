@@ -838,7 +838,10 @@ mod tests {
     #[test]
     fn test_parameter_server_lifecycle_guards() {
         let mut ps = ParameterServer::new(1);
-        match ps.stop().unwrap_err() {
+        match ps
+            .stop()
+            .expect_err("stopping an idle parameter server should fail")
+        {
             DistributedError::InvalidConfiguration(msg) => {
                 assert!(
                     msg.contains("parameter server 1 is not running"),
@@ -849,7 +852,10 @@ mod tests {
         }
 
         ps.start().unwrap();
-        match ps.start().unwrap_err() {
+        match ps
+            .start()
+            .expect_err("starting an already running parameter server should fail")
+        {
             DistributedError::InvalidConfiguration(msg) => {
                 assert!(
                     msg.contains("parameter server 1 is already running"),
@@ -931,7 +937,10 @@ mod tests {
     #[test]
     fn test_worker_lifecycle_guards() {
         let mut worker = Worker::new(1, 2);
-        match worker.stop().unwrap_err() {
+        match worker
+            .stop()
+            .expect_err("stopping an idle worker should fail")
+        {
             DistributedError::InvalidConfiguration(msg) => {
                 assert!(
                     msg.contains("worker 1 is not running"),
@@ -942,7 +951,10 @@ mod tests {
         }
 
         worker.start().unwrap();
-        match worker.start().unwrap_err() {
+        match worker
+            .start()
+            .expect_err("starting an already running worker should fail")
+        {
             DistributedError::InvalidConfiguration(msg) => {
                 assert!(
                     msg.contains("worker 1 is already running"),
@@ -1001,7 +1013,7 @@ mod tests {
         let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
         let err = cluster
             .register_parameter("w", vec![1.0, 2.0])
-            .unwrap_err();
+            .expect_err("register_parameter should fail when cluster is not running");
         match err {
             DistributedError::InvalidConfiguration(msg) => {
                 assert!(
@@ -1024,7 +1036,9 @@ mod tests {
         let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
         cluster.start().unwrap();
         let grads: HashMap<String, Vec<f32>> = HashMap::new();
-        let err = cluster.train_step(5, &grads).unwrap_err();
+        let err = cluster
+            .train_step(5, &grads)
+            .expect_err("train_step should fail for out-of-range worker index");
         match err {
             DistributedError::InvalidConfiguration(msg) => {
                 assert!(
@@ -1044,7 +1058,9 @@ mod tests {
         cluster.stop().unwrap();
 
         let grads: HashMap<String, Vec<f32>> = HashMap::new();
-        let err = cluster.train_step(0, &grads).unwrap_err();
+        let err = cluster
+            .train_step(0, &grads)
+            .expect_err("train_step should fail when cluster is not running");
         match err {
             DistributedError::InvalidConfiguration(msg) => {
                 assert!(
@@ -1130,7 +1146,7 @@ mod tests {
                 std::time::Duration::from_millis(10),
                 std::time::Duration::from_millis(1),
             )
-            .unwrap_err();
+            .expect_err("wait_for_barrier should fail with timeout when peers never arrive");
         match err {
             DistributedError::BarrierTimeout { epoch, timeout_ms } => {
                 assert_eq!(epoch, 0);
@@ -1188,7 +1204,7 @@ mod tests {
                 std::time::Duration::from_millis(8),
                 std::time::Duration::from_millis(1),
             )
-            .unwrap_err();
+            .expect_err("wait_for_barrier should fail with timeout before retry");
         match timeout_err {
             DistributedError::BarrierTimeout { epoch, timeout_ms } => {
                 assert_eq!(epoch, 0);
@@ -1271,7 +1287,9 @@ mod tests {
         let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
         cluster.start().unwrap();
 
-        let err = cluster.start().unwrap_err();
+        let err = cluster
+            .start()
+            .expect_err("starting an already running local cluster should fail");
         match err {
             DistributedError::InvalidConfiguration(msg) => {
                 assert!(
@@ -1292,7 +1310,9 @@ mod tests {
             false,
         );
         let mut cluster = LocalCluster::new(cfg, 0.1).unwrap();
-        let err = cluster.stop().unwrap_err();
+        let err = cluster
+            .stop()
+            .expect_err("stopping a non-running local cluster should fail");
         match err {
             DistributedError::InvalidConfiguration(msg) => {
                 assert!(
