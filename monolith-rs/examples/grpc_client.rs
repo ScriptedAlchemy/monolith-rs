@@ -859,7 +859,10 @@ mod tests {
                 .with_mock_mode();
 
         // Connect
-        assert!(client.connect().await.is_ok());
+        client
+            .connect()
+            .await
+            .expect("mock prediction client should connect");
         assert!(client.is_connected());
 
         // Health check

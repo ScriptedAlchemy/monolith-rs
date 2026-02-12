@@ -6066,6 +6066,27 @@
     existing validation and forward-pass behavior contracts.
   - Focused `monolith-layers` tests and full package regression remain green.
 
+### 447) Hash-table/data/checkpoint parity: tighten success assertions in test lanes
+- Refactored additional parity tests to replace coarse `assert!(...is_ok())`
+  success checks with explicit `.expect("...")` diagnostics across:
+  - hash-table shard access tests (`monolith-hash-table/src/multi.rs`),
+  - kafka config validation tests (`monolith-data/src/kafka.rs`),
+  - checkpoint export format tests (`monolith-checkpoint/src/export.rs`).
+- Result:
+  - Hash-table/data/checkpoint parity tests now produce clearer failure
+    diagnostics while preserving existing behavior contracts.
+  - Focused crate tests and full package regressions remain green.
+
+### 448) Example parity: tighten gRPC example success assertions
+- Refactored top-level gRPC example tests to replace coarse
+  `assert!(...is_ok())` patterns with explicit `.expect("...")` diagnostics in:
+  - `examples/grpc_server.rs`,
+  - `examples/grpc_client.rs`.
+- Result:
+  - Example test diagnostics are now explicit for demo model loading and mock
+    client connection paths.
+  - gRPC example test binaries pass with the `full` feature enabled.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7015,6 +7036,8 @@
 946. `cargo test -p monolith-serving test_server_ -- --nocapture && cargo test -p monolith-serving test_predict_with_ -- --nocapture && cargo test -p monolith-serving test_connect_disconnect -- --nocapture && cargo test -p monolith-serving test_pull_embeddings -- --nocapture && cargo test -p monolith-serving test_push_embeddings -- --nocapture && cargo test -p monolith-serving test_load_model_from_temp_dir -- --nocapture && cargo test -p monolith-serving test_socket_addr_parsing -- --nocapture && cargo test -p monolith-serving test_config_validation -- --nocapture && cargo test -p monolith-serving -q` ✅ (serving assertion-tightening targeted verification plus full monolith-serving regression rerun)
 947. `cargo test -p monolith-core test_embedding_config_validate -- --nocapture && cargo test -p monolith-core test_initializer_config -- --nocapture && cargo test -p monolith-core test_training_params_validate -- --nocapture && cargo test -p monolith-core test_feature_slice_validate -- --nocapture && cargo test -p monolith-core test_result_type -- --nocapture && cargo test -p monolith-core -q` ✅ (core assertion-tightening targeted verification plus full monolith-core regression rerun)
 948. `cargo test -p monolith-layers test_din_config_validation -- --nocapture && cargo test -p monolith-layers test_dien_config_validation -- --nocapture && cargo test -p monolith-layers test_mlp_config -- --nocapture && cargo test -p monolith-layers test_mlp_different_activations -- --nocapture && cargo test -p monolith-layers test_mmoe_config -- --nocapture && cargo test -p monolith-layers test_mmoe_different_activations -- --nocapture && cargo test -p monolith-layers -q` ✅ (layers assertion-tightening targeted verification plus full monolith-layers regression rerun)
+949. `cargo test -p monolith-hash-table test_multi_get_shard -- --nocapture && cargo test -p monolith-hash-table -q && cargo test -p monolith-data test_kafka_config_validate -- --nocapture && cargo test -p monolith-data -q && cargo test -p monolith-checkpoint test_export_json -- --nocapture && cargo test -p monolith-checkpoint test_export_binary -- --nocapture && cargo test -p monolith-checkpoint test_export_saved_model -- --nocapture && cargo test -p monolith-checkpoint -q` ✅ (hash-table/data/checkpoint assertion-tightening targeted verification plus full package regressions)
+950. `cargo test --example grpc_server --features full -- --nocapture && cargo test --example grpc_client --features full -- --nocapture` ✅ (top-level gRPC example assertion-tightening verification with required `full` feature)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

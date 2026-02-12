@@ -700,8 +700,9 @@ mod tests {
         let exporter = ModelExporter::new(config);
 
         let state = create_test_state();
-        let result = exporter.export(&state);
-        assert!(result.is_ok());
+        exporter
+            .export(&state)
+            .expect("json export should succeed for valid test state");
 
         // Check files exist
         assert!(dir.path().join("model.json").exists());
@@ -715,8 +716,9 @@ mod tests {
         let exporter = ModelExporter::new(config);
 
         let state = create_test_state();
-        let result = exporter.export(&state);
-        assert!(result.is_ok());
+        exporter
+            .export(&state)
+            .expect("binary export should succeed for valid test state");
 
         assert!(dir.path().join("model.bin").exists());
         assert!(dir.path().join("manifest.json").exists());
@@ -731,8 +733,9 @@ mod tests {
         let exporter = ModelExporter::new(config);
 
         let state = create_test_state();
-        let result = exporter.export(&state);
-        assert!(result.is_ok());
+        exporter
+            .export(&state)
+            .expect("saved-model export should succeed for valid test state");
 
         // Check directory structure
         assert!(dir.path().join("manifest.json").exists());

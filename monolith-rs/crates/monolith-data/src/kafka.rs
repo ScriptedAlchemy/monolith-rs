@@ -710,7 +710,9 @@ mod tests {
     fn test_kafka_config_validate() {
         // Valid config
         let config = make_test_config();
-        assert!(config.validate().is_ok());
+        config
+            .validate()
+            .expect("default kafka test config should pass validation");
 
         // Empty brokers
         let config = KafkaConfig::new(vec![], "topic".to_string(), "group".to_string());
