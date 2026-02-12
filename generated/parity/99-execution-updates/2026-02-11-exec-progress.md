@@ -6873,6 +6873,19 @@
     (**0 remaining**), preserving existing distributed timeout/cleanup
     failure-shape behavior.
 
+### 506) Base-embedding-task unwrap diagnostics completion
+- Tightened `crates/monolith-training/src/base_embedding_task.rs` unwrap usage:
+  - replaced guarded config option unwraps in `create_vocab_dict(...)` with
+    explicit `expect(...)` diagnostics,
+  - replaced all test fixture/setup/result unwraps with explicit
+    `expect(...)` diagnostics in:
+    - `test_create_vocab_dict_parity_fixed_and_custom_and_offset`,
+    - `test_create_vocab_dict_fixed_vocab_size_per_slot`,
+    - `test_create_vocab_dict_invalid_line_errors`.
+- Result:
+  - removed all `.unwrap()` call-sites from base embedding task module
+    (**0 remaining**), preserving vocab parsing parity behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7940,6 +7953,8 @@
 1064. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/estimator.rs` ✅ (verified only remaining unwrap is doc-comment example in estimator module; no runtime/test unwraps remain)
 1065. `cargo test -p monolith-training runner::tests::test_ordered_ps_addrs_ -- --nocapture && cargo test -p monolith-training runner::tests::test_worker_heartbeat_task_stops_after_worker_success -- --nocapture && cargo test -p monolith-training runner::tests::test_run_worker_role_timeout_reports_ordering_issue -- --nocapture && cargo test -p monolith-training runner::tests::test_run_distributed_ -- --nocapture` ✅ (validated runner ordered-ps, heartbeat-success, ordering-timeout, and full run_distributed matrix after final unwrap-diagnostics conversion batch)
 1066. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/runner.rs` ✅ (verified no remaining unwrap call-sites in runner module)
+1067. `cargo test -p monolith-training base_embedding_task::tests:: -- --nocapture` ✅ (validated base embedding task vocab parsing parity tests after unwrap-diagnostics completion)
+1068. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/base_embedding_task.rs` ✅ (verified no remaining unwrap call-sites in base embedding task module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
