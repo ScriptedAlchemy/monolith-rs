@@ -1559,8 +1559,44 @@ fn validate_zk_hosts_for_operation(context: &str, hosts: &str) -> Result<()> {
     if hosts.chars().any(char::is_whitespace) {
         return Err(cfg_err("whitespace in hosts"));
     }
-    if hosts.split(',').any(|entry| entry.is_empty()) {
-        return Err(cfg_err("empty host entry"));
+    for entry in hosts.split(',') {
+        if entry.is_empty() {
+            return Err(cfg_err("empty host entry"));
+        }
+
+        if let Some(rest) = entry.strip_prefix('[') {
+            let (host, trailing) = rest
+                .split_once(']')
+                .ok_or_else(|| cfg_err("invalid host entry"))?;
+            if host.is_empty() {
+                return Err(cfg_err("empty host"));
+            }
+            if let Some(port) = trailing.strip_prefix(':') {
+                if port.is_empty() {
+                    return Err(cfg_err("invalid port"));
+                }
+                port.parse::<u16>().map_err(|_| cfg_err("invalid port"))?;
+            } else if !trailing.is_empty() {
+                return Err(cfg_err("invalid host entry"));
+            }
+            continue;
+        }
+
+        if let Some((host, port)) = entry.rsplit_once(':') {
+            if host.contains(':') {
+                return Err(cfg_err("invalid host entry"));
+            }
+            if host.is_empty() {
+                return Err(cfg_err("empty host"));
+            }
+            if port.is_empty() {
+                return Err(cfg_err("invalid port"));
+            }
+            if !port.chars().all(|c| c.is_ascii_digit()) {
+                return Err(cfg_err("invalid port"));
+            }
+            port.parse::<u16>().map_err(|_| cfg_err("invalid port"))?;
+        }
     }
     Ok(())
 }
@@ -3214,6 +3250,31 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_watch_async_invalid_port_rejects_without_state_changes() {
+        let zk = ZkDiscovery::new("127.0.0.1:notaport", "/services");
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("invalid-port hosts should be rejected before watch state is created");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing watch_service invalid-port context, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "invalid-port watch_async should not create watcher sender entries"
+        );
+        assert!(
+            !zk_has_watch_poll_generation(&zk, "ps"),
+            "invalid-port watch_async should not seed poll-generation bookkeeping"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_watch_async_invalid_hosts_compacts_dead_watch_sender() {
         let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
         let rx = zk.watch("ps").expect("watch should succeed");
@@ -3530,6 +3591,21 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_connect_invalid_port_is_config_error() {
+        let zk = ZkDiscovery::new("127.0.0.1:notaport", "/services");
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let err = result.expect_err("invalid-port hosts should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing invalid-port connect context, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_async_register_invalid_hosts_compacts_dead_watchers() {
         let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
         let rx = zk.watch("ps").expect("watch should succeed");
@@ -3555,6 +3631,36 @@ mod tests {
         assert!(
             !zk_has_watcher(&zk, "ps"),
             "config-error register should compact dead watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_register_invalid_port_compacts_dead_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:notaport", "/services");
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(
+            &zk,
+            ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
+        )
+        .await;
+        let err = result.expect_err("invalid-port hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing invalid-port register context, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "config-error register should compact dead watcher sender entries for invalid-port hosts"
         );
     }
 
@@ -3719,6 +3825,46 @@ mod tests {
         assert!(
             !zk.registered_paths.lock().await.contains_key("ps-0"),
             "registered-path bookkeeping should remain removed even on invalid-host config failure"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_invalid_port_still_notifies_and_returns_error() {
+        let zk = ZkDiscovery::new("127.0.0.1:notaport", "/services");
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+        let mut rx = zk.watch("ps").expect("watch should succeed");
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        let err = result.expect_err("invalid-port hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing invalid-port connect context, got {err:?}"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "ps-0"),
+            "expected ServiceRemoved(ps-0), got {event:?}"
+        );
+        assert!(
+            zk.discover("ps").expect("discover should succeed").is_empty(),
+            "local cache entry should remain removed even when async deregister fails on invalid-port hosts"
+        );
+        assert!(
+            !zk.registered_paths.lock().await.contains_key("ps-0"),
+            "registered-path bookkeeping should remain removed even on invalid-port config failure"
         );
     }
 

@@ -7164,6 +7164,26 @@
   - strengthened explicit failure-shape contracts for Consul invalid-port
     validation and watcher/cache cleanup semantics.
 
+### 533) Discovery ZooKeeper invalid-port host validation + lifecycle regressions
+- Hardened `validate_zk_hosts_for_operation(...)` in
+  `crates/monolith-training/src/discovery.rs` with explicit per-host-entry
+  authority validation:
+  - rejects invalid port forms (`notaport`, empty port, out-of-range port),
+  - rejects malformed host entries (including malformed bracketed IPv6
+    authorities),
+  - preserves existing whitespace/empty-entry host-list validation contracts.
+- Expanded ZooKeeper invalid-port regression coverage:
+  - `watch_async` fail-fast invalid-port contract with no watcher/poll state
+    creation.
+  - `connect` invalid-port `ConfigError` classification.
+  - `register_async` invalid-port dead-watcher compaction behavior.
+  - `deregister_async` invalid-port cleanup behavior (service removal event +
+    local cache and registered-path bookkeeping removal preserved).
+- Result:
+  - invalid ZooKeeper host-port shapes now classify as explicit config errors
+    with deterministic cleanup semantics across watch/connect/register/deregister
+    lifecycle paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8286,6 +8306,9 @@
 1119. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/discovery.rs` ✅ (verified only doc-comment unwrap examples remain in discovery module; no runtime/test unwrap call-sites remain)
 1120. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_invalid_port_rejects_without_state_changes -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_connect_invalid_port_is_classified_as_config_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_invalid_port_ -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_invalid_port_still_notifies_and_returns_error -- --nocapture` ✅ (validated new Consul invalid-port watch/connect/register/deregister failure-shape and watcher/cache cleanup regressions)
 1121. `rg "test_consul_.*invalid_port" crates/monolith-training/src/discovery.rs` ✅ (verified targeted invalid-port Consul lifecycle regression coverage is present in discovery test suite)
+1122. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_invalid_port_rejects_without_state_changes -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_invalid_port_is_config_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_invalid_port_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_invalid_port_still_notifies_and_returns_error -- --nocapture` ✅ (validated ZooKeeper invalid-port watch/connect/register/deregister failure-shape and cleanup regressions)
+1123. `rg "test_zk_.*invalid_port" crates/monolith-training/src/discovery.rs` ✅ (verified targeted invalid-port ZooKeeper lifecycle regression coverage is present in discovery test suite)
+1124. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_invalid_ -- --nocapture` ✅ (validated invalid-host/base-path/port connect classification matrix after ZooKeeper host-entry validation hardening)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
