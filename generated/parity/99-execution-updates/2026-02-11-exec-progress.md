@@ -4937,6 +4937,21 @@
   - Targeted cleanup-timeout lanes and default monolith-training regression
     remain green.
 
+### 367) Runner worker-error cleanup-timeout assertion-contract tightening
+- Tightened worker-error cleanup-timeout variants by replacing
+  timeout-wrapper `is_ok + unwrap().unwrap_err()` assertions with explicit:
+  - `timeout(...).await.expect(\"must not hang\")`
+  - `.expect_err(\"must surface role error\")`
+- Applied across:
+  - custom discovery-service-type cleanup-timeout path
+  - custom/default service-type + index worker-error cleanup-timeout variants
+  - `test_run_distributed_honors_configured_cleanup_timeout`
+- Result:
+  - Worker-error cleanup-timeout tests now carry explicit non-hang and
+    role-error contracts with improved diagnostics consistency.
+  - Targeted worker-error cleanup-timeout lane and default monolith-training
+    regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5801,6 +5816,7 @@
 861. `ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_discover_failure_with_custom_service_type -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_timeout_when_cleanup_steps_fail -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_timeout_with_custom_service_type -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_timeout_with_default_service_type -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner worker discover/timeout cleanup-failure expect_err tightening verification plus default-lane regression rerun)
 862. `ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_error_with_default_service_type_when_cleanup_steps_fail -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_ordering_issue_timeout_with_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_ordering_and_discovery_error_timeout_with_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner ordering-family cleanup-failure expect_err tightening verification plus default-lane regression rerun)
 863. `ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_timeout_with_default_service_type_when_cleanup_steps_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_ordering_issue_timeout_with_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_ordering_and_discovery_error_timeout_with_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner cleanup-timeout timeout-wrapper contract tightening verification plus default-lane regression rerun)
+864. `ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_error_with_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_honors_configured_cleanup_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner worker-error cleanup-timeout timeout-wrapper contract tightening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
