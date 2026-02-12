@@ -4712,6 +4712,18 @@
     states), tightening lifecycle cleanup guarantees.
   - Feature-gated and default monolith-training regressions remain green.
 
+### 349) Runner registration-failure assertion contract tightening
+- Tightened a cluster of registration-failure regressions in `runner.rs` by
+  replacing generic `is_err()+unwrap_err()` patterns with explicit `expect_err`
+  failure contracts across worker/ps and default/custom service-type variants.
+- Result:
+  - Registration-failure tests now fail with clearer, direct expectations and
+    preserve all existing diagnostic-context assertions.
+  - Runner failure-contract readability and strictness improved without changing
+    runtime behavior.
+  - Registration-failure targeted lane and default monolith-training regression
+    remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5558,6 +5570,7 @@
 843. `ZK_AUTH=user:pass cargo test -p monolith-training test_cluster_config_validation -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_parameter_server_apply_gradients -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_worker -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted distributed-runtime error-shape assertion hardening verification plus default-lane regression rerun)
 844. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_from_run_config_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_worker_heartbeat_task_stops_after_worker_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner timeout-smoke diagnostic assertion hardening verification plus default-lane regression rerun)
 845. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" disconnect_clears_watch_poll_generation_entries -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated ZK/Consul disconnect watch-poll-generation map cleanup verification plus default-lane regression rerun)
+846. `ZK_AUTH=user:pass cargo test -p monolith-training registration_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (runner registration-failure assertion-contract tightening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
