@@ -315,9 +315,14 @@ where
 
             let mut should_stop = false;
             for (id, s) in next.iter() {
-                if !prev.contains_key(id)
-                    && sender.send(DiscoveryEvent::ServiceAdded(s.clone())).is_err()
-                {
+                let send_result = match prev.get(id) {
+                    None => sender.send(DiscoveryEvent::ServiceAdded(s.clone())),
+                    Some(prev_s) if prev_s != s => {
+                        sender.send(DiscoveryEvent::ServiceUpdated(s.clone()))
+                    }
+                    Some(_) => continue,
+                };
+                if send_result.is_err() {
                     should_stop = true;
                     break;
                 }
@@ -1518,6 +1523,63 @@ mod tests {
         match removed {
             DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "ps-0"),
             other => panic!("expected ServiceRemoved, got {other:?}"),
+        }
+
+        drop(rx);
+        tokio::time::timeout(std::time::Duration::from_millis(200), handle)
+            .await
+            .expect("watch loop should stop when no receivers")
+            .expect("watch task join failed");
+    }
+
+    #[tokio::test]
+    async fn test_spawn_watch_poll_loop_emits_updated_events() {
+        let (sender, _) = tokio::sync::broadcast::channel(16);
+        let mut rx = sender.subscribe();
+        let poll_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let poll_calls_for_loop = std::sync::Arc::clone(&poll_calls);
+
+        let handle = spawn_watch_poll_loop(
+            sender,
+            "test",
+            std::time::Duration::from_millis(5),
+            move || {
+                let call = poll_calls_for_loop.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                async move {
+                    let health = if call == 0 {
+                        HealthStatus::Starting
+                    } else {
+                        HealthStatus::Healthy
+                    };
+                    Ok(vec![
+                        ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000).with_health(health),
+                    ])
+                }
+            },
+        );
+
+        let added = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceAdded")
+            .expect("watch channel closed unexpectedly");
+        match added {
+            DiscoveryEvent::ServiceAdded(s) => {
+                assert_eq!(s.id, "ps-0");
+                assert_eq!(s.health, HealthStatus::Starting);
+            }
+            other => panic!("expected ServiceAdded, got {other:?}"),
+        }
+
+        let updated = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceUpdated")
+            .expect("watch channel closed unexpectedly");
+        match updated {
+            DiscoveryEvent::ServiceUpdated(s) => {
+                assert_eq!(s.id, "ps-0");
+                assert_eq!(s.health, HealthStatus::Healthy);
+            }
+            other => panic!("expected ServiceUpdated, got {other:?}"),
         }
 
         drop(rx);

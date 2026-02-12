@@ -4215,6 +4215,21 @@
     `preserves_ -> surfaces_ missing 0`.
   - Full monolith-training regression remains green.
 
+### 309) Discovery watch lifecycle parity: update events from poll backends
+- Hardened `spawn_watch_poll_loop(...)` to emit `DiscoveryEvent::ServiceUpdated`
+  when a discovered service keeps the same ID but changes content
+  (health/metadata/address/etc.).
+- Previously poll-based backends emitted only added/removed events; in-place
+  updates were silently dropped.
+- Added regression `test_spawn_watch_poll_loop_emits_updated_events` validating:
+  - first poll emits `ServiceAdded`,
+  - subsequent changed snapshot emits `ServiceUpdated`,
+  - poll loop still exits when receivers are dropped.
+- Result:
+  - Poll-backed discovery watches now preserve update semantics consistent with
+    in-memory watcher behavior.
+  - Full monolith-training regression remains green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4983,6 +4998,8 @@
 765. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_worker_discovery_error_when_cleanup_times_out -- --nocapture` ✅
 766. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post native when-cleanup-blocks + worker-discovery-error preserves->surfaces alias additions full monolith-training regression rerun)
 767. `python3` final directional audit ✅ (`runner.rs` and `native_training_parity.rs` generic `preserves_ -> surfaces_` both `missing 0`)
+768. `ZK_AUTH=user:pass cargo test -p monolith-training test_spawn_watch_poll_loop_emits_updated_events -- --nocapture` ✅
+769. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post discovery watch update-event semantics hardening full monolith-training regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
