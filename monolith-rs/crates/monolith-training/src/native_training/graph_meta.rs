@@ -23,7 +23,9 @@ pub fn get_meta_cloned<T: Clone + Send + Sync + 'static>(
     key: &str,
     factory: impl FnOnce() -> T,
 ) -> T {
-    let mut guard = store().lock().unwrap();
+    let mut guard = store()
+        .lock()
+        .expect("graph meta store mutex should not be poisoned");
     let g = guard.entry(graph_id.to_string()).or_default();
     if !g.contains_key(key) {
         g.insert(key.to_string(), Box::new(factory()));
@@ -42,7 +44,9 @@ pub fn update_meta<T: Clone + Send + Sync + 'static>(
     factory: impl FnOnce() -> T,
     update: impl FnOnce(&mut T),
 ) -> T {
-    let mut guard = store().lock().unwrap();
+    let mut guard = store()
+        .lock()
+        .expect("graph meta store mutex should not be poisoned");
     let g = guard.entry(graph_id.to_string()).or_default();
     if !g.contains_key(key) {
         g.insert(key.to_string(), Box::new(factory()));

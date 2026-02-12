@@ -6967,6 +6967,14 @@
   - removed all `.unwrap()` call-sites from native-training env-utils module
     (**0 remaining**), preserving `ZK_AUTH` parity behavior.
 
+### 515) Native-training graph-meta unwrap diagnostics completion
+- Tightened `crates/monolith-training/src/native_training/graph_meta.rs` by
+  replacing global store mutex lock unwraps in `get_meta_cloned` and
+  `update_meta` with explicit `expect(...)` diagnostics.
+- Result:
+  - removed all `.unwrap()` call-sites from native-training graph-meta module
+    (**0 remaining**) while preserving graph-metadata behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8052,6 +8060,8 @@
 1082. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/file_ops.rs` ✅ (verified no remaining unwrap call-sites in file-ops module)
 1083. `cargo test -p monolith-training get_zk_auth_data -- --nocapture` ✅ (validated native-training env-utils ZK auth tests after unwrap-diagnostics tightening)
 1084. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/env_utils.rs` ✅ (verified no remaining unwrap call-sites in native-training env-utils module)
+1085. `cargo test -p monolith-training graph_meta::tests:: -- --nocapture` ✅ (validated graph-meta unit test after mutex lock diagnostics tightening)
+1086. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/graph_meta.rs` ✅ (verified no remaining unwrap call-sites in native-training graph-meta module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
