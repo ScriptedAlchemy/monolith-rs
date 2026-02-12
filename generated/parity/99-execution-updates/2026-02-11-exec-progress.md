@@ -6485,6 +6485,21 @@
   - register/discover lifecycle semantics preserve cleanup and local-cache
     behavior under config-error exits.
 
+### 476) ZooKeeper watch parity: fail-fast invalid-host contracts with cleanup semantics
+- Applied ZooKeeper host validation to async watcher entrypoint:
+  - `ZkDiscovery::watch_async` now validates hosts via
+    `validate_zk_hosts_for_operation("watch_service", ...)` before spawning
+    pollers or creating watcher state.
+- Added watcher-focused regression coverage:
+  - `test_zk_watch_async_invalid_hosts_rejects_without_state_changes`
+  - `test_zk_watch_async_invalid_hosts_compacts_dead_watch_sender`
+  - `test_zk_watch_async_invalid_hosts_preserves_live_watch_sender`
+- Result:
+  - invalid-host `watch_async` calls now fail fast as explicit config errors,
+  - dead sender entries are compacted on config-error watch attempts while live
+    watcher subscriptions remain preserved,
+  - no poll-generation state is created for rejected watch attempts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7498,6 +7513,8 @@
 1010. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after shared watcher-state lifecycle refactor)
 1011. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_validate_zk_hosts_for_operation_ -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_connect_invalid_hosts_is_config_error -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_async_register_invalid_hosts_compacts_dead_watchers -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_discover_async_invalid_hosts_preserves_local_cache -- --nocapture` ✅ (validated ZooKeeper host-shape config-error classification contracts and lifecycle cleanup/cache semantics under invalid-host inputs)
 1012. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after ZooKeeper host-validation hardening)
+1013. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_watch_async_invalid_hosts_ -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_watch_async_deduplicates_poll_generation_entries -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_connect_invalid_hosts_is_config_error -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_config_error_ -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_ -- --nocapture` ✅ (validated ZooKeeper watch_async fail-fast invalid-host contracts plus dead/live watcher cleanup semantics and ensured no regressions in existing Consul watch cleanup matrix)
+1014. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after ZooKeeper watch_async invalid-host hardening)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

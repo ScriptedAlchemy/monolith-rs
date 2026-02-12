@@ -921,6 +921,11 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
     }
 
     async fn watch_async(&self, service_type: &str) -> Result<Receiver<DiscoveryEvent>> {
+        validate_zk_hosts_for_operation("watch_service", &self.hosts).map_err(|e| {
+            self.compact_dead_watch_sender(service_type);
+            e
+        })?;
+
         // Poll-based watcher: keeps parity with Python's callback-based watchers without
         // relying on ZK persistent watch semantics (which can be lossy during reconnect).
         let sender = self.get_or_create_sender(service_type);
@@ -2774,6 +2779,84 @@ mod tests {
         assert!(
             zk.watch_poll_generations.lock().unwrap().is_empty(),
             "disconnect should preserve cleared watch poll generation state"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_watch_async_invalid_hosts_rejects_without_state_changes() {
+        let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("invalid hosts should be rejected before watch state is created");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("leading/trailing whitespace")),
+            "expected ConfigError containing watch_service invalid-hosts context, got {err:?}"
+        );
+        assert!(
+            !zk.watchers.lock().unwrap().contains_key("ps"),
+            "invalid-hosts watch_async should not create watcher sender entries"
+        );
+        assert!(
+            !zk.watch_poll_generations.lock().unwrap().contains_key("ps"),
+            "invalid-hosts watch_async should not seed poll-generation bookkeeping"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_watch_async_invalid_hosts_compacts_dead_watch_sender() {
+        let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("invalid hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("leading/trailing whitespace")),
+            "expected ConfigError containing watch_service invalid-hosts context, got {err:?}"
+        );
+        assert!(
+            !zk.watchers.lock().unwrap().contains_key("ps"),
+            "invalid-hosts watch_async should compact dead watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_watch_async_invalid_hosts_preserves_live_watch_sender() {
+        let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("invalid hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("leading/trailing whitespace")),
+            "expected ConfigError containing watch_service invalid-hosts context, got {err:?}"
+        );
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "invalid-hosts watch_async should preserve live watcher sender entries"
         );
     }
 
