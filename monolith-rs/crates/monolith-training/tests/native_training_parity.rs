@@ -11827,11 +11827,17 @@ impl RecordingServiceTypePropagationDiscovery {
     }
 
     fn registered_types_snapshot(&self) -> Vec<String> {
-        self.registered_types.lock().unwrap().clone()
+        self.registered_types
+            .lock()
+            .expect("registered_types mutex should not be poisoned")
+            .clone()
     }
 
     fn discovered_types_snapshot(&self) -> Vec<String> {
-        self.discovered_types.lock().unwrap().clone()
+        self.discovered_types
+            .lock()
+            .expect("discovered_types mutex should not be poisoned")
+            .clone()
     }
 }
 
@@ -11854,7 +11860,7 @@ impl ServiceDiscoveryAsync for RecordingServiceTypePropagationDiscovery {
         self.register_count.fetch_add(1, Ordering::SeqCst);
         self.registered_types
             .lock()
-            .unwrap()
+            .expect("registered_types mutex should not be poisoned")
             .push(service.service_type.clone());
         if self.fail_register.load(Ordering::SeqCst) {
             return Err(monolith_training::discovery::DiscoveryError::Internal(
@@ -11871,7 +11877,7 @@ impl ServiceDiscoveryAsync for RecordingServiceTypePropagationDiscovery {
         self.discover_count.fetch_add(1, Ordering::SeqCst);
         self.discovered_types
             .lock()
-            .unwrap()
+            .expect("discovered_types mutex should not be poisoned")
             .push(service_type.to_string());
         Ok(Vec::new())
     }
@@ -31235,7 +31241,8 @@ fn estimator_from_run_config_roundtrip() {
         restore_ckpt: Some("model.ckpt-22".to_string()),
         ..RunConfig::default()
     };
-    let estimator = Estimator::from_run_config(&run, None, ConstantModelFn::new(0.1)).unwrap();
+    let estimator = Estimator::from_run_config(&run, None, ConstantModelFn::new(0.1))
+        .expect("estimator should be constructed from run config");
     assert_eq!(
         estimator.config().model_dir,
         std::path::PathBuf::from("/tmp/parity_estimator")
@@ -31284,8 +31291,16 @@ fn runner_discovery_query_primus_roundtrip() {
         tf_config: Some(tf_config),
         ..RunnerConfig::default()
     };
-    let d = get_discovery(&runner, None).unwrap().expect("discovery");
-    let ps = d.query("ps").unwrap();
-    assert_eq!(ps.get(&0).unwrap(), "ps0:2222");
-    assert_eq!(ps.get(&1).unwrap(), "ps1:2222");
+    let d = get_discovery(&runner, None)
+        .expect("primus discovery construction should succeed")
+        .expect("discovery should be present");
+    let ps = d.query("ps").expect("primus discovery query for ps should succeed");
+    assert_eq!(
+        ps.get(&0).expect("ps index 0 should exist in primus cluster"),
+        "ps0:2222"
+    );
+    assert_eq!(
+        ps.get(&1).expect("ps index 1 should exist in primus cluster"),
+        "ps1:2222"
+    );
 }

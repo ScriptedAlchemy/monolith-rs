@@ -6822,6 +6822,18 @@
   - removed the final 4 bind parse-unwrap hotspots from `estimator.rs`
     (**0 remaining**) while preserving distributed-runtime smoke semantics.
 
+### 502) Native training parity unwrap diagnostics tightening (final residual batch)
+- Tightened the last residual `.unwrap()` assertions in
+  `crates/monolith-training/tests/native_training_parity.rs` by replacing them
+  with explicit `expect(...)` diagnostics:
+  - mutex lock snapshots for recorded service-type propagation,
+  - estimator/discovery/query setup assertions in parity roundtrip tests,
+  - map entry lookups for Primus discovery verification.
+- Result:
+  - removed the final 9 `.unwrap()` call-sites from
+    `native_training_parity.rs` (**0 remaining**), preserving parity behavior
+    while improving failure diagnostics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7881,6 +7893,8 @@
 1056. `rg "\"127\\.0\\.0\\.1:0\"\\.parse\\(\\)\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/runner.rs` ✅ (verified no remaining runner bind-address parse-unwrap hotspots)
 1057. `cargo test -p monolith-training test_estimator_run_distributed_runtime_smoke -- --nocapture && cargo test -p monolith-training test_estimator_run_distributed_runtime_from_run_config_smoke -- --nocapture` ✅ (validated estimator distributed-runtime smoke lanes after bind-address helper migration)
 1058. `rg "\"127\\.0\\.0\\.1:0\"\\.parse\\(\\)\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/estimator.rs` ✅ (verified no remaining estimator bind-address parse-unwrap hotspots)
+1059. `cargo test -p monolith-training --test native_training_parity estimator_from_run_config_roundtrip -- --nocapture && cargo test -p monolith-training --test native_training_parity runner_discovery_query_primus_roundtrip -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_propagates_discover_service_type_into_timeout_diagnostics -- --nocapture` ✅ (validated native-training parity lanes touched by final unwrap diagnostics tightening)
+1060. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/tests/native_training_parity.rs` ✅ (verified no remaining unwrap call-sites in native training parity suite)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
