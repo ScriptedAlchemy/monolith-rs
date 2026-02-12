@@ -4433,10 +4433,6 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_and_discov
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when worker discovery times out with ordering+discovery errors and custom cleanup blocks"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when worker discovery times out with ordering+discovery errors and custom cleanup blocks")
         .expect_err("indexed custom ordering+discovery timeout with cleanup timeouts should surface as a worker role error")
@@ -4731,10 +4727,6 @@ async fn distributed_runner_from_run_config_propagates_worker_index_into_ps_disc
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang when PS discovery remains empty for worker index propagation diagnostics"
-    );
     let msg = res
         .expect("run_distributed_from_run_config should not hang when PS discovery remains empty for worker index propagation diagnostics")
         .expect_err("empty PS discovery with indexed worker should surface as a worker role error")
@@ -5481,10 +5473,6 @@ async fn distributed_runner_from_run_config_accepts_case_insensitive_http_scheme
         ),
     )
     .await;
-    assert!(
-        res.is_ok(),
-        "run_distributed_from_run_config should not hang while validating case-insensitive parameter-sync target schemes"
-    );
     let err = res
         .expect("run_distributed_from_run_config should not hang while validating case-insensitive parameter-sync target schemes")
         .expect_err("case-insensitive parameter-sync target should still surface worker discovery timeout with empty backend")
