@@ -3048,7 +3048,7 @@ mod tests {
             discovery_operation_timeout: Duration::from_millis(0),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires discovery_operation_timeout > 0"),
             "unexpected validation error: {err}"
@@ -3061,7 +3061,7 @@ mod tests {
             num_ps: 0,
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires num_ps > 0"),
             "unexpected validation error: {err}"
@@ -3074,7 +3074,7 @@ mod tests {
             num_workers: 0,
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires num_workers > 0"),
             "unexpected validation error: {err}"
@@ -3087,7 +3087,7 @@ mod tests {
             discovery_cleanup_timeout: Duration::from_millis(0),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires discovery_cleanup_timeout > 0"),
             "unexpected validation error: {err}"
@@ -3102,7 +3102,7 @@ mod tests {
             num_ps: 2,
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires index < num_ps for ps role"),
             "unexpected validation error: {err}"
@@ -3117,7 +3117,7 @@ mod tests {
             num_workers: 3,
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires index < num_workers for worker role"),
             "unexpected validation error: {err}"
@@ -3130,7 +3130,7 @@ mod tests {
             discovery_service_type_ps: "   ".to_string(),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires non-empty discovery_service_type_ps"),
             "unexpected validation error: {err}"
@@ -3143,7 +3143,7 @@ mod tests {
             discovery_service_type_ps: " ps ".to_string(),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains(
                 "distributed config requires discovery_service_type_ps without leading/trailing whitespace"
@@ -3158,7 +3158,7 @@ mod tests {
             discovery_service_type_ps: "ps cluster".to_string(),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains(
                 "distributed config requires discovery_service_type_ps without whitespace characters"
@@ -3173,7 +3173,7 @@ mod tests {
             discovery_service_type_worker: "".to_string(),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires non-empty discovery_service_type_worker"),
             "unexpected validation error: {err}"
@@ -3186,7 +3186,7 @@ mod tests {
             discovery_service_type_worker: " worker ".to_string(),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains(
                 "distributed config requires discovery_service_type_worker without leading/trailing whitespace"
@@ -3201,7 +3201,7 @@ mod tests {
             discovery_service_type_worker: "worker cluster".to_string(),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains(
                 "distributed config requires discovery_service_type_worker without whitespace characters"
@@ -3217,7 +3217,7 @@ mod tests {
             discovery_service_type_worker: "service".to_string(),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains(
                 "distributed config requires distinct discovery_service_type_ps and discovery_service_type_worker"
@@ -3234,7 +3234,7 @@ mod tests {
             discovery_service_type_worker: "service".to_string(),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains(
                 "distributed config requires distinct discovery_service_type_ps and discovery_service_type_worker"
@@ -3249,7 +3249,7 @@ mod tests {
             table_name: "  ".to_string(),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires non-empty table_name"),
             "unexpected validation error: {err}"
@@ -3262,7 +3262,7 @@ mod tests {
             table_name: " emb ".to_string(),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires table_name without leading/trailing whitespace"),
             "unexpected validation error: {err}"
@@ -3275,7 +3275,7 @@ mod tests {
             table_name: "my table".to_string(),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires table_name without whitespace characters"),
             "unexpected validation error: {err}"
@@ -3290,7 +3290,7 @@ mod tests {
             parameter_sync_interval: Duration::from_millis(0),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains(
                 "distributed config requires parameter_sync_interval > 0 when parameter_sync_targets are configured"
@@ -3305,7 +3305,7 @@ mod tests {
             parameter_sync_targets: vec!["".to_string()],
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires non-empty parameter_sync_targets entries"),
             "unexpected validation error: {err}"
@@ -3318,7 +3318,7 @@ mod tests {
             parameter_sync_targets: vec![" 127.0.0.1:8500 ".to_string()],
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains(
                 "distributed config requires parameter_sync_targets entries without leading/trailing whitespace"
@@ -3333,7 +3333,7 @@ mod tests {
             parameter_sync_targets: vec!["http://".to_string()],
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config has invalid parameter_sync_targets entry `http://`"),
             "unexpected validation error: {err}"
@@ -3347,7 +3347,7 @@ mod tests {
             parameter_sync_targets: vec!["http://127.0.0.1:8500/v1?foo=bar".to_string()],
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("endpoint must not include a URL path or query"),
             "unexpected validation error: {err}"
@@ -3361,7 +3361,7 @@ mod tests {
             parameter_sync_targets: vec!["ftp://127.0.0.1:8500".to_string()],
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("endpoint scheme must be http or https"),
             "unexpected validation error: {err}"
@@ -3374,7 +3374,7 @@ mod tests {
             parameter_sync_targets: vec!["http://user@127.0.0.1:8500".to_string()],
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("endpoint must not include userinfo"),
             "unexpected validation error: {err}"
@@ -3402,7 +3402,7 @@ mod tests {
             ],
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires unique parameter_sync_targets entries"),
             "unexpected validation error: {err}"
@@ -3419,7 +3419,7 @@ mod tests {
             ],
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires unique parameter_sync_targets entries"),
             "unexpected validation error: {err}"
@@ -3436,7 +3436,7 @@ mod tests {
             ],
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires unique parameter_sync_targets entries"),
             "unexpected validation error: {err}"
@@ -3453,7 +3453,7 @@ mod tests {
             ],
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires unique parameter_sync_targets entries"),
             "unexpected validation error: {err}"
@@ -3470,7 +3470,7 @@ mod tests {
             ],
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires unique parameter_sync_targets entries"),
             "unexpected validation error: {err}"
@@ -3487,7 +3487,7 @@ mod tests {
             ],
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires unique parameter_sync_targets entries"),
             "unexpected validation error: {err}"
@@ -3502,7 +3502,7 @@ mod tests {
             parameter_sync_model_name: " ".to_string(),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains(
                 "distributed config requires non-empty parameter_sync_model_name when parameter_sync_targets are configured"
@@ -3519,7 +3519,7 @@ mod tests {
             parameter_sync_model_name: " model ".to_string(),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains(
                 "distributed config requires parameter_sync_model_name without leading/trailing whitespace when parameter_sync_targets are configured"
@@ -3536,7 +3536,7 @@ mod tests {
             parameter_sync_model_name: "my model".to_string(),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains(
                 "distributed config requires parameter_sync_model_name without whitespace characters when parameter_sync_targets are configured"
@@ -3553,7 +3553,7 @@ mod tests {
             parameter_sync_signature_name: "".to_string(),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains(
                 "distributed config requires non-empty parameter_sync_signature_name when parameter_sync_targets are configured"
@@ -3570,7 +3570,7 @@ mod tests {
             parameter_sync_signature_name: " signature ".to_string(),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains(
                 "distributed config requires parameter_sync_signature_name without leading/trailing whitespace when parameter_sync_targets are configured"
@@ -3587,7 +3587,7 @@ mod tests {
             parameter_sync_signature_name: "serving default".to_string(),
             ..DistributedRunConfig::default()
         };
-        let err = cfg.validate().unwrap_err().to_string();
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains(
                 "distributed config requires parameter_sync_signature_name without whitespace characters when parameter_sync_targets are configured"

@@ -5081,6 +5081,16 @@
   - Targeted run-config/worker-role lanes and default monolith-training
     regression remain green.
 
+### 378) Runner distributed-config validation contract tightening
+- Replaced all remaining `cfg.validate().unwrap_err().to_string()` assertions
+  in runner distributed-config validation tests with explicit
+  `cfg.validate().expect_err("...").to_string()` contracts.
+- Result:
+  - Distributed-config validation tests now explicitly fail with context if
+    invalid configs unexpectedly pass validation.
+  - Targeted distributed-config validation lane and default
+    monolith-training regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5956,6 +5966,7 @@
 872. `ZK_AUTH=user:pass cargo test -p monolith-training worker_discover_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training connect_failure_does_not_hang_when_disconnect_blocks -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner worker-discover/connect-failure timeout-wrapper contract tightening verification plus default-lane regression rerun)
 873. `ZK_AUTH=user:pass cargo test -p monolith-training test_worker_heartbeat_task_stops_after_worker_success -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_connect_failure_does_not_hang_when_disconnect_blocks -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner heartbeat/connect-failure assertion-straggler contract tightening verification plus default-lane regression rerun)
 874. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_from_run_config_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_rejects_invalid_runtime_config -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training run_worker_role_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner run-config/worker-role unwrap_err contract tightening verification plus default-lane regression rerun)
+875. `ZK_AUTH=user:pass cargo test -p monolith-training distributed_config_validate -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner distributed-config validation expect_err contract tightening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
