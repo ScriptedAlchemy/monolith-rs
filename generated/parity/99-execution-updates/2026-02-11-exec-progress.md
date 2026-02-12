@@ -5034,6 +5034,7 @@
 774. `ZK_AUTH=user:pass cargo test -p monolith-training test_spawn_watch_poll_loop_stops_when_continue_predicate_false -- --nocapture` ✅
 775. `ZK_AUTH=user:pass cargo test -p monolith-training test_spawn_watch_poll_loop_emits_updated_events -- --nocapture` ✅
 776. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post disconnect-aware discovery watch poll shutdown hardening full monolith-training regression rerun)
+777. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_spawn_watch_poll_loop_stops_when_continue_predicate_false -- --nocapture` ✅ (feature-gated discovery backend compile/runtime verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
