@@ -3534,7 +3534,7 @@ mod tests {
         let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
         let rx = zk.watch("ps").expect("watch should succeed");
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -3553,7 +3553,7 @@ mod tests {
             "expected ConfigError containing invalid-hosts register context, got {err:?}"
         );
         assert!(
-            !zk.watchers.lock().unwrap().contains_key("ps"),
+            !zk_has_watcher(&zk, "ps"),
             "config-error register should compact dead watcher sender entries"
         );
     }
@@ -3602,7 +3602,7 @@ mod tests {
         let zk = ZkDiscovery::new("127.0.0.1:2181", "services");
         let rx = zk.watch("ps").expect("watch should succeed");
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -3621,7 +3621,7 @@ mod tests {
             "expected ConfigError containing invalid-base_path register context, got {err:?}"
         );
         assert!(
-            !zk.watchers.lock().unwrap().contains_key("ps"),
+            !zk_has_watcher(&zk, "ps"),
             "config-error register should compact dead watcher sender entries"
         );
     }
@@ -3802,7 +3802,7 @@ mod tests {
             .await
             .expect("async deregister should succeed for local-only service without registered backend path");
         assert!(
-            !zk.watchers.lock().unwrap().contains_key("ps"),
+            !zk_has_watcher(&zk, "ps"),
             "local-only async deregister should compact dead watcher sender"
         );
     }
@@ -3828,7 +3828,7 @@ mod tests {
             "expected ConnectionFailed containing ZK connect context, got {err:?}"
         );
         assert!(
-            !zk.watchers.lock().unwrap().contains_key("ps"),
+            !zk_has_watcher(&zk, "ps"),
             "failed async deregister should compact dead watcher sender"
         );
     }
@@ -3883,7 +3883,7 @@ mod tests {
             "expected ServiceRemoved(ps-0), got {event:?}"
         );
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "live watcher sender should be preserved after successful notification"
         );
     }
@@ -3927,7 +3927,7 @@ mod tests {
         let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
         let _rx = zk.watch("ps").expect("watch should succeed");
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "watch sender should exist after subscribing"
         );
 
@@ -3938,7 +3938,7 @@ mod tests {
             "expected NotFound(missing), got {err:?}"
         );
         assert!(
-            zk.watchers.lock().unwrap().contains_key("ps"),
+            zk_has_watcher(&zk, "ps"),
             "missing-service async deregister should not mutate existing watch sender entries"
         );
     }
@@ -4283,27 +4283,18 @@ mod tests {
             .await
             .expect("watch_async should accept host:port by normalizing http scheme");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch_async should create watcher sender entry for normalized host:port address"
         );
         assert!(
-            consul
-                .watch_poll_generations
-                .lock()
-                .unwrap()
-                .contains_key("worker"),
+            consul_has_watch_poll_generation(&consul, "worker"),
             "watch_async should seed poll-generation bookkeeping for normalized host:port address"
         );
 
         drop(rx);
         tokio::time::timeout(std::time::Duration::from_secs(3), async {
             loop {
-                if !consul
-                    .watch_poll_generations
-                    .lock()
-                    .unwrap()
-                    .contains_key("worker")
-                {
+                if !consul_has_watch_poll_generation(&consul, "worker") {
                     break;
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -4312,7 +4303,7 @@ mod tests {
         .await
         .expect("poll-generation entry should clear after watcher receiver drops");
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "normalized host:port watch_async should compact dead watcher sender after receiver drops"
         );
     }
@@ -4333,15 +4324,11 @@ mod tests {
             "expected ConfigError containing watch_service address-path context, got {err:?}"
         );
         assert!(
-            !consul
-                .watch_poll_generations
-                .lock()
-                .unwrap()
-                .contains_key("worker"),
+            !consul_has_watch_poll_generation(&consul, "worker"),
             "invalid watch_service config should not seed poll-generation bookkeeping entries"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "invalid watch_service config should not create watcher sender entries"
         );
     }
@@ -4362,15 +4349,11 @@ mod tests {
             "expected ConfigError containing watch_service invalid-scheme context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "invalid-scheme watch_async should not create watcher sender entries"
         );
         assert!(
-            !consul
-                .watch_poll_generations
-                .lock()
-                .unwrap()
-                .contains_key("worker"),
+            !consul_has_watch_poll_generation(&consul, "worker"),
             "invalid-scheme watch_async should not seed poll-generation bookkeeping"
         );
     }
@@ -4391,15 +4374,11 @@ mod tests {
             "expected ConfigError containing watch_service userinfo-authority context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "userinfo-authority watch_async should not create watcher sender entries"
         );
         assert!(
-            !consul
-                .watch_poll_generations
-                .lock()
-                .unwrap()
-                .contains_key("worker"),
+            !consul_has_watch_poll_generation(&consul, "worker"),
             "userinfo-authority watch_async should not seed poll-generation bookkeeping"
         );
     }
@@ -4420,15 +4399,11 @@ mod tests {
             "expected ConfigError containing watch_service query-suffix context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "query-suffix watch_async should not create watcher sender entries"
         );
         assert!(
-            !consul
-                .watch_poll_generations
-                .lock()
-                .unwrap()
-                .contains_key("worker"),
+            !consul_has_watch_poll_generation(&consul, "worker"),
             "query-suffix watch_async should not seed poll-generation bookkeeping"
         );
     }
@@ -4449,15 +4424,11 @@ mod tests {
             "expected ConfigError containing watch_service fragment-suffix context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "fragment-suffix watch_async should not create watcher sender entries"
         );
         assert!(
-            !consul
-                .watch_poll_generations
-                .lock()
-                .unwrap()
-                .contains_key("worker"),
+            !consul_has_watch_poll_generation(&consul, "worker"),
             "fragment-suffix watch_async should not seed poll-generation bookkeeping"
         );
     }
@@ -4478,15 +4449,11 @@ mod tests {
             "expected ConfigError containing watch_service whitespace context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "whitespace-padded watch_async should not create watcher sender entries"
         );
         assert!(
-            !consul
-                .watch_poll_generations
-                .lock()
-                .unwrap()
-                .contains_key("worker"),
+            !consul_has_watch_poll_generation(&consul, "worker"),
             "whitespace-padded watch_async should not seed poll-generation bookkeeping"
         );
     }
@@ -4507,15 +4474,11 @@ mod tests {
             "expected ConfigError containing watch_service whitespace-authority context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "whitespace-authority watch_async should not create watcher sender entries"
         );
         assert!(
-            !consul
-                .watch_poll_generations
-                .lock()
-                .unwrap()
-                .contains_key("worker"),
+            !consul_has_watch_poll_generation(&consul, "worker"),
             "whitespace-authority watch_async should not seed poll-generation bookkeeping"
         );
     }
@@ -4536,15 +4499,11 @@ mod tests {
             "expected ConfigError containing watch_service empty-host context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "empty-host watch_async should not create watcher sender entries"
         );
         assert!(
-            !consul
-                .watch_poll_generations
-                .lock()
-                .unwrap()
-                .contains_key("worker"),
+            !consul_has_watch_poll_generation(&consul, "worker"),
             "empty-host watch_async should not seed poll-generation bookkeeping"
         );
     }
@@ -4555,7 +4514,7 @@ mod tests {
         let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
         let rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -4571,7 +4530,7 @@ mod tests {
             "expected ConfigError containing watch_service address-path context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "config-error watch_async should compact dead watcher sender entries"
         );
     }
@@ -4582,7 +4541,7 @@ mod tests {
         let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
         let _rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
 
@@ -4597,7 +4556,7 @@ mod tests {
             "expected ConfigError containing watch_service address-path context, got {err:?}"
         );
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "config-error watch_async should preserve live watcher sender entries"
         );
     }
@@ -4608,7 +4567,7 @@ mod tests {
         let consul = ConsulDiscovery::new("http://localhost:8500");
         let rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
 
@@ -4623,7 +4582,7 @@ mod tests {
             ))
             .expect("register should succeed");
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "dead watch sender should be removed after notification"
         );
     }
@@ -4644,7 +4603,7 @@ mod tests {
 
         let rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -4653,7 +4612,7 @@ mod tests {
             .deregister("worker-0")
             .expect("deregister should succeed and trigger cleanup");
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "dead watch sender should be removed after deregister notification"
         );
     }
@@ -4664,7 +4623,7 @@ mod tests {
         let consul = ConsulDiscovery::new("http://localhost:8500");
         let _rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
 
@@ -4675,7 +4634,7 @@ mod tests {
             "expected NotFound(missing), got {err:?}"
         );
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "sync missing-service deregister should not mutate active watch sender entries"
         );
     }
@@ -4729,7 +4688,7 @@ mod tests {
 
         let rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -4742,7 +4701,7 @@ mod tests {
             "expected Internal containing deregister_entity context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "dead watch sender should be removed after async deregister notification"
         );
     }
@@ -4796,7 +4755,7 @@ mod tests {
         let consul = ConsulDiscovery::new("http://localhost:8500");
         let _rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
 
@@ -4808,7 +4767,7 @@ mod tests {
             "expected NotFound(missing), got {err:?}"
         );
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "missing-service async deregister should not mutate existing watch sender entries"
         );
     }
@@ -4853,7 +4812,7 @@ mod tests {
             "expected ServiceRemoved(worker-0), got {event:?}"
         );
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "live watcher sender should be preserved after successful notification"
         );
     }
@@ -4884,7 +4843,7 @@ mod tests {
             "expected ConfigError containing invalid-address deregister context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "dropped watcher sender should be compacted on async deregister notification"
         );
     }
@@ -4895,7 +4854,7 @@ mod tests {
         let consul = ConsulDiscovery::new("http://localhost:8500");
         let rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -4911,7 +4870,7 @@ mod tests {
             "expected Internal containing register_entity context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "failed async register should compact dead watcher sender"
         );
     }
@@ -4922,7 +4881,7 @@ mod tests {
         let consul = ConsulDiscovery::new("http://localhost:8500");
         let _rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
 
@@ -4937,7 +4896,7 @@ mod tests {
             "expected Internal containing register_entity context, got {err:?}"
         );
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "live watcher sender should be preserved on async register failure"
         );
     }
@@ -5049,7 +5008,7 @@ mod tests {
         let consul = ConsulDiscovery::new("http://[::1");
         let rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -5066,7 +5025,7 @@ mod tests {
             "expected ConfigError containing invalid-address register context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "config-error register failure should compact dead watcher sender"
         );
     }
@@ -5077,7 +5036,7 @@ mod tests {
         let consul = ConsulDiscovery::new("http://[::1");
         let _rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
 
@@ -5093,7 +5052,7 @@ mod tests {
             "expected ConfigError containing invalid-address register context, got {err:?}"
         );
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "live watcher sender should be preserved on config-error register failure"
         );
     }
@@ -5369,7 +5328,7 @@ mod tests {
         let consul = ConsulDiscovery::new("http://[::1]x:8500");
         let rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -5388,7 +5347,7 @@ mod tests {
             "expected ConfigError containing invalid-IPv6-suffix register context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "dead watch sender should be compacted on invalid-IPv6-suffix register validation failure"
         );
     }
@@ -5399,7 +5358,7 @@ mod tests {
         let consul = ConsulDiscovery::new("http://127.0.0.1:8500#consul");
         let rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -5418,7 +5377,7 @@ mod tests {
             "expected ConfigError containing address-fragment register context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "dead watch sender should be compacted on address-fragment register validation failure"
         );
     }
@@ -5599,7 +5558,7 @@ mod tests {
         let consul = ConsulDiscovery::new("http://:8500");
         let rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -5618,7 +5577,7 @@ mod tests {
             "expected ConfigError containing empty-host register context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "dead watch sender should be compacted on empty-host register validation failure"
         );
     }
@@ -5629,7 +5588,7 @@ mod tests {
         let consul = ConsulDiscovery::new("http://user@127.0.0.1:8500");
         let rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -5648,7 +5607,7 @@ mod tests {
             "expected ConfigError containing userinfo-authority register context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "dead watch sender should be compacted on userinfo-authority register validation failure"
         );
     }
@@ -5659,7 +5618,7 @@ mod tests {
         let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
         let rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -5678,7 +5637,7 @@ mod tests {
             "expected ConfigError containing whitespace-authority register context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "dead watch sender should be compacted on whitespace-authority register validation failure"
         );
     }
@@ -5689,7 +5648,7 @@ mod tests {
         let consul = ConsulDiscovery::new(" http://127.0.0.1:8500 ");
         let rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -5708,7 +5667,7 @@ mod tests {
             "expected ConfigError containing leading/trailing-whitespace register context, got {err:?}"
         );
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "dead watch sender should be compacted on leading/trailing-whitespace register validation failure"
         );
     }
