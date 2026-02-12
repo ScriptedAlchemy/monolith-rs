@@ -4534,6 +4534,21 @@
     mirroring async missing-service watcher-preservation guarantees.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 334) Consul async-deregister error surfacing parity tightening
+- Hardened `ConsulDiscovery::deregister_async(...)` to surface backend
+  deregister failures as `DiscoveryError::Internal(...)` while retaining local
+  cache cleanup + watcher notification side effects.
+- Updated/added feature-gated regressions:
+  - `test_consul_async_watch_receives_removed_event_on_deregister`
+  - `test_consul_async_deregister_removes_dead_watchers`
+  - `test_consul_async_deregister_failure_returns_error_and_cleans_cache`
+  - `test_consul_async_deregister_config_error_still_notifies_and_returns_error`
+  - `test_consul_async_deregister_config_error_compacts_dead_watchers`
+- Result:
+  - Consul async deregister now aligns with ZooKeeper-style diagnostic
+    surfacing while preserving deterministic local cleanup semantics.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5359,6 +5374,8 @@
 822. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" stale_registered_path -- --nocapture` ✅ (feature-gated ZK stale registered-path cleanup on async-deregister NotFound verification)
 823. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post sync missing-service deregister watcher-preservation coverage additions default-lane regression rerun)
 824. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" sync_deregister_missing_service_preserves_watchers -- --nocapture` ✅ (feature-gated ZK/Consul sync missing-service deregister watcher-preservation verification)
+825. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post Consul async-deregister error-surfacing parity tightening default-lane regression rerun)
+826. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture` ✅ (feature-gated Consul async-deregister error surfacing + config-error watcher-consistency verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

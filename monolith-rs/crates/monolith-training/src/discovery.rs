@@ -1373,7 +1373,9 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
             Namespace: None,
         };
 
-        let _ = client.deregister_entity(&payload).await;
+        client.deregister_entity(&payload).await.map_err(|e| {
+            DiscoveryError::Internal(format!("Consul deregister_entity failed: {e:?}"))
+        })?;
         Ok(())
     }
 }
@@ -2345,6 +2347,59 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_async_deregister_failure_cleans_registered_path() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        assert!(
+            result.is_err(),
+            "async deregister should still surface remote ZooKeeper failure"
+        );
+        assert!(
+            !zk.registered_paths.lock().await.contains_key("ps-0"),
+            "registered path entry should be removed even when backend delete fails"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_failure_keeps_live_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+
+        let mut rx = zk.watch("ps").expect("watch should succeed");
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        assert!(
+            result.is_err(),
+            "async deregister should still surface remote ZooKeeper failure"
+        );
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        match event {
+            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "ps-0"),
+            other => panic!("expected ServiceRemoved, got {other:?}"),
+        }
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "live watcher sender should be preserved after successful notification"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_async_deregister_missing_service_returns_not_found() {
         let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
         let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "missing").await;
@@ -2659,9 +2714,12 @@ mod tests {
             .expect("register should succeed");
 
         let mut rx = consul.watch("worker").expect("watch should succeed");
-        <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
-            .await
-            .expect("async deregister should succeed");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
+            .await;
+        assert!(
+            result.is_err(),
+            "async deregister should surface backend deregister failures"
+        );
 
         let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
             .await
@@ -2694,9 +2752,12 @@ mod tests {
         );
         drop(rx);
 
-        <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
-            .await
-            .expect("async deregister should succeed");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
+            .await;
+        assert!(
+            result.is_err(),
+            "async deregister should surface backend deregister failures"
+        );
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "dead watch sender should be removed after async deregister notification"
@@ -2705,7 +2766,7 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
-    async fn test_consul_async_deregister_failure_returns_ok_and_cleans_cache() {
+    async fn test_consul_async_deregister_failure_returns_error_and_cleans_cache() {
         let consul = ConsulDiscovery::new("http://localhost:8500");
         consul
             .register(ServiceInfo::new(
@@ -2720,8 +2781,8 @@ mod tests {
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
         assert!(
-            result.is_ok(),
-            "consul async deregister is best-effort and should return Ok even if backend call fails"
+            result.is_err(),
+            "consul async deregister should surface backend deregister failures"
         );
         assert!(
             consul
@@ -2768,7 +2829,7 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
-    async fn test_consul_async_deregister_config_error_still_notifies_and_returns_ok() {
+    async fn test_consul_async_deregister_config_error_still_notifies_and_returns_error() {
         let consul = ConsulDiscovery::new("http://[::1");
         consul
             .register(ServiceInfo::new(
@@ -2784,8 +2845,8 @@ mod tests {
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
         assert!(
-            result.is_ok(),
-            "consul async deregister remains best-effort for backend deregister errors"
+            result.is_err(),
+            "consul async deregister should surface backend deregister failures"
         );
         assert!(
             consul
@@ -2803,6 +2864,10 @@ mod tests {
             DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "worker-0"),
             other => panic!("expected ServiceRemoved, got {other:?}"),
         }
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "live watcher sender should be preserved after successful notification"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -2825,8 +2890,8 @@ mod tests {
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
             .await;
         assert!(
-            result.is_ok(),
-            "consul async deregister remains best-effort for backend deregister errors"
+            result.is_err(),
+            "consul async deregister should surface backend deregister failures"
         );
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
