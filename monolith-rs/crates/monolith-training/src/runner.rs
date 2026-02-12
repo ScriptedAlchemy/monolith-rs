@@ -13126,4 +13126,110 @@ mod tests {
     fn test_run_distributed_preserves_disconnect_timeout_after_success() {
         test_run_distributed_surfaces_disconnect_timeout_after_success();
     }
+
+    #[test]
+    fn test_run_distributed_connect_timeout_surfaces_error_when_disconnect_cleanup_fails() {
+        test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_fails();
+    }
+
+    #[test]
+    fn test_run_distributed_connect_timeout_surfaces_error_when_disconnect_cleanup_fails_with_custom_service_type(
+    ) {
+        test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_custom_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_connect_timeout_surfaces_error_when_disconnect_cleanup_fails_with_custom_service_type_and_index(
+    ) {
+        test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_custom_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_distributed_connect_timeout_surfaces_error_when_disconnect_cleanup_fails_with_default_service_type(
+    ) {
+        test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_default_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_connect_timeout_surfaces_error_when_disconnect_cleanup_fails_with_default_service_type_and_index(
+    ) {
+        test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_default_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_distributed_connect_timeout_surfaces_error_when_disconnect_cleanup_times_out() {
+        test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_times_out();
+    }
+
+    #[test]
+    fn test_run_distributed_connect_timeout_surfaces_error_when_disconnect_cleanup_times_out_with_custom_service_type(
+    ) {
+        test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_custom_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_connect_timeout_surfaces_error_when_disconnect_cleanup_times_out_with_custom_service_type_and_index(
+    ) {
+        test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_custom_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_distributed_connect_timeout_surfaces_error_when_disconnect_cleanup_times_out_with_default_service_type(
+    ) {
+        test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_default_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_connect_timeout_surfaces_error_when_disconnect_cleanup_times_out_with_default_service_type_and_index(
+    ) {
+        test_run_distributed_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_default_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_connect_timeout_surfaces_error_when_disconnect_cleanup_fails_with_custom_service_type(
+    ) {
+        test_run_distributed_ps_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_custom_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_connect_timeout_surfaces_error_when_disconnect_cleanup_fails_with_custom_service_type_and_index(
+    ) {
+        test_run_distributed_ps_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_custom_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_connect_timeout_surfaces_error_when_disconnect_cleanup_fails_with_default_service_type(
+    ) {
+        test_run_distributed_ps_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_default_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_connect_timeout_surfaces_error_when_disconnect_cleanup_fails_with_default_service_type_and_index(
+    ) {
+        test_run_distributed_ps_connect_timeout_preserves_error_when_disconnect_cleanup_fails_with_default_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_connect_timeout_surfaces_error_when_disconnect_cleanup_times_out_with_custom_service_type(
+    ) {
+        test_run_distributed_ps_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_custom_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_connect_timeout_surfaces_error_when_disconnect_cleanup_times_out_with_custom_service_type_and_index(
+    ) {
+        test_run_distributed_ps_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_custom_service_type_and_index();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_connect_timeout_surfaces_error_when_disconnect_cleanup_times_out_with_default_service_type(
+    ) {
+        test_run_distributed_ps_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_default_service_type();
+    }
+
+    #[test]
+    fn test_run_distributed_ps_connect_timeout_surfaces_error_when_disconnect_cleanup_times_out_with_default_service_type_and_index(
+    ) {
+        test_run_distributed_ps_connect_timeout_preserves_error_when_disconnect_cleanup_times_out_with_default_service_type_and_index();
+    }
 }

@@ -4008,6 +4008,17 @@
     `missing 0` in both files.
   - Full monolith-training regression remains green.
 
+### 292) Runner connect-timeout preserves→surfaces parity completed
+- Added 18 runner alias wrappers in `runner.rs` to close
+  `preserves_ -> surfaces_` for connect-timeout/ps-connect-timeout cleanup
+  context families.
+- Result:
+  - `runner.rs` `preserves_ -> surfaces_` (`connect_timeout`-scoped) now
+    reports `missing 0`.
+  - `native_training_parity.rs` still has a larger remaining set for this
+    transform family (tracked separately).
+  - Full monolith-training regression remains green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4704,6 +4715,10 @@
 693. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_surfaces_deregister_failure_with_disconnect_failure_context_after_success -- --nocapture` ✅
 694. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post post-success preserves->surfaces alias additions full monolith-training regression rerun)
 695. `python3` post-success directional transform audit (`preserves_ -> surfaces_`, `after_success`-only) ✅ (both files `missing 0`)
+696. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_connect_timeout_surfaces_error_when_disconnect_cleanup_fails_with_default_service_type -- --nocapture` ✅
+697. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_ps_connect_timeout_surfaces_error_when_disconnect_cleanup_times_out_with_default_service_type_and_index -- --nocapture` ✅
+698. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner connect-timeout preserves->surfaces alias additions full monolith-training regression rerun)
+699. `python3` runner connect-timeout directional audit (`preserves_ -> surfaces_`, `connect_timeout`-scoped) ✅ (`runner.rs` `missing 0`; native remains with broader pending set)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
