@@ -6975,6 +6975,14 @@
   - removed all `.unwrap()` call-sites from native-training graph-meta module
     (**0 remaining**) while preserving graph-metadata behavior.
 
+### 516) Native-training hvd-lib unwrap diagnostics completion
+- Tightened remaining unwrap assertions in
+  `crates/monolith-training/src/native_training/hvd_lib.rs` tests by replacing
+  ENV mutex lock unwraps with explicit `expect(...)` diagnostics.
+- Result:
+  - removed all `.unwrap()` call-sites from native-training hvd-lib module
+    (**0 remaining**) while preserving Horovod/BytePS env parsing behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8062,6 +8070,8 @@
 1084. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/env_utils.rs` ✅ (verified no remaining unwrap call-sites in native-training env-utils module)
 1085. `cargo test -p monolith-training graph_meta::tests:: -- --nocapture` ✅ (validated graph-meta unit test after mutex lock diagnostics tightening)
 1086. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/graph_meta.rs` ✅ (verified no remaining unwrap call-sites in native-training graph-meta module)
+1087. `cargo test -p monolith-training hvd_lib::tests:: -- --nocapture` ✅ (validated native-training hvd-lib unit-test suite after unwrap-diagnostics tightening)
+1088. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/hvd_lib.rs` ✅ (verified no remaining unwrap call-sites in native-training hvd-lib module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

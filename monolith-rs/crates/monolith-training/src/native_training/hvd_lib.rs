@@ -142,7 +142,9 @@ mod tests {
 
     #[test]
     fn test_backend_default_horovod() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+        let _lock = ENV_MUTEX
+            .lock()
+            .expect("hvd env mutex should not be poisoned");
         let _guard = EnvGuard::capture();
         clear_test_env();
         assert_eq!(backend(), Backend::Horovod);
@@ -150,7 +152,9 @@ mod tests {
 
     #[test]
     fn test_backend_byteps() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+        let _lock = ENV_MUTEX
+            .lock()
+            .expect("hvd env mutex should not be poisoned");
         let _guard = EnvGuard::capture();
         clear_test_env();
         std::env::set_var("MONOLITH_WITH_BYTEPS", "1");
@@ -159,7 +163,9 @@ mod tests {
 
     #[test]
     fn test_rank_size_horovod_env() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+        let _lock = ENV_MUTEX
+            .lock()
+            .expect("hvd env mutex should not be poisoned");
         let _guard = EnvGuard::capture();
         clear_test_env();
         std::env::set_var("HOROVOD_RANK", "2");
@@ -176,7 +182,9 @@ mod tests {
 
     #[test]
     fn test_rank_size_byteps_env() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+        let _lock = ENV_MUTEX
+            .lock()
+            .expect("hvd env mutex should not be poisoned");
         let _guard = EnvGuard::capture();
         clear_test_env();
         std::env::set_var("MONOLITH_WITH_BYTEPS", "true");
@@ -194,7 +202,9 @@ mod tests {
 
     #[test]
     fn test_rank_size_defaults_on_invalid_values() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+        let _lock = ENV_MUTEX
+            .lock()
+            .expect("hvd env mutex should not be poisoned");
         let _guard = EnvGuard::capture();
         clear_test_env();
         std::env::set_var("HOROVOD_RANK", "invalid");
