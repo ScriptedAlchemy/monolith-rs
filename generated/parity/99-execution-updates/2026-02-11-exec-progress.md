@@ -6896,6 +6896,15 @@
   - removed all `.unwrap()` call-sites from barrier module (**0 remaining**)
     while preserving barrier behavior/error mapping assertions.
 
+### 508) Entry initializer test unwrap diagnostics completion
+- Tightened the remaining initializer test unwrap in
+  `crates/monolith-training/src/entry.rs`:
+  - replaced `BatchSoftmaxInitializer::new(...).unwrap()` with explicit
+    `expect(...)` diagnostics in `test_initializers_as_proto`.
+- Result:
+  - removed all `.unwrap()` call-sites from `entry.rs` (**0 remaining**),
+    preserving initializer proto coverage behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7967,6 +7976,8 @@
 1068. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/base_embedding_task.rs` ✅ (verified no remaining unwrap call-sites in base embedding task module)
 1069. `cargo test -p monolith-training barrier::tests:: -- --nocapture` ✅ (validated barrier unit-test suite after unwrap-diagnostics tightening)
 1070. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/barrier.rs` ✅ (verified no remaining unwrap call-sites in barrier module)
+1071. `cargo test -p monolith-training entry::tests::test_initializers_as_proto -- --nocapture` ✅ (validated entry initializer proto test after unwrap-diagnostics tightening)
+1072. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/entry.rs` ✅ (verified no remaining unwrap call-sites in entry module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
