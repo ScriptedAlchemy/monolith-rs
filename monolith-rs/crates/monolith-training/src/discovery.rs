@@ -903,7 +903,12 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
             let _ = client.delete(&path, None).await;
         }
 
-        self.services.write().unwrap().remove(service_id);
+        if let Some(service) = self.services.write().unwrap().remove(service_id) {
+            self.notify_watchers(
+                &service.service_type,
+                DiscoveryEvent::ServiceRemoved(service_id.to_string()),
+            );
+        }
         Ok(())
     }
 }
@@ -1265,7 +1270,12 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
         };
 
         let _ = client.deregister_entity(&payload).await;
-        self.services.write().unwrap().remove(service_id);
+        if let Some(service) = self.services.write().unwrap().remove(service_id) {
+            self.notify_watchers(
+                &service.service_type,
+                DiscoveryEvent::ServiceRemoved(service_id.to_string()),
+            );
+        }
         Ok(())
     }
 }
@@ -2064,6 +2074,65 @@ mod tests {
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "dead watch sender should be removed after deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_watch_receives_removed_event_on_deregister() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("register should succeed");
+
+        let mut rx = consul.watch("worker").expect("watch should succeed");
+        <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
+            .await
+            .expect("async deregister should succeed");
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        match event {
+            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "worker-0"),
+            other => panic!("expected ServiceRemoved, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_removes_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("register should succeed");
+
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
+            .await
+            .expect("async deregister should succeed");
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "dead watch sender should be removed after async deregister notification"
         );
     }
 }

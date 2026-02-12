@@ -4341,6 +4341,20 @@
     discovery backends.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 318) Async deregister watcher notifications for optional backends
+- Hardened async deregister lifecycle watcher semantics:
+  - `ZkDiscovery::deregister_async(...)` now emits `ServiceRemoved` when local
+    cache entry exists.
+  - `ConsulDiscovery::deregister_async(...)` now emits `ServiceRemoved` when
+    local cache entry exists.
+- Added feature-gated Consul async regressions:
+  - `test_consul_async_watch_receives_removed_event_on_deregister`
+  - `test_consul_async_deregister_removes_dead_watchers`
+- Result:
+  - Async and sync deregister paths now align on watcher removal-event
+    semantics and dead-sender compaction behavior.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5132,6 +5146,8 @@
 788. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" sync_ -- --nocapture` ✅ (feature-gated sync watcher event + dead-sender compaction verification)
 789. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post sync-deregister dead-sender cleanup tests addition default-lane regression rerun)
 790. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" sync_deregister_removes_dead_watchers -- --nocapture` ✅ (feature-gated ZK/Consul sync-deregister dead-sender cleanup verification)
+791. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post async-deregister watcher notification hardening default-lane regression rerun)
+792. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async -- --nocapture` ✅ (feature-gated Consul async deregister watcher-event and dead-sender cleanup verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
