@@ -650,11 +650,11 @@ impl ZkDiscovery {
     }
 
     /// Returns true only when a new poll loop should be spawned for the service type.
-    fn should_spawn_watch_poll(&self, service_type: &str) -> bool {
+    fn should_spawn_watch_poll(&self, service_type: &str, receiver_count: usize) -> bool {
         let generation = self.watch_generation.load(Ordering::SeqCst);
         let mut active = self.watch_poll_generations.lock().unwrap();
         match active.get(service_type).copied() {
-            Some(g) if g == generation => false,
+            Some(g) if g == generation && receiver_count > 1 => false,
             _ => {
                 active.insert(service_type.to_string(), generation);
                 true
@@ -853,8 +853,9 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
         // relying on ZK persistent watch semantics (which can be lossy during reconnect).
         let sender = self.get_or_create_sender(service_type);
         let rx = sender.subscribe();
+        let receiver_count = sender.receiver_count();
 
-        if self.should_spawn_watch_poll(service_type) {
+        if self.should_spawn_watch_poll(service_type, receiver_count) {
             let svc_type = service_type.to_string();
             let this = Arc::new(self.clone_for_watch());
             let sender_for_poll = sender.clone();
@@ -1001,11 +1002,11 @@ impl ConsulDiscovery {
     }
 
     /// Returns true only when a new poll loop should be spawned for the service type.
-    fn should_spawn_watch_poll(&self, service_type: &str) -> bool {
+    fn should_spawn_watch_poll(&self, service_type: &str, receiver_count: usize) -> bool {
         let generation = self.watch_generation.load(Ordering::SeqCst);
         let mut active = self.watch_poll_generations.lock().unwrap();
         match active.get(service_type).copied() {
-            Some(g) if g == generation => false,
+            Some(g) if g == generation && receiver_count > 1 => false,
             _ => {
                 active.insert(service_type.to_string(), generation);
                 true
@@ -1197,8 +1198,9 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
         // Poll-based watcher to avoid depending on Consul long-poll semantics here.
         let sender = self.get_or_create_sender(service_type);
         let rx = sender.subscribe();
+        let receiver_count = sender.receiver_count();
 
-        if self.should_spawn_watch_poll(service_type) {
+        if self.should_spawn_watch_poll(service_type, receiver_count) {
             let svc_type = service_type.to_string();
             let this = Arc::new(self.clone_for_watch());
             let sender_for_poll = sender.clone();
@@ -1809,21 +1811,25 @@ mod tests {
         let zk = ZkDiscovery::new("localhost:2181", "/services");
 
         assert!(
-            zk.should_spawn_watch_poll("ps"),
+            zk.should_spawn_watch_poll("ps", 1),
             "first watch on service type should spawn poller"
         );
         assert!(
-            !zk.should_spawn_watch_poll("ps"),
+            !zk.should_spawn_watch_poll("ps", 2),
             "second watch on same service type and generation should not respawn poller"
         );
         assert!(
-            zk.should_spawn_watch_poll("worker"),
+            zk.should_spawn_watch_poll("ps", 1),
+            "single-receiver state should allow poller respawn after stale shutdown"
+        );
+        assert!(
+            zk.should_spawn_watch_poll("worker", 1),
             "different service type should spawn its own poller"
         );
 
         zk.disconnect().await.expect("disconnect should succeed");
         assert!(
-            zk.should_spawn_watch_poll("ps"),
+            zk.should_spawn_watch_poll("ps", 1),
             "after disconnect generation bump should allow respawn"
         );
     }
@@ -1861,15 +1867,19 @@ mod tests {
         let consul = ConsulDiscovery::new("http://localhost:8500");
 
         assert!(
-            consul.should_spawn_watch_poll("ps"),
+            consul.should_spawn_watch_poll("ps", 1),
             "first watch on service type should spawn poller"
         );
         assert!(
-            !consul.should_spawn_watch_poll("ps"),
+            !consul.should_spawn_watch_poll("ps", 2),
             "second watch on same service type and generation should not respawn poller"
         );
         assert!(
-            consul.should_spawn_watch_poll("worker"),
+            consul.should_spawn_watch_poll("ps", 1),
+            "single-receiver state should allow poller respawn after stale shutdown"
+        );
+        assert!(
+            consul.should_spawn_watch_poll("worker", 1),
             "different service type should spawn its own poller"
         );
 
@@ -1877,7 +1887,7 @@ mod tests {
             .await
             .expect("disconnect should succeed");
         assert!(
-            consul.should_spawn_watch_poll("ps"),
+            consul.should_spawn_watch_poll("ps", 1),
             "after disconnect generation bump should allow respawn"
         );
     }

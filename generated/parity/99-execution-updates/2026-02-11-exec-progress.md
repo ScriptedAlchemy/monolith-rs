@@ -4283,6 +4283,22 @@
   - Pollers can still respawn cleanly after disconnect lifecycle transitions.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 314) Stale-poller recovery for single-receiver watch resubscription
+- Refined poll-spawn gating to avoid stale lockout:
+  - `should_spawn_watch_poll(service_type, receiver_count)` now permits respawn
+    when receiver count is `1`, which corresponds to a fresh subscriber after
+    prior poll-loop shutdown at zero receivers.
+  - Keeps dedupe protection for active multi-subscriber cases
+    (`receiver_count > 1`).
+- Expanded feature-gated tests to validate:
+  - no duplicate pollers when an existing loop is active,
+  - respawn is allowed after stale shutdown,
+  - disconnect generation transitions still re-enable spawn.
+- Result:
+  - Watch subscriptions recover correctly after idle periods without requiring a
+    backend disconnect cycle.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5065,6 +5081,9 @@
 779. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" disconnect_increments_watch_generation -- --nocapture` ✅ (feature-gated ZK/Consul disconnect-generation regression verification)
 780. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post watch-poll spawn deduplication additions default-lane regression rerun)
 781. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" should_spawn_watch_poll_once_per_generation -- --nocapture` ✅ (feature-gated ZK/Consul watch-poll deduplication regression verification)
+782. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post stale-poller respawn gating refinements default-lane regression rerun)
+783. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" should_spawn_watch_poll_once_per_generation -- --nocapture` ✅ (feature-gated stale-poller respawn + dedupe semantics verification)
+784. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" disconnect_increments_watch_generation -- --nocapture` ✅ (feature-gated disconnect-generation semantics re-verification after spawn-gating changes)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
