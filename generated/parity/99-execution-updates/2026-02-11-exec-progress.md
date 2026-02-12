@@ -5160,6 +5160,19 @@
   - Targeted native service-discovery lanes and default monolith-training
     regression remain green.
 
+### 385) Native parity smoke success-contract tightening
+- Replaced remaining `assert!(worker_res.is_ok())` wrappers in
+  `tests/native_training_parity.rs` distributed smoke lanes with explicit
+  `.expect("...")` success contracts:
+  - `distributed_runner_smoke`
+  - `distributed_runner_from_runner_config_smoke`
+  - `distributed_runner_from_run_config_smoke`
+- Result:
+  - Native parity smoke tests now emit explicit success-contract diagnostics
+    when distributed worker runtime unexpectedly fails.
+  - Targeted native parity smoke lanes and default monolith-training
+    regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6042,6 +6055,7 @@
 879. `ZK_AUTH=user:pass cargo test -p monolith-training test_get_discovery_consul_requires_psm -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_get_discovery_zk -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_prepare_restore_checkpoint_non_chief_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_monolith_discovery_guard_local_register_errors -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_monolith_discovery_guard_mlp_close_is_idempotent -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_get_checkpoint_state_with_restore_override_read_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_create_vocab_dict_invalid_line_errors -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner-utils/base-embedding unwrap_err contract tightening verification plus default-lane regression rerun)
 880. `ZK_AUTH=user:pass cargo test -p monolith-training test_mlp_register_rejects_unexpected_host -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_mlp_query_requires_non_empty_name -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_ps_client_lookup_errors_without_clients -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_ps_client_lookup_rejects_zero_dim -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_ps_client_apply_rejects_gradient_size_mismatch -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_ps_client_barrier_rejects_invalid_worker_range -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_ps_client_barrier_rejects_non_positive_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_ps_client_barrier_on_shard_rejects_invalid_index -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_ps_client_barrier_maps_timeout_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_ps_client_barrier_maps_mismatch_to_invalid_config -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted py-discovery/distributed-ps unwrap_err contract tightening verification plus default-lane regression rerun)
 881. `ZK_AUTH=user:pass cargo test -p monolith-training consul_retry_propagates_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training consul_registration_failed_blacklisted_message -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training consul_query_all_rejects_malformed_entries -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training consul_register_times_out_when_old_registration_never_clears -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training consul_close_is_idempotent_and_blocks_operations -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training consul_close_state_is_shared_across_clones -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training zk_operations_fail_after_close -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native service-discovery unwrap_err contract tightening verification plus default-lane regression rerun)
+882. `ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_runner_config_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_run_config_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity smoke success-contract tightening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

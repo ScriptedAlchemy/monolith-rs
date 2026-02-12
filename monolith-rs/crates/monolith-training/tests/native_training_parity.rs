@@ -115,8 +115,9 @@ async fn distributed_runner_in_memory_ps_and_worker() {
     let ps_task = tokio::spawn(run_distributed(Arc::clone(&discovery), ps_cfg));
     // Give PS time to bind and re-register actual port.
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    let worker_res = run_distributed(Arc::clone(&discovery), worker_cfg).await;
-    assert!(worker_res.is_ok(), "worker failed: {worker_res:?}");
+    run_distributed(Arc::clone(&discovery), worker_cfg)
+        .await
+        .expect("worker should succeed in distributed_runner_smoke");
 
     // PS runs forever; abort for test shutdown.
     ps_task.abort();
@@ -156,14 +157,14 @@ async fn distributed_runner_from_runner_config_smoke() {
     });
 
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    let worker_res = run_distributed_from_runner_config(
+    run_distributed_from_runner_config(
         Arc::clone(&discovery),
         &worker_rc,
         Role::Worker,
         "127.0.0.1:0".parse().unwrap(),
     )
-    .await;
-    assert!(worker_res.is_ok(), "worker failed: {worker_res:?}");
+    .await
+    .expect("worker should succeed in distributed_runner_from_runner_config_smoke");
     ps_task.abort();
 }
 
@@ -195,15 +196,15 @@ async fn distributed_runner_from_run_config_smoke() {
     });
 
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    let worker_res = run_distributed_from_run_config(
+    run_distributed_from_run_config(
         Arc::clone(&discovery),
         &run,
         None,
         Role::Worker,
         "127.0.0.1:0".parse().unwrap(),
     )
-    .await;
-    assert!(worker_res.is_ok(), "worker failed: {worker_res:?}");
+    .await
+    .expect("worker should succeed in distributed_runner_from_run_config_smoke");
     ps_task.abort();
 }
 
