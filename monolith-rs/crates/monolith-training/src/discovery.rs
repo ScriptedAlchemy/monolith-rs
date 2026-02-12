@@ -2996,10 +2996,10 @@ mod tests {
             ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
         )
         .await;
-        assert!(
-            result.is_err(),
-            "register_async should fail when consul endpoint is malformed/unusable"
-        );
+        match result {
+            Err(DiscoveryError::ConfigError(_)) => {}
+            other => panic!("expected ConfigError, got {other:?}"),
+        }
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "config-error register failure should compact dead watcher sender"
@@ -3021,10 +3021,10 @@ mod tests {
             ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
         )
         .await;
-        assert!(
-            result.is_err(),
-            "register_async should fail when consul endpoint is malformed/unusable"
-        );
+        match result {
+            Err(DiscoveryError::ConfigError(_)) => {}
+            other => panic!("expected ConfigError, got {other:?}"),
+        }
         assert!(
             consul.watchers.lock().unwrap().contains_key("worker"),
             "live watcher sender should be preserved on config-error register failure"
