@@ -5284,6 +5284,19 @@
   - Targeted register-failure/service-type propagation lanes and default
     monolith-training regression remain green.
 
+### 395) Native parity register-failure cleanup-timeout contract tightening (batch 9)
+- Tightened additional run-config register-failure cleanup-timeout parity lanes
+  in `tests/native_training_parity.rs` by replacing
+  `unwrap().unwrap_err()` extraction with explicit
+  `expect(...).expect_err(...)` contracts.
+- Covered worker/PS register-failure cleanup-timeout families across default
+  and custom service-type/index variants.
+- Result:
+  - Cleanup-timeout register-failure parity lanes now enforce explicit non-hang
+    and role-error contracts with clearer diagnostics.
+  - Targeted register-failure suites and default monolith-training regression
+    remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6176,6 +6189,7 @@
 889. `ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_timeout_with_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_ordering_issue_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity worker-timeout/ordering-issue contract tightening verification plus default-lane regression rerun)
 890. `ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_ordering_and_discovery_error_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training propagates_worker_index_into_ps_discovery_timeout_diagnostics -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity ordering+discovery and worker-index contract tightening verification plus default-lane regression rerun)
 891. `ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_run_config_accepts_case_insensitive_http_scheme_parameter_sync_target -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training distributed_runner_from_run_config_propagates_custom_service_type_fields -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_register_failure_with_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training preserves_ps_register_failure_with_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity register-failure contract tightening verification plus default-lane regression rerun)
+892. `ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_register_failure_with_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training preserves_ps_register_failure_with_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted native parity register-failure cleanup-timeout contract tightening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
