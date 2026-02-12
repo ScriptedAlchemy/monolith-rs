@@ -4329,6 +4329,18 @@
   - Watcher event behavior remains deterministic and regressions stay green in
     default and feature-gated lanes.
 
+### 317) Dead-sender cleanup coverage for sync deregister paths
+- Added feature-gated regressions:
+  - `test_zk_sync_deregister_removes_dead_watchers`
+  - `test_consul_sync_deregister_removes_dead_watchers`
+- Validates that dropped watcher subscribers are compacted when sync
+  `deregister(...)` emits removal events.
+- Result:
+  - Dead-sender cleanup semantics are now explicitly covered for both sync
+    register and sync deregister watcher-notification paths across optional
+    discovery backends.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5118,6 +5130,8 @@
 786. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" sync_watch_receives_removed_event_on_deregister -- --nocapture` ✅ (feature-gated ZK/Consul sync watcher removal-event verification)
 787. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post optional-backend dead-sender compaction hardening default-lane regression rerun)
 788. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" sync_ -- --nocapture` ✅ (feature-gated sync watcher event + dead-sender compaction verification)
+789. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post sync-deregister dead-sender cleanup tests addition default-lane regression rerun)
+790. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" sync_deregister_removes_dead_watchers -- --nocapture` ✅ (feature-gated ZK/Consul sync-deregister dead-sender cleanup verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

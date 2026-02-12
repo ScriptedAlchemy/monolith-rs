@@ -1902,6 +1902,28 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_zk_sync_deregister_removes_dead_watchers() {
+        let zk = ZkDiscovery::new("localhost:2181", "/services");
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("register should succeed");
+
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk.watchers.lock().unwrap().contains_key("ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        zk.deregister("ps-0")
+            .expect("deregister should succeed and trigger cleanup");
+        assert!(
+            !zk.watchers.lock().unwrap().contains_key("ps"),
+            "dead watch sender should be removed after deregister notification"
+        );
+    }
+
     #[cfg(feature = "consul")]
     #[test]
     fn test_consul_discovery_creation() {
@@ -2012,6 +2034,36 @@ mod tests {
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "dead watch sender should be removed after notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_consul_sync_deregister_removes_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("register should succeed");
+
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        consul
+            .deregister("worker-0")
+            .expect("deregister should succeed and trigger cleanup");
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "dead watch sender should be removed after deregister notification"
         );
     }
 }
