@@ -6788,6 +6788,16 @@
   - removed 21 parse-unwrap hotspots from `runner.rs`
     (from 76 -> 55), while preserving existing timeout/cleanup contracts.
 
+### 499) Runner bind-address helper rollout (phase 2): expanded run_distributed matrix batch
+- Continued `runner.rs` bind-address helper migration by replacing another
+  bounded set of `bind_addr: "127.0.0.1:0".parse().unwrap()` call-sites with
+  `loopback_ephemeral_bind_addr()`.
+- Scope covered additional `runner::tests::test_run_distributed_*` matrix lanes
+  in the same cleanup/timeout/failure-shape suite.
+- Result:
+  - removed 20 additional parse-unwrap hotspots from `runner.rs`
+    (from 55 -> 35) while preserving existing behavior contracts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7841,6 +7851,8 @@
 1050. `cargo test -p monolith-training test_run_worker_role_does_not_hang_when_heartbeat_blocks -- --nocapture` ✅ (validated heartbeat-blocked worker lane now asserts explicit PS-discovery timeout diagnostic shape)
 1051. `cargo test -p monolith-training runner::tests::test_ps_heartbeat_task_stops_after_ps_task_abort -- --nocapture` ✅ (validated heartbeat lifecycle lane after runner bind-address helper introduction)
 1052. `cargo test -p monolith-training runner::tests::test_run_distributed_ -- --nocapture` ✅ (validated run_distributed timeout/cleanup failure matrix after phase-1 runner bind-address helper migration)
+1053. `cargo test -p monolith-training runner::tests::test_run_distributed_ -- --nocapture` ✅ (validated run_distributed timeout/cleanup failure matrix after phase-2 runner bind-address helper migration batch)
+1054. `rg "\"127\\.0\\.0\\.1:0\"\\.parse\\(\\)\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/runner.rs` ✅ (verified remaining runner parse-unwrap hotspots reduced to 35 after phase-2 batch)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

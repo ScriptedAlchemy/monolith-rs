@@ -5411,7 +5411,7 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_ps: "parameter_server_custom".to_string(),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
@@ -5460,7 +5460,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
         };
@@ -5509,7 +5509,7 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
         };
@@ -5558,7 +5558,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
         };
@@ -5605,7 +5605,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             ..DistributedRunConfig::default()
         };
         assert_register_failure_cleanup_fail_case(cfg, "worker-0", "worker").await;
@@ -5619,7 +5619,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_worker: "trainer_custom".to_string(),
             ..DistributedRunConfig::default()
         };
@@ -5634,7 +5634,7 @@ mod tests {
             index: 3,
             num_ps: 1,
             num_workers: 4,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_worker: "trainer_custom".to_string(),
             ..DistributedRunConfig::default()
         };
@@ -5649,7 +5649,7 @@ mod tests {
             index: 3,
             num_ps: 1,
             num_workers: 4,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             ..DistributedRunConfig::default()
         };
         assert_register_failure_cleanup_fail_case(cfg, "worker-3", "worker").await;
@@ -5663,7 +5663,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             ..DistributedRunConfig::default()
         };
         assert_register_failure_cleanup_fail_case(cfg, "worker-0", "worker").await;
@@ -5676,7 +5676,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             ..DistributedRunConfig::default()
         };
         assert_register_failure_cleanup_fail_case(cfg, "ps-0", "ps").await;
@@ -5690,7 +5690,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_ps: "parameter_server_custom".to_string(),
             ..DistributedRunConfig::default()
         };
@@ -5705,7 +5705,7 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_ps: "parameter_server_custom".to_string(),
             ..DistributedRunConfig::default()
         };
@@ -5720,7 +5720,7 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             ..DistributedRunConfig::default()
         };
         assert_register_failure_cleanup_fail_case(cfg, "ps-2", "ps").await;
@@ -5734,7 +5734,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             ..DistributedRunConfig::default()
         };
         assert_register_failure_cleanup_fail_case(cfg, "ps-0", "ps").await;
@@ -5919,7 +5919,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_ps: "parameter_server_custom".to_string(),
             discovery_operation_timeout: Duration::from_millis(200),
             ..DistributedRunConfig::default()
@@ -6372,7 +6372,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_ps: "parameter_server_custom".to_string(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
@@ -6417,7 +6417,7 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_ps: "parameter_server_custom".to_string(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
@@ -6461,7 +6461,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_service_type_ps: "parameter_server_custom".to_string(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
@@ -6505,7 +6505,7 @@ mod tests {
             index: 2,
             num_ps: 3,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
@@ -6545,7 +6545,7 @@ mod tests {
             index: 0,
             num_ps: 1,
             num_workers: 1,
-            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            bind_addr: loopback_ephemeral_bind_addr(),
             discovery_operation_timeout: Duration::from_millis(20),
             discovery_cleanup_timeout: Duration::from_millis(20),
             ..DistributedRunConfig::default()
