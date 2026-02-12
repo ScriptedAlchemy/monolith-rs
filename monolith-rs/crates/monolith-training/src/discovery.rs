@@ -3074,6 +3074,84 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_discover_async_connection_failure_preserves_local_cache() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0", "worker-0", "worker", "127.0.0.1", 6000,
+            ))
+            .expect("sync register should seed local cache");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        match result {
+            Err(DiscoveryError::Internal(msg)) => {
+                assert!(
+                    msg.contains("get_service_nodes"),
+                    "internal error should include discover context: {msg}"
+                );
+            }
+            other => panic!("expected Internal error, got {other:?}"),
+        }
+
+        let cached = consul
+            .discover("worker")
+            .expect("discover should succeed after async failure");
+        assert_eq!(
+            cached.len(),
+            1,
+            "async discover failure should not evict local cache entries"
+        );
+        assert_eq!(cached[0].id, "worker-0");
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_discover_async_connection_failure_is_connection_failed() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::discover_async(&zk, "ps").await;
+        match result {
+            Err(DiscoveryError::ConnectionFailed(msg)) => {
+                assert!(
+                    msg.contains("ZK connect failed"),
+                    "connection failure should include connect-operation context: {msg}"
+                );
+            }
+            other => panic!("expected ConnectionFailed error, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_discover_async_connection_failure_preserves_local_cache() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::discover_async(&zk, "ps").await;
+        match result {
+            Err(DiscoveryError::ConnectionFailed(msg)) => {
+                assert!(
+                    msg.contains("ZK connect failed"),
+                    "connection failure should include connect-operation context: {msg}"
+                );
+            }
+            other => panic!("expected ConnectionFailed error, got {other:?}"),
+        }
+
+        let cached = zk
+            .discover("ps")
+            .expect("discover should succeed after async failure");
+        assert_eq!(
+            cached.len(),
+            1,
+            "async discover failure should not evict local cache entries"
+        );
+        assert_eq!(cached[0].id, "ps-0");
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_register_config_error_compacts_dead_watchers() {
         let consul = ConsulDiscovery::new("http://[::1");
         let rx = consul.watch("worker").expect("watch should succeed");
@@ -3132,8 +3210,8 @@ mod tests {
         match result {
             Err(DiscoveryError::ConfigError(msg)) => {
                 assert!(
-                    msg.contains("invalid address"),
-                    "config error should include invalid address context: {msg}"
+                    msg.contains("invalid address") && msg.contains("get_service_nodes"),
+                    "config error should include invalid-address discover context: {msg}"
                 );
             }
             other => panic!("expected ConfigError, got {other:?}"),
