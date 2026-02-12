@@ -3578,6 +3578,23 @@
 - Result: indexed→non-index counterpart gap audit now reports zero missing
   aliases in both `runner.rs` and `native_training_parity.rs`.
 
+### 257) Worker discovery error timeout/failure naming parity completed
+- Added RunConfig integration cleanup-failure aliases for worker discovery error
+  timeout semantics:
+  - `distributed_runner_from_run_config_preserves_worker_discovery_error_when_cleanup_fails`
+  - `distributed_runner_from_run_config_propagates_custom_discover_service_type_into_worker_discovery_error_when_cleanup_fails`
+- Added RunnerConfig integration cleanup-failure aliases for worker discovery
+  error timeout semantics:
+  - `distributed_runner_from_runner_config_preserves_worker_discovery_error_when_cleanup_fails`
+  - `distributed_runner_from_runner_config_propagates_custom_discover_service_type_into_worker_discovery_error_when_cleanup_fails`
+- Added RunConfig + RunnerConfig integration cleanup-timeout aliases for generic
+  worker timeout semantics:
+  - `distributed_runner_from_run_config_preserves_worker_timeout_when_cleanup_times_out`
+  - `distributed_runner_from_runner_config_preserves_worker_timeout_when_cleanup_times_out`
+- Result: cleanup timeout↔failure naming symmetry for worker timeout/discovery
+  integration tests is now complete (`_when_cleanup_times_out` and
+  `_when_cleanup_fails` counterpart audit returns zero missing).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4122,6 +4139,9 @@
 541. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post default-service non-index connect/discover parity alias completion in runner)
 542. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post default-service non-index connect/discover parity alias compatibility verification)
 543. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post default-service non-index connect/discover parity alias completion full workspace rerun under ambient ZK auth env)
+544. `ZK_AUTH=user:pass cargo test -p monolith-training worker_discovery_error_when_cleanup_fails -- --nocapture` ✅ (post worker discovery error cleanup-failure naming parity alias expansion across RunConfig/RunnerConfig entrypoints)
+545. `ZK_AUTH=user:pass cargo test -p monolith-training worker_timeout_when_cleanup_times_out -- --nocapture` ✅ (post worker-timeout cleanup-timeout generic alias expansion across RunConfig/RunnerConfig entrypoints)
+546. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker discovery/timeout naming parity expansion full monolith-training regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
