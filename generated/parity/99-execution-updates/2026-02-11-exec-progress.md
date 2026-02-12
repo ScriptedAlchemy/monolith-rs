@@ -5579,6 +5579,23 @@
   - Feature-gated config-error suite and default monolith-training regression
     remain green.
 
+### 415) Discovery parity: in-memory test failure-shape assertion tightening
+- Refactored in-memory discovery tests in
+  `crates/monolith-training/src/discovery.rs` to replace coarse panic-based
+  fallback match arms with explicit `expect_err(...)` + `matches!(...)` style
+  assertions:
+  - `test_in_memory_deregister`
+  - `test_in_memory_duplicate_registration`
+  - `test_in_memory_update_health`
+  - `test_in_memory_watch`
+  - `test_in_memory_watch_update`
+- Result:
+  - Failure-shape contracts for `NotFound`, `AlreadyRegistered`, and watch
+    event variants are now asserted directly with richer diagnostics and less
+    ad-hoc panic branching in core in-memory discovery tests.
+  - Focused in-memory tests and full default monolith-training regression
+    remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6491,6 +6508,7 @@
 909. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_connect_userinfo_authority_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul connect userinfo-authority config-error coverage verification plus default-lane regression rerun)
 910. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_async_deregister_userinfo_authority_still_notifies_and_returns_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_async_deregister_whitespace_authority_still_notifies_and_returns_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul deregister userinfo/whitespace authority lifecycle coverage verification plus default-lane regression rerun)
 911. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_connect_whitespace_authority_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_connect_empty_host_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_connect_invalid_ipv6_suffix_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul connect authority-edge config-error coverage verification plus default-lane regression rerun)
+912. `cargo test -p monolith-training test_in_memory_deregister -- --nocapture && cargo test -p monolith-training test_in_memory_duplicate_registration -- --nocapture && cargo test -p monolith-training test_in_memory_update_health -- --nocapture && cargo test -p monolith-training test_in_memory_watch -- --nocapture && cargo test -p monolith-training test_in_memory_watch_update -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (in-memory discovery assertion-tightening targeted verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

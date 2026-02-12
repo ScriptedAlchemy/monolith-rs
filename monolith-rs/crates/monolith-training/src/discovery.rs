@@ -1818,13 +1818,13 @@ mod tests {
         assert_eq!(discovery.len(), 0);
 
         // Deregister non-existent service should fail
-        let result = discovery.deregister("nonexistent");
-        match result {
-            Err(DiscoveryError::NotFound(service_id)) => {
-                assert_eq!(service_id, "nonexistent");
-            }
-            other => panic!("expected NotFound, got {other:?}"),
-        }
+        let err = discovery
+            .deregister("nonexistent")
+            .expect_err("deregistering missing service should fail with NotFound");
+        assert!(
+            matches!(err, DiscoveryError::NotFound(ref service_id) if service_id == "nonexistent"),
+            "expected NotFound(nonexistent), got {err:?}"
+        );
     }
 
     #[test]
@@ -1835,13 +1835,13 @@ mod tests {
         discovery.register(service.clone()).unwrap();
 
         // Second registration should fail
-        let result = discovery.register(service);
-        match result {
-            Err(DiscoveryError::AlreadyRegistered(service_id)) => {
-                assert_eq!(service_id, "dup-1");
-            }
-            other => panic!("expected AlreadyRegistered, got {other:?}"),
-        }
+        let err = discovery
+            .register(service)
+            .expect_err("duplicate service registration should fail with AlreadyRegistered");
+        assert!(
+            matches!(err, DiscoveryError::AlreadyRegistered(ref service_id) if service_id == "dup-1"),
+            "expected AlreadyRegistered(dup-1), got {err:?}"
+        );
     }
 
     #[test]
@@ -1869,13 +1869,13 @@ mod tests {
         assert_eq!(services[0].health, HealthStatus::Unhealthy);
 
         // Update non-existent service should fail
-        let result = discovery.update_health("nonexistent", HealthStatus::Healthy);
-        match result {
-            Err(DiscoveryError::NotFound(service_id)) => {
-                assert_eq!(service_id, "nonexistent");
-            }
-            other => panic!("expected NotFound, got {other:?}"),
-        }
+        let err = discovery
+            .update_health("nonexistent", HealthStatus::Healthy)
+            .expect_err("updating health for missing service should fail with NotFound");
+        assert!(
+            matches!(err, DiscoveryError::NotFound(ref service_id) if service_id == "nonexistent"),
+            "expected NotFound(nonexistent), got {err:?}"
+        );
     }
 
     #[test]
@@ -1913,23 +1913,19 @@ mod tests {
 
         // Check that we received the event
         let event = receiver.recv().await.unwrap();
-        match event {
-            DiscoveryEvent::ServiceAdded(s) => {
-                assert_eq!(s.id, "ps-watch");
-            }
-            _ => panic!("Expected ServiceAdded event"),
-        }
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceAdded(ref s) if s.id == "ps-watch"),
+            "expected ServiceAdded(ps-watch), got {event:?}"
+        );
 
         // Deregister and check for removal event
         discovery.deregister("ps-watch").unwrap();
 
         let event = receiver.recv().await.unwrap();
-        match event {
-            DiscoveryEvent::ServiceRemoved(id) => {
-                assert_eq!(id, "ps-watch");
-            }
-            _ => panic!("Expected ServiceRemoved event"),
-        }
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "ps-watch"),
+            "expected ServiceRemoved(ps-watch), got {event:?}"
+        );
     }
 
     #[tokio::test]
@@ -1948,13 +1944,14 @@ mod tests {
             .unwrap();
 
         let event = receiver.recv().await.unwrap();
-        match event {
-            DiscoveryEvent::ServiceUpdated(s) => {
-                assert_eq!(s.id, "update-test");
-                assert_eq!(s.health, HealthStatus::Healthy);
-            }
-            _ => panic!("Expected ServiceUpdated event"),
-        }
+        assert!(
+            matches!(
+                event,
+                DiscoveryEvent::ServiceUpdated(ref s)
+                if s.id == "update-test" && s.health == HealthStatus::Healthy
+            ),
+            "expected ServiceUpdated(update-test, Healthy), got {event:?}"
+        );
     }
 
     #[test]
