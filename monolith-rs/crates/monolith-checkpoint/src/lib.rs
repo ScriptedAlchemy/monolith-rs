@@ -252,11 +252,12 @@ mod tests {
         let checkpointer = JsonCheckpointer::new();
 
         // Try to restore non-existent checkpoint
-        let result = checkpointer.restore(std::path::Path::new("/nonexistent/path.json"));
-        assert!(result.is_err());
+        let err = checkpointer
+            .restore(std::path::Path::new("/nonexistent/path.json"))
+            .expect_err("restoring a missing checkpoint path should fail");
 
-        match result {
-            Err(CheckpointError::NotFound(path)) => {
+        match err {
+            CheckpointError::NotFound(path) => {
                 assert!(path.to_str().unwrap().contains("nonexistent"));
             }
             _ => panic!("Expected NotFound error"),

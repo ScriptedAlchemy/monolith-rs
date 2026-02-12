@@ -6151,6 +6151,15 @@
   - Targeted mismatch tests and full `monolith-optimizer` regression remain
     green.
 
+### 453) Checkpoint parity: tighten missing-checkpoint failure assertion
+- Refactored the remaining coarse `assert!(result.is_err())` assertion in
+  `monolith-checkpoint/src/lib.rs` (`test_error_handling`) into explicit
+  `expect_err("...")` extraction while preserving the typed `NotFound` match.
+- Result:
+  - Checkpoint missing-path failure diagnostics are now explicit.
+  - Targeted error-handling and full `monolith-checkpoint` regression remain
+    green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7114,6 +7123,9 @@
 960. `cargo test -p monolith-optimizer test_sgd_config_mismatch -- --nocapture && cargo test -p monolith-optimizer test_rmsprop_config_mismatch -- --nocapture && cargo test -p monolith-optimizer test_momentum_config_mismatch -- --nocapture && cargo test -p monolith-optimizer test_adam_config_mismatch -- --nocapture && cargo test -p monolith-optimizer test_adagrad_config_mismatch -- --nocapture && cargo test -p monolith-optimizer test_amsgrad_config_mismatch -- --nocapture && cargo test -p monolith-optimizer test_ftrl_config_mismatch -- --nocapture && cargo test -p monolith-optimizer test_adadelta_config_mismatch -- --nocapture` ✅ (optimizer config-mismatch failure-path `expect_err` assertion-tightening targeted verification)
 961. `cargo test -p monolith-optimizer -q` ✅ (full monolith-optimizer regression rerun after failure-path assertion tightening)
 962. `rg "assert!\\([^\\n]*is_err\\(" /workspace/monolith-rs/crates/monolith-optimizer` ✅ (verified no remaining coarse `assert!(...is_err())` patterns in monolith-optimizer)
+963. `cargo test -p monolith-checkpoint test_error_handling -- --nocapture && cargo test -p monolith-checkpoint -q` ✅ (checkpoint missing-path failure assertion-tightening targeted verification plus full crate regression rerun)
+964. `rg "assert!\\([^\\n]*is_err\\(" /workspace/monolith-rs/crates/monolith-checkpoint` ✅ (verified no remaining coarse `assert!(...is_err())` patterns in monolith-checkpoint)
+965. `rg "assert!\\([^\\n]*is_err\\(" /workspace/monolith-rs` ✅ (verified no remaining coarse `assert!(...is_err())` patterns workspace-wide)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
