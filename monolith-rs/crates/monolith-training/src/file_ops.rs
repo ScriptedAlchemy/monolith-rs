@@ -48,7 +48,10 @@ impl WritableFile {
 
     /// Append raw bytes to the file.
     pub fn append(&self, content: impl AsRef<[u8]>) -> io::Result<()> {
-        let mut guard = self.inner.lock().unwrap();
+        let mut guard = self
+            .inner
+            .lock()
+            .expect("writable file mutex should not be poisoned during append");
         let file = guard
             .file
             .as_mut()
@@ -86,7 +89,10 @@ impl WritableFile {
         }
         let emb_len = embedding.len() / item_id.len();
 
-        let mut guard = self.inner.lock().unwrap();
+        let mut guard = self
+            .inner
+            .lock()
+            .expect("writable file mutex should not be poisoned during entry dump append");
         let file = guard
             .file
             .as_mut()
@@ -110,7 +116,10 @@ impl WritableFile {
 
     /// Close the underlying file.
     pub fn close(&self) -> io::Result<()> {
-        let mut guard = self.inner.lock().unwrap();
+        let mut guard = self
+            .inner
+            .lock()
+            .expect("writable file mutex should not be poisoned during close");
         if let Some(mut file) = guard.file.take() {
             file.flush()?;
             // Best-effort sync for durability (not required by Python, but helpful for tests).
@@ -168,31 +177,36 @@ mod tests {
 
     #[test]
     fn writable_file_basic() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("tempdir creation should succeed");
         let path = tmp.path().join("test_basic").join("test_name");
 
-        let f = WritableFile::new(&path).unwrap();
+        let f = WritableFile::new(&path).expect("writable file creation should succeed");
         for _ in 0..1000 {
-            f.append("1234").unwrap();
+            f.append("1234")
+                .expect("appending raw content should succeed");
         }
-        f.close().unwrap();
+        f.close().expect("explicit file close should succeed");
 
-        let content = std::fs::read_to_string(&path).unwrap();
+        let content = std::fs::read_to_string(&path)
+            .expect("reading written file content should succeed");
         assert_eq!(content, "1234".repeat(1000));
     }
 
     #[test]
     fn file_close_hook_runs() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("tempdir creation should succeed");
         let path = tmp.path().join("test_hook").join("test_name");
 
-        let f = WritableFile::new(&path).unwrap();
-        f.append("1234").unwrap();
+        let f = WritableFile::new(&path).expect("writable file creation should succeed");
+        f.append("1234")
+            .expect("appending raw content should succeed");
 
         let mut hook = FileCloseHook::new(vec![f.clone()]);
-        hook.end(0, None).unwrap();
+        hook.end(0, None)
+            .expect("file close hook end callback should succeed");
 
-        let content = std::fs::read_to_string(&path).unwrap();
+        let content = std::fs::read_to_string(&path)
+            .expect("reading written file content should succeed");
         assert_eq!(content, "1234");
     }
 }

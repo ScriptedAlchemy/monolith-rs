@@ -6948,6 +6948,16 @@
   - removed all `.unwrap()` call-sites from prefetch queue module
     (**0 remaining**), preserving queue/hook parity behavior.
 
+### 513) File-ops unwrap diagnostics completion
+- Tightened `crates/monolith-training/src/file_ops.rs` unwrap usage by:
+  - replacing mutex lock unwraps in `WritableFile::{append, append_entry_dump, close}`
+    with explicit `expect(...)` diagnostics,
+  - replacing all file-op unit test unwrap assertions with explicit
+    `expect(...)` diagnostics.
+- Result:
+  - removed all `.unwrap()` call-sites from file-ops module (**0 remaining**),
+    preserving writable-file and close-hook behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8029,6 +8039,8 @@
 1078. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/metrics.rs` ✅ (verified only doc-comment unwrap example remains in metrics module)
 1079. `cargo test -p monolith-training prefetch_queue::tests:: -- --nocapture` ✅ (validated prefetch queue unit-test suite after unwrap-diagnostics tightening)
 1080. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/prefetch_queue.rs` ✅ (verified no remaining unwrap call-sites in prefetch queue module)
+1081. `cargo test -p monolith-training file_ops::tests:: -- --nocapture` ✅ (validated file-ops unit-test suite after unwrap-diagnostics tightening)
+1082. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/file_ops.rs` ✅ (verified no remaining unwrap call-sites in file-ops module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
