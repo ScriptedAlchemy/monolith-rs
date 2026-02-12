@@ -16594,7 +16594,7 @@ async fn distributed_runner_from_runner_config_preserves_discover_timeout_with_c
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -16669,7 +16669,7 @@ async fn distributed_runner_from_runner_config_preserves_discover_timeout_with_c
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -16742,7 +16742,7 @@ async fn distributed_runner_from_runner_config_preserves_discover_timeout_with_c
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -16814,7 +16814,7 @@ async fn distributed_runner_from_runner_config_propagates_retry_backoff_controls
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -16865,7 +16865,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_discovery_error_
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -16931,7 +16931,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_discovery_error_
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -16994,7 +16994,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_with_cus
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -17057,7 +17057,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_with_cus
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -17120,7 +17120,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_with_cus
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -17181,7 +17181,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_with_def
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -17242,7 +17242,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_with_def
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -17302,7 +17302,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_when_cle
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -17364,7 +17364,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_when_cle
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -17428,7 +17428,7 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_whe
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -17490,7 +17490,7 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_wit
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -17562,7 +17562,7 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_wit
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -17630,7 +17630,7 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_wit
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -17700,7 +17700,7 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_wit
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -17774,7 +17774,7 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_wit
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -17842,7 +17842,7 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_whe
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -17899,7 +17899,7 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_wit
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -17964,7 +17964,7 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_wit
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -18029,7 +18029,7 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_wit
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -18096,7 +18096,7 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_wit
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -18163,7 +18163,7 @@ async fn distributed_runner_from_runner_config_preserves_last_discover_error_wit
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -18232,7 +18232,7 @@ async fn distributed_runner_from_runner_config_propagates_custom_discover_servic
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -18295,7 +18295,7 @@ async fn distributed_runner_from_runner_config_propagates_custom_discover_servic
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -18361,7 +18361,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_with_cus
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -18429,7 +18429,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_with_def
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -18493,7 +18493,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_with_def
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -18559,7 +18559,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_with_cus
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -18629,7 +18629,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_timeout_with_cus
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -18697,7 +18697,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_issue_t
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -18765,7 +18765,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_issue_t
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -18835,7 +18835,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_issue_t
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -18909,7 +18909,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_issue_t
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -18980,7 +18980,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_issue_t
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -19045,7 +19045,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_issue_t
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -19115,7 +19115,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_issue_t
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -19184,7 +19184,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_issue_t
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -19251,7 +19251,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_issue_t
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -19318,7 +19318,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_issue_t
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -19387,7 +19387,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_dis
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -19460,7 +19460,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_dis
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -19535,7 +19535,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_dis
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -19614,7 +19614,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_dis
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -19690,7 +19690,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_dis
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -19760,7 +19760,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_dis
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -19830,7 +19830,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_dis
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -19902,7 +19902,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_dis
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -19977,7 +19977,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_dis
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -20053,7 +20053,7 @@ async fn distributed_runner_from_runner_config_preserves_worker_ordering_and_dis
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -20125,7 +20125,7 @@ async fn distributed_runner_from_runner_config_propagates_worker_index_into_ps_d
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
@@ -20167,7 +20167,7 @@ async fn distributed_runner_from_runner_config_rejects_zero_operation_timeout() 
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -20198,7 +20198,7 @@ async fn distributed_runner_from_runner_config_rejects_zero_cleanup_timeout() {
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -20229,7 +20229,7 @@ async fn distributed_runner_from_runner_config_rejects_zero_barrier_timeout() {
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -20260,7 +20260,7 @@ async fn distributed_runner_from_runner_config_rejects_negative_barrier_timeout(
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -20290,7 +20290,7 @@ async fn distributed_runner_from_runner_config_rejects_zero_num_ps() {
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -20320,7 +20320,7 @@ async fn distributed_runner_from_runner_config_rejects_zero_num_workers() {
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -20351,7 +20351,7 @@ async fn distributed_runner_from_runner_config_rejects_zero_dim() {
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -20381,7 +20381,7 @@ async fn distributed_runner_from_runner_config_rejects_worker_index_out_of_range
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -20411,7 +20411,7 @@ async fn distributed_runner_from_runner_config_rejects_ps_index_out_of_range() {
         Arc::clone(&discovery),
         &runner,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -20442,7 +20442,7 @@ async fn distributed_runner_from_runner_config_rejects_empty_ps_service_type() {
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -20473,7 +20473,7 @@ async fn distributed_runner_from_runner_config_rejects_whitespace_padded_ps_serv
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -20506,7 +20506,7 @@ async fn distributed_runner_from_runner_config_rejects_internal_whitespace_ps_se
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -20537,7 +20537,7 @@ async fn distributed_runner_from_runner_config_rejects_empty_worker_service_type
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -20568,7 +20568,7 @@ async fn distributed_runner_from_runner_config_rejects_whitespace_padded_worker_
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -20601,7 +20601,7 @@ async fn distributed_runner_from_runner_config_rejects_internal_whitespace_worke
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -20633,7 +20633,7 @@ async fn distributed_runner_from_runner_config_rejects_identical_ps_and_worker_s
         Arc::clone(&discovery),
         &runner,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -20868,7 +20868,7 @@ async fn distributed_runner_from_runner_config_accepts_case_insensitive_http_sch
             Arc::clone(&discovery),
             &runner,
             Role::Worker,
-            "127.0.0.1:0".parse().unwrap(),
+            test_bind_addr(),
         ),
     )
     .await;
