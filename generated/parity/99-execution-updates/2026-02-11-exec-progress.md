@@ -6327,6 +6327,20 @@
   - Existing local-cache and watcher-notification semantics remain intact under
     config-error exit paths.
 
+### 465) Consul address parity: reject leading/trailing whitespace deterministically
+- Tightened `normalize_consul_address_for_operation` to reject any
+  leading/trailing whitespace in configured Consul addresses instead of silently
+  trimming.
+- Added regression coverage spanning normalization and async operation surfaces:
+  - `test_normalize_consul_address_for_operation_rejects_leading_trailing_whitespace`
+  - `test_consul_connect_leading_trailing_whitespace_is_classified_as_config_error`
+  - `test_consul_async_register_leading_trailing_whitespace_compacts_dead_watchers`
+- Result:
+  - whitespace-padded Consul addresses now fail early as explicit
+    operation-scoped `ConfigError`s,
+  - register path still preserves dead-watcher compaction semantics on config
+    validation failures.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7318,6 +7332,8 @@
 988. `cargo test -p monolith-training -q` ✅ (full monolith-training regression rerun after discovery normalization tightening)
 989. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_connect_address_path_is_classified_as_config_error -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_discover_async_address_query_is_classified_as_config_error -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_async_register_address_fragment_compacts_dead_watchers -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_async_deregister_address_path_still_notifies_and_returns_error -- --nocapture` ✅ (validated operation-scoped Consul path/query/fragment failure-shape contracts across connect/discover/register/deregister flows)
 990. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (full consul/zookeeper-featured monolith-training regression rerun after async endpoint-suffix contract coverage expansion)
+991. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_normalize_consul_address_for_operation_rejects_leading_trailing_whitespace -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_connect_leading_trailing_whitespace_is_classified_as_config_error -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_async_register_leading_trailing_whitespace_compacts_dead_watchers -- --nocapture` ✅ (validated strict leading/trailing-whitespace rejection for Consul addresses across normalization/connect/register flows)
+992. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (full consul/zookeeper-featured monolith-training regression rerun after whitespace-address contract tightening)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

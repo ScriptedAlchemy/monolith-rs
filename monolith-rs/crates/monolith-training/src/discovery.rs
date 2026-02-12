@@ -1452,6 +1452,9 @@ fn normalize_consul_address_for_operation(context: &str, address: &str) -> Resul
     };
 
     let trimmed = address.trim();
+    if trimmed != address {
+        return Err(cfg_err("leading/trailing whitespace"));
+    }
     let normalized = if trimmed.is_empty() {
         "http://127.0.0.1:8500".to_string()
     } else if trimmed.contains("://") {
@@ -1682,6 +1685,23 @@ mod tests {
         assert_eq!(
             normalized, "http://127.0.0.1:8501",
             "host:port Consul address should normalize by prepending http scheme"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_normalize_consul_address_for_operation_rejects_leading_trailing_whitespace() {
+        let err = normalize_consul_address_for_operation(
+            "connect",
+            " http://127.0.0.1:8500 ",
+        )
+        .expect_err("leading/trailing whitespace should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid address")
+                    && msg.contains("leading/trailing whitespace")),
+            "expected ConfigError containing leading/trailing-whitespace details, got {err:?}"
         );
     }
 
@@ -3884,6 +3904,21 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_connect_leading_trailing_whitespace_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new(" http://127.0.0.1:8500 ");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
+        let err = result.expect_err("leading/trailing whitespace should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("leading/trailing whitespace")
+                    && msg.contains("connect")),
+            "expected ConfigError containing leading/trailing-whitespace connect context, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_connect_address_path_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
@@ -4352,6 +4387,36 @@ mod tests {
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "dead watch sender should be compacted on whitespace-authority register validation failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_leading_trailing_whitespace_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new(" http://127.0.0.1:8500 ");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("leading/trailing whitespace should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("leading/trailing whitespace")
+                    && msg.contains("register_entity")),
+            "expected ConfigError containing leading/trailing-whitespace register context, got {err:?}"
+        );
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "dead watch sender should be compacted on leading/trailing-whitespace register validation failure"
         );
     }
 
