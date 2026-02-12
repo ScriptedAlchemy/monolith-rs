@@ -5119,16 +5119,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(900),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when worker register fails and cleanup steps block"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when worker register fails and cleanup steps block");
+        let msg = run_result
+            .expect_err("worker register failure with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("forced register failure"),
             "worker register failure should remain primary when cleanup steps time out: {msg}"
@@ -5169,16 +5168,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(900),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when indexed worker register fails and default-service cleanup steps block"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when indexed worker register fails and default-service cleanup steps block");
+        let msg = run_result
+            .expect_err("indexed worker register failure with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("forced register failure"),
             "indexed worker register failure should remain primary when default-service cleanup steps time out: {msg}"
@@ -5219,16 +5217,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(900),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when non-index worker register fails and default-service cleanup steps block"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when non-index worker register fails and default-service cleanup steps block");
+        let msg = run_result
+            .expect_err("worker register failure with default non-index service type and cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("forced register failure"),
             "worker register failure should remain primary when default-service cleanup steps time out: {msg}"
@@ -5270,16 +5267,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(900),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when worker register fails and custom-service cleanup steps block"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when worker register fails and custom-service cleanup steps block");
+        let msg = run_result
+            .expect_err("worker register failure with custom service type and cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("forced register failure"),
             "worker register failure should remain primary when custom-service cleanup steps time out: {msg}"
@@ -5321,16 +5317,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(900),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when indexed worker register fails and custom-service cleanup steps block"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when indexed worker register fails and custom-service cleanup steps block");
+        let msg = run_result
+            .expect_err("indexed worker register failure with custom service type and cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("forced register failure"),
             "indexed worker register failure should remain primary when custom-service cleanup steps time out: {msg}"
@@ -5372,16 +5367,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(900),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when ps register fails and cleanup steps block"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when ps register fails and cleanup steps block");
+        let msg = run_result
+            .expect_err("ps register failure with custom service type and cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("forced register failure"),
             "ps register failure should remain primary when cleanup steps time out: {msg}"
@@ -5423,16 +5417,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(900),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when indexed ps register fails and custom-service cleanup steps block"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when indexed ps register fails and custom-service cleanup steps block");
+        let msg = run_result
+            .expect_err("indexed ps register failure with custom service type and cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("forced register failure"),
             "indexed ps register failure should remain primary when cleanup steps time out: {msg}"
@@ -5472,16 +5465,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(900),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when ps register fails and cleanup steps block"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when ps register fails and cleanup steps block");
+        let msg = run_result
+            .expect_err("ps register failure with cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("forced register failure"),
             "ps register failure should remain primary when cleanup steps time out: {msg}"
@@ -5522,16 +5514,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(900),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when indexed ps register fails and default-service cleanup steps block"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when indexed ps register fails and default-service cleanup steps block");
+        let msg = run_result
+            .expect_err("indexed ps register failure with default service type and cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("forced register failure"),
             "indexed ps register failure should remain primary when default-service cleanup steps time out: {msg}"
@@ -5572,16 +5563,15 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = tokio::time::timeout(
+        let run_result = tokio::time::timeout(
             Duration::from_millis(900),
             run_distributed(Arc::clone(&discovery), cfg),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "run_distributed should not hang when non-index ps register fails and default-service cleanup steps block"
-        );
-        let msg = res.unwrap().unwrap_err().to_string();
+        .await
+        .expect("run_distributed should not hang when non-index ps register fails and default-service cleanup steps block");
+        let msg = run_result
+            .expect_err("ps register failure with default non-index service type and cleanup timeouts should surface as a role error")
+            .to_string();
         assert!(
             msg.contains("forced register failure"),
             "ps register failure should remain primary when default-service cleanup steps time out: {msg}"
