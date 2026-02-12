@@ -9190,12 +9190,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(
-            res.is_err(),
-            "expected deregister failure after successful worker run"
-        );
-        let msg = res.unwrap_err().to_string();
+        let msg = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected deregister failure after successful worker run")
+            .to_string();
         assert!(
             msg.contains("forced deregister failure"),
             "unexpected error: {msg}"

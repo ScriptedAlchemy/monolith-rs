@@ -4885,6 +4885,16 @@
   - Targeted worker-discover failure suite and default monolith-training
     regression remain green.
 
+### 363) Runner deregister-after-success cleanup assertion-contract tightening
+- Tightened `test_run_distributed_attempts_disconnect_when_deregister_fails_after_success`
+  by replacing `assert!(res.is_err()) + unwrap_err()` with direct
+  `expect_err(...)` contract extraction.
+- Result:
+  - Cleanup-failure assertion now encodes explicit expected-failure intent with
+    clearer test diagnostics while preserving existing behavioral checks.
+  - Targeted deregister-after-success lane and default monolith-training
+    regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5745,6 +5755,7 @@
 857. `ZK_AUTH=user:pass cargo test -p monolith-training test_parameter_server_lifecycle_guards -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_worker_lifecycle_guards -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted ParameterServer/Worker lifecycle-guard message-contract verification plus default-lane regression rerun)
 858. `ZK_AUTH=user:pass cargo test -p monolith-training test_in_memory_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_in_memory_duplicate_registration -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_in_memory_update_health -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted in-memory discovery error-id contract verification plus default-lane regression rerun)
 859. `ZK_AUTH=user:pass cargo test -p monolith-training preserves_worker_discover_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner worker-discover cleanup-failure contract tightening verification plus default-lane regression rerun)
+860. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_attempts_disconnect_when_deregister_fails_after_success -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner deregister-after-success cleanup contract tightening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
