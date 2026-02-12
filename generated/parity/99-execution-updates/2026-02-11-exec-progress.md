@@ -6571,6 +6571,20 @@
     reducing ambiguity from generic unwrap panics and improving debugging
     fidelity for parity regressions.
 
+### 481) Runner-utils parity tests: explicit diagnostics across discovery/restore flows
+- Refined `crates/monolith-training/tests/runner_utils_parity.rs` by replacing
+  coarse `.unwrap()` chains with explicit `.expect("...")` diagnostics.
+- Covered parity lanes include:
+  - discovery selection (`primus` / `zk` / `consul`) and guard lifecycle,
+  - query/register/close flow assertions,
+  - restore checkpoint preparation and restore override initialization
+    (runner + run-config paths),
+  - tempdir/filesystem setup and checkpoint-file filename extraction assertions.
+- Result:
+  - runner-utils parity regressions now provide operation-level failure context,
+    improving diagnosis for discovery wiring and checkpoint-restore parity
+    failures.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7594,6 +7608,8 @@
 1020. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after hook diagnostics tightening)
 1021. `cargo test -p monolith-training --test distributed_serving_ops_parity -- --nocapture && cargo test -p monolith-training --test file_ops_parity -- --nocapture && cargo test -p monolith-training --test native_training_save_utils_parity -- --nocapture && cargo test -p monolith-training --test prefetch_queue_parity -- --nocapture` ✅ (validated parity suites after replacing unwrap-based assertions with explicit diagnostics in serving/file/save/prefetch paths)
 1022. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after parity-test diagnostics tightening)
+1023. `cargo test -p monolith-training --test runner_utils_parity -- --nocapture` ✅ (validated runner-utils parity suite after replacing unwrap chains with explicit discovery/restore diagnostics)
+1024. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after runner-utils parity diagnostics tightening)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
