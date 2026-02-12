@@ -1477,6 +1477,9 @@ fn normalize_consul_address_for_operation(context: &str, address: &str) -> Resul
     if authority.chars().any(char::is_whitespace) {
         return Err(cfg_err("whitespace in authority"));
     }
+    if authority.contains('@') {
+        return Err(cfg_err("userinfo in authority"));
+    }
 
     if let Some(rest) = authority.strip_prefix('[') {
         let (host, trailing) = rest
@@ -1753,6 +1756,24 @@ mod tests {
                 );
             }
             other => panic!("expected ConfigError for invalid IPv6 suffix, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_normalize_consul_address_for_operation_rejects_userinfo_authority() {
+        let result =
+            normalize_consul_address_for_operation("get_service_nodes", "http://user@127.0.0.1:8500");
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("get_service_nodes")
+                        && msg.contains("invalid address")
+                        && msg.contains("userinfo in authority"),
+                    "userinfo authority should be rejected as config error with operation context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for userinfo authority, got {other:?}"),
         }
     }
 
@@ -3942,6 +3963,25 @@ mod tests {
                 );
             }
             other => panic!("expected ConfigError for whitespace authority address, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_userinfo_authority_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new("http://user@127.0.0.1:8500");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address")
+                        && msg.contains("userinfo in authority")
+                        && msg.contains("get_service_nodes"),
+                    "userinfo-authority discover failures should be classified as ConfigError with discover context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for userinfo authority address, got {other:?}"),
         }
     }
 
