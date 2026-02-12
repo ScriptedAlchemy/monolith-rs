@@ -7120,6 +7120,18 @@
   - reduced `discovery.rs` unwrap call-sites from **110 → 89**, preserving zk
     watcher/poll-generation lifecycle and failure-path parity behavior.
 
+### 530) Discovery consul watcher-state helper migration
+- Tightened additional Consul watcher/poll-generation diagnostics in
+  `crates/monolith-training/src/discovery.rs` by:
+  - introducing consul helper accessors (`consul_has_watcher`,
+    `consul_watchers_is_empty`, `consul_watcher_count`,
+    `consul_watch_poll_*`) with explicit lock-poison diagnostics,
+  - migrating disconnect / watch-poll-generation / case-insensitive watch_async
+    assertions to helper-based checks instead of direct `.lock().unwrap()`.
+- Result:
+  - reduced `discovery.rs` unwrap call-sites from **89 → 69**, preserving
+    Consul watcher cleanup and poll-generation lifecycle parity behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8236,6 +8248,8 @@
 1113. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/discovery.rs` ✅ (tracked remaining discovery unwrap call-sites after shared/zk invalid-host tightening batch: 110)
 1114. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_invalid_base_path_ -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_sync_ -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_compact_dead_watch_sender_ -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_failure_ -- --nocapture` ✅ (validated zk invalid-base-path + sync watcher cleanup + async register-failure watcher-state lanes after helper migration)
 1115. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/discovery.rs` ✅ (tracked remaining discovery unwrap call-sites after zk watcher-state tightening batch: 89)
+1116. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_disconnect_ -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_should_spawn_watch_poll_once_per_generation -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_cleanup_watch_poll_generation_preserves_newer_generation_entry -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_deduplicates_poll_generation_entries -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_case_insensitive_scheme_seeds_poll_generation_entry -- --nocapture` ✅ (validated consul watcher/poll-generation lifecycle lanes after helper migration)
+1117. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/discovery.rs` ✅ (tracked remaining discovery unwrap call-sites after consul watcher-state helper migration: 69)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

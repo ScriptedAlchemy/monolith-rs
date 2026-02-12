@@ -2845,6 +2845,79 @@ mod tests {
             .copied()
     }
 
+    #[cfg(feature = "consul")]
+    fn consul_has_watcher(consul: &ConsulDiscovery, service_type: &str) -> bool {
+        consul
+            .watchers
+            .lock()
+            .expect("consul watchers mutex should not be poisoned")
+            .contains_key(service_type)
+    }
+
+    #[cfg(feature = "consul")]
+    fn consul_watchers_is_empty(consul: &ConsulDiscovery) -> bool {
+        consul
+            .watchers
+            .lock()
+            .expect("consul watchers mutex should not be poisoned")
+            .is_empty()
+    }
+
+    #[cfg(feature = "consul")]
+    fn consul_watcher_count(consul: &ConsulDiscovery) -> usize {
+        consul
+            .watchers
+            .lock()
+            .expect("consul watchers mutex should not be poisoned")
+            .len()
+    }
+
+    #[cfg(feature = "consul")]
+    fn consul_watch_poll_count(consul: &ConsulDiscovery) -> usize {
+        consul
+            .watch_poll_generations
+            .lock()
+            .expect("consul watch_poll_generations mutex should not be poisoned")
+            .len()
+    }
+
+    #[cfg(feature = "consul")]
+    fn consul_watch_poll_is_empty(consul: &ConsulDiscovery) -> bool {
+        consul
+            .watch_poll_generations
+            .lock()
+            .expect("consul watch_poll_generations mutex should not be poisoned")
+            .is_empty()
+    }
+
+    #[cfg(feature = "consul")]
+    fn consul_watch_poll_remove(consul: &ConsulDiscovery, service_type: &str) {
+        consul
+            .watch_poll_generations
+            .lock()
+            .expect("consul watch_poll_generations mutex should not be poisoned")
+            .remove(service_type);
+    }
+
+    #[cfg(feature = "consul")]
+    fn consul_has_watch_poll_generation(consul: &ConsulDiscovery, service_type: &str) -> bool {
+        consul
+            .watch_poll_generations
+            .lock()
+            .expect("consul watch_poll_generations mutex should not be poisoned")
+            .contains_key(service_type)
+    }
+
+    #[cfg(feature = "consul")]
+    fn consul_watch_poll_get(consul: &ConsulDiscovery, service_type: &str) -> Option<u64> {
+        consul
+            .watch_poll_generations
+            .lock()
+            .expect("consul watch_poll_generations mutex should not be poisoned")
+            .get(service_type)
+            .copied()
+    }
+
     #[cfg(feature = "zookeeper")]
     #[test]
     fn test_zk_discovery_creation() {
@@ -3903,7 +3976,7 @@ mod tests {
         let consul = ConsulDiscovery::new("http://localhost:8500");
         let rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
         drop(rx);
@@ -3913,7 +3986,7 @@ mod tests {
             .expect("disconnect should succeed");
 
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "disconnect should compact dead watcher senders"
         );
     }
@@ -3924,7 +3997,7 @@ mod tests {
         let consul = ConsulDiscovery::new("http://localhost:8500");
         let _rx = consul.watch("worker").expect("watch should succeed");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch sender should exist after subscribing"
         );
 
@@ -3933,7 +4006,7 @@ mod tests {
             .expect("disconnect should succeed");
 
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "disconnect should preserve live watcher senders"
         );
     }
@@ -3945,7 +4018,7 @@ mod tests {
         let dead_rx = consul.watch("worker").expect("watch should succeed");
         let _live_rx = consul.watch("ps").expect("watch should succeed");
         assert_eq!(
-            consul.watchers.lock().unwrap().len(),
+            consul_watcher_count(&consul),
             2,
             "test setup should seed two watcher senders"
         );
@@ -3955,13 +4028,12 @@ mod tests {
             .await
             .expect("disconnect should succeed");
 
-        let watchers = consul.watchers.lock().unwrap();
         assert!(
-            !watchers.contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "disconnect should compact dead watcher sender for dropped receiver"
         );
         assert!(
-            watchers.contains_key("ps"),
+            consul_has_watcher(&consul, "ps"),
             "disconnect should preserve watcher sender with active receiver"
         );
     }
@@ -3973,7 +4045,7 @@ mod tests {
         assert!(consul.should_spawn_watch_poll("worker"));
         assert!(consul.should_spawn_watch_poll("ps"));
         assert_eq!(
-            consul.watch_poll_generations.lock().unwrap().len(),
+            consul_watch_poll_count(&consul),
             2,
             "test setup should seed watch-poll generation entries"
         );
@@ -3983,7 +4055,7 @@ mod tests {
             .expect("disconnect should succeed");
 
         assert!(
-            consul.watch_poll_generations.lock().unwrap().is_empty(),
+            consul_watch_poll_is_empty(&consul),
             "disconnect should clear active watch-poll generation entries"
         );
     }
@@ -4037,7 +4109,7 @@ mod tests {
             !consul.should_spawn_watch_poll("ps"),
             "second watch on same service type and generation should not respawn poller"
         );
-        consul.watch_poll_generations.lock().unwrap().remove("ps");
+        consul_watch_poll_remove(&consul, "ps");
         assert!(
             consul.should_spawn_watch_poll("ps"),
             "poller should respawn once prior generation entry is cleaned"
@@ -4079,12 +4151,7 @@ mod tests {
 
         consul.cleanup_watch_poll_generation("worker", old_generation);
         assert_eq!(
-            consul
-                .watch_poll_generations
-                .lock()
-                .unwrap()
-                .get("worker")
-                .copied(),
+            consul_watch_poll_get(&consul, "worker"),
             Some(new_generation),
             "cleanup for stale generation must not remove newer generation entry"
         );
@@ -4127,13 +4194,13 @@ mod tests {
         let rx1 = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
             .await
             .expect("first watch_async should succeed");
-        assert_eq!(consul.watch_poll_generations.lock().unwrap().len(), 1);
+        assert_eq!(consul_watch_poll_count(&consul), 1);
 
         let rx2 = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
             .await
             .expect("second watch_async should succeed");
         assert_eq!(
-            consul.watch_poll_generations.lock().unwrap().len(),
+            consul_watch_poll_count(&consul),
             1,
             "same service type should not create duplicate poll-generation entries"
         );
@@ -4142,7 +4209,7 @@ mod tests {
             .await
             .expect("watch_async for second service type should succeed");
         assert_eq!(
-            consul.watch_poll_generations.lock().unwrap().len(),
+            consul_watch_poll_count(&consul),
             2,
             "second service type should create a second poll-generation entry"
         );
@@ -4152,7 +4219,7 @@ mod tests {
         drop(rx3);
         tokio::time::timeout(std::time::Duration::from_secs(3), async {
             loop {
-                if consul.watch_poll_generations.lock().unwrap().is_empty() {
+                if consul_watch_poll_is_empty(&consul) {
                     break;
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -4161,14 +4228,14 @@ mod tests {
         .await
         .expect("watch poll generation entries should clear after subscribers drop");
         assert!(
-            consul.watchers.lock().unwrap().is_empty(),
+            consul_watchers_is_empty(&consul),
             "watch_async should compact dead watcher sender entries after all receivers drop"
         );
         <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
             .await
             .expect("disconnect should succeed");
         assert!(
-            consul.watch_poll_generations.lock().unwrap().is_empty(),
+            consul_watch_poll_is_empty(&consul),
             "disconnect should preserve cleared watch poll generation state"
         );
     }
@@ -4182,27 +4249,18 @@ mod tests {
             .await
             .expect("watch_async should accept case-insensitive http scheme");
         assert!(
-            consul.watchers.lock().unwrap().contains_key("worker"),
+            consul_has_watcher(&consul, "worker"),
             "watch_async should create watcher sender entry for valid address"
         );
         assert!(
-            consul
-                .watch_poll_generations
-                .lock()
-                .unwrap()
-                .contains_key("worker"),
+            consul_has_watch_poll_generation(&consul, "worker"),
             "watch_async should seed poll-generation bookkeeping for valid address"
         );
 
         drop(rx);
         tokio::time::timeout(std::time::Duration::from_secs(3), async {
             loop {
-                if !consul
-                    .watch_poll_generations
-                    .lock()
-                    .unwrap()
-                    .contains_key("worker")
-                {
+                if !consul_has_watch_poll_generation(&consul, "worker") {
                     break;
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -4211,7 +4269,7 @@ mod tests {
         .await
         .expect("poll-generation entry should clear after watcher receiver drops");
         assert!(
-            !consul.watchers.lock().unwrap().contains_key("worker"),
+            !consul_has_watcher(&consul, "worker"),
             "case-insensitive-scheme watch_async should compact dead watcher sender after receiver drops"
         );
     }
