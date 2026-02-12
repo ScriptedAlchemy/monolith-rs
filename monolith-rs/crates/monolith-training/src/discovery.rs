@@ -931,20 +931,31 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
     }
 
     async fn deregister_async(&self, service_id: &str) -> Result<()> {
-        let mut remote_error: Option<DiscoveryError> = None;
+        let service = self
+            .services
+            .write()
+            .unwrap()
+            .remove(service_id)
+            .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
+        self.notify_watchers(
+            &service.service_type,
+            DiscoveryEvent::ServiceRemoved(service_id.to_string()),
+        );
 
+        let path_opt = self.registered_paths.lock().await.remove(service_id);
+        let Some(path) = path_opt else {
+            return Ok(());
+        };
+
+        let mut remote_error: Option<DiscoveryError> = None;
         if let Err(e) = self.connect().await {
             remote_error = Some(e);
         } else {
             let client_opt = self.client.lock().await.as_ref().cloned();
             match client_opt {
                 Some(client) => {
-                    let path_opt = self.registered_paths.lock().await.remove(service_id);
-                    if let Some(path) = path_opt {
-                        if let Err(e) = client.delete(&path, None).await {
-                            remote_error =
-                                Some(DiscoveryError::Internal(format!("ZK delete failed: {e}")));
-                        }
+                    if let Err(e) = client.delete(&path, None).await {
+                        remote_error = Some(DiscoveryError::Internal(format!("ZK delete failed: {e}")));
                     }
                 }
                 None => {
@@ -952,13 +963,6 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
                         Some(DiscoveryError::ConnectionFailed("ZK client not connected".into()));
                 }
             }
-        }
-
-        if let Some(service) = self.services.write().unwrap().remove(service_id) {
-            self.notify_watchers(
-                &service.service_type,
-                DiscoveryEvent::ServiceRemoved(service_id.to_string()),
-            );
         }
 
         if let Some(err) = remote_error {
@@ -1335,6 +1339,13 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
     }
 
     async fn deregister_async(&self, service_id: &str) -> Result<()> {
+        let service = self
+            .services
+            .write()
+            .unwrap()
+            .remove(service_id)
+            .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
+
         self.connect().await?;
         let client = self.client.lock().await.as_ref().cloned().ok_or_else(|| {
             DiscoveryError::ConnectionFailed("Consul client not connected".into())
@@ -1349,12 +1360,10 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
         };
 
         let _ = client.deregister_entity(&payload).await;
-        if let Some(service) = self.services.write().unwrap().remove(service_id) {
-            self.notify_watchers(
-                &service.service_type,
-                DiscoveryEvent::ServiceRemoved(service_id.to_string()),
-            );
-        }
+        self.notify_watchers(
+            &service.service_type,
+            DiscoveryEvent::ServiceRemoved(service_id.to_string()),
+        );
         Ok(())
     }
 }
@@ -2224,6 +2233,10 @@ mod tests {
         let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
         zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
             .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
 
         let mut rx = zk.watch("ps").expect("watch should succeed");
         let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
@@ -2252,6 +2265,10 @@ mod tests {
         let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
         zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
             .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
 
         let rx = zk.watch("ps").expect("watch should succeed");
         drop(rx);
@@ -2265,6 +2282,17 @@ mod tests {
             !zk.watchers.lock().unwrap().contains_key("ps"),
             "failed async deregister should compact dead watcher sender"
         );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_missing_service_returns_not_found() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "missing").await;
+        match result {
+            Err(DiscoveryError::NotFound(id)) => assert_eq!(id, "missing"),
+            other => panic!("expected NotFound error, got {other:?}"),
+        }
     }
 
     #[cfg(feature = "consul")]
@@ -2581,6 +2609,18 @@ mod tests {
                 .is_empty(),
             "async deregister should remove service from local cache"
         );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_missing_service_returns_not_found() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        let result =
+            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "missing").await;
+        match result {
+            Err(DiscoveryError::NotFound(id)) => assert_eq!(id, "missing"),
+            other => panic!("expected NotFound error, got {other:?}"),
+        }
     }
 
     #[cfg(feature = "consul")]

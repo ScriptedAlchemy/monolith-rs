@@ -4454,6 +4454,24 @@
     cleaned.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 327) Async deregister missing-service parity + ZK remote-failure targeting
+- Hardened async deregister semantics for optional backends:
+  - `ZkDiscovery::deregister_async(...)` now returns `NotFound` immediately when
+    the service is absent, matching sync semantics.
+  - `ConsulDiscovery::deregister_async(...)` now returns `NotFound` immediately
+    when the service is absent, matching sync semantics.
+  - ZK remote delete is now attempted only when a registered backend path exists.
+- Updated ZK failure-path tests to inject `registered_paths` entries, ensuring
+  remote failure assertions target actual backend-delete paths.
+- Added feature-gated regressions:
+  - `test_zk_async_deregister_missing_service_returns_not_found`
+  - `test_consul_async_deregister_missing_service_returns_not_found`
+- Result:
+  - Async deregister behavior is now consistent with sync API for missing
+    services across ZK/Consul.
+  - ZK remote-failure assertions are more precise and semantically grounded.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5265,6 +5283,8 @@
 808. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_async_deregister_failure -- --nocapture` ✅ (feature-gated ZooKeeper async-deregister failure local-cache cleanup, watcher notification, and dead-sender compaction verification)
 809. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post Consul async-deregister best-effort cache-cleanup coverage additions default-lane regression rerun)
 810. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister_failure_returns_ok_and_cleans_cache -- --nocapture` ✅ (feature-gated Consul async-deregister best-effort cache-cleanup semantics verification)
+811. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post async-deregister missing-service parity + ZK remote-failure targeting refinements default-lane regression rerun)
+812. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" async_deregister -- --nocapture` ✅ (feature-gated async-deregister semantics verification: missing-service NotFound parity, ZK remote-failure cleanup, Consul best-effort behavior)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
