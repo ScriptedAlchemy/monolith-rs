@@ -4149,7 +4149,8 @@ mod tests {
         )
         .await;
         // With no PS role started we expect timeout from worker path.
-        let err = worker_res.unwrap_err();
+        let err = worker_res
+            .expect_err("worker run from run-config should fail when no PS role is running");
         let msg = err.to_string();
         assert!(
             msg.contains("Timed out waiting for PS discovery"),
@@ -4165,7 +4166,9 @@ mod tests {
             num_ps: 0,
             ..DistributedRunConfig::default()
         };
-        let err = run_distributed(discovery, bad_cfg).await.unwrap_err();
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject invalid runtime config");
         assert!(err.to_string().contains("num_ps > 0"));
     }
 
@@ -4191,7 +4194,7 @@ mod tests {
         };
         let err = run_worker_role(discovery, "worker-0", cfg)
             .await
-            .unwrap_err();
+            .expect_err("worker role should fail on PS ordering issue");
         let msg = err.to_string();
         assert!(msg.contains("MixedIndexMetadataPresence"));
     }
@@ -4210,7 +4213,7 @@ mod tests {
         };
         let err = run_worker_role(discovery, "worker-0", cfg)
             .await
-            .unwrap_err();
+            .expect_err("worker role should fail after retries when PS ordering issue persists");
         let msg = err.to_string();
         assert!(
             msg.contains("MixedIndexMetadataPresence"),
@@ -4232,7 +4235,7 @@ mod tests {
         };
         let err = run_worker_role(discovery, "worker-0", cfg)
             .await
-            .unwrap_err();
+            .expect_err("worker role should fail after retries when discovery errors persist");
         let msg = err.to_string();
         assert!(
             msg.contains("forced discover failure"),
@@ -4254,7 +4257,7 @@ mod tests {
         };
         let err = run_worker_role(discovery, "worker-0", cfg)
             .await
-            .unwrap_err();
+            .expect_err("worker role should fail when ordering and discovery errors persist");
         let msg = err.to_string();
         assert!(
             msg.contains("MixedIndexMetadataPresence"),
@@ -4280,7 +4283,7 @@ mod tests {
         };
         let err = run_worker_role(discovery, "worker-0", cfg)
             .await
-            .unwrap_err();
+            .expect_err("worker role should fail and report max observed counts when discovery is partial");
         let msg = err.to_string();
         assert!(
             msg.contains("max raw observed: 1"),
@@ -4306,7 +4309,7 @@ mod tests {
         };
         let err = run_worker_role(discovery, "worker-0", cfg)
             .await
-            .unwrap_err();
+            .expect_err("worker role should fail and report raw versus usable observed counts");
         let msg = err.to_string();
         assert!(
             msg.contains("max raw observed: 2"),
@@ -4332,7 +4335,7 @@ mod tests {
         };
         let err = run_worker_role(discovery, "worker-0", cfg)
             .await
-            .unwrap_err();
+            .expect_err("worker role should fail and report retry attempt count");
         let msg = err.to_string();
         assert!(
             msg.contains("attempts: 2"),
@@ -4355,7 +4358,7 @@ mod tests {
         };
         let err = run_worker_role(Arc::clone(&discovery), "worker-0", cfg)
             .await
-            .unwrap_err();
+            .expect_err("worker role should fail when discover operation times out across retries");
         let msg = err.to_string();
         assert!(
             msg.contains("attempts: 2"),
@@ -4388,7 +4391,7 @@ mod tests {
         };
         let err = run_worker_role(Arc::clone(&discovery), "worker-0", cfg)
             .await
-            .unwrap_err();
+            .expect_err("worker role should fail when discover operation times out with custom service type");
         let msg = err.to_string();
         assert!(
             msg.contains(
@@ -4417,7 +4420,7 @@ mod tests {
         };
         let err = run_worker_role(discovery, "worker-0", cfg)
             .await
-            .unwrap_err();
+            .expect_err("worker role should fail and clear stale discovery errors after successful retry");
         let msg = err.to_string();
         assert!(
             !msg.contains("forced discover failure"),
@@ -4443,7 +4446,7 @@ mod tests {
         };
         let err = run_worker_role(discovery, "worker-0", cfg)
             .await
-            .unwrap_err();
+            .expect_err("worker role should fail and clear stale ordering issues after usable discovery");
         let msg = err.to_string();
         assert!(
             !msg.contains("MixedIndexMetadataPresence"),
