@@ -10341,6 +10341,175 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_preserves_worker_timeout_when_cleanup_steps_timeout() {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            ..DistributedRunConfig::default()
+        };
+        assert_worker_timeout_cleanup_timeout_case(cfg, "ps", "worker-0", "worker").await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_timeout_with_custom_service_types_and_index_when_cleanup_steps_timeout(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 3,
+            num_ps: 1,
+            num_workers: 4,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+        assert_worker_timeout_cleanup_timeout_case(
+            cfg,
+            "parameter_server_custom",
+            "worker-3",
+            "trainer_custom",
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_timeout_with_custom_service_type_when_cleanup_steps_timeout(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+        assert_worker_timeout_cleanup_timeout_case(
+            cfg,
+            "parameter_server_custom",
+            "worker-0",
+            "trainer_custom",
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_timeout_with_custom_service_types_when_cleanup_steps_timeout(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+        assert_worker_timeout_cleanup_timeout_case(
+            cfg,
+            "parameter_server_custom",
+            "worker-0",
+            "trainer_custom",
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_timeout_with_default_service_type_and_index_when_cleanup_steps_timeout(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 2,
+            num_ps: 1,
+            num_workers: 3,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+        assert_worker_timeout_cleanup_timeout_case(cfg, "ps", "worker-2", "worker").await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_timeout_with_default_service_type_when_cleanup_steps_timeout(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+        assert_worker_timeout_cleanup_timeout_case(cfg, "ps", "worker-0", "worker").await;
+    }
+
+    async fn assert_worker_timeout_cleanup_timeout_case(
+        cfg: DistributedRunConfig,
+        expected_ps_service_type: &str,
+        expected_worker_service_id: &str,
+        expected_worker_service_type: &str,
+    ) {
+        let discovery = Arc::new(WorkerTimeoutWithHangingCleanupDiscovery::new());
+        let res = tokio::time::timeout(
+            Duration::from_millis(1500),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when worker timeout cleanup steps time out"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker timeout should remain primary over cleanup timeout errors: {msg}"
+        );
+        assert!(
+            msg.contains(&format!("service type: {expected_ps_service_type}")),
+            "worker-timeout diagnostics should include expected PS service-type context: {msg}"
+        );
+        assert!(
+            msg.contains(&format!("for {expected_worker_service_id}")),
+            "worker-timeout diagnostics should include expected worker service-id context: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "worker-timeout diagnostics should include cleanup issue context when cleanup times out: {msg}"
+        );
+        assert!(
+            msg.contains(&format!(
+                "Timed out during discovery cleanup: deregister {expected_worker_service_id} from {expected_worker_service_type}"
+            )),
+            "worker-timeout cleanup context should include expected deregister timeout diagnostics: {msg}"
+        );
+        assert!(
+            msg.contains(&format!(
+                "Timed out during discovery cleanup: disconnect {expected_worker_service_id} via {expected_worker_service_type}"
+            )),
+            "worker-timeout cleanup context should include expected disconnect timeout diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_preserves_worker_ordering_issue_timeout_with_default_service_type_and_index_when_cleanup_steps_timeout(
     ) {
         let discovery = Arc::new(WorkerOrderingIssueWithHangingCleanupDiscovery::new());

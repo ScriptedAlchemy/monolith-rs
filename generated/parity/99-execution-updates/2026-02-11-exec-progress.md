@@ -3595,6 +3595,21 @@
   integration tests is now complete (`_when_cleanup_times_out` and
   `_when_cleanup_fails` counterpart audit returns zero missing).
 
+### 258) Runner worker-timeout cleanup-step timeout aliases completed
+- Added runner-level worker-timeout cleanup-timeout aliases for all existing
+  cleanup-failure naming variants:
+  - `test_run_distributed_preserves_worker_timeout_when_cleanup_steps_timeout`
+  - `test_run_distributed_preserves_worker_timeout_with_custom_service_types_and_index_when_cleanup_steps_timeout`
+  - `test_run_distributed_preserves_worker_timeout_with_custom_service_type_when_cleanup_steps_timeout`
+  - `test_run_distributed_preserves_worker_timeout_with_custom_service_types_when_cleanup_steps_timeout`
+  - `test_run_distributed_preserves_worker_timeout_with_default_service_type_and_index_when_cleanup_steps_timeout`
+  - `test_run_distributed_preserves_worker_timeout_with_default_service_type_when_cleanup_steps_timeout`
+- Added shared helper
+  `assert_worker_timeout_cleanup_timeout_case(...)` to keep assertions and
+  diagnostics consistent across new timeout alias tests.
+- Result: runner counterpart audit now reports zero missing aliases in the
+  `_when_cleanup_steps_fail -> _when_cleanup_steps_timeout` direction.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4142,6 +4157,8 @@
 544. `ZK_AUTH=user:pass cargo test -p monolith-training worker_discovery_error_when_cleanup_fails -- --nocapture` ✅ (post worker discovery error cleanup-failure naming parity alias expansion across RunConfig/RunnerConfig entrypoints)
 545. `ZK_AUTH=user:pass cargo test -p monolith-training worker_timeout_when_cleanup_times_out -- --nocapture` ✅ (post worker-timeout cleanup-timeout generic alias expansion across RunConfig/RunnerConfig entrypoints)
 546. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker discovery/timeout naming parity expansion full monolith-training regression rerun)
+547. `ZK_AUTH=user:pass cargo test -p monolith-training worker_timeout_with_ -- --nocapture` ✅ (post runner worker-timeout cleanup-step timeout alias expansion across custom/default/indexed variants)
+548. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner worker-timeout cleanup-step timeout alias expansion full monolith-training regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
