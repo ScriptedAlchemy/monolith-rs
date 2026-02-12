@@ -5627,6 +5627,28 @@
   - Focused watch-poll tests and full default monolith-training regression
     remain green.
 
+### 418) Discovery parity: ZooKeeper lifecycle assertion tightening batch
+- Refactored ZooKeeper sync/async lifecycle tests in
+  `crates/monolith-training/src/discovery.rs` to replace panic fallback match
+  arms with explicit `expect_err(...)` + `matches!(...)` contracts in:
+  - `test_zk_sync_deregister_missing_service_preserves_watchers`
+  - `test_zk_async_register_failure_compacts_dead_watchers`
+  - `test_zk_async_register_failure_keeps_live_watchers`
+  - `test_zk_async_register_failure_does_not_cache_service`
+  - `test_zk_async_deregister_failure_still_removes_local_cache_and_notifies_watchers`
+  - `test_zk_async_deregister_failure_compacts_dead_watchers`
+  - `test_zk_async_deregister_failure_cleans_registered_path`
+  - `test_zk_async_deregister_failure_keeps_live_watchers`
+  - `test_zk_async_deregister_missing_service_returns_not_found`
+  - `test_zk_async_deregister_missing_service_cleans_stale_registered_path`
+  - `test_zk_async_deregister_missing_service_preserves_watchers`
+- Result:
+  - ZooKeeper failure-shape and watcher-event contracts now use explicit variant
+    + payload assertions with improved diagnostics and reduced ad-hoc panic
+    branching across register/deregister lifecycle tests.
+  - Feature-gated ZooKeeper targeted suites and default monolith-training
+    regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6542,6 +6564,7 @@
 912. `cargo test -p monolith-training test_in_memory_deregister -- --nocapture && cargo test -p monolith-training test_in_memory_duplicate_registration -- --nocapture && cargo test -p monolith-training test_in_memory_update_health -- --nocapture && cargo test -p monolith-training test_in_memory_watch -- --nocapture && cargo test -p monolith-training test_in_memory_watch_update -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (in-memory discovery assertion-tightening targeted verification plus default-lane regression rerun)
 913. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" map_consul_request_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" normalize_consul_address_for_operation_rejects -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (Consul classifier/normalizer assertion-tightening targeted verification plus default-lane regression rerun)
 914. `cargo test -p monolith-training test_spawn_watch_poll_loop_emits_added_and_removed_events -- --nocapture && cargo test -p monolith-training test_spawn_watch_poll_loop_emits_updated_events -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (watch-poll event assertion-tightening targeted verification plus default-lane regression rerun)
+915. `cargo test -p monolith-training --features "zookeeper" test_zk_sync_deregister_missing_service_preserves_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" test_zk_async_register_failure_ -- --nocapture && cargo test -p monolith-training --features "zookeeper" test_zk_async_deregister_ -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (ZooKeeper lifecycle assertion-tightening targeted verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
