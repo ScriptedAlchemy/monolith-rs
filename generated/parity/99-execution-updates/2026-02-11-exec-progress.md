@@ -3336,6 +3336,30 @@
   indexed and non-indexed custom service-type paths across runner + RunConfig +
   RunnerConfig entrypoints.
 
+### 245) Connect-failure custom non-index cleanup-context parity expanded
+- Added runner-level custom non-index connect-failure cleanup-context
+  regressions:
+  - `test_run_distributed_connect_failure_does_not_hang_when_disconnect_blocks_with_custom_service_type`
+  - `test_run_distributed_returns_connect_error_when_connect_and_disconnect_fail_with_custom_service_type`
+- Added RunConfig integration custom non-index connect-failure cleanup-context
+  regressions:
+  - `distributed_runner_from_run_config_preserves_connect_failure_with_custom_service_type_cleanup_timeout_context`
+  - `distributed_runner_from_run_config_preserves_connect_failure_with_custom_service_type_disconnect_failure_context`
+  - `distributed_runner_from_run_config_preserves_ps_connect_failure_with_custom_service_type_cleanup_timeout_context`
+  - `distributed_runner_from_run_config_preserves_ps_connect_failure_with_custom_service_type_disconnect_failure_context`
+- Added RunnerConfig integration custom non-index connect-failure
+  cleanup-context regressions:
+  - `distributed_runner_from_runner_config_preserves_connect_failure_with_custom_service_type_cleanup_timeout_context`
+  - `distributed_runner_from_runner_config_preserves_connect_failure_with_custom_service_type_disconnect_failure_context`
+  - `distributed_runner_from_runner_config_preserves_ps_connect_failure_with_custom_service_type_cleanup_timeout_context`
+  - `distributed_runner_from_runner_config_preserves_ps_connect_failure_with_custom_service_type_disconnect_failure_context`
+- New assertions verify custom non-index worker/ps connect-failure diagnostics
+  preserve primary connect-failure precedence and append custom service-type
+  cleanup operation context for timeout and failure variants.
+- Result: connect-failure cleanup diagnostics now explicitly cover indexed and
+  non-indexed custom service-type paths across runner + RunConfig +
+  RunnerConfig entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3844,6 +3868,9 @@
 505. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post connect-timeout custom non-index cleanup-timeout parity expansion across runner/config entrypoints)
 506. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post connect-timeout custom non-index cleanup-timeout parity compatibility verification)
 507. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post connect-timeout custom non-index cleanup-timeout parity expansion full workspace rerun under ambient ZK auth env)
+508. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post connect-failure custom non-index cleanup-context parity expansion across runner/config entrypoints)
+509. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post connect-failure custom non-index cleanup-context parity compatibility verification)
+510. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post connect-failure custom non-index cleanup-context parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

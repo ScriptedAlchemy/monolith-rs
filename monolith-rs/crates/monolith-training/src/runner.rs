@@ -7588,6 +7588,52 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_connect_failure_does_not_hang_when_disconnect_blocks_with_custom_service_type(
+    ) {
+        let discovery = Arc::new(FailingConnectWithHangingDisconnectDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            discovery_cleanup_timeout: Duration::from_millis(20),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = tokio::time::timeout(
+            Duration::from_millis(900),
+            run_distributed(Arc::clone(&discovery), cfg),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "run_distributed should not hang when custom non-index worker connect-failure cleanup disconnect blocks"
+        );
+        let msg = res.unwrap().unwrap_err().to_string();
+        assert!(
+            msg.contains("forced connect failure"),
+            "custom non-index worker connect failure should remain primary when cleanup disconnect blocks: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "custom non-index worker connect failures should include cleanup issue context when disconnect cleanup times out: {msg}"
+        );
+        assert!(
+            msg.contains(
+                "Timed out during discovery cleanup: disconnect worker-0 via trainer_custom after 20ms"
+            ),
+            "custom non-index worker connect-failure cleanup issue context should include custom-service-type disconnect timeout diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should still be attempted even if it blocks"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_ps_connect_failure_does_not_hang_when_disconnect_blocks_with_custom_service_type(
     ) {
         let discovery = Arc::new(FailingConnectWithHangingDisconnectDiscovery::new());
@@ -7826,6 +7872,43 @@ mod tests {
             msg.contains("disconnect worker-3 via trainer_custom")
                 && msg.contains("forced disconnect failure"),
             "indexed custom-worker connect-failure cleanup issue context should include custom-service-type/index disconnect failure diagnostics with operation context: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(
+            discovery.disconnect_count(),
+            1,
+            "disconnect should still be attempted even when it also fails"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_returns_connect_error_when_connect_and_disconnect_fail_with_custom_service_type(
+    ) {
+        let discovery = Arc::new(FailingConnectAndDisconnectDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(res.is_err(), "expected custom non-index connect failure");
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("forced connect failure"),
+            "custom non-index worker connect error should be returned even if disconnect also fails: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "custom non-index worker connect failures should include cleanup issue context when disconnect cleanup fails: {msg}"
+        );
+        assert!(
+            msg.contains("disconnect worker-0 via trainer_custom")
+                && msg.contains("forced disconnect failure"),
+            "custom non-index worker connect-failure cleanup issue context should include custom-service-type disconnect failure diagnostics with operation context: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(
