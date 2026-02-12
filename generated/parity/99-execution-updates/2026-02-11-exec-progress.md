@@ -3085,6 +3085,24 @@
   include explicit indexed default-worker parity, aligning with existing
   indexed default PS and integration-level coverage.
 
+### 232) Worker ordering-issue timeout cleanup diagnostics parity expanded
+- Added runner-level ordering-issue timeout regressions:
+  - `test_run_distributed_preserves_worker_ordering_issue_timeout_with_default_service_type_and_index_when_cleanup_steps_timeout`
+  - `test_run_distributed_preserves_worker_ordering_issue_timeout_with_custom_service_types_and_index_when_cleanup_steps_fail`
+- Added RunConfig integration regressions:
+  - `distributed_runner_from_run_config_preserves_worker_ordering_issue_timeout_with_default_service_type_and_index_when_cleanup_times_out`
+  - `distributed_runner_from_run_config_preserves_worker_ordering_issue_timeout_with_custom_service_types_and_index_when_cleanup_fails`
+- Added RunnerConfig integration regressions:
+  - `distributed_runner_from_runner_config_preserves_worker_ordering_issue_timeout_with_default_service_type_and_index_when_cleanup_times_out`
+  - `distributed_runner_from_runner_config_preserves_worker_ordering_issue_timeout_with_custom_service_types_and_index_when_cleanup_fails`
+- New assertions verify worker timeout diagnostics preserve:
+  - ordering error payload (`last ordering issue: MixedIndexMetadataPresence`),
+  - default/custom PS service-type context and indexed worker service-id propagation,
+  - cleanup timeout/failure operation diagnostics on deregister/disconnect.
+- Result: ordering-issue-driven worker timeout diagnostics now have explicit
+  cleanup timeout/failure parity across runner + RunConfig + RunnerConfig
+  entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3554,6 +3572,9 @@
 466. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner-only worker register-timeout cleanup-failure indexed-default parity addition)
 467. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post runner-only worker register-timeout cleanup-failure indexed-default compatibility verification)
 468. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post runner-only worker register-timeout cleanup-failure indexed-default parity addition full workspace rerun under ambient ZK auth env)
+469. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker ordering-issue timeout cleanup diagnostics parity expansion across runner/config entrypoints)
+470. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post worker ordering-issue timeout cleanup diagnostics parity compatibility verification)
+471. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post worker ordering-issue timeout cleanup diagnostics parity expansion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
