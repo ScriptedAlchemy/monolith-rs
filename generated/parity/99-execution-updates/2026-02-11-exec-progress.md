@@ -3524,6 +3524,42 @@
   explicitly cover default-service non-index worker paths across runner +
   RunConfig + RunnerConfig entrypoints.
 
+### 255) Default-service non-index register parity matrix completed
+- Added runner-level default-service non-index register-parity regressions:
+  - registration-failure cleanup context:
+    - `test_run_distributed_worker_registration_failure_with_default_service_type_includes_cleanup_context`
+    - `test_run_distributed_ps_registration_failure_with_default_service_type_includes_cleanup_context`
+  - register-failure cleanup-timeout:
+    - `test_run_distributed_preserves_worker_register_failure_with_default_service_type_when_cleanup_steps_timeout`
+    - `test_run_distributed_preserves_ps_register_failure_with_default_service_type_when_cleanup_steps_timeout`
+  - register-timeout cleanup-timeout/failure:
+    - `test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_times_out_with_default_service_type`
+    - `test_run_distributed_worker_register_timeout_preserves_error_when_cleanup_fails_with_default_service_type`
+    - `test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_times_out_with_default_service_type`
+    - `test_run_distributed_ps_register_timeout_preserves_error_when_cleanup_fails_with_default_service_type`
+- Added RunConfig integration default-service non-index register-parity tests:
+  - worker/ps register-failure cleanup-timeout context:
+    - `distributed_runner_from_run_config_preserves_worker_register_failure_with_default_service_type_cleanup_timeout_context`
+    - `distributed_runner_from_run_config_preserves_ps_register_failure_with_default_service_type_cleanup_timeout_context`
+  - worker/ps register-timeout cleanup failure/timeout:
+    - `distributed_runner_from_run_config_preserves_register_timeout_with_default_service_type_disconnect_failure_context`
+    - `distributed_runner_from_run_config_preserves_register_timeout_with_default_service_type_when_cleanup_blocks`
+    - `distributed_runner_from_run_config_preserves_ps_register_timeout_with_default_service_type_disconnect_failure_context`
+    - `distributed_runner_from_run_config_preserves_ps_register_timeout_with_default_service_type_when_cleanup_blocks`
+- Added RunnerConfig integration default-service non-index register-parity
+  tests:
+  - worker/ps register-failure cleanup-timeout context:
+    - `distributed_runner_from_runner_config_preserves_worker_register_failure_with_default_service_type_cleanup_timeout_context`
+    - `distributed_runner_from_runner_config_preserves_ps_register_failure_with_default_service_type_cleanup_timeout_context`
+  - worker/ps register-timeout cleanup failure/timeout:
+    - `distributed_runner_from_runner_config_preserves_register_timeout_with_default_service_type_disconnect_failure_context`
+    - `distributed_runner_from_runner_config_preserves_register_timeout_with_default_service_type_when_cleanup_blocks`
+    - `distributed_runner_from_runner_config_preserves_ps_register_timeout_with_default_service_type_disconnect_failure_context`
+    - `distributed_runner_from_runner_config_preserves_ps_register_timeout_with_default_service_type_when_cleanup_blocks`
+- Result: indexed→non-index register parity gaps are fully closed in
+  `native_training_parity.rs`, and runner default-service indexed→non-index
+  gaps are reduced to connect/discover-failure path aliases only.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4062,6 +4098,9 @@
 535. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post default-service non-index worker-ordering cleanup parity expansion across runner/config entrypoints)
 536. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post default-service non-index worker-ordering cleanup parity compatibility verification)
 537. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post default-service non-index worker-ordering cleanup parity expansion full workspace rerun under ambient ZK auth env)
+538. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post default-service non-index register parity matrix completion across runner/config entrypoints)
+539. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post default-service non-index register parity matrix compatibility verification)
+540. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post default-service non-index register parity matrix completion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

@@ -6451,6 +6451,60 @@ async fn distributed_runner_from_run_config_preserves_worker_register_failure_wi
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_preserves_worker_register_failure_with_default_service_type_cleanup_timeout_context(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(FailingRegisterWithHangingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when non-index worker register fails and default-service cleanup steps block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("forced register failure"),
+        "worker register failure should remain primary over default-service cleanup timeout failures via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "worker register-failure diagnostics via RunConfig should include cleanup issue context when default-service cleanup steps block for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister worker-0 from worker after 20ms"),
+        "worker register-failure cleanup context via RunConfig should include worker non-index service-type deregister-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker after 20ms"),
+        "worker register-failure cleanup context via RunConfig should include worker non-index service-type disconnect-timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_preserves_worker_register_failure_with_custom_service_type_cleanup_timeout_context(
 ) {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -6787,6 +6841,60 @@ async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_d
     assert!(
         msg.contains("Timed out during discovery cleanup: disconnect ps-2 via ps after 20ms"),
         "indexed ps register-failure cleanup context via RunConfig should include ps service-type/index disconnect-timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_preserves_ps_register_failure_with_default_service_type_cleanup_timeout_context(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(FailingRegisterWithHangingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Ps,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when non-index ps register fails and default-service cleanup steps block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("forced register failure"),
+        "ps register failure should remain primary over default-service cleanup timeout failures via RunConfig: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "ps register-failure diagnostics via RunConfig should include cleanup issue context when default-service cleanup steps block for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister ps-0 from ps after 20ms"),
+        "ps register-failure cleanup context via RunConfig should include ps non-index service-type deregister-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect ps-0 via ps after 20ms"),
+        "ps register-failure cleanup context via RunConfig should include ps non-index service-type disconnect-timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
@@ -10808,6 +10916,63 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_defa
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_preserves_register_timeout_with_default_service_type_disconnect_failure_context(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingRegisterWithFailingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when non-index default-worker register blocks and cleanup fails"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out during discovery operation: register worker-0 as worker after 20ms"),
+        "default-worker register timeout should remain primary over cleanup failure via RunConfig for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "default-worker register-timeout diagnostics via RunConfig should include cleanup issue context when cleanup fails for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("deregister worker-0 from worker")
+            && msg.contains("forced deregister failure"),
+        "default-worker register-timeout cleanup context via RunConfig should include non-index deregister-failure diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-0 via worker")
+            && msg.contains("forced disconnect failure"),
+        "default-worker register-timeout cleanup context via RunConfig should include non-index disconnect-failure diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_propagates_worker_service_type_into_register_timeout_diagnostics(
 ) {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -11034,6 +11199,61 @@ async fn distributed_runner_from_run_config_preserves_register_timeout_with_defa
     assert!(
         msg.contains("Timed out during discovery cleanup: disconnect worker-2 via worker after 20ms"),
         "indexed default-worker register-timeout cleanup context via RunConfig should include default-service-type/index disconnect-timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_preserves_register_timeout_with_default_service_type_when_cleanup_blocks(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingRegisterAndCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when non-index default-worker register and cleanup block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out during discovery operation: register worker-0 as worker after 20ms"),
+        "default-worker register timeout should remain primary over cleanup timeout via RunConfig for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "default-worker register-timeout diagnostics via RunConfig should include cleanup issue context when cleanup blocks for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister worker-0 from worker after 20ms"),
+        "default-worker register-timeout cleanup context via RunConfig should include non-index deregister-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker after 20ms"),
+        "default-worker register-timeout cleanup context via RunConfig should include non-index disconnect-timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
@@ -11339,6 +11559,61 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_d
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_default_service_type_disconnect_failure_context(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingRegisterWithFailingCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Ps,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when non-index default-ps register blocks and cleanup fails"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out during discovery operation: register ps-0 as ps after 20ms"),
+        "default-ps register timeout should remain primary over cleanup failure via RunConfig for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "default-ps register-timeout diagnostics via RunConfig should include cleanup issue context when cleanup fails for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("deregister ps-0 from ps") && msg.contains("forced deregister failure"),
+        "default-ps register-timeout cleanup context via RunConfig should include non-index deregister-failure diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect ps-0 via ps") && msg.contains("forced disconnect failure"),
+        "default-ps register-timeout cleanup context via RunConfig should include non-index disconnect-failure diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_propagates_ps_service_type_into_register_timeout_diagnostics(
 ) {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -11577,6 +11852,61 @@ async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_d
     assert!(
         msg.contains("Timed out during discovery cleanup: disconnect ps-2 via ps after 20ms"),
         "indexed default-ps register-timeout cleanup context via RunConfig should include default-service-type/index disconnect-timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_preserves_ps_register_timeout_with_default_service_type_when_cleanup_blocks(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingRegisterAndCleanupFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Ps,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_run_config should not hang when non-index default-ps register and cleanup block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out during discovery operation: register ps-0 as ps after 20ms"),
+        "default-ps register timeout should remain primary over cleanup timeout via RunConfig for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "default-ps register-timeout diagnostics via RunConfig should include cleanup issue context when cleanup blocks for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister ps-0 from ps after 20ms"),
+        "default-ps register-timeout cleanup context via RunConfig should include non-index deregister-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect ps-0 via ps after 20ms"),
+        "default-ps register-timeout cleanup context via RunConfig should include non-index disconnect-timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
@@ -19311,6 +19641,59 @@ async fn distributed_runner_from_runner_config_preserves_worker_register_failure
 }
 
 #[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_worker_register_failure_with_default_service_type_cleanup_timeout_context(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(FailingRegisterWithHangingCleanupFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when non-index worker register fails and default-service cleanup steps block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("forced register failure"),
+        "worker register failure should remain primary over default-service cleanup timeout failures via RunnerConfig: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "worker register-failure diagnostics via RunnerConfig should include cleanup issue context when default-service cleanup steps block for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister worker-0 from worker after 20ms"),
+        "worker register-failure cleanup context via RunnerConfig should include worker non-index service-type deregister-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker after 20ms"),
+        "worker register-failure cleanup context via RunnerConfig should include worker non-index service-type disconnect-timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_runner_config_preserves_worker_register_failure_with_custom_service_type_cleanup_timeout_context(
 ) {
     use monolith_training::runner::{run_distributed_from_runner_config, Role};
@@ -19641,6 +20024,59 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_failure_wit
     assert!(
         msg.contains("Timed out during discovery cleanup: disconnect ps-2 via ps after 20ms"),
         "indexed ps register-failure cleanup context via RunnerConfig should include ps service-type/index disconnect-timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_ps_register_failure_with_default_service_type_cleanup_timeout_context(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(FailingRegisterWithHangingCleanupFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Ps,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when non-index ps register fails and default-service cleanup steps block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("forced register failure"),
+        "ps register failure should remain primary over default-service cleanup timeout failures via RunnerConfig: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "ps register-failure diagnostics via RunnerConfig should include cleanup issue context when default-service cleanup steps block for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister ps-0 from ps after 20ms"),
+        "ps register-failure cleanup context via RunnerConfig should include ps non-index service-type deregister-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect ps-0 via ps after 20ms"),
+        "ps register-failure cleanup context via RunnerConfig should include ps non-index service-type disconnect-timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
@@ -20435,6 +20871,62 @@ async fn distributed_runner_from_runner_config_preserves_register_timeout_with_d
 }
 
 #[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_register_timeout_with_default_service_type_disconnect_failure_context(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingRegisterWithFailingCleanupFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when non-index default-worker register blocks and cleanup fails"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out during discovery operation: register worker-0 as worker after 20ms"),
+        "default-worker register timeout should remain primary over cleanup failure via RunnerConfig for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "default-worker register-timeout diagnostics via RunnerConfig should include cleanup issue context when cleanup fails for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("deregister worker-0 from worker")
+            && msg.contains("forced deregister failure"),
+        "default-worker register-timeout cleanup context via RunnerConfig should include non-index deregister-failure diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect worker-0 via worker")
+            && msg.contains("forced disconnect failure"),
+        "default-worker register-timeout cleanup context via RunnerConfig should include non-index disconnect-failure diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_runner_config_propagates_worker_service_type_into_register_timeout_diagnostics(
 ) {
     use monolith_training::runner::{run_distributed_from_runner_config, Role};
@@ -20646,6 +21138,60 @@ async fn distributed_runner_from_runner_config_preserves_register_timeout_with_d
     assert!(
         msg.contains("Timed out during discovery cleanup: disconnect worker-2 via worker after 20ms"),
         "indexed default-worker register-timeout cleanup context via RunnerConfig should include default-service-type/index disconnect-timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_register_timeout_with_default_service_type_when_cleanup_blocks(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingRegisterAndCleanupFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Worker,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when non-index default-worker register and cleanup block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out during discovery operation: register worker-0 as worker after 20ms"),
+        "default-worker register timeout should remain primary over cleanup timeout via RunnerConfig for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "default-worker register-timeout diagnostics via RunnerConfig should include cleanup issue context when cleanup blocks for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister worker-0 from worker after 20ms"),
+        "default-worker register-timeout cleanup context via RunnerConfig should include non-index deregister-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect worker-0 via worker after 20ms"),
+        "default-worker register-timeout cleanup context via RunnerConfig should include non-index disconnect-timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
@@ -20932,6 +21478,60 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_timeout_wit
 }
 
 #[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_ps_register_timeout_with_default_service_type_disconnect_failure_context(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingRegisterWithFailingCleanupFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Ps,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when non-index default-ps register blocks and cleanup fails"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out during discovery operation: register ps-0 as ps after 20ms"),
+        "default-ps register timeout should remain primary over cleanup failure via RunnerConfig for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "default-ps register-timeout diagnostics via RunnerConfig should include cleanup issue context when cleanup fails for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("deregister ps-0 from ps") && msg.contains("forced deregister failure"),
+        "default-ps register-timeout cleanup context via RunnerConfig should include non-index deregister-failure diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("disconnect ps-0 via ps") && msg.contains("forced disconnect failure"),
+        "default-ps register-timeout cleanup context via RunnerConfig should include non-index disconnect-failure diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn distributed_runner_from_runner_config_propagates_ps_service_type_into_register_timeout_diagnostics(
 ) {
     use monolith_training::runner::{run_distributed_from_runner_config, Role};
@@ -21155,6 +21755,60 @@ async fn distributed_runner_from_runner_config_preserves_ps_register_timeout_wit
     assert!(
         msg.contains("Timed out during discovery cleanup: disconnect ps-2 via ps after 20ms"),
         "indexed default-ps register-timeout cleanup context via RunnerConfig should include default-service-type/index disconnect-timeout diagnostics: {msg}"
+    );
+    assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.deregister_count.load(Ordering::SeqCst), 1);
+    assert_eq!(discovery.disconnect_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_preserves_ps_register_timeout_with_default_service_type_when_cleanup_blocks(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(HangingRegisterAndCleanupFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 20,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_millis(700),
+        run_distributed_from_runner_config(
+            Arc::clone(&discovery),
+            &runner,
+            Role::Ps,
+            "127.0.0.1:0".parse().unwrap(),
+        ),
+    )
+    .await;
+    assert!(
+        res.is_ok(),
+        "run_distributed_from_runner_config should not hang when non-index default-ps register and cleanup block"
+    );
+    let msg = res.unwrap().unwrap_err().to_string();
+    assert!(
+        msg.contains("Timed out during discovery operation: register ps-0 as ps after 20ms"),
+        "default-ps register timeout should remain primary over cleanup timeout via RunnerConfig for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("discovery cleanup encountered issues after role error"),
+        "default-ps register-timeout diagnostics via RunnerConfig should include cleanup issue context when cleanup blocks for non-index path: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: deregister ps-0 from ps after 20ms"),
+        "default-ps register-timeout cleanup context via RunnerConfig should include non-index deregister-timeout diagnostics: {msg}"
+    );
+    assert!(
+        msg.contains("Timed out during discovery cleanup: disconnect ps-0 via ps after 20ms"),
+        "default-ps register-timeout cleanup context via RunnerConfig should include non-index disconnect-timeout diagnostics: {msg}"
     );
     assert_eq!(discovery.connect_count.load(Ordering::SeqCst), 1);
     assert_eq!(discovery.register_count.load(Ordering::SeqCst), 1);
