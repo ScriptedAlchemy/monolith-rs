@@ -26126,6 +26126,11 @@ fn distributed_runner_from_run_config_preserves_discover_timeout_and_index_when_
 }
 
 #[test]
+fn distributed_runner_from_run_config_honors_last_discover_error_controls() {
+    distributed_runner_from_run_config_honors_discover_timeout_controls();
+}
+
+#[test]
 fn distributed_runner_from_run_config_preserves_discover_timeout_and_index_when_cleanup_times_out()
 {
     distributed_runner_from_run_config_preserves_discover_timeout_with_default_service_types_and_index_when_cleanup_times_out();
@@ -26181,6 +26186,11 @@ fn distributed_runner_from_run_config_preserves_worker_timeout_and_index_when_cl
 fn distributed_runner_from_runner_config_preserves_discover_timeout_and_index_when_cleanup_fails()
 {
     distributed_runner_from_runner_config_preserves_discover_timeout_with_default_service_types_and_index_when_cleanup_fails();
+}
+
+#[test]
+fn distributed_runner_from_runner_config_honors_last_discover_error_controls() {
+    distributed_runner_from_runner_config_honors_discover_timeout_controls();
 }
 
 #[test]

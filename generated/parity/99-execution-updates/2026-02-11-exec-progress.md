@@ -3946,6 +3946,20 @@
   - `with_custom_service_types -> (none)`: `missing 0` (both files)
   - Expanded broad transform audit remains fully closed (`missing 0`).
 
+### 287) Discover-timeout counterpart alias parity completed
+- Added 13 alias wrappers for
+  `discover_timeout -> last_discover_error`:
+  - 11 wrappers in `runner.rs`
+  - 2 wrappers in `native_training_parity.rs`
+- Coverage includes:
+  - worker discover-timeout cleanup/fail-timeout context families
+  - role-level service-type context diagnostics
+  - run/runner discover-timeout control parity helpers.
+- Result:
+  - `discover_timeout -> last_discover_error`: `missing 0` in both files.
+  - Updated broad transform audit remains fully closed (`missing 0` for all
+    tracked transforms).
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4618,6 +4632,12 @@
 669. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post service-types generic alias additions full monolith-training regression rerun)
 670. `python3` service-types generic audits (`with_default_service_types -> (none)` and `with_custom_service_types -> (none)`) ✅ (both files `missing 0`)
 671. `python3` expanded broad transform audit (including service-types and service-types-and-index generic families) ✅ (`missing 0` for all tracked transforms in both files)
+672. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_worker_last_discover_error_does_not_hang_and_cleans_up -- --nocapture` ✅
+673. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_honors_last_discover_error_controls -- --nocapture` ✅
+674. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_honors_last_discover_error_controls -- --nocapture` ✅
+675. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post discover-timeout alias additions full monolith-training regression rerun)
+676. `python3` discover-timeout transform audit (`discover_timeout -> last_discover_error`) ✅ (both files `missing 0`)
+677. `python3` latest broad transform audit (including discover-timeout transform) ✅ (`missing 0` for all tracked transforms in both files)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
