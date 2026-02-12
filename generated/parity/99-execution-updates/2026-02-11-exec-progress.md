@@ -4019,6 +4019,17 @@
     transform family (tracked separately).
   - Full monolith-training regression remains green.
 
+### 293) Native run-config connect-timeout preserves→surfaces (non-PS) batch
+- Added 28 alias wrappers in `native_training_parity.rs` for run-config
+  `connect_timeout`/`default_connect_timeout` directional naming:
+  `preserves_ -> surfaces_`.
+- Result:
+  - Native missing counts for this scoped family reduced:
+    - run-config: `56 -> 28`
+    - runner-config: `56` (unchanged)
+    - total: `112 -> 84`
+  - Full monolith-training regression remains green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4719,6 +4730,10 @@
 697. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_ps_connect_timeout_surfaces_error_when_disconnect_cleanup_times_out_with_default_service_type_and_index -- --nocapture` ✅
 698. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner connect-timeout preserves->surfaces alias additions full monolith-training regression rerun)
 699. `python3` runner connect-timeout directional audit (`preserves_ -> surfaces_`, `connect_timeout`-scoped) ✅ (`runner.rs` `missing 0`; native remains with broader pending set)
+700. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_surfaces_connect_timeout_with_default_service_type_cleanup_context -- --nocapture` ✅
+701. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_surfaces_default_connect_timeout_with_index_when_cleanup_blocks -- --nocapture` ✅
+702. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post native run-config connect-timeout preserves->surfaces batch full monolith-training regression rerun)
+703. `python3` native connect-timeout directional audit by scope ✅ (run `56->28`, runner `56`, total `112->84`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
