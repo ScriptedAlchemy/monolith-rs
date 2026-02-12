@@ -3922,6 +3922,17 @@
   confirms `missing 0` for all tracked transform families
   (cleanup/disconnect/timeout/index/service-type/default-generic).
 
+### 285) Service-types-and-index generic alias parity completed
+- Added 16 alias wrappers to close
+  `with_default_service_types_and_index -> (none)`:
+  - 4 wrappers in `runner.rs`
+  - 12 wrappers in `native_training_parity.rs`
+- Covers discover-timeout and worker-ordering timeout families (run+runner).
+- Result:
+  - Both files now report
+    `with_default_service_types_and_index -> (none): missing 0`
+  - Updated broad audit still reports `missing 0` for all tracked transforms.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4584,6 +4595,11 @@
 659. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_preserves_worker_discover_failure_with_custom_service_type_and_index_when_cleanup_steps_timeout -- --nocapture` ✅
 660. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post final runner default->custom index alias additions full monolith-training regression rerun)
 661. `python3` broad transform audit (cleanup/disconnect/timeout/index/service-type/default-generic) ✅ (`missing 0` for every tracked transform in both `runner.rs` and `native_training_parity.rs`)
+662. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_preserves_worker_ordering_and_discovery_error_timeout_when_cleanup_steps_fail -- --nocapture` ✅
+663. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_worker_ordering_issue_timeout_when_cleanup_times_out -- --nocapture` ✅
+664. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post service-types-and-index generic alias additions full monolith-training regression rerun)
+665. `python3` `with_default_service_types_and_index -> (none)` audit (`runner.rs` + `native_training_parity.rs`) ✅ (both `missing 0`)
+666. `python3` updated broad transform audit ✅ (`missing 0` for all tracked transforms in both files, including `with_default_service_types_and_index -> (none)`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

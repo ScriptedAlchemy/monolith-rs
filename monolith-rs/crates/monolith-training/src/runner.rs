@@ -12915,4 +12915,26 @@ mod tests {
     ) {
         test_run_distributed_preserves_worker_timeout_with_default_service_type_and_index_when_cleanup_steps_timeout();
     }
+
+    #[test]
+    fn test_run_distributed_preserves_worker_ordering_and_discovery_error_timeout_when_cleanup_steps_fail(
+    ) {
+        test_run_distributed_preserves_worker_ordering_and_discovery_error_timeout_with_default_service_types_and_index_when_cleanup_steps_fail();
+    }
+
+    #[test]
+    fn test_run_distributed_preserves_worker_ordering_and_discovery_error_timeout_when_cleanup_steps_timeout(
+    ) {
+        test_run_distributed_preserves_worker_ordering_and_discovery_error_timeout_with_default_service_types_and_index_when_cleanup_steps_timeout();
+    }
+
+    #[test]
+    fn test_run_distributed_preserves_worker_ordering_issue_timeout_when_cleanup_steps_fail() {
+        test_run_distributed_preserves_worker_ordering_issue_timeout_with_default_service_types_and_index_when_cleanup_steps_fail();
+    }
+
+    #[test]
+    fn test_run_distributed_preserves_worker_ordering_issue_timeout_when_cleanup_steps_timeout() {
+        test_run_distributed_preserves_worker_ordering_issue_timeout_with_default_service_types_and_index_when_cleanup_steps_timeout();
+    }
 }
