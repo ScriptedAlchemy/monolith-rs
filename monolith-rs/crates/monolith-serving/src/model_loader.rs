@@ -423,8 +423,10 @@ mod tests {
         };
         let loader = ModelLoader::new(config);
 
-        let result = loader.load(&model_path).await;
-        assert!(result.is_ok());
+        loader
+            .load(&model_path)
+            .await
+            .expect("loading model from temporary directory should succeed");
         assert!(loader.is_ready());
 
         let model = loader.current_model().unwrap();

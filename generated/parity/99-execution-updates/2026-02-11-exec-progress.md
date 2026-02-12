@@ -6030,6 +6030,21 @@
     clearer failure diagnostics.
   - Focused parity tests and default monolith-training regression remain green.
 
+### 444) Serving parity: tighten success assertions in core serving test suites
+- Refactored `monolith-serving` unit tests to replace coarse
+  `assert!(result.is_ok())`/`assert!(addr.is_ok())` patterns with explicit
+  `.expect("...")` extraction diagnostics across:
+  - server lifecycle tests (`server.rs`),
+  - agent prediction tests (`agent_service.rs`),
+  - parameter sync client tests (`parameter_sync.rs`),
+  - model loader tests (`model_loader.rs`),
+  - grpc config parsing tests (`grpc.rs`),
+  - serving config validation tests (`config.rs`).
+- Result:
+  - Serving parity tests now emit clearer failure causes while preserving
+    existing behavior contracts.
+  - Focused serving tests and full `monolith-serving` regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6976,6 +6991,7 @@
 943. `cargo test -p monolith-training distributed_runner_from_runner_config_preserves_worker_register_failure_with_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_preserves_ps_register_failure_with_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_surfaces_deregister_timeout -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_surfaces_disconnect_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (runner-config register-failure/post-success cleanup-timeout assertion-tightening targeted verification plus default-lane regression rerun)
 944. `cargo test -p monolith-training distributed_runner_from_runner_config_preserves_worker_register_failure_with_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_preserves_ps_register_failure_with_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_preserves_register_timeout_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_preserves_ps_register_timeout_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_surfaces_deregister_timeout -- --nocapture && cargo test -p monolith-training distributed_runner_from_runner_config_surfaces_disconnect_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (final runner-config register-timeout/register-failure timeout-guard assertion-tightening verification plus default-lane regression rerun)
 945. `rg "res\\.is_ok\\(\\)," monolith-rs/crates/monolith-training/tests/native_training_parity.rs` ✅ (verified `native_training_parity.rs` has no remaining `res.is_ok()` timeout guards)
+946. `cargo test -p monolith-serving test_server_ -- --nocapture && cargo test -p monolith-serving test_predict_with_ -- --nocapture && cargo test -p monolith-serving test_connect_disconnect -- --nocapture && cargo test -p monolith-serving test_pull_embeddings -- --nocapture && cargo test -p monolith-serving test_push_embeddings -- --nocapture && cargo test -p monolith-serving test_load_model_from_temp_dir -- --nocapture && cargo test -p monolith-serving test_socket_addr_parsing -- --nocapture && cargo test -p monolith-serving test_config_validation -- --nocapture && cargo test -p monolith-serving -q` ✅ (serving assertion-tightening targeted verification plus full monolith-serving regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

@@ -1304,9 +1304,10 @@ mod tests {
     #[test]
     fn test_socket_addr_parsing() {
         let config = GrpcServerConfig::default();
-        let addr = config.socket_addr();
-        assert!(addr.is_ok());
-        assert_eq!(addr.unwrap().port(), 50051);
+        let addr = config
+            .socket_addr()
+            .expect("default gRPC bind address should parse into SocketAddr");
+        assert_eq!(addr.port(), 50051);
 
         let invalid_config = GrpcServerConfig::builder()
             .bind_address("invalid:address:port")

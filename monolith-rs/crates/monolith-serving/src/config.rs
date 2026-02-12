@@ -349,7 +349,9 @@ mod tests {
     #[test]
     fn test_config_validation() {
         let mut config = ServerConfig::default();
-        assert!(config.validate().is_ok());
+        config
+            .validate()
+            .expect("default server config should pass validation");
 
         config.port = 0;
         assert!(matches!(config.validate(), Err(ConfigError::InvalidPort)));

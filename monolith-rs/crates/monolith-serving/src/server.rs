@@ -471,14 +471,18 @@ mod tests {
         let server = Server::new(config);
 
         // Start server
-        let result = server.start().await;
-        assert!(result.is_ok());
+        server
+            .start()
+            .await
+            .expect("server start should succeed for valid test configuration");
         assert_eq!(server.state(), ServerState::Running);
         assert!(server.is_running());
 
         // Stop server
-        let result = server.stop().await;
-        assert!(result.is_ok());
+        server
+            .stop()
+            .await
+            .expect("server stop should succeed after start");
         assert_eq!(server.state(), ServerState::Stopped);
         assert!(!server.is_running());
     }
@@ -528,8 +532,10 @@ mod tests {
         server.start().await.unwrap();
 
         // Starting again should be ok (idempotent)
-        let result = server.start().await;
-        assert!(result.is_ok());
+        server
+            .start()
+            .await
+            .expect("starting a running server should be idempotent");
 
         server.stop().await.unwrap();
     }
@@ -588,8 +594,10 @@ mod tests {
         server.start().await.unwrap();
 
         // Reload model
-        let result = server.reload_model().await;
-        assert!(result.is_ok());
+        server
+            .reload_model()
+            .await
+            .expect("reloading model should succeed while server is running");
         assert!(server.model_loader().is_ready());
 
         server.stop().await.unwrap();
