@@ -2183,6 +2183,24 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_register_failure_does_not_cache_service() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        let service = ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(&zk, service)
+            .await;
+        assert!(
+            result.is_err(),
+            "register_async should fail against unreachable ZooKeeper endpoint"
+        );
+        assert!(
+            zk.discover("ps").expect("discover should succeed").is_empty(),
+            "failed async register should not populate local service cache"
+        );
+    }
+
     #[cfg(feature = "consul")]
     #[test]
     fn test_consul_discovery_creation() {
@@ -2518,6 +2536,27 @@ mod tests {
         assert!(
             consul.watchers.lock().unwrap().contains_key("worker"),
             "live watcher sender should be preserved on async register failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_failure_does_not_cache_service() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(&consul, service)
+            .await;
+        assert!(
+            result.is_err(),
+            "register_async should fail without a live Consul endpoint"
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .is_empty(),
+            "failed async register should not populate local service cache"
         );
     }
 }
