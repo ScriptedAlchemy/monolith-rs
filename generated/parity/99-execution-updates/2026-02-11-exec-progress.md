@@ -5566,6 +5566,19 @@
   - Feature-gated Consul deregister/config-error suites and default
     monolith-training regression remain green.
 
+### 414) Discovery parity: connect authority-edge classification expansion
+- Added feature-gated Consul connect coverage in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_connect_whitespace_authority_is_classified_as_config_error`
+  - `test_consul_connect_empty_host_is_classified_as_config_error`
+  - `test_consul_connect_invalid_ipv6_suffix_is_classified_as_config_error`
+- Result:
+  - Connect-path malformed-authority coverage now includes whitespace, empty
+    host, and invalid IPv6 suffix edges with explicit operation-context
+    `ConfigError` assertions.
+  - Feature-gated config-error suite and default monolith-training regression
+    remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6477,6 +6490,7 @@
 908. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_normalize_consul_address_for_operation_rejects_userinfo_authority -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_discover_async_userinfo_authority_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul userinfo-authority normalization/discover validation coverage verification plus default-lane regression rerun)
 909. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_connect_userinfo_authority_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul connect userinfo-authority config-error coverage verification plus default-lane regression rerun)
 910. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_async_deregister_userinfo_authority_still_notifies_and_returns_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_async_deregister_whitespace_authority_still_notifies_and_returns_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul deregister userinfo/whitespace authority lifecycle coverage verification plus default-lane regression rerun)
+911. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_connect_whitespace_authority_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_connect_empty_host_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_connect_invalid_ipv6_suffix_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul connect authority-edge config-error coverage verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

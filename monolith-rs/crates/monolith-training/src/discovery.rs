@@ -3967,6 +3967,60 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_connect_whitespace_authority_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address")
+                        && msg.contains("whitespace in authority")
+                        && msg.contains("connect"),
+                    "whitespace-authority connect failures should be classified as ConfigError with connect context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for whitespace authority connect, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_connect_empty_host_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new("http://:8500");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address")
+                        && msg.contains("empty host")
+                        && msg.contains("connect"),
+                    "empty-host connect failures should be classified as ConfigError with connect context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for empty host connect, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_connect_invalid_ipv6_suffix_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new("http://[::1]x:8500");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address")
+                        && msg.contains("invalid authority")
+                        && msg.contains("connect"),
+                    "invalid-IPv6-suffix connect failures should be classified as ConfigError with connect context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for invalid IPv6 suffix connect, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_discover_async_whitespace_authority_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
