@@ -3358,6 +3358,74 @@ mod tests {
     }
 
     #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_config_error_cleans_poll_generation_entry() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
+
+        let rx1 = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("watch_async should still return receiver before poller run");
+        assert_eq!(
+            consul
+                .watch_poll_generations
+                .lock()
+                .unwrap()
+                .get("worker")
+                .copied(),
+            Some(consul.watch_generation.load(std::sync::atomic::Ordering::SeqCst)),
+            "watch_async should seed poll-generation entry for worker"
+        );
+
+        tokio::time::timeout(std::time::Duration::from_millis(300), async {
+            loop {
+                if !consul
+                    .watch_poll_generations
+                    .lock()
+                    .unwrap()
+                    .contains_key("worker")
+                {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("config-error poller should clean poll-generation entry via on_exit");
+
+        drop(rx1);
+
+        let rx2 = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("watch_async should be able to spawn a new poller after cleanup");
+        assert!(
+            consul
+                .watch_poll_generations
+                .lock()
+                .unwrap()
+                .contains_key("worker"),
+            "subsequent watch_async should respawn poll-generation entry after cleanup"
+        );
+
+        tokio::time::timeout(std::time::Duration::from_millis(300), async {
+            loop {
+                if !consul
+                    .watch_poll_generations
+                    .lock()
+                    .unwrap()
+                    .contains_key("worker")
+                {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("respawned config-error poller should also clean poll-generation entry");
+
+        drop(rx2);
+    }
+
+    #[cfg(feature = "consul")]
     #[test]
     fn test_consul_sync_register_removes_dead_watchers() {
         let consul = ConsulDiscovery::new("http://localhost:8500");

@@ -6355,6 +6355,21 @@
   - lifecycle cleanup behavior remains deterministic under configuration
     failure-shape paths.
 
+### 467) Consul watch lifecycle parity: verify poll-generation cleanup on config-error exits
+- Added a Consul-specific async watcher regression:
+  - `test_consul_watch_async_config_error_cleans_poll_generation_entry`
+- The test validates full lifecycle behavior when watch polling hits Consul
+  config errors:
+  - first `watch_async` seeds poll-generation entry,
+  - config-error termination clears that generation entry via `on_exit`,
+  - subsequent `watch_async` can respawn poll generation, and it is cleaned
+    again on the next config-error exit.
+- Result:
+  - watch lifecycle bookkeeping (`watch_poll_generations`) no longer risks
+    stale entries after Consul configuration-failure exits,
+  - repeated watch subscriptions remain deterministic under invalid-address
+    conditions.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7350,6 +7365,8 @@
 992. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (full consul/zookeeper-featured monolith-training regression rerun after whitespace-address contract tightening)
 993. `cargo test -p monolith-training test_spawn_watch_poll_loop_ -- --nocapture` ✅ (validated watch-poll lifecycle behavior including immediate stop on configuration errors and retained transient-error recovery semantics)
 994. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after watch-poll config-error termination hardening)
+995. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_config_error_cleans_poll_generation_entry -- --nocapture` ✅ (validated Consul watch_async config-error exits clear poll-generation entries and allow deterministic respawn)
+996. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after Consul watch generation cleanup parity coverage)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
