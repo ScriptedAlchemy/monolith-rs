@@ -13,7 +13,9 @@ pub fn fused_value_rowids(row_splits: &[usize]) -> Vec<usize> {
         "row_splits must be non-empty (batch+1)"
     );
     let batch = row_splits.len() - 1;
-    let total = *row_splits.last().unwrap();
+    let total = *row_splits
+        .last()
+        .expect("row_splits should have at least one element");
     let mut out = Vec::with_capacity(total);
     for i in 0..batch {
         let start = row_splits[i];

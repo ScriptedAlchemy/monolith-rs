@@ -6991,6 +6991,14 @@
   - removed all `.unwrap()` call-sites from native-training logging-ops module
     (**0 remaining**) while preserving machine-health status behavior.
 
+### 518) Native-training ragged-utils unwrap diagnostics completion
+- Tightened the remaining unwrap assertion in
+  `crates/monolith-training/src/native_training/ragged_utils.rs` by replacing
+  `row_splits.last().unwrap()` with explicit `expect(...)` diagnostics.
+- Result:
+  - removed all `.unwrap()` call-sites from native-training ragged-utils module
+    (**0 remaining**) while preserving fused value-rowids behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8082,6 +8090,8 @@
 1088. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/hvd_lib.rs` ✅ (verified no remaining unwrap call-sites in native-training hvd-lib module)
 1089. `cargo test -p monolith-training machine_health_oom_sets_status -- --nocapture` ✅ (validated native-training logging-ops OOM status test after unwrap-diagnostics tightening)
 1090. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/logging_ops.rs` ✅ (verified no remaining unwrap call-sites in native-training logging-ops module)
+1091. `cargo test -p monolith-training ragged_utils::tests::test_basic -- --nocapture` ✅ (validated native-training ragged-utils basic test after unwrap-diagnostics tightening)
+1092. `rg "\\.unwrap\\(\\)" /workspace/monolith-rs/crates/monolith-training/src/native_training/ragged_utils.rs` ✅ (verified no remaining unwrap call-sites in native-training ragged-utils module)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
