@@ -1974,19 +1974,19 @@ mod tests {
             .await
             .expect("timed out waiting for ServiceAdded")
             .expect("watch channel closed unexpectedly");
-        match added {
-            DiscoveryEvent::ServiceAdded(s) => assert_eq!(s.id, "ps-0"),
-            other => panic!("expected ServiceAdded, got {other:?}"),
-        }
+        assert!(
+            matches!(added, DiscoveryEvent::ServiceAdded(ref s) if s.id == "ps-0"),
+            "expected ServiceAdded(ps-0), got {added:?}"
+        );
 
         let removed = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
             .await
             .expect("timed out waiting for ServiceRemoved")
             .expect("watch channel closed unexpectedly");
-        match removed {
-            DiscoveryEvent::ServiceRemoved(id) => assert_eq!(id, "ps-0"),
-            other => panic!("expected ServiceRemoved, got {other:?}"),
-        }
+        assert!(
+            matches!(removed, DiscoveryEvent::ServiceRemoved(ref id) if id == "ps-0"),
+            "expected ServiceRemoved(ps-0), got {removed:?}"
+        );
 
         drop(rx);
         tokio::time::timeout(std::time::Duration::from_millis(200), handle)
@@ -2027,25 +2027,27 @@ mod tests {
             .await
             .expect("timed out waiting for ServiceAdded")
             .expect("watch channel closed unexpectedly");
-        match added {
-            DiscoveryEvent::ServiceAdded(s) => {
-                assert_eq!(s.id, "ps-0");
-                assert_eq!(s.health, HealthStatus::Starting);
-            }
-            other => panic!("expected ServiceAdded, got {other:?}"),
-        }
+        assert!(
+            matches!(
+                added,
+                DiscoveryEvent::ServiceAdded(ref s)
+                if s.id == "ps-0" && s.health == HealthStatus::Starting
+            ),
+            "expected ServiceAdded(ps-0, Starting), got {added:?}"
+        );
 
         let updated = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
             .await
             .expect("timed out waiting for ServiceUpdated")
             .expect("watch channel closed unexpectedly");
-        match updated {
-            DiscoveryEvent::ServiceUpdated(s) => {
-                assert_eq!(s.id, "ps-0");
-                assert_eq!(s.health, HealthStatus::Healthy);
-            }
-            other => panic!("expected ServiceUpdated, got {other:?}"),
-        }
+        assert!(
+            matches!(
+                updated,
+                DiscoveryEvent::ServiceUpdated(ref s)
+                if s.id == "ps-0" && s.health == HealthStatus::Healthy
+            ),
+            "expected ServiceUpdated(ps-0, Healthy), got {updated:?}"
+        );
 
         drop(rx);
         tokio::time::timeout(std::time::Duration::from_millis(200), handle)

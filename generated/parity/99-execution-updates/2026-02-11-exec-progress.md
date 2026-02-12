@@ -5615,6 +5615,18 @@
   - Feature-gated targeted suites and default monolith-training regression
     remain green.
 
+### 417) Discovery parity: watch-poll event assertion tightening
+- Refactored watch-poll loop event assertions in
+  `crates/monolith-training/src/discovery.rs` to replace panic fallback match
+  arms with direct `matches!(...)` contracts in:
+  - `test_spawn_watch_poll_loop_emits_added_and_removed_events`
+  - `test_spawn_watch_poll_loop_emits_updated_events`
+- Result:
+  - Added/removed/updated event-shape checks now express explicit event payload
+    expectations with richer diagnostics and less ad-hoc panic branching.
+  - Focused watch-poll tests and full default monolith-training regression
+    remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6529,6 +6541,7 @@
 911. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_connect_whitespace_authority_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_connect_empty_host_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_connect_invalid_ipv6_suffix_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul connect authority-edge config-error coverage verification plus default-lane regression rerun)
 912. `cargo test -p monolith-training test_in_memory_deregister -- --nocapture && cargo test -p monolith-training test_in_memory_duplicate_registration -- --nocapture && cargo test -p monolith-training test_in_memory_update_health -- --nocapture && cargo test -p monolith-training test_in_memory_watch -- --nocapture && cargo test -p monolith-training test_in_memory_watch_update -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (in-memory discovery assertion-tightening targeted verification plus default-lane regression rerun)
 913. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" map_consul_request_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" normalize_consul_address_for_operation_rejects -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (Consul classifier/normalizer assertion-tightening targeted verification plus default-lane regression rerun)
+914. `cargo test -p monolith-training test_spawn_watch_poll_loop_emits_added_and_removed_events -- --nocapture && cargo test -p monolith-training test_spawn_watch_poll_loop_emits_updated_events -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (watch-poll event assertion-tightening targeted verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
