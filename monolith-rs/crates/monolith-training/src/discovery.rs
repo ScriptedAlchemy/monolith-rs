@@ -1622,45 +1622,33 @@ mod tests {
     #[test]
     fn test_map_consul_request_error_classifies_invalid_port_as_config_error() {
         let err = map_consul_request_error("register_entity", "InvalidPort");
-        match err {
-            DiscoveryError::ConfigError(msg) => {
-                assert!(
-                    msg.contains("register_entity") && msg.contains("invalid address"),
-                    "config error should retain operation context for InvalidPort markers: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for InvalidPort marker, got {other:?}"),
-        }
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("register_entity") && msg.contains("invalid address")),
+            "expected ConfigError carrying register_entity invalid-address context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
     #[test]
     fn test_map_consul_request_error_classifies_invalid_scheme_as_config_error() {
         let err = map_consul_request_error("get_service_nodes", "invalid scheme");
-        match err {
-            DiscoveryError::ConfigError(msg) => {
-                assert!(
-                    msg.contains("get_service_nodes") && msg.contains("invalid address"),
-                    "config error should retain operation context for invalid-scheme markers: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for invalid-scheme marker, got {other:?}"),
-        }
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("get_service_nodes") && msg.contains("invalid address")),
+            "expected ConfigError carrying get_service_nodes invalid-address context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
     #[test]
     fn test_map_consul_request_error_keeps_connection_failures_internal() {
         let err = map_consul_request_error("get_service_nodes", "Connection refused");
-        match err {
-            DiscoveryError::Internal(msg) => {
-                assert!(
-                    msg.contains("get_service_nodes") && msg.contains("Connection refused"),
-                    "internal error should retain operation context for runtime failures: {msg}"
-                );
-            }
-            other => panic!("expected Internal for runtime failure marker, got {other:?}"),
-        }
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("get_service_nodes") && msg.contains("Connection refused")),
+            "expected Internal carrying get_service_nodes runtime-failure context, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -1670,15 +1658,11 @@ mod tests {
             "get_service_nodes",
             "relative URL without a base",
         );
-        match err {
-            DiscoveryError::ConfigError(msg) => {
-                assert!(
-                    msg.contains("get_service_nodes") && msg.contains("invalid address"),
-                    "relative-URL markers should be classified as config errors with operation context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for relative-URL marker, got {other:?}"),
-        }
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("get_service_nodes") && msg.contains("invalid address")),
+            "expected ConfigError carrying get_service_nodes invalid-address context for relative-URL marker, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -1695,39 +1679,29 @@ mod tests {
     #[cfg(feature = "consul")]
     #[test]
     fn test_normalize_consul_address_for_operation_rejects_whitespace_authority() {
-        let result = normalize_consul_address_for_operation(
-            "get_service_nodes",
-            "http://127.0.0.1 :8500",
+        let err = normalize_consul_address_for_operation("get_service_nodes", "http://127.0.0.1 :8500")
+            .expect_err("whitespace authority should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("get_service_nodes")
+                    && msg.contains("invalid address")
+                    && msg.contains("whitespace in authority")),
+            "expected ConfigError containing whitespace-authority details, got {err:?}"
         );
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("get_service_nodes")
-                        && msg.contains("invalid address")
-                        && msg.contains("whitespace in authority"),
-                    "whitespace authority should be rejected as config error with operation context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for whitespace authority, got {other:?}"),
-        }
     }
 
     #[cfg(feature = "consul")]
     #[test]
     fn test_normalize_consul_address_for_operation_rejects_invalid_ipv6_authority() {
-        let result =
-            normalize_consul_address_for_operation("register_entity", "http://[::1:8500");
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("register_entity")
-                        && msg.contains("invalid address")
-                        && msg.contains("invalid IPv6 host"),
-                    "invalid IPv6 authority should be rejected as config error with operation context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for invalid IPv6 authority, got {other:?}"),
-        }
+        let err = normalize_consul_address_for_operation("register_entity", "http://[::1:8500")
+            .expect_err("invalid IPv6 authority should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("register_entity")
+                    && msg.contains("invalid address")
+                    && msg.contains("invalid IPv6 host")),
+            "expected ConfigError containing invalid-IPv6-authority details, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -1744,37 +1718,29 @@ mod tests {
     #[cfg(feature = "consul")]
     #[test]
     fn test_normalize_consul_address_for_operation_rejects_invalid_ipv6_suffix() {
-        let result =
-            normalize_consul_address_for_operation("register_entity", "http://[::1]x:8500");
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("register_entity")
-                        && msg.contains("invalid address")
-                        && msg.contains("invalid authority"),
-                    "invalid IPv6 suffix should be rejected as config error with operation context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for invalid IPv6 suffix, got {other:?}"),
-        }
+        let err = normalize_consul_address_for_operation("register_entity", "http://[::1]x:8500")
+            .expect_err("invalid IPv6 suffix should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("register_entity")
+                    && msg.contains("invalid address")
+                    && msg.contains("invalid authority")),
+            "expected ConfigError containing invalid-IPv6-suffix details, got {err:?}"
+        );
     }
 
     #[cfg(feature = "consul")]
     #[test]
     fn test_normalize_consul_address_for_operation_rejects_userinfo_authority() {
-        let result =
-            normalize_consul_address_for_operation("get_service_nodes", "http://user@127.0.0.1:8500");
-        match result {
-            Err(DiscoveryError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("get_service_nodes")
-                        && msg.contains("invalid address")
-                        && msg.contains("userinfo in authority"),
-                    "userinfo authority should be rejected as config error with operation context: {msg}"
-                );
-            }
-            other => panic!("expected ConfigError for userinfo authority, got {other:?}"),
-        }
+        let err = normalize_consul_address_for_operation("get_service_nodes", "http://user@127.0.0.1:8500")
+            .expect_err("userinfo authority should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("get_service_nodes")
+                    && msg.contains("invalid address")
+                    && msg.contains("userinfo in authority")),
+            "expected ConfigError containing userinfo-authority details, got {err:?}"
+        );
     }
 
     #[test]

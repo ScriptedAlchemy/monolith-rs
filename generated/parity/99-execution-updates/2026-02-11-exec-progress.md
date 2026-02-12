@@ -5596,6 +5596,25 @@
   - Focused in-memory tests and full default monolith-training regression
     remain green.
 
+### 416) Discovery parity: Consul classifier/normalizer assertion tightening
+- Refactored feature-gated Consul classifier/normalizer unit tests in
+  `crates/monolith-training/src/discovery.rs` to replace panic-style fallback
+  match arms with explicit `expect_err(...)` + `matches!(...)` contracts:
+  - `test_map_consul_request_error_classifies_invalid_port_as_config_error`
+  - `test_map_consul_request_error_classifies_invalid_scheme_as_config_error`
+  - `test_map_consul_request_error_keeps_connection_failures_internal`
+  - `test_map_consul_request_error_classifies_relative_url_without_base_as_config_error`
+  - `test_normalize_consul_address_for_operation_rejects_whitespace_authority`
+  - `test_normalize_consul_address_for_operation_rejects_invalid_ipv6_authority`
+  - `test_normalize_consul_address_for_operation_rejects_invalid_ipv6_suffix`
+  - `test_normalize_consul_address_for_operation_rejects_userinfo_authority`
+- Result:
+  - Core malformed-endpoint classification/normalization unit contracts now
+    assert explicit error variant + message-shape expectations without ad-hoc
+    panic fallbacks.
+  - Feature-gated targeted suites and default monolith-training regression
+    remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -6509,6 +6528,7 @@
 910. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_async_deregister_userinfo_authority_still_notifies_and_returns_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_async_deregister_whitespace_authority_still_notifies_and_returns_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_deregister -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul deregister userinfo/whitespace authority lifecycle coverage verification plus default-lane regression rerun)
 911. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_connect_whitespace_authority_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_connect_empty_host_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_consul_connect_invalid_ipv6_suffix_is_classified_as_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated Consul connect authority-edge config-error coverage verification plus default-lane regression rerun)
 912. `cargo test -p monolith-training test_in_memory_deregister -- --nocapture && cargo test -p monolith-training test_in_memory_duplicate_registration -- --nocapture && cargo test -p monolith-training test_in_memory_update_health -- --nocapture && cargo test -p monolith-training test_in_memory_watch -- --nocapture && cargo test -p monolith-training test_in_memory_watch_update -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (in-memory discovery assertion-tightening targeted verification plus default-lane regression rerun)
+913. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" map_consul_request_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" normalize_consul_address_for_operation_rejects -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (Consul classifier/normalizer assertion-tightening targeted verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
