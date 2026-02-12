@@ -27,6 +27,58 @@ pub struct NdArrayTensor {
 }
 
 impl NdArrayTensor {
+    fn broadcast_batch_shapes(a: &[usize], b: &[usize]) -> Vec<usize> {
+        let max_rank = a.len().max(b.len());
+        let mut shape = vec![1; max_rank];
+
+        for i in 0..max_rank {
+            let a_dim = if i >= max_rank - a.len() {
+                a[i - (max_rank - a.len())]
+            } else {
+                1
+            };
+            let b_dim = if i >= max_rank - b.len() {
+                b[i - (max_rank - b.len())]
+            } else {
+                1
+            };
+            assert!(
+                a_dim == b_dim || a_dim == 1 || b_dim == 1,
+                "matmul batch dimensions must be broadcastable, got {:?} and {:?}",
+                a,
+                b
+            );
+            shape[i] = a_dim.max(b_dim);
+        }
+
+        shape
+    }
+
+    fn unravel_index(mut linear: usize, shape: &[usize]) -> Vec<usize> {
+        if shape.is_empty() {
+            return Vec::new();
+        }
+        let mut idx = vec![0; shape.len()];
+        for i in (0..shape.len()).rev() {
+            let dim = shape[i];
+            idx[i] = linear % dim;
+            linear /= dim;
+        }
+        idx
+    }
+
+    fn project_broadcast_index(global: &[usize], local_shape: &[usize]) -> Vec<usize> {
+        if local_shape.is_empty() {
+            return Vec::new();
+        }
+        let offset = global.len() - local_shape.len();
+        local_shape
+            .iter()
+            .enumerate()
+            .map(|(i, &dim)| if dim == 1 { 0 } else { global[offset + i] })
+            .collect()
+    }
+
     /// Creates a new NdArrayTensor from an ndarray ArrayD.
     ///
     /// # Arguments
@@ -444,13 +496,68 @@ impl Tensor for NdArrayTensor {
                 data: result.into_dyn(),
             }
         } else {
-            // For higher dimensions, we'd need batched matmul
-            // This is a simplified implementation that doesn't support batched matmul
-            panic!(
-                "Batched matmul not yet implemented for shapes {:?} and {:?}",
-                self.shape(),
-                other.shape()
+            assert!(
+                self.ndim() >= 2 && other.ndim() >= 2,
+                "matmul requires tensors with ndim >= 2 for batched path, got {} and {}",
+                self.ndim(),
+                other.ndim()
             );
+
+            let a_shape = self.shape();
+            let b_shape = other.shape();
+
+            let m = a_shape[self.ndim() - 2];
+            let k = a_shape[self.ndim() - 1];
+            let b_k = b_shape[other.ndim() - 2];
+            let n = b_shape[other.ndim() - 1];
+            assert_eq!(
+                k, b_k,
+                "batched matmul shape mismatch on contraction axis: {:?} x {:?}",
+                a_shape, b_shape
+            );
+
+            let a_batch = &a_shape[..self.ndim() - 2];
+            let b_batch = &b_shape[..other.ndim() - 2];
+            let batch_shape = Self::broadcast_batch_shapes(a_batch, b_batch);
+            let total_batches: usize = if batch_shape.is_empty() {
+                1
+            } else {
+                batch_shape.iter().product()
+            };
+
+            let mut output_shape = batch_shape.clone();
+            output_shape.push(m);
+            output_shape.push(n);
+            let mut output = vec![0.0f32; total_batches * m * n];
+
+            for batch_linear in 0..total_batches {
+                let batch_idx = Self::unravel_index(batch_linear, &batch_shape);
+                let a_idx = Self::project_broadcast_index(&batch_idx, a_batch);
+                let b_idx = Self::project_broadcast_index(&batch_idx, b_batch);
+
+                for i in 0..m {
+                    for j in 0..n {
+                        let mut sum = 0.0f32;
+                        for p in 0..k {
+                            let mut a_full = a_idx.clone();
+                            a_full.push(i);
+                            a_full.push(p);
+
+                            let mut b_full = b_idx.clone();
+                            b_full.push(p);
+                            b_full.push(j);
+
+                            sum += self.data[IxDyn(&a_full)] * other.data[IxDyn(&b_full)];
+                        }
+                        let out_offset = batch_linear * (m * n) + i * n + j;
+                        output[out_offset] = sum;
+                    }
+                }
+            }
+
+            Self {
+                data: ArrayD::from_shape_vec(IxDyn(&output_shape), output).unwrap(),
+            }
         }
     }
 }
@@ -533,6 +640,58 @@ mod tests {
 
         assert_eq!(c.shape(), &[] as &[usize]);
         assert_eq!(c.to_vec(), vec![32.0]); // 1*4 + 2*5 + 3*6 = 32
+    }
+
+    #[test]
+    fn test_matmul_batched_3d() {
+        // [batch=2, m=2, k=3] x [batch=2, k=3, n=2] => [2, 2, 2]
+        let a = NdArrayTensor::from_slice(
+            &[
+                1.0, 2.0, 3.0, 4.0, 5.0, 6.0, // batch 0
+                1.0, 0.0, 1.0, 0.0, 1.0, 0.0, // batch 1
+            ],
+            &[2, 2, 3],
+        );
+        let b = NdArrayTensor::from_slice(
+            &[
+                1.0, 2.0, 3.0, 4.0, 5.0, 6.0, // batch 0
+                1.0, 0.0, 0.0, 1.0, 1.0, 1.0, // batch 1
+            ],
+            &[2, 3, 2],
+        );
+
+        let c = a.matmul(&b);
+        assert_eq!(c.shape(), &[2, 2, 2]);
+        assert_eq!(
+            c.to_vec(),
+            vec![
+                22.0, 28.0, 49.0, 64.0, // batch 0
+                2.0, 1.0, 0.0, 1.0, // batch 1
+            ]
+        );
+    }
+
+    #[test]
+    fn test_matmul_batched_broadcast_rhs() {
+        // [batch=2, m=2, k=3] x [k=3, n=2] => broadcast rhs => [2, 2, 2]
+        let a = NdArrayTensor::from_slice(
+            &[
+                1.0, 2.0, 3.0, 4.0, 5.0, 6.0, // batch 0
+                6.0, 5.0, 4.0, 3.0, 2.0, 1.0, // batch 1
+            ],
+            &[2, 2, 3],
+        );
+        let b = NdArrayTensor::from_slice(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[3, 2]);
+
+        let c = a.matmul(&b);
+        assert_eq!(c.shape(), &[2, 2, 2]);
+        assert_eq!(
+            c.to_vec(),
+            vec![
+                22.0, 28.0, 49.0, 64.0, // batch 0
+                41.0, 56.0, 14.0, 20.0, // batch 1
+            ]
+        );
     }
 
     #[test]

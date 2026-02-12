@@ -6247,6 +6247,21 @@
   - Merge helper error behavior is now explicit and typed rather than panic-based.
   - Full `monolith-layers` regression remains green after API propagation.
 
+### 460) Tensor parity: implement ndarray batched matmul path
+- Replaced the `ndarray_backend` batched matmul fallback panic in
+  `monolith-tensor/src/ndarray_backend.rs` with an implemented batched path:
+  - supports tensors with `ndim >= 2`,
+  - validates contraction dimension compatibility,
+  - applies broadcast semantics over leading batch dimensions,
+  - computes per-batch matrix multiplication without panic fallbacks.
+- Added regression coverage:
+  - `test_matmul_batched_3d` for same-batch rank-3 matmul,
+  - `test_matmul_batched_broadcast_rhs` for broadcasted RHS rank-2 matmul.
+- Result:
+  - ndarray backend no longer panics for supported batched matmul inputs and
+    now mirrors expected batched/broadcast matrix-multiplication behavior.
+  - Targeted matmul tests and full `monolith-tensor` regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7228,6 +7243,8 @@
 978. Multiple `rg "panic!\\("` scans over touched files (`monolith-checkpoint`, `monolith-core`, `monolith-serving` parity tests, and `monolith-data` test modules) ✅ (verified removed panic fallback branches in touched files)
 979. `cargo test -p monolith-layers -q` ✅ (full monolith-layers regression rerun after merge helper Result-based error propagation)
 980. `rg "panic!\\(" /workspace/monolith-rs/crates/monolith-layers/src/merge.rs` ✅ (verified merge helper panic fallbacks are eliminated)
+981. `cargo test -p monolith-tensor test_matmul_2d -- --nocapture && cargo test -p monolith-tensor test_matmul_vector -- --nocapture && cargo test -p monolith-tensor test_matmul_batched_3d -- --nocapture && cargo test -p monolith-tensor test_matmul_batched_broadcast_rhs -- --nocapture && cargo test -p monolith-tensor -q` ✅ (ndarray batched matmul implementation targeted verification plus full monolith-tensor regression rerun)
+982. `rg "panic!\\(" /workspace/monolith-rs/crates/monolith-tensor/src/ndarray_backend.rs` ✅ (verified ndarray backend no longer contains panic fallbacks)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
