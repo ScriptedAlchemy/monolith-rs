@@ -3534,6 +3534,64 @@ mod tests {
     }
 
     #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_whitespace_authority_rejects_without_state_changes() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("whitespace authority should be rejected before watch state is created");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("whitespace in authority")),
+            "expected ConfigError containing watch_service whitespace-authority context, got {err:?}"
+        );
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "whitespace-authority watch_async should not create watcher sender entries"
+        );
+        assert!(
+            !consul
+                .watch_poll_generations
+                .lock()
+                .unwrap()
+                .contains_key("worker"),
+            "whitespace-authority watch_async should not seed poll-generation bookkeeping"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_empty_host_rejects_without_state_changes() {
+        let consul = ConsulDiscovery::new("http://:8500");
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("empty host should be rejected before watch state is created");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("empty host")),
+            "expected ConfigError containing watch_service empty-host context, got {err:?}"
+        );
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "empty-host watch_async should not create watcher sender entries"
+        );
+        assert!(
+            !consul
+                .watch_poll_generations
+                .lock()
+                .unwrap()
+                .contains_key("worker"),
+            "empty-host watch_async should not seed poll-generation bookkeeping"
+        );
+    }
+
+    #[cfg(feature = "consul")]
     #[test]
     fn test_consul_sync_register_removes_dead_watchers() {
         let consul = ConsulDiscovery::new("http://localhost:8500");

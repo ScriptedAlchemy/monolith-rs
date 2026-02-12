@@ -6408,6 +6408,18 @@
   - All invalid-address variants verify zero mutation of watcher sender and
     poll-generation lifecycle state.
 
+### 471) Consul watch parity: add authority-shape failure contracts (empty host + whitespace authority)
+- Expanded `watch_async` fail-fast invalid-address coverage to include
+  additional authority-shape violations:
+  - `test_consul_watch_async_whitespace_authority_rejects_without_state_changes`
+  - `test_consul_watch_async_empty_host_rejects_without_state_changes`
+- Result:
+  - `watch_async` now has explicit operation-scoped failure-shape coverage for
+    all key normalized-address error classes used across connect/discover/
+    register/deregister/watch flows.
+  - Lifecycle state remains unchanged under every tested invalid-address watch
+    input class.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7411,6 +7423,8 @@
 1000. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after Consul watch_async invalid-address matrix expansion)
 1001. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_ -- --nocapture` ✅ (validated expanded Consul watch_async invalid-address matrix now including query/fragment/leading-trailing-whitespace fail-fast contracts)
 1002. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after watch_async invalid-address matrix completion)
+1003. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_watch_async_ -- --nocapture` ✅ (validated watch_async authority-shape fail-fast contracts for whitespace-authority and empty-host address inputs, alongside existing path/query/fragment/scheme/userinfo lanes)
+1004. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after Consul watch_async authority-shape parity expansion)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
