@@ -4388,6 +4388,18 @@
     disconnect/reconnect lifecycle transitions.
   - Default and feature-gated monolith-training regressions remain green.
 
+### 321) Consul async-register failure watcher-compaction hardening
+- Hardened Consul async register failure path:
+  - dead watcher senders are now compacted when `register_entity` fails.
+- Added feature-gated regressions:
+  - `test_consul_async_register_failure_compacts_dead_watchers`
+  - `test_consul_async_register_failure_keeps_live_watchers`
+- Result:
+  - Repeated async register failures against unavailable Consul endpoints no
+    longer leak dead watcher senders.
+  - Live watcher subscriptions remain intact on transient register failures.
+  - Default and feature-gated monolith-training regressions remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5187,6 +5199,8 @@
 796. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post stale-generation cleanup helper hardening default-lane regression rerun)
 797. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" cleanup_watch_poll_generation -- --nocapture` ✅ (feature-gated stale-generation cleanup race-safety verification)
 798. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" watch_async_deduplicates_poll_generation_entries -- --nocapture` ✅ (feature-gated watch-async dedupe re-verification after cleanup helper refactor)
+799. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post async-register failure compaction hardening default-lane regression rerun)
+800. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" consul_async_register_failure -- --nocapture` ✅ (feature-gated Consul async-register failure dead-sender compaction and live-watcher preservation verification)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

@@ -663,6 +663,18 @@ impl ZkDiscovery {
         }
     }
 
+    /// Removes watcher sender for `service_type` if all receivers are dropped.
+    fn compact_dead_watch_sender(&self, service_type: &str) {
+        let mut watchers = self.watchers.lock().unwrap();
+        if watchers
+            .get(service_type)
+            .map(|s| s.receiver_count() == 0)
+            .unwrap_or(false)
+        {
+            watchers.remove(service_type);
+        }
+    }
+
     /// Returns true only when a new poll loop should be spawned for the service type.
     fn should_spawn_watch_poll(&self, service_type: &str) -> bool {
         let generation = self.watch_generation.load(Ordering::SeqCst);
@@ -765,12 +777,21 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
     }
 
     async fn register_async(&self, service: ServiceInfo) -> Result<()> {
-        self.connect().await?;
+        self.connect().await.map_err(|e| {
+            self.compact_dead_watch_sender(&service.service_type);
+            e
+        })?;
 
         let client =
-            self.client.lock().await.as_ref().cloned().ok_or_else(|| {
-                DiscoveryError::ConnectionFailed("ZK client not connected".into())
-            })?;
+            self.client
+                .lock()
+                .await
+                .as_ref()
+                .cloned()
+                .ok_or_else(|| {
+                    self.compact_dead_watch_sender(&service.service_type);
+                    DiscoveryError::ConnectionFailed("ZK client not connected".into())
+                })?;
 
         let idx = service
             .metadata
@@ -801,9 +822,13 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
                 client
                     .set_data(&path, &data, None)
                     .await
-                    .map_err(|e| DiscoveryError::Internal(format!("ZK set_data failed: {e}")))?;
+                    .map_err(|e| {
+                        self.compact_dead_watch_sender(&service.service_type);
+                        DiscoveryError::Internal(format!("ZK set_data failed: {e}"))
+                    })?;
             }
             Err(e) => {
+                self.compact_dead_watch_sender(&service.service_type);
                 return Err(DiscoveryError::Internal(format!("ZK create failed: {e}")));
             }
         };
@@ -1044,6 +1069,18 @@ impl ConsulDiscovery {
         }
     }
 
+    /// Removes watcher sender for `service_type` if all receivers are dropped.
+    fn compact_dead_watch_sender(&self, service_type: &str) {
+        let mut watchers = self.watchers.lock().unwrap();
+        if watchers
+            .get(service_type)
+            .map(|s| s.receiver_count() == 0)
+            .unwrap_or(false)
+        {
+            watchers.remove(service_type);
+        }
+    }
+
     /// Returns true only when a new poll loop should be spawned for the service type.
     fn should_spawn_watch_poll(&self, service_type: &str) -> bool {
         let generation = self.watch_generation.load(Ordering::SeqCst);
@@ -1188,6 +1225,7 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
         };
 
         client.register_entity(&payload).await.map_err(|e| {
+            self.compact_dead_watch_sender(&service.service_type);
             DiscoveryError::Internal(format!("Consul register_entity failed: {e:?}"))
         })?;
 
@@ -2343,6 +2381,57 @@ mod tests {
         assert!(
             !consul.watchers.lock().unwrap().contains_key("worker"),
             "dead watch sender should be removed after async deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_failure_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        assert!(
+            result.is_err(),
+            "register_async should fail without a live Consul endpoint"
+        );
+        assert!(
+            !consul.watchers.lock().unwrap().contains_key("worker"),
+            "failed async register should compact dead watcher sender"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_failure_keeps_live_watchers() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        assert!(
+            result.is_err(),
+            "register_async should fail without a live Consul endpoint"
+        );
+        assert!(
+            consul.watchers.lock().unwrap().contains_key("worker"),
+            "live watcher sender should be preserved on async register failure"
         );
     }
 }
