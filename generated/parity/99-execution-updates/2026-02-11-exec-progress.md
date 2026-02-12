@@ -3610,6 +3610,35 @@
 - Result: runner counterpart audit now reports zero missing aliases in the
   `_when_cleanup_steps_fail -> _when_cleanup_steps_timeout` direction.
 
+### 259) Runner cleanup-step timeout/failure counterpart matrix fully closed
+- Added runner-level cleanup-failure aliases for worker register-failure
+  naming gaps:
+  - `test_run_distributed_preserves_worker_register_failure_when_cleanup_steps_fail`
+  - `test_run_distributed_preserves_worker_register_failure_with_custom_service_type_when_cleanup_steps_fail`
+  - `test_run_distributed_preserves_worker_register_failure_with_custom_service_type_and_index_when_cleanup_steps_fail`
+  - `test_run_distributed_preserves_worker_register_failure_with_default_service_type_and_index_when_cleanup_steps_fail`
+  - `test_run_distributed_preserves_worker_register_failure_with_default_service_type_when_cleanup_steps_fail`
+- Added runner-level cleanup-failure aliases for PS register-failure naming
+  gaps:
+  - `test_run_distributed_preserves_ps_register_failure_when_cleanup_steps_fail`
+  - `test_run_distributed_preserves_ps_register_failure_with_custom_service_type_when_cleanup_steps_fail`
+  - `test_run_distributed_preserves_ps_register_failure_with_custom_service_type_and_index_when_cleanup_steps_fail`
+  - `test_run_distributed_preserves_ps_register_failure_with_default_service_type_and_index_when_cleanup_steps_fail`
+  - `test_run_distributed_preserves_ps_register_failure_with_default_service_type_when_cleanup_steps_fail`
+- Added runner-level cleanup-failure aliases for worker-timeout naming gaps:
+  - `test_run_distributed_preserves_worker_error_when_cleanup_steps_fail`
+  - `test_run_distributed_preserves_worker_error_with_custom_discovery_service_type_when_cleanup_steps_fail`
+  - `test_run_distributed_preserves_worker_error_with_custom_service_types_and_index_when_cleanup_steps_fail`
+  - `test_run_distributed_preserves_worker_error_with_custom_service_type_when_cleanup_steps_fail`
+  - `test_run_distributed_preserves_worker_error_with_custom_service_types_when_cleanup_steps_fail`
+  - `test_run_distributed_preserves_worker_error_with_default_service_type_and_index_when_cleanup_steps_fail`
+  - `test_run_distributed_preserves_worker_error_with_default_service_type_when_cleanup_steps_fail`
+- Added shared helper assertions to keep diagnostics/counter checks consistent:
+  - `assert_register_failure_cleanup_fail_case(...)`
+  - `assert_worker_error_cleanup_fail_case(...)`
+- Result: runner `_when_cleanup_steps_timeout` ↔ `_when_cleanup_steps_fail`
+  counterpart audit now reports zero missing aliases in both directions.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4159,6 +4188,9 @@
 546. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker discovery/timeout naming parity expansion full monolith-training regression rerun)
 547. `ZK_AUTH=user:pass cargo test -p monolith-training worker_timeout_with_ -- --nocapture` ✅ (post runner worker-timeout cleanup-step timeout alias expansion across custom/default/indexed variants)
 548. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner worker-timeout cleanup-step timeout alias expansion full monolith-training regression rerun)
+549. `ZK_AUTH=user:pass cargo test -p monolith-training cleanup_steps_fail -- --nocapture` ✅ (post runner cleanup-step cleanup-failure alias expansion across worker/ps register-failure and worker-timeout naming variants)
+550. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner cleanup-step timeout/failure matrix closure full monolith-training regression rerun)
+551. `python3` cleanup-step counterpart audit (`runner.rs`) ✅ (reports zero missing aliases for both `_when_cleanup_steps_timeout -> _when_cleanup_steps_fail` and reverse direction)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

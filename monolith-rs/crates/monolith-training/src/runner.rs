@@ -5588,6 +5588,179 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_preserves_worker_register_failure_when_cleanup_steps_fail() {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            ..DistributedRunConfig::default()
+        };
+        assert_register_failure_cleanup_fail_case(cfg, "worker-0", "worker").await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_register_failure_with_custom_service_type_when_cleanup_steps_fail(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        assert_register_failure_cleanup_fail_case(cfg, "worker-0", "trainer_custom").await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_register_failure_with_custom_service_type_and_index_when_cleanup_steps_fail(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 3,
+            num_ps: 1,
+            num_workers: 4,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        assert_register_failure_cleanup_fail_case(cfg, "worker-3", "trainer_custom").await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_register_failure_with_default_service_type_and_index_when_cleanup_steps_fail(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 3,
+            num_ps: 1,
+            num_workers: 4,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            ..DistributedRunConfig::default()
+        };
+        assert_register_failure_cleanup_fail_case(cfg, "worker-3", "worker").await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_register_failure_with_default_service_type_when_cleanup_steps_fail(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            ..DistributedRunConfig::default()
+        };
+        assert_register_failure_cleanup_fail_case(cfg, "worker-0", "worker").await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_ps_register_failure_when_cleanup_steps_fail() {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            ..DistributedRunConfig::default()
+        };
+        assert_register_failure_cleanup_fail_case(cfg, "ps-0", "ps").await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_ps_register_failure_with_custom_service_type_when_cleanup_steps_fail(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        assert_register_failure_cleanup_fail_case(cfg, "ps-0", "parameter_server_custom").await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_ps_register_failure_with_custom_service_type_and_index_when_cleanup_steps_fail(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 2,
+            num_ps: 3,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        assert_register_failure_cleanup_fail_case(cfg, "ps-2", "parameter_server_custom").await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_ps_register_failure_with_default_service_type_and_index_when_cleanup_steps_fail(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 2,
+            num_ps: 3,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            ..DistributedRunConfig::default()
+        };
+        assert_register_failure_cleanup_fail_case(cfg, "ps-2", "ps").await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_ps_register_failure_with_default_service_type_when_cleanup_steps_fail(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            ..DistributedRunConfig::default()
+        };
+        assert_register_failure_cleanup_fail_case(cfg, "ps-0", "ps").await;
+    }
+
+    async fn assert_register_failure_cleanup_fail_case(
+        cfg: DistributedRunConfig,
+        expected_service_id: &str,
+        expected_service_type: &str,
+    ) {
+        let discovery = Arc::new(FailingRegisterDiscovery::new());
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(
+            res.is_err(),
+            "register failure with failing cleanup should surface as a role error"
+        );
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("forced register failure"),
+            "register failure should remain primary over cleanup failures: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "register-failure diagnostics should include cleanup issue context when cleanup fails: {msg}"
+        );
+        assert!(
+            msg.contains(&format!(
+                "deregister {expected_service_id} from {expected_service_type}"
+            )) && msg.contains("missing"),
+            "register-failure cleanup diagnostics should include expected deregister-failure context: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_disconnects_when_worker_role_fails_after_registration() {
         let discovery = Arc::new(CountingDiscovery::new());
         let cfg = DistributedRunConfig {
@@ -10333,6 +10506,183 @@ mod tests {
             msg.contains("disconnect worker-0 via worker")
                 && msg.contains("forced disconnect failure"),
             "worker-timeout cleanup issue context should include default-worker non-index disconnect-failure diagnostics: {msg}"
+        );
+        assert_eq!(discovery.connect_count(), 1);
+        assert_eq!(discovery.discover_count(), 1);
+        assert_eq!(discovery.deregister_count(), 1);
+        assert_eq!(discovery.disconnect_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_error_when_cleanup_steps_fail() {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            ..DistributedRunConfig::default()
+        };
+        assert_worker_error_cleanup_fail_case(cfg, "ps", "worker-0", "worker").await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_error_with_custom_discovery_service_type_when_cleanup_steps_fail(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        assert_worker_error_cleanup_fail_case(cfg, "parameter_server_custom", "worker-0", "worker")
+            .await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_error_with_custom_service_types_and_index_when_cleanup_steps_fail(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 3,
+            num_ps: 1,
+            num_workers: 4,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        assert_worker_error_cleanup_fail_case(
+            cfg,
+            "parameter_server_custom",
+            "worker-3",
+            "trainer_custom",
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_error_with_custom_service_type_when_cleanup_steps_fail(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        assert_worker_error_cleanup_fail_case(
+            cfg,
+            "parameter_server_custom",
+            "worker-0",
+            "trainer_custom",
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_error_with_custom_service_types_when_cleanup_steps_fail(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            discovery_service_type_ps: "parameter_server_custom".to_string(),
+            discovery_service_type_worker: "trainer_custom".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        assert_worker_error_cleanup_fail_case(
+            cfg,
+            "parameter_server_custom",
+            "worker-0",
+            "trainer_custom",
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_error_with_default_service_type_and_index_when_cleanup_steps_fail(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 2,
+            num_ps: 1,
+            num_workers: 3,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            ..DistributedRunConfig::default()
+        };
+        assert_worker_error_cleanup_fail_case(cfg, "ps", "worker-2", "worker").await;
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_preserves_worker_error_with_default_service_type_when_cleanup_steps_fail(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            ..DistributedRunConfig::default()
+        };
+        assert_worker_error_cleanup_fail_case(cfg, "ps", "worker-0", "worker").await;
+    }
+
+    async fn assert_worker_error_cleanup_fail_case(
+        cfg: DistributedRunConfig,
+        expected_ps_service_type: &str,
+        expected_worker_service_id: &str,
+        expected_worker_service_type: &str,
+    ) {
+        let discovery = Arc::new(WorkerTimeoutWithFailingCleanupDiscovery::new());
+        let res = run_distributed(Arc::clone(&discovery), cfg).await;
+        assert!(
+            res.is_err(),
+            "worker timeout with failing cleanup should surface as a role error"
+        );
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker-role error should be preserved over cleanup failures: {msg}"
+        );
+        assert!(
+            msg.contains(&format!("service type: {expected_ps_service_type}")),
+            "worker-discovery timeout diagnostics should include expected PS service-type context: {msg}"
+        );
+        assert!(
+            msg.contains(&format!("for {expected_worker_service_id}")),
+            "worker-discovery timeout diagnostics should include expected worker service-id context: {msg}"
+        );
+        assert!(
+            msg.contains("discovery cleanup encountered issues after role error"),
+            "worker-role errors should include cleanup issue context when cleanup fails: {msg}"
+        );
+        assert!(
+            msg.contains(&format!(
+                "deregister {expected_worker_service_id} from {expected_worker_service_type}"
+            )) && msg.contains("forced deregister failure"),
+            "cleanup issue context should include expected deregister-failure diagnostics: {msg}"
+        );
+        assert!(
+            msg.contains(&format!(
+                "disconnect {expected_worker_service_id} via {expected_worker_service_type}"
+            )) && msg.contains("forced disconnect failure"),
+            "cleanup issue context should include expected disconnect-failure diagnostics: {msg}"
         );
         assert_eq!(discovery.connect_count(), 1);
         assert_eq!(discovery.discover_count(), 1);
