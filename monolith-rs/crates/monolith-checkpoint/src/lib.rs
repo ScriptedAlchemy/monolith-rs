@@ -255,12 +255,13 @@ mod tests {
         let err = checkpointer
             .restore(std::path::Path::new("/nonexistent/path.json"))
             .expect_err("restoring a missing checkpoint path should fail");
-
-        match err {
-            CheckpointError::NotFound(path) => {
-                assert!(path.to_str().unwrap().contains("nonexistent"));
-            }
-            _ => panic!("Expected NotFound error"),
-        }
+        assert!(
+            matches!(
+                &err,
+                CheckpointError::NotFound(path)
+                    if path.to_str().is_some_and(|p| p.contains("nonexistent"))
+            ),
+            "expected NotFound checkpoint error containing missing path context, got: {err:?}"
+        );
     }
 }

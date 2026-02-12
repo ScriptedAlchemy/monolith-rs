@@ -13,10 +13,14 @@ fn decode_python_generated_example_bytes() {
     let nf = &ex.named_feature[0];
     assert_eq!(nf.name, "user_id");
     let feat = nf.feature.as_ref().expect("feature");
-    match &feat.r#type {
-        Some(feature::Type::FidV2List(l)) => assert_eq!(l.value, vec![12345u64]),
-        other => panic!("unexpected feature type: {:?}", other),
-    }
+    assert!(
+        matches!(
+            &feat.r#type,
+            Some(feature::Type::FidV2List(l)) if l.value == vec![12345u64]
+        ),
+        "decoded python fixture should contain expected FidV2List user_id feature, got: {:?}",
+        feat.r#type
+    );
 
     // Label
     assert_eq!(ex.label, vec![1.0]);

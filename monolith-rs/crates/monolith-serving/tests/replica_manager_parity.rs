@@ -104,7 +104,8 @@ fn replica_manager_registers_and_watches_replicas() {
         let parsed = raw
             .as_deref()
             .and_then(|b| monolith_serving::ReplicaMeta::deserialize(b).ok());
-        panic!(
+        assert!(
+            found,
             "expected entry replicas to become AVAILABLE; zk entry node: path={} raw_present={} parsed={:?}",
             entry_path,
             raw.is_some(),

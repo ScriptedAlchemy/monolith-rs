@@ -15,8 +15,12 @@ fn example_encode_decode_roundtrip() {
     let nf = &decoded.named_feature[0];
     assert_eq!(nf.name, "user_id");
     let feat = nf.feature.as_ref().unwrap();
-    match &feat.r#type {
-        Some(feature::Type::FidV2List(l)) => assert_eq!(l.value, vec![12345]),
-        other => panic!("expected FidV2List, got {:?}", other),
-    }
+    assert!(
+        matches!(
+            &feat.r#type,
+            Some(feature::Type::FidV2List(l)) if l.value == vec![12345]
+        ),
+        "encoded/decoded example should keep FidV2List feature, got: {:?}",
+        feat.r#type
+    );
 }

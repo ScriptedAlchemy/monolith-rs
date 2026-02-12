@@ -88,10 +88,14 @@ mod tests {
 
         // Label feature is present and fixed to 0.
         let label = feats.feature.get("label").expect("label feature");
-        match &label.kind {
-            Some(tensorflow_core::feature::Kind::FloatList(l)) => assert_eq!(l.value, vec![0.0]),
-            other => panic!("unexpected label feature kind: {other:?}"),
-        }
+        assert!(
+            matches!(
+                &label.kind,
+                Some(tensorflow_core::feature::Kind::FloatList(l)) if l.value == vec![0.0]
+            ),
+            "generated ffm example should contain float label list [0.0], got: {:?}",
+            label.kind
+        );
 
         // Slot keys are present.
         assert!(feats.feature.contains_key("feature_0"));

@@ -355,12 +355,15 @@ mod tests {
         add_feature(&mut example, "user_id", vec![100, 200], vec![1.0, 2.0]);
 
         let feature = get_feature(&example, "user_id").unwrap();
-        match &feature.r#type {
-            Some(feature::Type::FidV2List(FidList { value })) => {
-                assert_eq!(value, &vec![100u64, 200u64]);
-            }
-            other => panic!("Expected FidV2List, got {:?}", other),
-        }
+        assert!(
+            matches!(
+                &feature.r#type,
+                Some(feature::Type::FidV2List(FidList { value }))
+                    if value == &vec![100u64, 200u64]
+            ),
+            "user_id feature should be FidV2List([100, 200]), got: {:?}",
+            feature.r#type
+        );
     }
 
     #[test]
@@ -369,12 +372,15 @@ mod tests {
         add_feature(&mut example, "embedding", vec![], vec![0.1, 0.2, 0.3]);
 
         let feature = get_feature(&example, "embedding").unwrap();
-        match &feature.r#type {
-            Some(feature::Type::FloatList(FloatList { value })) => {
-                assert_eq!(value, &vec![0.1, 0.2, 0.3]);
-            }
-            other => panic!("Expected FloatList, got {:?}", other),
-        }
+        assert!(
+            matches!(
+                &feature.r#type,
+                Some(feature::Type::FloatList(FloatList { value }))
+                    if value == &vec![0.1, 0.2, 0.3]
+            ),
+            "embedding feature should be FloatList([0.1, 0.2, 0.3]), got: {:?}",
+            feature.r#type
+        );
     }
 
     #[test]
@@ -393,10 +399,14 @@ mod tests {
         }
 
         let feature = get_feature(&example, "score").unwrap();
-        match &feature.r#type {
-            Some(feature::Type::FidV2List(FidList { value })) => assert_eq!(value, &vec![9u64]),
-            other => panic!("Expected FidV2List, got {:?}", other),
-        }
+        assert!(
+            matches!(
+                &feature.r#type,
+                Some(feature::Type::FidV2List(FidList { value })) if value == &vec![9u64]
+            ),
+            "mutated score feature should be FidV2List([9]), got: {:?}",
+            feature.r#type
+        );
     }
 
     #[test]
@@ -461,18 +471,21 @@ mod tests {
         let a = get_feature(&target, "a").unwrap();
         let b = get_feature(&target, "b").unwrap();
         let c = get_feature(&target, "c").unwrap();
-        match &a.r#type {
-            Some(feature::Type::FidV2List(l)) => assert_eq!(l.value, vec![1]),
-            other => panic!("Expected FidV2List, got {:?}", other),
-        }
-        match &b.r#type {
-            Some(feature::Type::FidV2List(l)) => assert_eq!(l.value, vec![20]),
-            other => panic!("Expected FidV2List, got {:?}", other),
-        }
-        match &c.r#type {
-            Some(feature::Type::FidV2List(l)) => assert_eq!(l.value, vec![3]),
-            other => panic!("Expected FidV2List, got {:?}", other),
-        }
+        assert!(
+            matches!(&a.r#type, Some(feature::Type::FidV2List(l)) if l.value == vec![1]),
+            "merged feature `a` should keep original FidV2List([1]), got: {:?}",
+            a.r#type
+        );
+        assert!(
+            matches!(&b.r#type, Some(feature::Type::FidV2List(l)) if l.value == vec![20]),
+            "merged feature `b` should be overridden to FidV2List([20]), got: {:?}",
+            b.r#type
+        );
+        assert!(
+            matches!(&c.r#type, Some(feature::Type::FidV2List(l)) if l.value == vec![3]),
+            "merged feature `c` should be added as FidV2List([3]), got: {:?}",
+            c.r#type
+        );
     }
 
     #[test]

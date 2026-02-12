@@ -6215,6 +6215,22 @@
     contract checks.
   - Targeted rejection tests and full `monolith-cli` regression remain green.
 
+### 458) Multi-crate parity: replace residual test `panic!` branches with explicit assertions
+- Refactored residual pattern-match fallback `panic!` branches in test paths into
+  explicit `assert!(matches!(...))`/diagnostic assertions across:
+  - checkpoint tests (`monolith-checkpoint/src/lib.rs`, `src/export.rs`),
+  - core tests (`monolith-core/src/params.rs`, `src/base_layer.rs`,
+    `src/base_host_call.rs`),
+  - serving parity tests (`monolith-serving/tests/utils_parity.rs`,
+    `tests/replica_manager_parity.rs`),
+  - data tests and test modules (`monolith-data/tests/python_golden.rs`,
+    `tests/proto_parity.rs`, `src/input.rs`, `src/negative_sampling.rs`,
+    `src/example.rs`).
+- Result:
+  - Test failure branches now surface explicit assertion diagnostics rather than
+    generic panic fallbacks while preserving existing behavior contracts.
+  - Targeted tests and full regressions for touched crates remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7191,6 +7207,9 @@
 973. `cargo test -p monolith-cli test_build_distributed_run_config_rejects_ -- --nocapture && cargo test -p monolith-cli test_build_distributed_run_config_accepts_case_insensitive_http_scheme_parameter_sync_target -- --nocapture && cargo test -p monolith-cli -q` ✅ (CLI train distributed-config rejection assertion-tightening batch-2 targeted verification plus full monolith-cli regression rerun)
 974. `rg "unwrap_err\\(" /workspace/monolith-rs/crates/monolith-cli/src/commands/train.rs` ✅ (verified no remaining `unwrap_err(...)` patterns in train command tests)
 975. `rg "unwrap_err\\(" /workspace/monolith-rs` ✅ (verified no remaining `unwrap_err(...)` patterns workspace-wide)
+976. `cargo test -p monolith-checkpoint test_error_handling -- --nocapture && cargo test -p monolith-checkpoint test_export_saved_model_writes_model_spec_when_metadata_present -- --nocapture && cargo test -p monolith-core test_initializer_config_default -- --nocapture && cargo test -p monolith-core test_optimizer_type -- --nocapture && cargo test -p monolith-core test_create_children -- --nocapture && cargo test -p monolith-core test_compress_decompress_roundtrip -- --nocapture && cargo test -p monolith-serving test_gen_model_spec -- --nocapture && cargo test -p monolith-serving test_gen_model_config_latest -- --nocapture && cargo test -p monolith-serving replica_manager_registers_and_watches_replicas --test replica_manager_parity -- --nocapture && cargo test -p monolith-data decode_python_generated_example_bytes -- --nocapture && cargo test -p monolith-data example_encode_decode_roundtrip --test proto_parity -- --nocapture && cargo test -p monolith-data test_generate_ffm_example_roundtrip -- --nocapture && cargo test -p monolith-data test_uniform_sampler_basic -- --nocapture && cargo test -p monolith-data test_frequency_sampler_basic -- --nocapture && cargo test -p monolith-data test_custom_item_feature_name -- --nocapture && cargo test -p monolith-data test_add_and_get_feature -- --nocapture && cargo test -p monolith-data test_add_and_get_dense_feature_float_list -- --nocapture && cargo test -p monolith-data test_get_feature_mut -- --nocapture && cargo test -p monolith-data test_merge_examples -- --nocapture` ✅ (multi-crate targeted panic-branch assertion refactor verification)
+977. `cargo test -p monolith-checkpoint -q && cargo test -p monolith-core -q && cargo test -p monolith-serving -q && cargo test -p monolith-data -q` ✅ (full regressions for touched crates after panic-branch assertion refactor)
+978. Multiple `rg "panic!\\("` scans over touched files (`monolith-checkpoint`, `monolith-core`, `monolith-serving` parity tests, and `monolith-data` test modules) ✅ (verified removed panic fallback branches in touched files)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

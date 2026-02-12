@@ -640,36 +640,39 @@ mod tests {
     #[test]
     fn test_initializer_config_default() {
         let init = InitializerConfig::default();
-        match init {
-            InitializerConfig::RandomUniform { min, max } => {
-                assert_eq!(min, -0.05);
-                assert_eq!(max, 0.05);
-            }
-            _ => panic!("Expected RandomUniform"),
-        }
+        assert!(
+            matches!(
+                init,
+                InitializerConfig::RandomUniform { min, max }
+                    if (min + 0.05).abs() < f32::EPSILON
+                        && (max - 0.05).abs() < f32::EPSILON
+            ),
+            "default initializer should be RandomUniform(-0.05, 0.05)"
+        );
     }
 
     #[test]
     fn test_optimizer_type() {
         let opt = OptimizerType::default();
-        match opt {
-            OptimizerType::Adam {
-                beta1,
-                beta2,
-                epsilon,
-            } => {
-                assert_eq!(beta1, 0.9);
-                assert_eq!(beta2, 0.999);
-                assert_eq!(epsilon, 1e-8);
-            }
-            _ => panic!("Expected Adam"),
-        }
+        assert!(
+            matches!(
+                opt,
+                OptimizerType::Adam {
+                    beta1,
+                    beta2,
+                    epsilon,
+                } if (beta1 - 0.9).abs() < f32::EPSILON
+                    && (beta2 - 0.999).abs() < f32::EPSILON
+                    && (epsilon - 1e-8).abs() < f32::EPSILON
+            ),
+            "default optimizer should be Adam with expected hyperparameters"
+        );
 
         let opt = OptimizerType::Sgd { momentum: 0.9 };
-        match opt {
-            OptimizerType::Sgd { momentum } => assert_eq!(momentum, 0.9),
-            _ => panic!("Expected Sgd"),
-        }
+        assert!(
+            matches!(opt, OptimizerType::Sgd { momentum } if (momentum - 0.9).abs() < f32::EPSILON),
+            "constructed optimizer should be SGD with configured momentum"
+        );
     }
 
     #[test]

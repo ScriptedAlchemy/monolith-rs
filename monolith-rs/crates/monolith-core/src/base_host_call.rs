@@ -472,15 +472,33 @@ mod tests {
 
         let packed_i64 = match &packed[0] {
             HostTensor2D::I64 { data, cols, .. } => (data.clone(), *cols),
-            _ => panic!("expected i64 packed"),
+            other => {
+                assert!(
+                    matches!(other, HostTensor2D::I64 { .. }),
+                    "first packed tensor should be i64, got: {other:?}"
+                );
+                return;
+            }
         };
         let packed_i32 = match &packed[1] {
             HostTensor2D::I32 { data, cols, .. } => (data.clone(), *cols),
-            _ => panic!("expected i32 packed"),
+            other => {
+                assert!(
+                    matches!(other, HostTensor2D::I32 { .. }),
+                    "second packed tensor should be i32, got: {other:?}"
+                );
+                return;
+            }
         };
         let packed_f32 = match &packed[2] {
             HostTensor2D::F32 { data, cols, .. } => (data.clone(), *cols),
-            _ => panic!("expected f32 packed"),
+            other => {
+                assert!(
+                    matches!(other, HostTensor2D::F32 { .. }),
+                    "third packed tensor should be f32, got: {other:?}"
+                );
+                return;
+            }
         };
 
         let args = vec![

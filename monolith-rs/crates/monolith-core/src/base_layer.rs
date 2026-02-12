@@ -137,10 +137,11 @@ mod python_parity_tests {
         let p = InstantiableParams::new(Some(factory));
         core.create_children("a", &[p.clone(), p]).unwrap();
 
-        match core.children().get("a").unwrap() {
-            NestedValue::List(list) => assert_eq!(list.len(), 2),
-            _ => panic!("expected list for children key 'a'"),
-        }
+        let children = core.children().get("a").expect("child key `a` should exist");
+        assert!(
+            matches!(children, NestedValue::List(list) if list.len() == 2),
+            "children for key `a` should be stored as a list with two elements"
+        );
     }
 
     #[test]
