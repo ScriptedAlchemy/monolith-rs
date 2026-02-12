@@ -4758,6 +4758,17 @@
     “clear transient bookkeeping, preserve stable local cache” behavior.
   - Feature-gated and default monolith-training regressions remain green.
 
+### 353) Runner connect+disconnect failure assertion contract tightening
+- Tightened connect-and-cleanup failure regression cluster in `runner.rs` by
+  replacing generic `is_err()+unwrap_err()` patterns with explicit `expect_err`
+  contracts across worker/ps and default/custom service-type/index variants.
+- Result:
+  - Connect-failure cleanup tests now provide stricter and clearer expectation
+    failures while preserving existing diagnostic message and cleanup-call
+    invariants.
+  - Targeted connect+disconnect failure suite and default monolith-training
+    regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5608,6 +5619,7 @@
 847. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_preserves_ps_register_failure_with_default_service_type_when_cleanup_steps_fail -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_disconnects_when_worker_role_fails_after_registration -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_attempts_disconnect_when_connect_fails -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner cleanup/connect failure assertion tightening verification plus default-lane regression rerun)
 848. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" discover_async_config_error -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" discover_async_connection_failure -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated discover async config/connection failure cache-invariant verification plus default-lane regression rerun)
 849. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" disconnect_preserves_local_service_cache -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated ZK/Consul disconnect local-cache preservation verification plus default-lane regression rerun)
+850. `ZK_AUTH=user:pass cargo test -p monolith-training connect_and_disconnect_fail -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (runner connect+disconnect failure assertion-contract tightening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

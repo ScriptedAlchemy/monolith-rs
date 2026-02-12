@@ -8834,9 +8834,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected connect failure");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected connect failure");
+        let msg = err.to_string();
         assert!(
             msg.contains("forced connect failure"),
             "connect error should be returned even if disconnect also fails: {msg}"
@@ -8870,9 +8871,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected indexed connect failure");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected indexed connect failure");
+        let msg = err.to_string();
         assert!(
             msg.contains("forced connect failure"),
             "indexed connect error should be returned even if disconnect also fails: {msg}"
@@ -8906,9 +8908,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected non-index connect failure");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected non-index connect failure");
+        let msg = err.to_string();
         assert!(
             msg.contains("forced connect failure"),
             "connect error should be returned even if disconnect also fails: {msg}"
@@ -8943,9 +8946,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected indexed connect failure");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected indexed connect failure");
+        let msg = err.to_string();
         assert!(
             msg.contains("forced connect failure"),
             "indexed custom-worker connect error should be returned even if disconnect also fails: {msg}"
@@ -8980,9 +8984,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected custom non-index connect failure");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected custom non-index connect failure");
+        let msg = err.to_string();
         assert!(
             msg.contains("forced connect failure"),
             "custom non-index worker connect error should be returned even if disconnect also fails: {msg}"
@@ -9018,9 +9023,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected connect failure");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected connect failure");
+        let msg = err.to_string();
         assert!(
             msg.contains("forced connect failure"),
             "ps connect error should be returned even if disconnect also fails: {msg}"
@@ -9056,9 +9062,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected indexed connect failure");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected indexed connect failure");
+        let msg = err.to_string();
         assert!(
             msg.contains("forced connect failure"),
             "indexed custom-ps connect error should be returned even if disconnect also fails: {msg}"
@@ -9093,9 +9100,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected indexed connect failure");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected indexed connect failure");
+        let msg = err.to_string();
         assert!(
             msg.contains("forced connect failure"),
             "indexed ps connect error should be returned even if disconnect also fails: {msg}"
@@ -9129,9 +9137,10 @@ mod tests {
             ..DistributedRunConfig::default()
         };
 
-        let res = run_distributed(Arc::clone(&discovery), cfg).await;
-        assert!(res.is_err(), "expected non-index connect failure");
-        let msg = res.unwrap_err().to_string();
+        let err = run_distributed(Arc::clone(&discovery), cfg)
+            .await
+            .expect_err("expected non-index connect failure");
+        let msg = err.to_string();
         assert!(
             msg.contains("forced connect failure"),
             "ps connect error should be returned even if disconnect also fails: {msg}"
