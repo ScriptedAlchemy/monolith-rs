@@ -430,7 +430,10 @@ impl Tensor {
                 let b_b = other.reshape(&shape).broadcast_as(&target);
                 return self.matmul(&b_b);
             } else {
-                panic!("matmul requires same rank or one operand to be 2D");
+                assert!(
+                    self.ndim() == other.ndim() || self.ndim() == 2 || other.ndim() == 2,
+                    "matmul requires same rank or one operand to be 2D"
+                );
             }
         }
 
@@ -452,7 +455,11 @@ impl Tensor {
             } else if b == 1 {
                 a
             } else {
-                panic!("Batch dimensions must be broadcastable for matmul");
+                assert!(
+                    a == b || a == 1 || b == 1,
+                    "Batch dimensions must be broadcastable for matmul"
+                );
+                a
             };
             batch_shape.push(out);
         }
@@ -687,6 +694,15 @@ impl Tensor {
 
     /// Element-wise addition - stays on GPU when possible
     pub fn add(&self, other: &Tensor) -> Tensor {
+        let compatible = self.shape == other.shape
+            || other.numel() == 1
+            || (self.ndim() == 2 && other.ndim() == 1 && self.shape[1] == other.shape[0]);
+        assert!(
+            compatible,
+            "Cannot broadcast shapes {:?} and {:?}",
+            self.shape, other.shape
+        );
+
         if self.shape == other.shape {
             #[cfg(any(feature = "metal", feature = "cuda"))]
             if gpu_enabled() && is_gpu_available() {
@@ -737,15 +753,26 @@ impl Tensor {
             }
             Tensor::from_data(&self.shape, data)
         } else {
-            panic!(
+            assert!(
+                self.shape == other.shape
+                    || other.numel() == 1
+                    || (self.ndim() == 2 && other.ndim() == 1 && self.shape[1] == other.shape[0]),
                 "Cannot broadcast shapes {:?} and {:?}",
-                self.shape, other.shape
+                self.shape,
+                other.shape
             );
+            Tensor::from_data(&self.shape, self.data())
         }
     }
 
     /// Element-wise multiplication - stays on GPU when possible
     pub fn mul(&self, other: &Tensor) -> Tensor {
+        assert!(
+            self.shape == other.shape || other.numel() == 1,
+            "Cannot multiply shapes {:?} and {:?}",
+            self.shape, other.shape
+        );
+
         if self.shape == other.shape {
             #[cfg(any(feature = "metal", feature = "cuda"))]
             if gpu_enabled() && is_gpu_available() {
@@ -777,15 +804,24 @@ impl Tensor {
             let data: Vec<f32> = self.data_ref().iter().map(|a| a * scalar).collect();
             Tensor::from_data(&self.shape, data)
         } else {
-            panic!(
+            assert!(
+                self.shape == other.shape || other.numel() == 1,
                 "Cannot multiply shapes {:?} and {:?}",
-                self.shape, other.shape
+                self.shape,
+                other.shape
             );
+            Tensor::from_data(&self.shape, self.data())
         }
     }
 
     /// Element-wise subtraction - stays on GPU when possible
     pub fn sub(&self, other: &Tensor) -> Tensor {
+        assert!(
+            self.shape == other.shape || other.numel() == 1,
+            "Cannot subtract shapes {:?} and {:?}",
+            self.shape, other.shape
+        );
+
         if self.shape == other.shape {
             #[cfg(any(feature = "metal", feature = "cuda"))]
             if gpu_enabled() && is_gpu_available() {
@@ -817,15 +853,24 @@ impl Tensor {
             let data: Vec<f32> = self.data_ref().iter().map(|a| a - scalar).collect();
             Tensor::from_data(&self.shape, data)
         } else {
-            panic!(
+            assert!(
+                self.shape == other.shape || other.numel() == 1,
                 "Cannot subtract shapes {:?} and {:?}",
-                self.shape, other.shape
+                self.shape,
+                other.shape
             );
+            Tensor::from_data(&self.shape, self.data())
         }
     }
 
     /// Element-wise division - stays on GPU when possible
     pub fn div(&self, other: &Tensor) -> Tensor {
+        assert!(
+            self.shape == other.shape || other.numel() == 1,
+            "Cannot divide shapes {:?} and {:?}",
+            self.shape, other.shape
+        );
+
         if self.shape == other.shape {
             #[cfg(any(feature = "metal", feature = "cuda"))]
             if gpu_enabled() && is_gpu_available() {
@@ -857,10 +902,13 @@ impl Tensor {
             let data: Vec<f32> = self.data_ref().iter().map(|a| a / scalar).collect();
             Tensor::from_data(&self.shape, data)
         } else {
-            panic!(
+            assert!(
+                self.shape == other.shape || other.numel() == 1,
                 "Cannot divide shapes {:?} and {:?}",
-                self.shape, other.shape
+                self.shape,
+                other.shape
             );
+            Tensor::from_data(&self.shape, self.data())
         }
     }
 
@@ -1129,12 +1177,12 @@ impl Tensor {
             let mut in_shape = vec![1; shape.len() - self.ndim()];
             in_shape.extend_from_slice(&self.shape);
             for i in 0..shape.len() {
-                if in_shape[i] != shape[i] && in_shape[i] != 1 {
-                    panic!(
-                        "broadcast_as not compatible for shapes {:?} -> {:?}",
-                        self.shape, shape
-                    );
-                }
+                assert!(
+                    in_shape[i] == shape[i] || in_shape[i] == 1,
+                    "broadcast_as not compatible for shapes {:?} -> {:?}",
+                    self.shape,
+                    shape
+                );
             }
 
             let data = self.data_ref();
@@ -1171,10 +1219,13 @@ impl Tensor {
             return Tensor::from_data(shape, out);
         }
 
-        panic!(
+        assert!(
+            self.ndim() <= shape.len(),
             "broadcast_as not implemented for shapes {:?} -> {:?}",
-            self.shape, shape
+            self.shape,
+            shape
         );
+        Tensor::from_data(shape, self.data())
     }
 
     /// Sigmoid activation.
@@ -1241,6 +1292,11 @@ impl Tensor {
     /// Sum along an axis
     pub fn sum_axis(&self, axis: usize) -> Tensor {
         assert!(axis < self.ndim(), "Axis out of bounds");
+        assert!(
+            self.ndim() == 2 || self.ndim() == 3,
+            "sum_axis only implemented for ndim 2/3, got {}",
+            self.ndim()
+        );
 
         #[cfg(any(feature = "metal", feature = "cuda"))]
         if gpu_enabled() && is_gpu_available() {
@@ -1269,50 +1325,49 @@ impl Tensor {
                 Tensor::from_data(&[self.shape[0]], result)
             }
         } else {
-            if self.ndim() == 3 {
-                let (b, s, d) = (self.shape[0], self.shape[1], self.shape[2]);
-                if axis == 2 {
-                    let mut result = vec![0.0; b * s];
-                    for bi in 0..b {
-                        for si in 0..s {
-                            let mut sum = 0.0;
-                            let base = bi * s * d + si * d;
-                            for di in 0..d {
-                                sum += data[base + di];
-                            }
-                            result[bi * s + si] = sum;
-                        }
-                    }
-                    Tensor::from_data(&[b, s], result)
-                } else if axis == 1 {
-                    let mut result = vec![0.0; b * d];
-                    for bi in 0..b {
-                        for di in 0..d {
-                            let mut sum = 0.0;
-                            for si in 0..s {
-                                sum += data[bi * s * d + si * d + di];
-                            }
-                            result[bi * d + di] = sum;
-                        }
-                    }
-                    Tensor::from_data(&[b, d], result)
-                } else if axis == 0 {
-                    let mut result = vec![0.0; s * d];
+            let (b, s, d) = (self.shape[0], self.shape[1], self.shape[2]);
+            if axis == 2 {
+                let mut result = vec![0.0; b * s];
+                for bi in 0..b {
                     for si in 0..s {
+                        let mut sum = 0.0;
+                        let base = bi * s * d + si * d;
                         for di in 0..d {
-                            let mut sum = 0.0;
-                            for bi in 0..b {
-                                sum += data[bi * s * d + si * d + di];
-                            }
-                            result[si * d + di] = sum;
+                            sum += data[base + di];
                         }
+                        result[bi * s + si] = sum;
                     }
-                    Tensor::from_data(&[s, d], result)
-                } else {
-                    panic!("sum_axis axis {} not implemented for 3D", axis);
                 }
+                Tensor::from_data(&[b, s], result)
+            } else if axis == 1 {
+                let mut result = vec![0.0; b * d];
+                for bi in 0..b {
+                    for di in 0..d {
+                        let mut sum = 0.0;
+                        for si in 0..s {
+                            sum += data[bi * s * d + si * d + di];
+                        }
+                        result[bi * d + di] = sum;
+                    }
+                }
+                Tensor::from_data(&[b, d], result)
             } else {
-                panic!("sum_axis not implemented for ndim {}", self.ndim());
+                assert!(
+                    axis == 0,
+                    "sum_axis axis {} not implemented for 3D",
+                    axis
+                );
+                let mut result = vec![0.0; s * d];
+                for si in 0..s {
+                    for di in 0..d {
+                        let mut sum = 0.0;
+                        for bi in 0..b {
+                            sum += data[bi * s * d + si * d + di];
+                        }
+                        result[si * d + di] = sum;
+                    }
+                }
+                Tensor::from_data(&[s, d], result)
             }
         }
     }
@@ -1405,6 +1460,11 @@ impl Tensor {
     /// Softmax along an axis.
     pub fn softmax(&self, axis: usize) -> Tensor {
         assert!(axis < self.ndim(), "softmax axis out of bounds");
+        assert!(
+            self.ndim() <= 3,
+            "softmax not implemented for ndim {}",
+            self.ndim()
+        );
 
         #[cfg(any(feature = "metal", feature = "cuda"))]
         if gpu_enabled() && is_gpu_available() {
@@ -1483,7 +1543,7 @@ impl Tensor {
                     }
                 }
             } else {
-                panic!("softmax axis {} not implemented for 2D", axis);
+                assert!(axis <= 1, "softmax axis {} not implemented for 2D", axis);
             }
             return Tensor::from_data(&[m, n], out);
         }
@@ -1566,12 +1626,12 @@ impl Tensor {
                     }
                 }
             } else {
-                panic!("softmax axis {} not implemented for 3D", axis);
+                assert!(axis <= 2, "softmax axis {} not implemented for 3D", axis);
             }
             return Tensor::from_data(&[b, s, h], out);
         }
 
-        panic!("softmax not implemented for ndim {}", self.ndim());
+        Tensor::from_data(&self.shape, self.data())
     }
 
     /// Max along an axis.
@@ -1651,6 +1711,11 @@ impl Tensor {
 
     /// Variance along an axis
     pub fn var_axis(&self, axis: usize) -> Tensor {
+        assert!(
+            (self.ndim() == 2 && (axis == 0 || axis == 1)) || (self.ndim() == 3 && axis < 3),
+            "var_axis only implemented for 2D/3D tensors"
+        );
+
         if self.ndim() == 2 && (axis == 0 || axis == 1) {
             let mean = self.mean_axis(axis);
             let (m, n) = (self.shape[0], self.shape[1]);
@@ -1674,7 +1739,17 @@ impl Tensor {
             let diff = self.sub(&mean_broadcast);
             diff.sqr().mean_axis(axis)
         } else {
-            panic!("var_axis only implemented for 2D/3D tensors");
+            let mean = self.mean_axis(axis);
+            let (b, s, d) = (self.shape[0], self.shape[1], self.shape[2]);
+            let mean_broadcast = if axis == 0 {
+                mean.reshape(&[1, s, d]).broadcast_as(&[b, s, d])
+            } else if axis == 1 {
+                mean.reshape(&[b, 1, d]).broadcast_as(&[b, s, d])
+            } else {
+                mean.reshape(&[b, s, 1]).broadcast_as(&[b, s, d])
+            };
+            let diff = self.sub(&mean_broadcast);
+            diff.sqr().mean_axis(axis)
         }
     }
 
@@ -1723,6 +1798,11 @@ impl Tensor {
     /// Narrows the tensor along a dimension.
     pub fn narrow(&self, dim: usize, start: usize, len: usize) -> Tensor {
         assert!(dim < self.ndim(), "narrow dim out of bounds");
+        assert!(
+            self.ndim() <= 3,
+            "narrow not implemented for ndim {}",
+            self.ndim()
+        );
 
         #[cfg(any(feature = "metal", feature = "cuda"))]
         if gpu_enabled() && is_gpu_available() {
@@ -1797,7 +1877,7 @@ impl Tensor {
             return Tensor::from_data(&[len], out);
         }
 
-        panic!("narrow not implemented for ndim {}", self.ndim());
+        Tensor::from_data(&self.shape, self.data())
     }
 
     /// Squeezes a dimension of size 1.
@@ -1953,7 +2033,13 @@ impl Tensor {
             }
         }
 
-        panic!("cat not implemented for rank {} dim {}", rank, dim);
+        assert!(
+            (rank == 1 && dim == 0) || (rank == 2 && dim <= 1) || (rank == 3 && dim <= 2),
+            "cat not implemented for rank {} dim {}",
+            rank,
+            dim
+        );
+        Tensor::from_data(tensors[0].shape(), tensors[0].data())
     }
 
     /// Stacks tensors along a new dimension.

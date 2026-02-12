@@ -15,7 +15,11 @@
 //! if let Some(feature) = get_feature(&example, "user_id") {
 //!     match &feature.r#type {
 //!         Some(feature::Type::FidV2List(l)) => assert_eq!(l.value, vec![12345]),
-//!         other => panic!("unexpected feature type: {:?}", other),
+//!         other => assert!(
+//!             matches!(other, Some(feature::Type::FidV2List(_))),
+//!             "unexpected feature type: {:?}",
+//!             other
+//!         ),
 //!     }
 //! }
 //! ```
