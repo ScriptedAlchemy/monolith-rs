@@ -6189,6 +6189,19 @@
   - Targeted export failure tests and full `monolith-cli` regression remain
     green.
 
+### 456) CLI train parity: tighten distributed-config validation failure extraction (batch 1)
+- Refactored the first batch of repetitive
+  `build_distributed_run_config().unwrap_err().to_string()` assertions in
+  `monolith-cli/src/commands/train.rs` into explicit
+  `expect_err("...").to_string()` extraction for distributed-config validation
+  lanes including:
+  - invalid bind address, timeout/cluster-size/index/dim guards,
+  - ps/worker service-type empty/whitespace/duplicate guards.
+- Result:
+  - CLI train distributed-config rejection tests now provide explicit
+    extraction diagnostics while preserving existing error-message checks.
+  - Focused rejection tests and full `monolith-cli` regression remain green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7160,6 +7173,8 @@
 968. `rg "unwrap_err\\(" /workspace/monolith-rs/crates/monolith-core` ✅ (verified no remaining `unwrap_err(...)` patterns in monolith-core tests)
 969. `cargo test -p monolith-cli test_export_unsupported_format_errors -- --nocapture && cargo test -p monolith-cli test_export_invalid_quantize_bits_errors -- --nocapture && cargo test -p monolith-cli -q` ✅ (CLI export async failure extraction assertion-tightening targeted verification plus full monolith-cli regression rerun)
 970. `rg "unwrap_err\\(" /workspace/monolith-rs/crates/monolith-cli/src/commands/export.rs` ✅ (verified no remaining `unwrap_err(...)` patterns in export command tests)
+971. `cargo test -p monolith-cli test_build_distributed_run_config_rejects_ -- --nocapture && cargo test -p monolith-cli test_build_distributed_run_config_disables_heartbeat_when_requested -- --nocapture && cargo test -p monolith-cli -q` ✅ (CLI train distributed-config rejection assertion-tightening batch-1 targeted verification plus full monolith-cli regression rerun)
+972. `rg "unwrap_err\\(" /workspace/monolith-rs/crates/monolith-cli/src/commands/train.rs` ✅ (verified remaining `unwrap_err(...)` occurrences are narrowed to later train validation lanes after batch-1 refactor)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

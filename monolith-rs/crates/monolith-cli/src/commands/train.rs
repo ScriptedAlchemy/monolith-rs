@@ -836,7 +836,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.bind_addr = "bad-bind-addr".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for invalid bind address")
+            .to_string();
         assert!(
             err.contains("Invalid --bind-addr"),
             "unexpected bind-addr parse error: {err}"
@@ -848,7 +851,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.discovery_operation_timeout_ms = 0;
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for zero operation timeout")
+            .to_string();
         assert!(
             err.contains("--discovery-operation-timeout-ms must be > 0"),
             "unexpected timeout validation error: {err}"
@@ -860,7 +866,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.discovery_cleanup_timeout_ms = 0;
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for zero cleanup timeout")
+            .to_string();
         assert!(
             err.contains("--discovery-cleanup-timeout-ms must be > 0"),
             "unexpected timeout validation error: {err}"
@@ -872,7 +881,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.barrier_timeout_ms = 0;
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for zero barrier timeout")
+            .to_string();
         assert!(
             err.contains("--barrier-timeout-ms must be > 0"),
             "unexpected barrier-timeout validation error: {err}"
@@ -884,7 +896,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.barrier_timeout_ms = -1;
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for negative barrier timeout")
+            .to_string();
         assert!(
             err.contains("--barrier-timeout-ms must be > 0"),
             "unexpected barrier-timeout validation error: {err}"
@@ -896,7 +911,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.num_ps = 0;
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail when num_ps is zero")
+            .to_string();
         assert!(
             err.contains("--num-ps must be > 0 in distributed mode"),
             "unexpected num-ps validation error: {err}"
@@ -908,7 +926,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.num_workers_cluster = 0;
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail when cluster workers is zero")
+            .to_string();
         assert!(
             err.contains("--num-workers-cluster must be > 0 in distributed mode"),
             "unexpected num-workers-cluster validation error: {err}"
@@ -922,7 +943,10 @@ mod tests {
         cmd.role = TrainRole::Ps;
         cmd.num_ps = 2;
         cmd.index = 2;
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for ps index out of range")
+            .to_string();
         assert!(
             err.contains("--index must be < --num-ps for --role ps"),
             "unexpected ps index-range validation error: {err}"
@@ -936,7 +960,10 @@ mod tests {
         cmd.role = TrainRole::Worker;
         cmd.num_workers_cluster = 2;
         cmd.index = 2;
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for worker index out of range")
+            .to_string();
         assert!(
             err.contains("--index must be < --num-workers-cluster for --role worker"),
             "unexpected worker index-range validation error: {err}"
@@ -948,7 +975,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.dim = 0;
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail when embedding dim is zero")
+            .to_string();
         assert!(
             err.contains("--dim must be > 0 in distributed mode"),
             "unexpected dim validation error: {err}"
@@ -960,7 +990,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.discovery_service_type_ps = "   ".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for empty ps service type")
+            .to_string();
         assert!(
             err.contains("--discovery-service-type-ps must be non-empty"),
             "unexpected ps service-type validation error: {err}"
@@ -972,7 +1005,12 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.discovery_service_type_ps = " ps ".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err(
+                "building distributed config should fail for whitespace-padded ps service type",
+            )
+            .to_string();
         assert!(
             err.contains("--discovery-service-type-ps must not have leading/trailing whitespace"),
             "unexpected ps service-type whitespace validation error: {err}"
@@ -984,7 +1022,12 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.discovery_service_type_ps = "ps cluster".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err(
+                "building distributed config should fail for ps service type with whitespace",
+            )
+            .to_string();
         assert!(
             err.contains("--discovery-service-type-ps must not contain whitespace"),
             "unexpected ps service-type internal whitespace validation error: {err}"
@@ -996,7 +1039,10 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.discovery_service_type_worker = "".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for empty worker service type")
+            .to_string();
         assert!(
             err.contains("--discovery-service-type-worker must be non-empty"),
             "unexpected worker service-type validation error: {err}"
@@ -1008,7 +1054,12 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.discovery_service_type_worker = " worker ".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err(
+                "building distributed config should fail for whitespace-padded worker service type",
+            )
+            .to_string();
         assert!(
             err.contains(
                 "--discovery-service-type-worker must not have leading/trailing whitespace"
@@ -1022,7 +1073,12 @@ mod tests {
         let mut cmd = test_cmd_defaults();
         cmd.distributed = true;
         cmd.discovery_service_type_worker = "worker cluster".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err(
+                "building distributed config should fail for worker service type with whitespace",
+            )
+            .to_string();
         assert!(
             err.contains("--discovery-service-type-worker must not contain whitespace"),
             "unexpected worker service-type internal whitespace validation error: {err}"
@@ -1035,7 +1091,10 @@ mod tests {
         cmd.distributed = true;
         cmd.discovery_service_type_ps = "service".to_string();
         cmd.discovery_service_type_worker = "service".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err("building distributed config should fail for identical service types")
+            .to_string();
         assert!(
             err.contains(
                 "--discovery-service-type-ps and --discovery-service-type-worker must be distinct"
@@ -1051,7 +1110,12 @@ mod tests {
         cmd.distributed = true;
         cmd.discovery_service_type_ps = "Service".to_string();
         cmd.discovery_service_type_worker = "service".to_string();
-        let err = cmd.build_distributed_run_config().unwrap_err().to_string();
+        let err = cmd
+            .build_distributed_run_config()
+            .expect_err(
+                "building distributed config should fail for case-insensitive identical service types",
+            )
+            .to_string();
         assert!(
             err.contains(
                 "--discovery-service-type-ps and --discovery-service-type-worker must be distinct"
