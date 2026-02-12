@@ -6683,6 +6683,17 @@
   - removed another batch of parse-unwrap hotspots while keeping timeout/
     cleanup/validation error-shape contracts unchanged.
 
+### 490) Native parity bind-address helper expansion (phase 7): run-config rejection matrix batch
+- Continued `native_training_parity` bind-address helper migration by replacing
+  another bounded batch of repeated `"127.0.0.1:0".parse().unwrap()` call-sites
+  with `test_bind_addr()`.
+- This phase focuses on the run-config rejection matrix region and adjacent
+  worker/discovery timeout lanes in
+  `crates/monolith-training/tests/native_training_parity.rs`.
+- Result:
+  - removed 30 additional parse-unwrap hotspots while preserving all existing
+    timeout/cleanup/validation failure-shape assertions.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7724,6 +7735,8 @@
 1038. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after phase-5 native parity bind-address helper batch)
 1039. `cargo test -p monolith-training distributed_runner_from_run_config_preserves_worker_ordering_and_discovery_error_timeout_with_ -- --nocapture && cargo test -p monolith-training distributed_runner_from_run_config_rejects_ -- --nocapture` ✅ (validated ordering+discovery cleanup-failure lanes plus run-config validation guard lanes after phase-6 bind-address helper migration)
 1040. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after phase-6 native parity bind-address helper expansion)
+1041. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects` ✅ (validated run-config rejection guard matrix after phase-7 bind-address helper migration batch)
+1042. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_preserves_worker_ordering_and_discovery_error_timeout` ✅ (validated ordering+discovery timeout cleanup matrix after phase-7 bind-address helper migration batch)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

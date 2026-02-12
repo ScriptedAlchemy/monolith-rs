@@ -4589,7 +4589,7 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_and_discov
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -4662,7 +4662,7 @@ async fn distributed_runner_from_run_config_preserves_worker_ordering_and_discov
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await;
     let msg = res
@@ -5023,7 +5023,7 @@ async fn distributed_runner_from_run_config_rejects_ps_index_out_of_range() {
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5054,7 +5054,7 @@ async fn distributed_runner_from_run_config_rejects_empty_ps_service_type() {
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5085,7 +5085,7 @@ async fn distributed_runner_from_run_config_rejects_whitespace_padded_ps_service
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5118,7 +5118,7 @@ async fn distributed_runner_from_run_config_rejects_internal_whitespace_ps_servi
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5149,7 +5149,7 @@ async fn distributed_runner_from_run_config_rejects_empty_worker_service_type() 
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5180,7 +5180,7 @@ async fn distributed_runner_from_run_config_rejects_whitespace_padded_worker_ser
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5213,7 +5213,7 @@ async fn distributed_runner_from_run_config_rejects_internal_whitespace_worker_s
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5245,7 +5245,7 @@ async fn distributed_runner_from_run_config_rejects_identical_ps_and_worker_serv
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5280,7 +5280,7 @@ async fn distributed_runner_from_run_config_rejects_case_insensitive_identical_p
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5313,7 +5313,7 @@ async fn distributed_runner_from_run_config_rejects_empty_table_name() {
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5344,7 +5344,7 @@ async fn distributed_runner_from_run_config_rejects_whitespace_padded_table_name
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5375,7 +5375,7 @@ async fn distributed_runner_from_run_config_rejects_internal_whitespace_table_na
         &run,
         None,
         Role::Worker,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5408,7 +5408,7 @@ async fn distributed_runner_from_run_config_rejects_zero_parameter_sync_interval
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5442,7 +5442,7 @@ async fn distributed_runner_from_run_config_rejects_empty_parameter_sync_target_
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5517,7 +5517,7 @@ async fn distributed_runner_from_run_config_rejects_whitespace_padded_parameter_
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5551,7 +5551,7 @@ async fn distributed_runner_from_run_config_rejects_invalid_parameter_sync_targe
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5584,7 +5584,7 @@ async fn distributed_runner_from_run_config_rejects_parameter_sync_target_endpoi
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5617,7 +5617,7 @@ async fn distributed_runner_from_run_config_rejects_parameter_sync_target_endpoi
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5650,7 +5650,7 @@ async fn distributed_runner_from_run_config_rejects_parameter_sync_target_endpoi
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5685,7 +5685,7 @@ async fn distributed_runner_from_run_config_rejects_duplicate_parameter_sync_tar
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5721,7 +5721,7 @@ async fn distributed_runner_from_run_config_rejects_duplicate_parameter_sync_tar
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5757,7 +5757,7 @@ async fn distributed_runner_from_run_config_rejects_duplicate_parameter_sync_tar
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5793,7 +5793,7 @@ async fn distributed_runner_from_run_config_rejects_duplicate_parameter_sync_tar
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5829,7 +5829,7 @@ async fn distributed_runner_from_run_config_rejects_duplicate_parameter_sync_tar
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5865,7 +5865,7 @@ async fn distributed_runner_from_run_config_rejects_duplicate_parameter_sync_tar
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5898,7 +5898,7 @@ async fn distributed_runner_from_run_config_rejects_empty_parameter_sync_model_n
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5934,7 +5934,7 @@ async fn distributed_runner_from_run_config_rejects_whitespace_padded_parameter_
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
@@ -5970,7 +5970,7 @@ async fn distributed_runner_from_run_config_rejects_internal_whitespace_paramete
         &run,
         None,
         Role::Ps,
-        "127.0.0.1:0".parse().unwrap(),
+        test_bind_addr(),
     )
     .await
     .expect_err("distributed config validation lane should return an error")
