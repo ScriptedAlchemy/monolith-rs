@@ -4690,6 +4690,18 @@
   - Added missing-worker validation coverage in cluster config tests.
   - monolith-training default lane remains green.
 
+### 347) Runner timeout smoke diagnostics assertion hardening
+- Tightened runner timeout regressions to assert diagnostic payloads instead of
+  generic failure checks:
+  - `test_run_distributed_from_run_config_smoke`
+  - `test_worker_heartbeat_task_stops_after_worker_timeout`
+- Result:
+  - Worker timeout smoke paths now explicitly require PS-discovery timeout
+    diagnostics (`Timed out waiting for PS discovery`) in surfaced errors.
+  - Runner heartbeat lifecycle assertions remain intact under stricter
+    error-message contracts.
+  - monolith-training default lane remains green.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -5534,6 +5546,7 @@
 841. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" zk_async_deregister_local_only_service -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated local-only ZK async-deregister dead-watcher compaction verification plus default-lane regression rerun)
 842. `ZK_AUTH=user:pass cargo test -p monolith-training --features "zookeeper consul" test_zk_disconnect_clears_registered_paths -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (feature-gated ZK disconnect registered-path bookkeeping cleanup verification plus default-lane regression rerun)
 843. `ZK_AUTH=user:pass cargo test -p monolith-training test_cluster_config_validation -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_parameter_server_apply_gradients -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_worker -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted distributed-runtime error-shape assertion hardening verification plus default-lane regression rerun)
+844. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_from_run_config_smoke -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training test_worker_heartbeat_task_stops_after_worker_timeout -- --nocapture && ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (targeted runner timeout-smoke diagnostic assertion hardening verification plus default-lane regression rerun)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

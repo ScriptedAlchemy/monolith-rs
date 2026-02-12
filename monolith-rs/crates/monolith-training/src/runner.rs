@@ -4149,7 +4149,12 @@ mod tests {
         )
         .await;
         // With no PS role started we expect timeout from worker path.
-        assert!(worker_res.is_err());
+        let err = worker_res.unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "run-config distributed worker smoke should surface PS-discovery timeout context: {msg}"
+        );
     }
 
     #[tokio::test]
@@ -4465,7 +4470,12 @@ mod tests {
         };
 
         let res = run_worker_role(Arc::clone(&discovery), "worker-0", cfg).await;
-        assert!(res.is_err(), "worker should time out with no PS services");
+        let err = res.expect_err("worker should time out with no PS services");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker timeout should include PS-discovery timeout diagnostics: {msg}"
+        );
 
         let after_timeout = discovery.heartbeat_count();
         assert!(
