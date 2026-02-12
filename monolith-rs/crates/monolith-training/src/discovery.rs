@@ -1671,6 +1671,44 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_normalize_consul_address_for_operation_rejects_whitespace_authority() {
+        let result = normalize_consul_address_for_operation(
+            "get_service_nodes",
+            "http://127.0.0.1 :8500",
+        );
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("get_service_nodes")
+                        && msg.contains("invalid address")
+                        && msg.contains("whitespace in authority"),
+                    "whitespace authority should be rejected as config error with operation context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for whitespace authority, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_normalize_consul_address_for_operation_rejects_invalid_ipv6_authority() {
+        let result =
+            normalize_consul_address_for_operation("register_entity", "http://[::1:8500");
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("register_entity")
+                        && msg.contains("invalid address")
+                        && msg.contains("invalid IPv6 host"),
+                    "invalid IPv6 authority should be rejected as config error with operation context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for invalid IPv6 authority, got {other:?}"),
+        }
+    }
+
     #[test]
     fn test_in_memory_register_and_discover() {
         let discovery = InMemoryDiscovery::new();
@@ -3820,6 +3858,25 @@ mod tests {
                 );
             }
             other => panic!("expected ConfigError for invalid scheme address, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_whitespace_authority_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        match result {
+            Err(DiscoveryError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("invalid address")
+                        && msg.contains("whitespace in authority")
+                        && msg.contains("get_service_nodes"),
+                    "whitespace-authority discover failures should be classified as ConfigError with discover context: {msg}"
+                );
+            }
+            other => panic!("expected ConfigError for whitespace authority address, got {other:?}"),
         }
     }
 
