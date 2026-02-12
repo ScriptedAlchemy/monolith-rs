@@ -3849,6 +3849,19 @@
   `_disconnect_failure_context -> _when_cleanup_blocks` naming audit is now
   fully closed (`missing 0`).
 
+### 278) Native disconnect-to-when-cleanup-blocks parity completed
+- Added 62 `#[test]` alias wrappers in `native_training_parity.rs`:
+  - 31 run-config variants
+  - 31 runner-config variants
+- Wrapper mapping:
+  - `*_disconnect_failure_context*` → `*_when_cleanup_blocks*`
+- Result:
+  - `native_training_parity.rs` disconnect-to-when-cleanup-blocks audit now
+    reports `missing 0`.
+  - Broad cleanup/disconnect/timeout/index naming audit across both
+    `runner.rs` and `native_training_parity.rs` now reports `missing 0`
+    for all tracked transforms.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -4482,6 +4495,11 @@
 630. `ZK_AUTH=user:pass cargo test -p monolith-training test_run_distributed_worker_registration_failure_with_default_service_type_includes_when_cleanup_blocks -- --nocapture` ✅
 631. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post runner `*_when_cleanup_blocks` alias additions full monolith-training regression rerun)
 632. `python3` disconnect->when-cleanup-blocks audit (`runner.rs`) ✅ (`missing 0`)
+633. `ZK_AUTH=user:pass cargo test -p monolith-training run_config_preserves_ps_register_failure_with_default_service_type_when_cleanup_blocks -- --nocapture` ✅
+634. `ZK_AUTH=user:pass cargo test -p monolith-training runner_config_preserves_ps_register_failure_with_default_service_type_when_cleanup_blocks -- --nocapture` ✅
+635. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post native `*_when_cleanup_blocks` alias additions full monolith-training regression rerun)
+636. `python3` disconnect->when-cleanup-blocks audit (`runner.rs` + `native_training_parity.rs`) ✅ (both `missing 0`)
+637. `python3` broad transform audit across tracked cleanup/disconnect/timeout/index families ✅ (both files report `missing 0` for all tracked transforms)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
