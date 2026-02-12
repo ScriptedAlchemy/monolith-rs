@@ -3142,6 +3142,25 @@
   have full default/custom × timeout/failure matrix parity across runner +
   RunConfig + RunnerConfig entrypoints.
 
+### 235) Worker ordering-issue timeout cleanup matrix completed
+- Added runner-level complementary ordering-issue regressions:
+  - `test_run_distributed_preserves_worker_ordering_issue_timeout_with_default_service_type_and_index_when_cleanup_steps_fail`
+  - `test_run_distributed_preserves_worker_ordering_issue_timeout_with_custom_service_types_and_index_when_cleanup_steps_timeout`
+- Added RunConfig integration complementary regressions:
+  - `distributed_runner_from_run_config_preserves_worker_ordering_issue_timeout_with_default_service_type_and_index_when_cleanup_fails`
+  - `distributed_runner_from_run_config_preserves_worker_ordering_issue_timeout_with_custom_service_types_and_index_when_cleanup_times_out`
+- Added RunnerConfig integration complementary regressions:
+  - `distributed_runner_from_runner_config_preserves_worker_ordering_issue_timeout_with_default_service_type_and_index_when_cleanup_fails`
+  - `distributed_runner_from_runner_config_preserves_worker_ordering_issue_timeout_with_custom_service_types_and_index_when_cleanup_times_out`
+- New assertions complete the ordering-issue matrix by validating both
+  remaining branches:
+  - default service-type + cleanup-failure ordering diagnostics,
+  - custom service-type + cleanup-timeout ordering diagnostics,
+  while preserving `last ordering issue: MixedIndexMetadataPresence`.
+- Result: worker ordering-issue timeout cleanup diagnostics now have full
+  default/custom × timeout/failure matrix parity across runner + RunConfig +
+  RunnerConfig entrypoints.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -3620,6 +3639,9 @@
 475. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker ordering+discover composite timeout cleanup matrix completion across runner/config entrypoints)
 476. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post worker ordering+discover composite timeout cleanup matrix completion compatibility verification)
 477. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post worker ordering+discover composite timeout cleanup matrix completion full workspace rerun under ambient ZK auth env)
+478. `ZK_AUTH=user:pass cargo test -p monolith-training -q` ✅ (post worker ordering-issue timeout cleanup matrix completion across runner/config entrypoints)
+479. `ZK_AUTH=user:pass cargo test -p monolith-cli -q` ✅ (post worker ordering-issue timeout cleanup matrix completion compatibility verification)
+480. `ZK_AUTH=user:pass cargo test --workspace -q` ✅ (post worker ordering-issue timeout cleanup matrix completion full workspace rerun under ambient ZK auth env)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
