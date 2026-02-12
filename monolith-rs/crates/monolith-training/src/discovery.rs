@@ -309,6 +309,14 @@ where
                         error = %e,
                         "Discovery watch poll discover failed"
                     );
+                    if matches!(e, DiscoveryError::ConfigError(_)) {
+                        tracing::warn!(
+                            backend = backend,
+                            error = %e,
+                            "Discovery watch poll encountered configuration error and will stop"
+                        );
+                        break;
+                    }
                     if !should_continue() {
                         break;
                     }
@@ -2291,6 +2299,46 @@ mod tests {
         assert!(
             on_exit_called.load(std::sync::atomic::Ordering::SeqCst),
             "on_exit callback should run after recovery and graceful shutdown"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_spawn_watch_poll_loop_stops_on_config_error() {
+        let (sender, _) = tokio::sync::broadcast::channel(16);
+        let _rx = sender.subscribe();
+        let poll_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let poll_calls_for_loop = std::sync::Arc::clone(&poll_calls);
+        let on_exit_called = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let on_exit_called_for_loop = std::sync::Arc::clone(&on_exit_called);
+
+        let handle = spawn_watch_poll_loop(
+            sender,
+            "test",
+            std::time::Duration::from_millis(5),
+            || true,
+            move || on_exit_called_for_loop.store(true, std::sync::atomic::Ordering::SeqCst),
+            move || {
+                poll_calls_for_loop.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                async move {
+                    Err(DiscoveryError::ConfigError(
+                        "invalid discovery configuration".into(),
+                    ))
+                }
+            },
+        );
+
+        tokio::time::timeout(std::time::Duration::from_millis(250), handle)
+            .await
+            .expect("watch loop should stop immediately on configuration errors")
+            .expect("watch task join failed");
+        assert_eq!(
+            poll_calls.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "watch loop should not retry after configuration errors"
+        );
+        assert!(
+            on_exit_called.load(std::sync::atomic::Ordering::SeqCst),
+            "on_exit callback should run when poll loop exits on configuration error"
         );
     }
 

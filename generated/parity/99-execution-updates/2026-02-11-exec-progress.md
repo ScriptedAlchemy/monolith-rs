@@ -6341,6 +6341,20 @@
   - register path still preserves dead-watcher compaction semantics on config
     validation failures.
 
+### 466) Discovery lifecycle parity: stop watch-poll loops on config errors
+- Hardened shared watch polling behavior in
+  `monolith-training/src/discovery.rs`:
+  - `spawn_watch_poll_loop` now treats `DiscoveryError::ConfigError` as
+    terminal and exits immediately instead of retrying forever.
+- Added dedicated regression coverage:
+  - `test_spawn_watch_poll_loop_stops_on_config_error`
+  - verifies no retry after config error and confirms `on_exit` cleanup runs.
+- Result:
+  - misconfigured discovery backends no longer leave long-running poll loops in
+    endless retry cycles,
+  - lifecycle cleanup behavior remains deterministic under configuration
+    failure-shape paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -7334,6 +7348,8 @@
 990. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (full consul/zookeeper-featured monolith-training regression rerun after async endpoint-suffix contract coverage expansion)
 991. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_normalize_consul_address_for_operation_rejects_leading_trailing_whitespace -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_connect_leading_trailing_whitespace_is_classified_as_config_error -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_async_register_leading_trailing_whitespace_compacts_dead_watchers -- --nocapture` ✅ (validated strict leading/trailing-whitespace rejection for Consul addresses across normalization/connect/register flows)
 992. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (full consul/zookeeper-featured monolith-training regression rerun after whitespace-address contract tightening)
+993. `cargo test -p monolith-training test_spawn_watch_poll_loop_ -- --nocapture` ✅ (validated watch-poll lifecycle behavior including immediate stop on configuration errors and retained transient-error recovery semantics)
+994. `cargo test -p monolith-training -q && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" -q` ✅ (default + consul/zookeeper-featured monolith-training full regressions rerun after watch-poll config-error termination hardening)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
