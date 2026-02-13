@@ -3349,6 +3349,31 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_watch_async_out_of_range_port_rejects_without_state_changes() {
+        let zk = ZkDiscovery::new("127.0.0.1:70000", "/services");
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("out-of-range host port should be rejected before watch state is created");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing watch_service out-of-range-port context, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "out-of-range-port watch_async should not create watcher sender entries"
+        );
+        assert!(
+            !zk_has_watch_poll_generation(&zk, "ps"),
+            "out-of-range-port watch_async should not seed poll-generation bookkeeping"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_watch_async_invalid_port_compacts_dead_watch_sender() {
         let zk = ZkDiscovery::new("127.0.0.1:notaport", "/services");
         let rx = zk.watch("ps").expect("watch should succeed");
@@ -3811,6 +3836,21 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_connect_out_of_range_port_is_config_error() {
+        let zk = ZkDiscovery::new("127.0.0.1:70000", "/services");
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let err = result.expect_err("out-of-range host port should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing out-of-range-port connect context, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_connect_malformed_ipv6_host_entry_is_config_error() {
         let zk = ZkDiscovery::new("[::1", "/services");
         let result = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
@@ -3974,6 +4014,36 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_async_register_out_of_range_port_compacts_dead_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:70000", "/services");
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(
+            &zk,
+            ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
+        )
+        .await;
+        let err = result.expect_err("out-of-range host port should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing out-of-range-port register context, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "config-error register should compact dead watcher sender entries for out-of-range host ports"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_async_register_invalid_port_keeps_live_watchers() {
         let zk = ZkDiscovery::new("127.0.0.1:notaport", "/services");
         let _rx = zk.watch("ps").expect("watch should succeed");
@@ -3998,6 +4068,35 @@ mod tests {
         assert!(
             zk_has_watcher(&zk, "ps"),
             "live watcher sender should be preserved on invalid-port register failure"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_register_out_of_range_port_keeps_live_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:70000", "/services");
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(
+            &zk,
+            ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
+        )
+        .await;
+        let err = result.expect_err("out-of-range host port should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing out-of-range-port register context, got {err:?}"
+        );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "live watcher sender should be preserved on out-of-range-port register failure"
         );
     }
 

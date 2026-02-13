@@ -7423,6 +7423,22 @@
   - Consul leading/trailing-whitespace watch paths now have full dead/live
     watcher symmetry coverage aligned with other config-error watch lanes.
 
+### 551) Discovery ZooKeeper out-of-range host-port lifecycle coverage
+- Expanded ZooKeeper out-of-range host-port (`127.0.0.1:70000`) coverage in
+  `crates/monolith-training/src/discovery.rs` with additional lifecycle
+  regressions:
+  - `watch_async` fail-fast config classification:
+    - `test_zk_watch_async_out_of_range_port_rejects_without_state_changes`
+  - `connect` config classification:
+    - `test_zk_connect_out_of_range_port_is_config_error`
+  - `register_async` watcher lifecycle behavior:
+    - `test_zk_async_register_out_of_range_port_compacts_dead_watchers`
+    - `test_zk_async_register_out_of_range_port_keeps_live_watchers`
+- Result:
+  - out-of-range host-port semantics now have explicit lifecycle coverage beyond
+    validator-only checks, including watcher cleanup/preservation contracts on
+    async register failures.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8582,6 +8598,8 @@
 1156. `rg "test_consul_watch_async_(whitespace_authority|empty_host)_(compacts_dead_watch_sender|preserves_live_watch_sender)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul whitespace-authority/empty-host watch symmetry tests are present)
 1157. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_leading_trailing_whitespace_compacts_dead_watch_sender -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_leading_trailing_whitespace_preserves_live_watch_sender -- --nocapture` ✅ (validated Consul leading/trailing-whitespace watch dead/live watcher symmetry regressions)
 1158. `rg "test_consul_watch_async_leading_trailing_whitespace_(compacts_dead_watch_sender|preserves_live_watch_sender)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul leading/trailing-whitespace watch symmetry tests are present)
+1159. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_out_of_range_port_rejects_without_state_changes -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_out_of_range_port_is_config_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_out_of_range_port_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_out_of_range_port_keeps_live_watchers -- --nocapture` ✅ (validated ZooKeeper out-of-range host-port watch/connect/register lifecycle regressions)
+1160. `rg "test_zk_(watch_async_out_of_range_port_rejects_without_state_changes|connect_out_of_range_port_is_config_error|async_register_out_of_range_port_(compacts_dead_watchers|keeps_live_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper out-of-range lifecycle tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
