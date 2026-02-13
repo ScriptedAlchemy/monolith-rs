@@ -11903,6 +11903,26 @@
   - malformed-endpoint reject contracts are now closed across
     validate/helper/runtime/integration surfaces for PS role.
 
+### 786) Triple-slash malformed-endpoint parity closure (worker bypass + PS reject)
+- Added regressions in:
+  - `crates/monolith-training/src/runner.rs`:
+    - `test_run_worker_role_allows_malformed_parameter_sync_target_triple_slash_endpoint_without_wrapper`
+    - `test_run_distributed_allows_malformed_parameter_sync_target_triple_slash_endpoint_for_worker_role`
+    - `test_run_ps_role_rejects_malformed_parameter_sync_target_triple_slash_endpoint_without_wrapper`
+    - `test_run_distributed_rejects_malformed_parameter_sync_target_triple_slash_endpoint_for_ps_role`
+  - `crates/monolith-training/tests/native_training_parity.rs`:
+    - `distributed_runner_from_run_config_rejects_malformed_parameter_sync_target_triple_slash_endpoint`
+    - `distributed_runner_from_run_config_allows_malformed_parameter_sync_target_triple_slash_endpoint_for_worker_role`
+    - `distributed_runner_from_runner_config_rejects_malformed_parameter_sync_target_triple_slash_endpoint`
+    - `distributed_runner_from_runner_config_allows_malformed_parameter_sync_target_triple_slash_endpoint_for_worker_role`
+- Coverage validates:
+  - malformed triple-slash endpoint parsing (`http:///`) now has explicit
+    role-matrix assertions across helper/runtime and integration entrypaths:
+    reject for PS role and bypass for worker role.
+- Result:
+  - malformed-endpoint contract coverage now includes both empty-authority
+    (`http://`) and triple-slash malformed-URI variants across all key layers.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -13558,6 +13578,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1645. `rg "test_run_(ps_role_rejects_duplicate_parameter_sync_target_entries_after_(http_prefix|https_default_port|case_insensitive_http_prefix_and_host)_normalization_without_wrapper|distributed_rejects_duplicate_parameter_sync_target_entries_after_(http_prefix|https_default_port|case_insensitive_http_prefix_and_host)_normalization_for_ps_role)" crates/monolith-training/src/runner.rs` ✅ (verified PS runtime/helper duplicate-normalization reject regressions are present across helper and runtime entrypoint suites)
 1646. `cargo test -p monolith-training test_run_ps_role_rejects_malformed_parameter_sync_target_endpoint_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_malformed_parameter_sync_target_endpoint_for_ps_role -- --nocapture` ✅ (validated PS runtime/helper malformed-endpoint reject semantics for invalid `http://` parameter-sync target parsing)
 1647. `rg "test_run_(ps_role_rejects_malformed_parameter_sync_target_endpoint_without_wrapper|distributed_rejects_malformed_parameter_sync_target_endpoint_for_ps_role)" crates/monolith-training/src/runner.rs` ✅ (verified PS runtime/helper malformed-endpoint regressions are present)
+1648. `cargo test -p monolith-training test_run_worker_role_allows_malformed_parameter_sync_target_triple_slash_endpoint_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_malformed_parameter_sync_target_triple_slash_endpoint_for_worker_role -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_malformed_parameter_sync_target_triple_slash_endpoint_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_malformed_parameter_sync_target_triple_slash_endpoint_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_malformed_parameter_sync_target_triple_slash_endpoint -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_malformed_parameter_sync_target_triple_slash_endpoint_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_malformed_parameter_sync_target_triple_slash_endpoint -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_malformed_parameter_sync_target_triple_slash_endpoint_for_worker_role -- --nocapture` ✅ (validated triple-slash malformed-endpoint role matrix: PS reject + worker bypass across helper/runtime and run/runner integration entrypaths)
+1649. `rg "triple_slash_endpoint" crates/monolith-training/src/runner.rs && rg "triple_slash_endpoint" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified triple-slash malformed-endpoint regressions are present across runner and integration suites)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

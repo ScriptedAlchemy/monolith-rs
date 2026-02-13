@@ -5527,6 +5527,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_worker_role_allows_malformed_parameter_sync_target_triple_slash_endpoint_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: vec!["http:///".to_string()],
+            parameter_sync_interval: Duration::from_millis(0),
+            parameter_sync_model_name: " ".to_string(),
+            parameter_sync_signature_name: "serving default".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg).await.expect_err(
+            "worker role should proceed past malformed triple-slash parameter-sync endpoint validation because replication is ps-only",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker role should fail due to discovery timeout, not malformed triple-slash parameter-sync endpoint validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_targets"),
+            "worker role should ignore malformed triple-slash parameter-sync endpoint validation errors: {msg}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_worker_role_allows_parameter_sync_target_with_path_or_query_without_wrapper()
     {
         let discovery = Arc::new(InMemoryDiscovery::new());
@@ -6345,6 +6377,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_ps_role_rejects_malformed_parameter_sync_target_triple_slash_endpoint_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["http:///".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
+            "run_ps_role should reject malformed triple-slash parameter sync target endpoint",
+        );
+        assert!(
+            err.to_string().contains(
+                "distributed config has invalid parameter_sync_targets entry `http:///`",
+            ),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_ps_role_rejects_whitespace_padded_parameter_sync_target_without_wrapper() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -7088,6 +7141,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_rejects_malformed_parameter_sync_target_triple_slash_endpoint_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["http:///".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject malformed triple-slash parameter sync target endpoint for ps role",
+        );
+        assert!(err.to_string().contains(
+            "distributed config has invalid parameter_sync_targets entry `http:///`"
+        ));
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_rejects_whitespace_padded_parameter_sync_target_for_ps_role() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -7544,6 +7615,38 @@ mod tests {
         assert!(
             !msg.contains("parameter_sync_targets"),
             "runtime should ignore malformed parameter-sync endpoint validation errors for worker role: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_malformed_parameter_sync_target_triple_slash_endpoint_for_worker_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: vec!["http:///".to_string()],
+            parameter_sync_interval: Duration::from_millis(0),
+            parameter_sync_model_name: " ".to_string(),
+            parameter_sync_signature_name: "serving default".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, cfg).await.expect_err(
+            "run_distributed should proceed past malformed triple-slash parameter-sync endpoint validation for worker role",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "runtime should fail due to missing PS discovery, not malformed triple-slash parameter-sync endpoint validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_targets"),
+            "runtime should ignore malformed triple-slash parameter-sync endpoint validation errors for worker role: {msg}"
         );
     }
 
