@@ -2003,6 +2003,18 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[test]
+    fn test_normalize_consul_address_for_operation_accepts_explicit_http_scheme_with_hostname_without_port_no_root_slash(
+    ) {
+        let normalized = normalize_consul_address_for_operation("connect", "http://localhost")
+            .expect("explicit http scheme with hostname-only authority without root path should normalize");
+        assert_eq!(
+            normalized, "http://localhost",
+            "normalization should preserve http scheme for hostname-only authorities without requiring a root path suffix"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
     fn test_normalize_consul_address_for_operation_accepts_explicit_http_scheme() {
         let normalized =
             normalize_consul_address_for_operation("connect", "http://127.0.0.1:8500/")
@@ -13167,6 +13179,79 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_watch_async_http_hostname_without_port_seeds_poll_generation_entry() {
+        let consul = ConsulDiscovery::new("http://localhost");
+
+        let rx = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("watch_async should accept explicit http hostname-only authority without root slash");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch_async should create watcher sender entry for http hostname-only address without root slash"
+        );
+        assert!(
+            consul_has_watch_poll_generation(&consul, "worker"),
+            "watch_async should seed poll-generation bookkeeping for http hostname-only address without root slash"
+        );
+
+        drop(rx);
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                if !consul_has_watch_poll_generation(&consul, "worker") {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        })
+        .await
+        .expect("poll-generation entry should clear after http hostname-only watcher receiver without root slash drops");
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "http hostname-only watch_async without root slash should compact dead watcher sender after receiver drops"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_http_hostname_without_port_disconnect_clears_poll_generation_with_live_receiver(
+    ) {
+        let consul = ConsulDiscovery::new("http://localhost");
+        let rx = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("watch_async should accept explicit http hostname-only authority without root slash");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch_async should create watcher sender entry for http hostname-only address without root slash"
+        );
+        assert!(
+            consul_has_watch_poll_generation(&consul, "worker"),
+            "watch_async should seed poll-generation bookkeeping for http hostname-only address without root slash"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "disconnect should preserve live watcher sender entries"
+        );
+        assert!(
+            !consul_has_watch_poll_generation(&consul, "worker"),
+            "disconnect should clear poll-generation bookkeeping even when receiver is live"
+        );
+
+        drop(rx);
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "disconnect should compact watcher sender after receiver is dropped"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_watch_async_http_scheme_seeds_poll_generation_entry() {
         let consul = ConsulDiscovery::new("http://127.0.0.1:8500");
 
@@ -17040,6 +17125,83 @@ mod tests {
         assert!(
             !consul_has_watcher(&consul, "worker"),
             "dead watcher sender should be compacted on http host-only root-slash async deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_http_hostname_without_port_uses_operation_context() {
+        let consul = ConsulDiscovery::new("http://localhost");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("sync register should seed local cache");
+        let mut rx = consul.watch("worker").expect("watch should succeed");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
+            .await;
+        let err = result.expect_err("http hostname-only address without root slash should fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg) if msg.contains("deregister_entity")),
+            "expected Internal containing http hostname-only deregister context without root slash, got {err:?}"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "worker-0"),
+            "expected ServiceRemoved(worker-0), got {event:?}"
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .is_empty(),
+            "http hostname-only async deregister without root slash should remove service from local cache"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on http hostname-only async deregister failure without root slash"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_http_hostname_without_port_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://localhost");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("sync register should seed local cache");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
+            .await;
+        let err = result.expect_err("http hostname-only address without root slash should fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg) if msg.contains("deregister_entity")),
+            "expected Internal containing http hostname-only deregister context without root slash, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watcher sender should be compacted on http hostname-only async deregister notification without root slash"
         );
     }
 
@@ -22030,6 +22192,82 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_register_http_hostname_without_port_uses_operation_context() {
+        let consul = ConsulDiscovery::new("http://localhost");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("http hostname-only address without root slash should fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg) if msg.contains("register_entity")),
+            "expected Internal containing http hostname-only register context without root slash, got {err:?}"
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .is_empty(),
+            "http hostname-only async register without root slash should not populate local service cache"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_http_hostname_without_port_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://localhost");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("http hostname-only address without root slash should fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg) if msg.contains("register_entity")),
+            "expected Internal containing http hostname-only register context without root slash, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watcher sender should be compacted on http hostname-only async register failure without root slash"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_http_hostname_without_port_keeps_live_watchers() {
+        let consul = ConsulDiscovery::new("http://localhost");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("http hostname-only address without root slash should fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg) if msg.contains("register_entity")),
+            "expected Internal containing http hostname-only register context without root slash, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on http hostname-only async register failure without root slash"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_register_http_scheme_uses_operation_context() {
         let consul = ConsulDiscovery::new("http://127.0.0.1:8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
@@ -26969,6 +27207,48 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_discover_async_http_hostname_without_port_uses_operation_context() {
+        let consul = ConsulDiscovery::new("http://localhost");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result.expect_err("unreachable http hostname-only Consul address without root slash should fail");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg) if msg.contains("get_service_nodes")),
+            "expected Internal containing discover context for http hostname-only address without root slash, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_http_hostname_without_port_preserves_local_cache() {
+        let consul = ConsulDiscovery::new("http://localhost");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0", "worker-0", "worker", "127.0.0.1", 6000,
+            ))
+            .expect("sync register should seed local cache");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result.expect_err("http hostname-only address without root slash should fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg) if msg.contains("get_service_nodes")),
+            "expected Internal containing discover context for http hostname-only address without root slash, got {err:?}"
+        );
+
+        let cached = consul
+            .discover("worker")
+            .expect("discover should succeed after async http hostname-only failure without root slash");
+        assert_eq!(
+            cached.len(),
+            1,
+            "http hostname-only async discover failure without root slash should not evict local cache entries"
+        );
+        assert_eq!(cached[0].id, "worker-0");
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_discover_async_http_scheme_uses_operation_context() {
         let consul = ConsulDiscovery::new("http://127.0.0.1:8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
@@ -28317,6 +28597,48 @@ mod tests {
         assert!(
             consul.client.lock().await.is_some(),
             "reconnect should reinitialize client handle for http host-only root-slash address"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_connect_http_hostname_without_port_initializes_client_handle() {
+        let consul = ConsulDiscovery::new("http://localhost");
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("http hostname-only address without root slash should initialize Consul client handle");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "http hostname-only connect without root slash should initialize client handle"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_connect_http_hostname_without_port_disconnect_and_reconnect() {
+        let consul = ConsulDiscovery::new("http://localhost");
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("http hostname-only address without root slash should initialize Consul client handle");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "http hostname-only connect without root slash should initialize client handle"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            consul.client.lock().await.is_none(),
+            "disconnect should clear http hostname-only client handle without root slash"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("http hostname-only reconnect without root slash should recreate client handle after disconnect");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "reconnect should reinitialize client handle for http hostname-only address without root slash"
         );
     }
 
