@@ -4580,6 +4580,44 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_rejects_worker_index_out_of_range_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 1,
+            num_workers: 1,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject worker index out of range");
+        assert!(
+            err.to_string()
+                .contains("distributed config requires index < num_workers for worker role"),
+            "unexpected runtime validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_ps_index_out_of_range_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 1,
+            num_ps: 1,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject ps index out of range");
+        assert!(
+            err.to_string()
+                .contains("distributed config requires index < num_ps for ps role"),
+            "unexpected runtime validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_rejects_zero_dim_runtime_config() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -5029,6 +5067,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_worker_role_rejects_worker_index_out_of_range_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 1,
+            num_workers: 1,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg)
+            .await
+            .expect_err("run_worker_role should reject out-of-range worker index without wrapper");
+        assert!(
+            err.to_string()
+                .contains("distributed config requires index < num_workers for worker role"),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_worker_role_rejects_zero_dim_without_wrapper() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -5327,6 +5384,25 @@ mod tests {
             .expect_err("run_ps_role should reject zero num_workers without wrapper");
         assert!(
             err.to_string().contains("num_workers > 0"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_ps_index_out_of_range_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 1,
+            num_ps: 1,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg)
+            .await
+            .expect_err("run_ps_role should reject out-of-range ps index without wrapper");
+        assert!(
+            err.to_string()
+                .contains("distributed config requires index < num_ps for ps role"),
             "unexpected ps-role validation error: {err}"
         );
     }

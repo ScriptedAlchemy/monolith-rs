@@ -11436,6 +11436,22 @@
   - top-level runtime role matrix now includes explicit worker+PS symmetry for
     discovery timeout zero-value rejection paths.
 
+### 759) Runtime/direct-helper index-bound rejection parity closure
+- Added runner regressions in `crates/monolith-training/src/runner.rs`:
+  - top-level runtime rejects:
+    - `test_run_distributed_rejects_worker_index_out_of_range_runtime_config`
+    - `test_run_distributed_rejects_ps_index_out_of_range_runtime_config`
+  - direct helper rejects:
+    - `test_run_worker_role_rejects_worker_index_out_of_range_without_wrapper`
+    - `test_run_ps_role_rejects_ps_index_out_of_range_without_wrapper`
+- Coverage validates:
+  - index bound contracts (`index < num_workers`, `index < num_ps`) are now
+    explicitly asserted at runtime and helper layers, not only in direct
+    validation and run/runner integration constructors.
+- Result:
+  - role-matrix parity now includes explicit index-bound rejection coverage
+    across top-level runtime and direct role-helper entrypaths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -13037,6 +13053,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1591. `rg "test_run_(worker|ps)_role_rejects_(zero_discovery_operation_timeout|zero_discovery_cleanup_timeout|whitespace_padded_ps_service_type|internal_whitespace_ps_service_type|whitespace_padded_table_name|internal_whitespace_table_name|zero_num_ps|zero_dim)_without_wrapper" crates/monolith-training/src/runner.rs` ✅ (verified expanded direct helper global-contract reject regressions are present for both roles)
 1592. `cargo test -p monolith-training test_run_distributed_rejects_zero_discovery_operation_timeout_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_discovery_operation_timeout_runtime_config_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_discovery_cleanup_timeout_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_discovery_cleanup_timeout_runtime_config_for_ps_role -- --nocapture` ✅ (validated run_distributed global discovery-timeout zero-value rejection symmetry across worker and ps roles)
 1593. `rg "test_run_distributed_rejects_zero_discovery_(operation|cleanup)_timeout_runtime_config(_for_ps_role)?" crates/monolith-training/src/runner.rs` ✅ (verified top-level runtime discovery-timeout symmetry regressions are present)
+1594. `cargo test -p monolith-training test_run_distributed_rejects_worker_index_out_of_range_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_ps_index_out_of_range_runtime_config -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_worker_index_out_of_range_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_ps_index_out_of_range_without_wrapper -- --nocapture` ✅ (validated index-bound rejection symmetry at run_distributed and direct worker/ps helper entrypaths)
+1595. `rg "test_run_(distributed_rejects_(worker|ps)_index_out_of_range_runtime_config|worker_role_rejects_worker_index_out_of_range_without_wrapper|ps_role_rejects_ps_index_out_of_range_without_wrapper)" crates/monolith-training/src/runner.rs` ✅ (verified runtime/direct-helper index-bound rejection regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
