@@ -4319,6 +4319,26 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_async_register_valid_mixed_ipv4_ipv6_hosts_failure_does_not_cache_service() {
+        let zk =
+            ZkDiscovery::new("[::1]:1,127.0.0.1:2", "/services").with_session_timeout(100);
+        let service = ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(&zk, service).await;
+        let err = result
+            .expect_err("async register should fail when valid mixed-family hosts are unreachable");
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid mixed-family register, got {err:?}"
+        );
+        assert!(
+            zk.discover("ps").expect("discover should succeed").is_empty(),
+            "valid mixed-family register failure should not populate local service cache"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_connect_invalid_hosts_is_config_error() {
         let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
         let result = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
@@ -5345,6 +5365,66 @@ mod tests {
         assert!(
             !zk_has_watcher(&zk, "ps"),
             "valid mixed-family deregister failure should compact dead watcher sender"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_valid_mixed_ipv4_ipv6_hosts_failure_cleans_registered_path()
+    {
+        let zk =
+            ZkDiscovery::new("[::1]:1,127.0.0.1:2", "/services").with_session_timeout(100);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        let err = result
+            .expect_err("async deregister should fail when valid mixed-family hosts are unreachable");
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid mixed-family deregister, got {err:?}"
+        );
+        assert!(
+            !zk.registered_paths.lock().await.contains_key("ps-0"),
+            "valid mixed-family deregister failure should remove registered path entry even when backend delete fails"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_valid_mixed_ipv4_ipv6_hosts_failure_keeps_live_watchers() {
+        let zk =
+            ZkDiscovery::new("[::1]:1,127.0.0.1:2", "/services").with_session_timeout(100);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+
+        let mut rx = zk.watch("ps").expect("watch should succeed");
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        let err = result
+            .expect_err("async deregister should fail when valid mixed-family hosts are unreachable");
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid mixed-family deregister, got {err:?}"
+        );
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "ps-0"),
+            "expected ServiceRemoved(ps-0), got {event:?}"
+        );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "valid mixed-family deregister failure should preserve live watcher sender after notification"
         );
     }
 
