@@ -7667,6 +7667,17 @@
     failure families (port bounds, path suffix, malformed authority, and
     leading/trailing whitespace) beyond the generic malformed-config lane.
 
+### 569) Discovery Consul discover_async cache-preservation expansion (query/fragment/host)
+- Added additional Consul malformed-address `discover_async` local-cache
+  preservation regressions in `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_discover_async_address_query_preserves_local_cache`
+  - `test_consul_discover_async_address_fragment_preserves_local_cache`
+  - `test_consul_discover_async_empty_host_preserves_local_cache`
+- Result:
+  - Consul discover cache-preservation parity now also covers query/fragment
+    suffix validation and empty-host authority failures with explicit
+    cache-retention assertions.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8861,6 +8872,8 @@
 1191. `rg "test_consul_watch_async_path_(rejects_without_state_changes|compacts_dead_watch_sender|preserves_live_watch_sender)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul watch_async address-path regression tests are present)
 1192. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_out_of_range_port_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_address_path_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_invalid_ipv6_suffix_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_leading_trailing_whitespace_preserves_local_cache -- --nocapture` ✅ (validated expanded Consul malformed-address discover_async cache-preservation regressions)
 1193. `rg "test_consul_discover_async_(out_of_range_port|address_path|invalid_ipv6_suffix|leading_trailing_whitespace)_preserves_local_cache" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul discover_async cache-preservation tests are present)
+1194. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_address_query_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_address_fragment_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_empty_host_preserves_local_cache -- --nocapture` ✅ (validated additional Consul discover_async query/fragment/empty-host cache-preservation regressions)
+1195. `rg "test_consul_discover_async_(address_query|address_fragment|empty_host)_preserves_local_cache" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul discover_async query/fragment/empty-host cache-preservation tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
