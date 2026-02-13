@@ -7756,6 +7756,16 @@
   - Empty-address async register/deregister parity now includes explicit
     dead/live watcher symmetry assertions, not only failure-shape context.
 
+### 576) Discovery Consul discover_async empty-address cache-preservation parity
+- Added a Consul empty-address discover cache-preservation regression in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_discover_async_empty_address_preserves_local_cache`
+- Coverage validates that when empty-address `discover_async` fails against the
+  default endpoint, the operation still preserves local cached services.
+- Result:
+  - Empty-address discover parity now includes explicit local-cache retention
+    guarantees in addition to default-endpoint failure-shape context.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8964,6 +8974,8 @@
 1205. `rg "test_consul_async_(deregister|register)_empty_address_uses_default_endpoint_context" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul async empty-address default-endpoint regression tests are present)
 1206. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_empty_address_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_empty_address_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_empty_address_keeps_live_watchers -- --nocapture` ✅ (validated Consul async empty-address watcher dead/live symmetry regressions)
 1207. `rg "test_consul_async_(deregister_empty_address_compacts_dead_watchers|register_empty_address_compacts_dead_watchers|register_empty_address_keeps_live_watchers)" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul async empty-address watcher-symmetry tests are present)
+1208. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_empty_address_preserves_local_cache -- --nocapture` ✅ (validated Consul discover_async empty-address failure preserves local cache entries)
+1209. `rg "test_consul_discover_async_empty_address_preserves_local_cache" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul discover_async empty-address cache-preservation regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
