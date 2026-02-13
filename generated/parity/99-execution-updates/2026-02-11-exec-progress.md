@@ -10549,6 +10549,17 @@
   - Restore checkpoint basename resolution now uses explicit error contracts
     without panic-based fallback.
 
+### 712) Base-embedding vocab bootstrap panic-path hardening
+- Hardened `create_vocab_dict` in
+  `crates/monolith-training/src/base_embedding_task.rs` by replacing branch
+  invariant `expect(...)` lookups with explicit tuple-pattern matching over
+  optional `end_date` and `vocab_file_folder_prefix`.
+- Coverage validates vocab parsing parity cases (fixed/custom/offset + invalid
+  line handling) remain green after panic-path removal.
+- Result:
+  - Base-embedding vocab bootstrap path now avoids panic-based Option
+    assumptions during HDFS vocab-file resolution.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12052,6 +12063,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1493. `cargo test -p monolith-training test_copy_checkpoint_from_restore_dir -- --nocapture && cargo test -p monolith-training test_get_checkpoint_state_with_restore_override_matches_basename_to_full_path -- --nocapture` ✅ (validated runner-utils checkpoint copy and basename-override paths remain stable after panic-path removal)
 1494. `rg "matching restore checkpoint path should exist after basename match" crates/monolith-training/src/runner_utils.rs` ✅ (verified runner-utils basename-resolution panic-path expect string is removed)
 1495. `rg "test_(copy_checkpoint_from_restore_dir|get_checkpoint_state_with_restore_override_matches_basename_to_full_path)" crates/monolith-training/src/runner_utils.rs` ✅ (verified runner-utils checkpoint-copy and basename-override regression coverage remains present)
+1496. `cargo test -p monolith-training test_create_vocab_dict_ -- --nocapture` ✅ (validated base-embedding vocab parsing parity regressions remain green after panic-path removal in optional HDFS-vocab bootstrap branch)
+1497. `rg "vocab_file_folder_prefix should be present when branch is entered|end_date should be present when branch is entered" crates/monolith-training/src/base_embedding_task.rs` ✅ (verified legacy create_vocab_dict branch-invariant panic-path expect strings are removed)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

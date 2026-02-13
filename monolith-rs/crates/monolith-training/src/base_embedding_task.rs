@@ -271,22 +271,13 @@ impl BaseEmbeddingTask {
 
     /// Creates vocab dict based on config.
     fn create_vocab_dict(config: &mut BaseEmbeddingTaskConfig) -> Result<HashMap<SlotId, usize>> {
-        if config.base.train.end_date.is_some()
-            && config.base.train.vocab_file_folder_prefix.is_some()
-        {
+        if let (Some(end_date), Some(vocab_folder_prefix)) = (
+            config.base.train.end_date.as_ref(),
+            config.base.train.vocab_file_folder_prefix.as_ref(),
+        ) {
             config.vocab_file_path = Self::download_vocab_size_file_from_hdfs(
-                config
-                    .base
-                    .train
-                    .vocab_file_folder_prefix
-                    .as_ref()
-                    .expect("vocab_file_folder_prefix should be present when branch is entered"),
-                config
-                    .base
-                    .train
-                    .end_date
-                    .as_ref()
-                    .expect("end_date should be present when branch is entered"),
+                vocab_folder_prefix,
+                end_date,
             )
             .ok()
             .or_else(|| config.vocab_file_path.clone());
