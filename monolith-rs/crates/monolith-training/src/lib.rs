@@ -51,9 +51,8 @@
 //! estimator.add_hook(CheckpointHook::new(config.model_dir.clone(), 1000));
 //!
 //! // Run training
-//! // let result = estimator
-//! //     .train()
-//! //     .expect("training should succeed in this basic example");
+//! // let result = estimator.train();
+//! // // Handle `result` according to your application's error strategy.
 //! ```
 
 pub mod barrier;

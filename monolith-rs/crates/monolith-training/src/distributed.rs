@@ -171,10 +171,11 @@ pub struct ParameterState {
 ///
 /// let mut ps = ParameterServer::new(0);
 /// ps.set_parameter("weights", vec![0.1, 0.2, 0.3]);
-/// let weights = ps
-///     .get_parameter("weights")
-///     .expect("weights should be present after setting the parameter");
-/// assert_eq!(weights.len(), 3);
+/// assert_eq!(
+///     ps.get_parameter("weights"),
+///     Some(vec![0.1, 0.2, 0.3]),
+///     "weights should remain retrievable after setting the parameter"
+/// );
 /// ```
 #[derive(Debug)]
 pub struct ParameterServer {

@@ -15,7 +15,7 @@
 //! use monolith_training::discovery::{
 //!     ServiceDiscovery, ServiceInfo, HealthStatus, InMemoryDiscovery,
 //! };
-//! use std::collections::HashMap;
+//! # fn main() -> Result<(), monolith_training::discovery::DiscoveryError> {
 //!
 //! let discovery = InMemoryDiscovery::new();
 //!
@@ -27,15 +27,13 @@
 //!     "127.0.0.1",
 //!     5000,
 //! );
-//! discovery
-//!     .register(service)
-//!     .expect("in-memory register should succeed in usage example");
+//! discovery.register(service)?;
 //!
 //! // Discover services
-//! let services = discovery
-//!     .discover("ps")
-//!     .expect("in-memory discover should succeed in usage example");
+//! let services = discovery.discover("ps")?;
 //! assert_eq!(services.len(), 1);
+//! # Ok(())
+//! # }
 //! ```
 
 use std::collections::HashMap;
@@ -379,18 +377,17 @@ where
 ///
 /// ```rust
 /// use monolith_training::discovery::{InMemoryDiscovery, ServiceInfo, ServiceDiscovery};
+/// # fn main() -> Result<(), monolith_training::discovery::DiscoveryError> {
 ///
 /// let discovery = InMemoryDiscovery::new();
 ///
 /// let service = ServiceInfo::new("ps-0", "PS 0", "ps", "localhost", 5000);
-/// discovery
-///     .register(service)
-///     .expect("in-memory register should succeed in usage example");
+/// discovery.register(service)?;
 ///
-/// let services = discovery
-///     .discover("ps")
-///     .expect("in-memory discover should succeed in usage example");
+/// let services = discovery.discover("ps")?;
 /// assert_eq!(services.len(), 1);
+/// # Ok(())
+/// # }
 /// ```
 pub struct InMemoryDiscovery {
     /// Registered services indexed by ID.

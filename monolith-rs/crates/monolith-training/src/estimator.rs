@@ -321,9 +321,8 @@ impl ModelFn for ConstantModelFn {
 /// let mut estimator = Estimator::new(config, model_fn);
 ///
 /// // Training would be called like this:
-/// // let result = estimator
-/// //     .train()
-/// //     .expect("training should succeed in this estimator usage example");
+/// // let result = estimator.train();
+/// // // Handle `result` according to your application's error strategy.
 /// ```
 pub struct Estimator<M: ModelFn> {
     /// Estimator configuration.

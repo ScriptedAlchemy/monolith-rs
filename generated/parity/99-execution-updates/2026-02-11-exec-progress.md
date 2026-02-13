@@ -10650,6 +10650,28 @@
   - Assertion style is now consistently explicit and diagnostic-rich across
     non-trivial poisoned-lock/poisoned-mutex regression suites.
 
+### 718) Documentation/example `expect(...)` cleanup for training/discovery APIs
+- Hardened docs and examples in `crates/monolith-training/src` to remove
+  residual `expect(...)` usage in non-test examples:
+  - `discovery.rs`:
+    - module-level and `InMemoryDiscovery` examples now use `?` with hidden
+      `Result`-returning wrappers instead of `expect(...)`.
+  - `distributed.rs`:
+    - `ParameterServer` example now validates retrieved parameter via explicit
+      `assert_eq!(..., Some(...))` shape rather than `expect(...)`.
+  - `metrics.rs`:
+    - `MetricsRecorder::aggregate` example now uses `matches!` on optional
+      accuracy with tolerance guard rather than Option `expect(...)`.
+  - `lib.rs` and `estimator.rs`:
+    - commented training examples now avoid `expect(...)` phrasing and show
+      explicit result-handling guidance.
+- Coverage validates:
+  - doctest compilation/execution remains green for updated examples,
+  - legacy example-specific `expect(...)` strings are removed.
+- Result:
+  - public-facing usage guidance now aligns with explicit, diagnostic-friendly
+    error-handling conventions used in runtime/test hardening.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12166,6 +12188,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1506. `rg "join_result\\.is_err\\(" crates/monolith-training/src/discovery.rs` ✅ (verified coarse join-result boolean assertions were removed in poisoned-lock discovery regressions)
 1507. `cargo test -p monolith-training writable_file_append_poisoned_mutex_returns_io_error -- --nocapture && cargo test -p monolith-training writable_file_close_poisoned_mutex_returns_io_error -- --nocapture && cargo test -p monolith-training test_lookup_cache_enabled_poisoned_cache_mutex_returns_io_error -- --nocapture && cargo test -p monolith-training test_lookup_cache_disabled_poisoned_cache_mutex_returns_io_error -- --nocapture && cargo test -p monolith-training test_get_meta_cloned_recovers_after_poisoned_store_mutex -- --nocapture && cargo test -p monolith-training test_update_meta_recovers_after_poisoned_store_mutex -- --nocapture && cargo test -p monolith-training zk_register_recovers_from_poisoned_threads_mutex -- --nocapture && cargo test -p monolith-training zk_close_recovers_from_poisoned_threads_mutex -- --nocapture && cargo test -p monolith-training test_mlp_register_recovers_after_poisoned_filters_mutex -- --nocapture && cargo test -p monolith-training test_mlp_close_recovers_after_poisoned_filters_mutex -- --nocapture` ✅ (validated poisoned-mutex regression suites across file/native discovery modules remain green after expect_err assertion-style harmonization)
 1508. `rg "join_result\\.is_err\\(" crates/monolith-training/src` ✅ (verified coarse join-result boolean assertions are removed from monolith-training source after assertion-style harmonization)
+1509. `cargo test -p monolith-training --doc -- --nocapture` ✅ (validated updated discovery/distributed/metrics/lib/estimator examples compile and run as doctests without expect-based example handling)
+1510. `rg "in-memory register should succeed in usage example|in-memory discover should succeed in usage example" crates/monolith-training/src/discovery.rs && rg "weights should be present after setting the parameter" crates/monolith-training/src/distributed.rs && rg "accuracy should be present after recording accuracy metrics" crates/monolith-training/src/metrics.rs && rg "training should succeed in this basic example|training should succeed in this estimator usage example" crates/monolith-training/src` ✅ (verified legacy expect-oriented documentation example strings are removed)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

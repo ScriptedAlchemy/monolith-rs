@@ -219,14 +219,10 @@ impl MetricsRecorder {
     ///
     /// let avg = recorder.aggregate(2);
     /// assert!((avg.loss - 0.4).abs() < 1e-10);
-    /// assert!(
-    ///     (avg
-    ///         .accuracy
-    ///         .expect("accuracy should be present after recording accuracy metrics")
-    ///         - 0.85)
-    ///         .abs()
-    ///         < 1e-10
-    /// );
+    /// assert!(matches!(
+    ///     avg.accuracy,
+    ///     Some(acc) if (acc - 0.85).abs() < 1e-10
+    /// ));
     /// ```
     pub fn aggregate(&self, global_step: u64) -> Metrics {
         let mut metrics = Metrics::new(self.average_loss(), global_step);
