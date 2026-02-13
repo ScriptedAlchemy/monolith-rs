@@ -7583,6 +7583,18 @@
     cleanup-notification behavior and post-notification live watcher retention
     across all covered config-shapes.
 
+### 562) Discovery ZooKeeper deregister dead-watcher compaction expansion
+- Expanded ZooKeeper malformed-config `deregister_async` lifecycle coverage in
+  `crates/monolith-training/src/discovery.rs` with explicit dead-watcher
+  compaction regressions for:
+  - invalid hosts (whitespace),
+  - invalid port,
+  - invalid base path.
+- Result:
+  - ZooKeeper malformed-config deregister coverage now includes both live
+    watcher preservation and dead watcher compaction assertions across major
+    host/base-path validation failure shapes.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8764,6 +8776,8 @@
 1178. `rg "live watcher sender should be preserved after .* deregister notification" crates/monolith-training/src/discovery.rs` ✅ (verified newly added live-watcher-preservation assertions across Consul deregister malformed-address tests)
 1179. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_invalid_hosts_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_malformed_ipv6_host_entry_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_invalid_port_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_out_of_range_port_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_invalid_base_path_still_notifies_and_returns_error -- --nocapture` ✅ (validated strengthened ZooKeeper deregister malformed-config regressions with live-watcher preservation assertions)
 1180. `rg "live watcher sender should be preserved after .* deregister notification" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper+Consul live-watcher-preservation assertions across deregister malformed-config tests)
+1181. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_invalid_hosts_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_invalid_port_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_invalid_base_path_compacts_dead_watchers -- --nocapture` ✅ (validated ZooKeeper malformed-config deregister dead-watcher compaction regressions)
+1182. `rg "test_zk_async_deregister_(invalid_hosts|invalid_port|invalid_base_path)_compacts_dead_watchers" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper deregister dead-watcher compaction tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
