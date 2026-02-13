@@ -120,7 +120,10 @@ impl DistributedRunConfig {
         if self.dim == 0 {
             anyhow::bail!("distributed config requires dim > 0");
         }
-        if self.connect_retries > 0 && self.retry_backoff_ms == 0 {
+        if matches!(self.role, Role::Worker)
+            && self.connect_retries > 0
+            && self.retry_backoff_ms == 0
+        {
             anyhow::bail!(
                 "distributed config requires retry_backoff_ms > 0 when connect_retries > 0"
             );
@@ -3381,6 +3384,19 @@ mod tests {
     }
 
     #[test]
+    fn test_distributed_config_validate_allows_zero_retry_backoff_for_ps_role() {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            connect_retries: 7,
+            retry_backoff_ms: 0,
+            ..DistributedRunConfig::default()
+        };
+        cfg.validate().expect(
+            "zero retry_backoff_ms should be accepted for ps role because worker retry loop is unused",
+        );
+    }
+
+    #[test]
     fn test_distributed_config_validate_rejects_empty_parameter_sync_target_entry() {
         let cfg = DistributedRunConfig {
             parameter_sync_targets: vec!["".to_string()],
@@ -4398,6 +4414,30 @@ mod tests {
             !msg.contains("retry_backoff_ms > 0"),
             "runtime should not reject zero retry_backoff_ms when connect_retries is disabled: {msg}"
         );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_zero_retry_backoff_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            connect_retries: 7,
+            retry_backoff_ms: 0,
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_distributed(Arc::clone(&discovery), cfg));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !task.is_finished(),
+            "ps role should continue serving; zero retry_backoff_ms must not fail validation for ps role"
+        );
+        task.abort();
     }
 
     #[tokio::test]

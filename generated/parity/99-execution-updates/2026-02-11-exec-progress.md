@@ -10915,6 +10915,23 @@
   - distributed runtime role entrypoints are now contract-safe against direct
     invocation paths, eliminating bypasses of top-level config validation.
 
+### 732) Retry-backoff validation narrowed to worker retry loop semantics
+- Refined `DistributedRunConfig::validate` in
+  `crates/monolith-training/src/runner.rs`:
+  - `retry_backoff_ms > 0` requirement now applies only when:
+    - role is `Worker`, and
+    - `connect_retries > 0`.
+- Added regressions:
+  - `test_distributed_config_validate_allows_zero_retry_backoff_for_ps_role`
+  - `test_run_distributed_allows_zero_retry_backoff_for_ps_role`
+- Coverage validates:
+  - worker retry loop still rejects zero backoff when retries are enabled,
+  - PS role configs are no longer over-constrained by worker-only retry
+    settings.
+- Result:
+  - retry-backoff contracts now match actual runtime behavior by scoping the
+    constraint to the worker discovery retry subsystem.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12460,6 +12477,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1535. `rg "test_distributed_config_validate_allows_empty_parameter_sync_names_without_targets|test_run_distributed_allows_empty_parameter_sync_names_without_targets|retry_backoff_ms > 0 when connect_retries > 0" crates/monolith-training/src/runner.rs` ✅ (verified disabled-mode parameter-sync name regressions and retry-backoff enablement guard contracts are present together)
 1536. `cargo test -p monolith-training test_run_worker_role_rejects_zero_retry_backoff_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_discover_timeout_includes_service_type_context -- --nocapture` ✅ (validated direct role-entrypoint validation guards reject invalid configs and preserve existing worker-timeout discovery diagnostics)
 1537. `rg "test_run_worker_role_rejects_zero_retry_backoff_without_wrapper|test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper|cfg.validate\\(\\)\\?;" crates/monolith-training/src/runner.rs` ✅ (verified role-level validation guard wiring and direct-entrypoint invalid-config regressions are present)
+1538. `cargo test -p monolith-training test_distributed_config_validate_rejects_zero_retry_backoff_when_retries_enabled -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_allows_zero_retry_backoff_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_retry_backoff_when_retries_enabled -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_zero_retry_backoff_for_ps_role -- --nocapture` ✅ (validated retry-backoff zero-value rejection remains enforced for worker retry loops while ps role permits zero backoff)
+1539. `rg "test_distributed_config_validate_allows_zero_retry_backoff_for_ps_role|test_run_distributed_allows_zero_retry_backoff_for_ps_role|test_distributed_config_validate_rejects_zero_retry_backoff_when_retries_enabled|test_run_distributed_rejects_zero_retry_backoff_when_retries_enabled" crates/monolith-training/src/runner.rs` ✅ (verified worker-scoped retry-backoff guard regressions and ps-role acceptance regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
