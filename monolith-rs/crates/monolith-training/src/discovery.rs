@@ -3344,6 +3344,31 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_watch_async_empty_hosts_rejects_without_state_changes() {
+        let zk = ZkDiscovery::new("", "/services");
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("empty hosts should be rejected before watch state is created");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("empty hosts")),
+            "expected ConfigError containing watch_service empty-hosts context, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "empty-hosts watch_async should not create watcher sender entries"
+        );
+        assert!(
+            !zk_has_watch_poll_generation(&zk, "ps"),
+            "empty-hosts watch_async should not seed poll-generation bookkeeping"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_watch_async_invalid_port_rejects_without_state_changes() {
         let zk = ZkDiscovery::new("127.0.0.1:notaport", "/services");
 
@@ -3626,6 +3651,59 @@ mod tests {
         assert!(
             zk_has_watcher(&zk, "ps"),
             "invalid-hosts watch_async should preserve live watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_watch_async_empty_hosts_compacts_dead_watch_sender() {
+        let zk = ZkDiscovery::new("", "/services");
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("empty hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("empty hosts")),
+            "expected ConfigError containing watch_service empty-hosts context, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "empty-hosts watch_async should compact dead watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_watch_async_empty_hosts_preserves_live_watch_sender() {
+        let zk = ZkDiscovery::new("", "/services");
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("empty hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("empty hosts")),
+            "expected ConfigError containing watch_service empty-hosts context, got {err:?}"
+        );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "empty-hosts watch_async should preserve live watcher sender entries"
         );
     }
 
@@ -4267,6 +4345,29 @@ mod tests {
             zk.discover("ps").expect("discover should succeed after config failure").len(),
             1,
             "config-error async discover should preserve local cache entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_discover_async_empty_hosts_preserves_local_cache() {
+        let zk = ZkDiscovery::new("", "/services");
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::discover_async(&zk, "ps").await;
+        let err = result.expect_err("empty hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("empty hosts")),
+            "expected ConfigError containing empty-hosts discover context, got {err:?}"
+        );
+        assert_eq!(
+            zk.discover("ps").expect("discover should succeed after config failure").len(),
+            1,
+            "empty-hosts async discover config error should preserve local cache entries"
         );
     }
 
