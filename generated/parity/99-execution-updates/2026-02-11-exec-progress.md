@@ -10368,6 +10368,17 @@
   - `wait_for_barrier` now guarantees consistent waiter-state cleanup on both
     timeout and non-timeout error paths.
 
+### 702) Distributed train_step panic-path removal hardening
+- Hardened `LocalCluster::train_step` in
+  `crates/monolith-training/src/distributed.rs` by replacing a residual
+  internal `expect(...)` worker lookup with explicit
+  `InvalidConfiguration("Worker index ... out of range")` error propagation.
+- Coverage validated existing train-step and bad-worker-index regressions remain
+  green with the panic-free path.
+- Result:
+  - Train-step execution now avoids panic-based worker resolution, preserving
+    fully explicit runtime error semantics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11835,6 +11846,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1457. `rg "test_local_cluster_wait_for_barrier_zero_timeout_cleans_waiter_before_return" crates/monolith-training/src/distributed.rs` ✅ (verified zero-timeout barrier cleanup regression is present)
 1458. `cargo test -p monolith-training test_local_cluster_wait_for_barrier_ -- --nocapture` ✅ (validated full wait_for_barrier suite including partial-state error-path waiter cleanup semantics)
 1459. `rg "test_local_cluster_wait_for_barrier_partial_cluster_error_cleans_existing_waiter" crates/monolith-training/src/distributed.rs` ✅ (verified partial-state wait_for_barrier waiter-cleanup regression is present)
+1460. `cargo test -p monolith-training test_local_cluster_train_step_ -- --nocapture && cargo test -p monolith-training test_local_cluster_bad_worker_index -- --nocapture` ✅ (validated panic-free train_step worker resolution preserves train-step and invalid-worker-index contracts)
+1461. `rg "worker index was validated before applying gradients" crates/monolith-training/src/distributed.rs` ✅ (verified prior panic-path expect string is removed from train_step runtime code)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

@@ -650,10 +650,13 @@ impl LocalCluster {
             updated.insert(param_name.clone(), next);
         }
 
-        self.workers
-            .get_mut(worker_index)
-            .expect("worker index was validated before applying gradients")
-            .step()?;
+        let worker = self.workers.get_mut(worker_index).ok_or_else(|| {
+            DistributedError::InvalidConfiguration(format!(
+                "Worker index {} out of range",
+                worker_index
+            ))
+        })?;
+        worker.step()?;
 
         Ok(updated)
     }
