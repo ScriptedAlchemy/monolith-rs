@@ -3031,10 +3031,20 @@ mod tests {
     #[cfg(feature = "zookeeper")]
     #[test]
     fn test_zk_discovery_creation() {
-        let _zk = ZkDiscovery::new("localhost:2181", "/services").with_session_timeout(60000);
-
-        // Just test that it can be created
-        assert!(true);
+        let zk = ZkDiscovery::new("localhost:2181", "/services").with_session_timeout(60000);
+        assert_eq!(zk.hosts, "localhost:2181");
+        assert_eq!(zk.base_path, "/services");
+        assert_eq!(
+            zk.session_timeout_ms, 60000,
+            "with_session_timeout should override default session timeout"
+        );
+        assert!(
+            zk.watchers
+                .lock()
+                .expect("zk watchers mutex should not be poisoned")
+                .is_empty(),
+            "newly constructed discovery should start without watcher senders"
+        );
     }
 
     #[cfg(feature = "zookeeper")]

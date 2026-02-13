@@ -7875,6 +7875,17 @@
   - Case-insensitive/root-slash and host-port normalized watch lanes now have
     explicit disconnect cleanup parity with live-receiver coverage.
 
+### 585) Discovery ZooKeeper creation-test assertion hardening
+- Tightened `test_zk_discovery_creation` in
+  `crates/monolith-training/src/discovery.rs` by replacing the vacuous
+  `assert!(true)` with explicit construction-state assertions:
+  - hosts/base_path are preserved,
+  - session-timeout override is applied,
+  - watcher sender registry starts empty.
+- Result:
+  - ZooKeeper creation-path regression now provides concrete diagnostics and
+    removes non-informative always-true assertion style.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9101,6 +9112,8 @@
 1223. `rg "test_consul_async_deregister_host_port_without_scheme_compacts_dead_watchers" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul host-port async deregister dead-watcher compaction regression is present)
 1224. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_case_insensitive_scheme_disconnect_clears_poll_generation_with_live_receiver -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_host_port_without_scheme_disconnect_clears_poll_generation_with_live_receiver -- --nocapture` ✅ (validated Consul normalized-address watch/disconnect cleanup semantics with live receivers)
 1225. `rg "test_consul_watch_async_(case_insensitive_scheme|host_port_without_scheme)_disconnect_clears_poll_generation_with_live_receiver" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul normalized-address watch/disconnect live-receiver cleanup regressions are present)
+1226. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discovery_creation -- --nocapture` ✅ (validated tightened ZooKeeper discovery creation assertions)
+1227. `rg "fn test_zk_discovery_creation\\(" crates/monolith-training/src/discovery.rs` ✅ (verified hardened ZooKeeper discovery creation regression location)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
