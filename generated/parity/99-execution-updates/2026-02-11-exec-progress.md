@@ -7198,6 +7198,23 @@
     for newly hardened host-entry parsing branches, reducing risk of silent
     parser regressions.
 
+### 535) Discovery Consul out-of-range port contract coverage
+- Expanded Consul address normalization + lifecycle failure-shape coverage in
+  `crates/monolith-training/src/discovery.rs` for out-of-range ports
+  (`:70000`):
+  - added direct normalization contracts:
+    - rejects out-of-range port as `invalid port`,
+    - preserves valid bracketed IPv6 authority with numeric port.
+  - added async lifecycle contracts:
+    - `watch_async` out-of-range config error is operation-scoped and does not
+      create watcher/poll-generation state,
+    - `connect` out-of-range config error is explicitly classified with
+      `connect` context.
+- Result:
+  - Consul invalid-port coverage now includes both non-numeric and
+    out-of-range authority forms with explicit failure-shape diagnostics and
+    lifecycle state guarantees.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8325,6 +8342,8 @@
 1124. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_invalid_ -- --nocapture` ✅ (validated invalid-host/base-path/port connect classification matrix after ZooKeeper host-entry validation hardening)
 1125. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_validate_zk_hosts_for_operation_ -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_invalid_ -- --nocapture` ✅ (validated direct ZooKeeper host-validator edge-case coverage plus invalid connect classification matrix)
 1126. `rg "test_validate_zk_hosts_for_operation_(rejects_invalid_port|rejects_out_of_range_port|rejects_malformed_ipv6_authority|accepts_ipv6_with_port)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added host-validator edge-case regression tests are present)
+1127. `cargo test -p monolith-training --features "consul" discovery::tests::test_normalize_consul_address_for_operation_rejects_out_of_range_port -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_normalize_consul_address_for_operation_accepts_ipv6_with_port -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_out_of_range_port_rejects_without_state_changes -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_connect_out_of_range_port_is_classified_as_config_error -- --nocapture` ✅ (validated Consul out-of-range port normalization and watch/connect lifecycle failure-shape contracts)
+1128. `rg "test_consul_(watch_async_out_of_range_port_rejects_without_state_changes|connect_out_of_range_port_is_classified_as_config_error)|test_normalize_consul_address_for_operation_(rejects_out_of_range_port|accepts_ipv6_with_port)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul out-of-range port regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

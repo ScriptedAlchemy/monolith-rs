@@ -1978,6 +1978,20 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[test]
+    fn test_normalize_consul_address_for_operation_rejects_out_of_range_port() {
+        let err = normalize_consul_address_for_operation("connect", "http://127.0.0.1:70000")
+            .expect_err("out-of-range authority port should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid address")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing out-of-range-port details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
     fn test_normalize_consul_address_for_operation_rejects_invalid_ipv6_authority() {
         let err = normalize_consul_address_for_operation("register_entity", "http://[::1:8500")
             .expect_err("invalid IPv6 authority should be rejected");
@@ -2012,6 +2026,17 @@ mod tests {
                     && msg.contains("invalid address")
                     && msg.contains("invalid authority")),
             "expected ConfigError containing invalid-IPv6-suffix details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_normalize_consul_address_for_operation_accepts_ipv6_with_port() {
+        let normalized = normalize_consul_address_for_operation("connect", "http://[::1]:8500")
+            .expect("valid bracketed IPv6 authority should normalize");
+        assert_eq!(
+            normalized, "http://[::1]:8500",
+            "valid bracketed IPv6 authority should be preserved during normalization"
         );
     }
 
@@ -4580,6 +4605,31 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_watch_async_out_of_range_port_rejects_without_state_changes() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:70000");
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("out-of-range port should be rejected before watch state is created");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing watch_service out-of-range-port context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "out-of-range-port watch_async should not create watcher sender entries"
+        );
+        assert!(
+            !consul_has_watch_poll_generation(&consul, "worker"),
+            "out-of-range-port watch_async should not seed poll-generation bookkeeping"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_watch_async_userinfo_authority_rejects_without_state_changes() {
         let consul = ConsulDiscovery::new("http://user@127.0.0.1:8500");
 
@@ -5386,6 +5436,21 @@ mod tests {
                     && msg.contains("invalid port")
                     && msg.contains("connect")),
             "expected ConfigError containing invalid-port connect context, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_connect_out_of_range_port_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:70000");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
+        let err = result.expect_err("out-of-range authority port should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid port")
+                    && msg.contains("connect")),
+            "expected ConfigError containing out-of-range-port connect context, got {err:?}"
         );
     }
 
