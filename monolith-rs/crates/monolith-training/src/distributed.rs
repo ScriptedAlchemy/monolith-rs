@@ -1738,4 +1738,95 @@ mod tests {
             "cluster stop should leave all workers stopped"
         );
     }
+
+    #[test]
+    fn test_local_cluster_stop_from_partial_state_clears_waiting_barrier_bookkeeping() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000)],
+            vec![make_addr(6000), make_addr(6001)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for barrier-waiter cleanup test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for barrier-waiter cleanup test");
+
+        let waiting = cluster
+            .sync_barrier(0)
+            .expect("worker 0 barrier call should enter waiting state");
+        assert!(
+            matches!(waiting, BarrierStatus::Waiting { epoch: 0, .. }),
+            "expected worker 0 to be waiting at epoch 0, got {waiting:?}"
+        );
+        assert!(
+            cluster.barrier_waiters.contains_key(&0),
+            "barrier waiter set for epoch 0 should exist before stop cleanup"
+        );
+
+        cluster.workers[1]
+            .stop()
+            .expect("stopping one worker should succeed before partial-state stop cleanup");
+        cluster
+            .stop()
+            .expect("cluster stop should succeed from partial state and clear barrier waiter bookkeeping");
+
+        assert!(
+            cluster.barrier_waiters.is_empty(),
+            "cluster stop should clear waiting barrier bookkeeping even from partial running state"
+        );
+        assert!(
+            cluster.released_barriers.is_empty(),
+            "cluster stop should clear released barrier bookkeeping even from partial running state"
+        );
+    }
+
+    #[test]
+    fn test_local_cluster_stop_from_partial_state_clears_released_barrier_bookkeeping() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000), make_addr(5001)],
+            vec![make_addr(6000), make_addr(6001)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for released-barrier cleanup test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for released-barrier cleanup test");
+
+        assert!(matches!(
+            cluster
+                .sync_barrier(0)
+                .expect("worker 0 barrier call should succeed at epoch 0"),
+            BarrierStatus::Waiting { epoch: 0, .. }
+        ));
+        assert!(matches!(
+            cluster
+                .sync_barrier(1)
+                .expect("worker 1 barrier call should succeed and release epoch 0"),
+            BarrierStatus::Released { epoch: 0, .. }
+        ));
+        assert!(
+            cluster.released_barriers.contains_key(&0),
+            "released barrier bookkeeping should contain epoch 0 before stop cleanup"
+        );
+
+        cluster.parameter_servers[1]
+            .stop()
+            .expect("stopping one parameter server should succeed before partial-state stop cleanup");
+        cluster
+            .stop()
+            .expect("cluster stop should succeed from partial state and clear released barrier bookkeeping");
+
+        assert!(
+            cluster.barrier_waiters.is_empty(),
+            "cluster stop should clear waiting barrier bookkeeping after released barrier cleanup path"
+        );
+        assert!(
+            cluster.released_barriers.is_empty(),
+            "cluster stop should clear released barrier bookkeeping after partial-state shutdown"
+        );
+    }
 }

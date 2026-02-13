@@ -10266,6 +10266,18 @@
   - Train-step atomicity guarantees now explicitly cover cross-shard failure
     paths, not just single-shard parameter sets.
 
+### 695) Distributed partial-state shutdown now clears barrier bookkeeping deterministically
+- Added partial-state shutdown cleanup regressions in
+  `crates/monolith-training/src/distributed.rs`:
+  - `test_local_cluster_stop_from_partial_state_clears_waiting_barrier_bookkeeping`
+  - `test_local_cluster_stop_from_partial_state_clears_released_barrier_bookkeeping`
+- Coverage validates that `LocalCluster::stop` clears both waiting and released
+  barrier maps even when the cluster enters shutdown from degraded role state
+  (pre-stopped worker or parameter server).
+- Result:
+  - Barrier bookkeeping cleanup is now explicitly verified for partial-state
+    shutdown paths, preventing stale synchronization state across restarts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11719,6 +11731,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1443. `rg "test_local_cluster_stop_succeeds_from_partially_running_(worker|ps)_state" crates/monolith-training/src/distributed.rs` ✅ (verified partial-stop shutdown cleanup regressions are present)
 1444. `cargo test -p monolith-training test_local_cluster_train_step_cross_shard_failure_keeps_all_parameters_unchanged -- --nocapture` ✅ (validated cross-shard train-step failures preserve all parameter shards and worker-step atomicity)
 1445. `rg "test_local_cluster_train_step_cross_shard_failure_keeps_all_parameters_unchanged" crates/monolith-training/src/distributed.rs` ✅ (verified cross-shard train-step atomicity regression is present)
+1446. `cargo test -p monolith-training test_local_cluster_stop_from_partial_state_clears_waiting_barrier_bookkeeping -- --nocapture && cargo test -p monolith-training test_local_cluster_stop_from_partial_state_clears_released_barrier_bookkeeping -- --nocapture` ✅ (validated partial-state shutdown clears waiting/released barrier bookkeeping deterministically)
+1447. `rg "test_local_cluster_stop_from_partial_state_clears_(waiting|released)_barrier_bookkeeping" crates/monolith-training/src/distributed.rs` ✅ (verified partial-state shutdown barrier-bookkeeping cleanup regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
