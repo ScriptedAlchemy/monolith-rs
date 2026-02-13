@@ -8884,4 +8884,132 @@ mod tests {
         );
         assert_eq!(cached[0].id, "worker-0");
     }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_invalid_scheme_preserves_local_cache() {
+        let consul = ConsulDiscovery::new("ftp://127.0.0.1:8500");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0", "worker-0", "worker", "127.0.0.1", 6000,
+            ))
+            .expect("sync register should seed local cache");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result.expect_err("invalid scheme should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid scheme")
+                    && msg.contains("get_service_nodes")),
+            "expected ConfigError containing invalid-scheme discover context, got {err:?}"
+        );
+
+        let cached = consul
+            .discover("worker")
+            .expect("discover should succeed after async invalid-scheme config error");
+        assert_eq!(
+            cached.len(),
+            1,
+            "invalid-scheme async discover config error should not evict local cache entries"
+        );
+        assert_eq!(cached[0].id, "worker-0");
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_invalid_port_preserves_local_cache() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:notaport");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0", "worker-0", "worker", "127.0.0.1", 6000,
+            ))
+            .expect("sync register should seed local cache");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result.expect_err("invalid authority port should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid port")
+                    && msg.contains("get_service_nodes")),
+            "expected ConfigError containing invalid-port discover context, got {err:?}"
+        );
+
+        let cached = consul
+            .discover("worker")
+            .expect("discover should succeed after async invalid-port config error");
+        assert_eq!(
+            cached.len(),
+            1,
+            "invalid-port async discover config error should not evict local cache entries"
+        );
+        assert_eq!(cached[0].id, "worker-0");
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_userinfo_authority_preserves_local_cache() {
+        let consul = ConsulDiscovery::new("http://user@127.0.0.1:8500");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0", "worker-0", "worker", "127.0.0.1", 6000,
+            ))
+            .expect("sync register should seed local cache");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result.expect_err("userinfo authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("userinfo in authority")
+                    && msg.contains("get_service_nodes")),
+            "expected ConfigError containing userinfo-authority discover context, got {err:?}"
+        );
+
+        let cached = consul
+            .discover("worker")
+            .expect("discover should succeed after async userinfo-authority config error");
+        assert_eq!(
+            cached.len(),
+            1,
+            "userinfo-authority async discover config error should not evict local cache entries"
+        );
+        assert_eq!(cached[0].id, "worker-0");
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_whitespace_authority_preserves_local_cache() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0", "worker-0", "worker", "127.0.0.1", 6000,
+            ))
+            .expect("sync register should seed local cache");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result.expect_err("whitespace authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("whitespace in authority")
+                    && msg.contains("get_service_nodes")),
+            "expected ConfigError containing whitespace-authority discover context, got {err:?}"
+        );
+
+        let cached = consul
+            .discover("worker")
+            .expect("discover should succeed after async whitespace-authority config error");
+        assert_eq!(
+            cached.len(),
+            1,
+            "whitespace-authority async discover config error should not evict local cache entries"
+        );
+        assert_eq!(cached[0].id, "worker-0");
+    }
 }

@@ -7678,6 +7678,18 @@
     suffix validation and empty-host authority failures with explicit
     cache-retention assertions.
 
+### 570) Discovery Consul discover_async cache-preservation expansion (scheme/port/authority)
+- Added further Consul malformed-address `discover_async` local-cache
+  preservation regressions in `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_discover_async_invalid_scheme_preserves_local_cache`
+  - `test_consul_discover_async_invalid_port_preserves_local_cache`
+  - `test_consul_discover_async_userinfo_authority_preserves_local_cache`
+  - `test_consul_discover_async_whitespace_authority_preserves_local_cache`
+- Result:
+  - Consul discover cache-preservation parity now spans invalid scheme, invalid
+    port, and authority-shape validation failures with explicit cache-retention
+    guarantees.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8874,6 +8886,8 @@
 1193. `rg "test_consul_discover_async_(out_of_range_port|address_path|invalid_ipv6_suffix|leading_trailing_whitespace)_preserves_local_cache" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul discover_async cache-preservation tests are present)
 1194. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_address_query_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_address_fragment_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_empty_host_preserves_local_cache -- --nocapture` ✅ (validated additional Consul discover_async query/fragment/empty-host cache-preservation regressions)
 1195. `rg "test_consul_discover_async_(address_query|address_fragment|empty_host)_preserves_local_cache" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul discover_async query/fragment/empty-host cache-preservation tests are present)
+1196. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_invalid_scheme_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_invalid_port_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_userinfo_authority_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_whitespace_authority_preserves_local_cache -- --nocapture` ✅ (validated additional Consul discover_async scheme/port/authority cache-preservation regressions)
+1197. `rg "test_consul_discover_async_(invalid_scheme|invalid_port|userinfo_authority|whitespace_authority)_preserves_local_cache" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul discover_async scheme/port/authority cache-preservation tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
