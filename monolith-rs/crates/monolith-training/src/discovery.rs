@@ -6575,6 +6575,22 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_discover_async_address_path_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result.expect_err("address path should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("path is not allowed")
+                    && msg.contains("get_service_nodes")),
+            "expected ConfigError containing address-path discover context, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_connect_invalid_scheme_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("ftp://127.0.0.1:8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
@@ -6939,6 +6955,36 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_register_address_path_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("address path should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("path is not allowed")
+                    && msg.contains("register_entity")),
+            "expected ConfigError containing address-path register context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watch sender should be compacted on address-path register validation failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_register_address_query_compacts_dead_watchers() {
         let consul = ConsulDiscovery::new("http://127.0.0.1:8500?dc=prod");
         let rx = consul.watch("worker").expect("watch should succeed");
@@ -7022,6 +7068,35 @@ mod tests {
         assert!(
             consul_has_watcher(&consul, "worker"),
             "live watcher sender should be preserved on address-fragment register failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_address_path_keeps_live_watchers() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("address path should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("path is not allowed")
+                    && msg.contains("register_entity")),
+            "expected ConfigError containing address-path register context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on address-path register failure"
         );
     }
 

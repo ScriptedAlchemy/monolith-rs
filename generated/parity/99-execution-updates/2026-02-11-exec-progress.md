@@ -7526,6 +7526,18 @@
   - Consul discover classification now has broader malformed-address shape
     coverage aligned with connect/watch/register/deregister validation lanes.
 
+### 558) Discovery Consul address-path lifecycle expansion for discover/register
+- Expanded Consul address-path (`http://127.0.0.1:8500/v1`) malformed-address
+  lifecycle coverage in `crates/monolith-training/src/discovery.rs` with:
+  - discover classification:
+    - `test_consul_discover_async_address_path_is_classified_as_config_error`
+  - register dead/live watcher symmetry:
+    - `test_consul_async_register_address_path_compacts_dead_watchers`
+    - `test_consul_async_register_address_path_keeps_live_watchers`
+- Result:
+  - address-path handling now has explicit lifecycle coverage across watch,
+    connect, discover, register, and deregister paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8699,6 +8711,8 @@
 1170. `rg "test_zk_discover_async_(invalid_port|out_of_range_port|malformed_ipv6_host_entry)_preserves_local_cache" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper discover config-shape cache-preservation tests are present)
 1171. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_out_of_range_port_is_classified_as_config_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_leading_trailing_whitespace_is_classified_as_config_error -- --nocapture` ✅ (validated Consul discover out-of-range-port and leading/trailing-whitespace classification regressions)
 1172. `rg "test_consul_discover_async_(out_of_range_port|leading_trailing_whitespace)_is_classified_as_config_error" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul discover out-of-range/whitespace tests are present)
+1173. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_address_path_is_classified_as_config_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_address_path_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_address_path_keeps_live_watchers -- --nocapture` ✅ (validated Consul address-path discover classification and register dead/live watcher symmetry regressions)
+1174. `rg "test_consul_(discover_async_address_path_is_classified_as_config_error|async_register_address_path_(compacts_dead_watchers|keeps_live_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul address-path discover/register lifecycle tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
