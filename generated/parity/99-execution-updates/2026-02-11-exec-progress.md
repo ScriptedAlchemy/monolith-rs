@@ -7281,6 +7281,18 @@
   - watcher lifecycle parity now explicitly covers both dead/live watcher
     behavior for invalid-IPv6-suffix and out-of-range-port register failures.
 
+### 541) Discovery ZooKeeper live-watcher preservation on register config failures
+- Expanded ZooKeeper register failure watcher-lifecycle parity coverage in
+  `crates/monolith-training/src/discovery.rs` for config-shape host failures:
+  - `test_zk_async_register_malformed_ipv6_host_entry_keeps_live_watchers`
+  - `test_zk_async_register_invalid_port_keeps_live_watchers`
+- Both regressions verify that live watcher senders are preserved (not
+  compacted) on register validation failure, complementing existing dead-watcher
+  compaction regressions for the same error shapes.
+- Result:
+  - ZooKeeper register lifecycle parity now explicitly covers both dead/live
+    watcher behavior across malformed-host-entry and invalid-port host errors.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8420,6 +8432,8 @@
 1136. `rg "test_consul_(watch_async_invalid_ipv6_suffix_rejects_without_state_changes|async_deregister_invalid_ipv6_suffix_still_notifies_and_returns_error)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul invalid-IPv6-suffix watch/deregister tests are present)
 1137. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_invalid_ipv6_suffix_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_out_of_range_port_keeps_live_watchers -- --nocapture` ✅ (validated Consul live-watcher preservation contracts for invalid-IPv6-suffix and out-of-range register failures)
 1138. `rg "test_consul_async_register_(invalid_ipv6_suffix_keeps_live_watchers|out_of_range_port_keeps_live_watchers)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul live-watcher preservation register tests are present)
+1139. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_malformed_ipv6_host_entry_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_invalid_port_keeps_live_watchers -- --nocapture` ✅ (validated ZooKeeper live-watcher preservation contracts for malformed-host-entry and invalid-port register failures)
+1140. `rg "test_zk_async_register_(malformed_ipv6_host_entry_keeps_live_watchers|invalid_port_keeps_live_watchers)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper live-watcher preservation register tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

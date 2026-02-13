@@ -3780,6 +3780,35 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_async_register_malformed_ipv6_host_entry_keeps_live_watchers() {
+        let zk = ZkDiscovery::new("[::1", "/services");
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(
+            &zk,
+            ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
+        )
+        .await;
+        let err = result.expect_err("malformed host entry should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid host entry")),
+            "expected ConfigError containing malformed-host-entry register context, got {err:?}"
+        );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "live watcher sender should be preserved on malformed-host-entry register failure"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_async_register_invalid_port_compacts_dead_watchers() {
         let zk = ZkDiscovery::new("127.0.0.1:notaport", "/services");
         let rx = zk.watch("ps").expect("watch should succeed");
@@ -3805,6 +3834,35 @@ mod tests {
         assert!(
             !zk_has_watcher(&zk, "ps"),
             "config-error register should compact dead watcher sender entries for invalid-port hosts"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_register_invalid_port_keeps_live_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:notaport", "/services");
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(
+            &zk,
+            ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
+        )
+        .await;
+        let err = result.expect_err("invalid-port hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing invalid-port register context, got {err:?}"
+        );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "live watcher sender should be preserved on invalid-port register failure"
         );
     }
 
