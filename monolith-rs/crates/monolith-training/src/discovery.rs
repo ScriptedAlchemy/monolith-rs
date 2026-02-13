@@ -2015,6 +2015,18 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[test]
+    fn test_normalize_consul_address_for_operation_adds_http_scheme_to_ipv6_with_port_and_root_slash(
+    ) {
+        let normalized = normalize_consul_address_for_operation("connect", "[::1]:8501/")
+            .expect("IPv6 host:port root-slash address should normalize to explicit http URL");
+        assert_eq!(
+            normalized, "http://[::1]:8501",
+            "bracketed IPv6 host:port root-slash Consul address should normalize by prepending http scheme and trimming root suffix"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
     fn test_normalize_consul_address_for_operation_adds_http_scheme_to_ipv6_without_port() {
         let normalized = normalize_consul_address_for_operation("connect", "[::1]")
             .expect("IPv6 host-only address should normalize to explicit http URL");
@@ -11960,6 +11972,79 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_watch_async_ipv6_with_port_and_root_slash_seeds_poll_generation_entry() {
+        let consul = ConsulDiscovery::new("[::1]:8501/");
+
+        let rx = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("watch_async should accept bracketed IPv6 host:port root-slash by normalizing http scheme");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch_async should create watcher sender entry for normalized IPv6 host:port root-slash address"
+        );
+        assert!(
+            consul_has_watch_poll_generation(&consul, "worker"),
+            "watch_async should seed poll-generation bookkeeping for normalized IPv6 host:port root-slash address"
+        );
+
+        drop(rx);
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                if !consul_has_watch_poll_generation(&consul, "worker") {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        })
+        .await
+        .expect("poll-generation entry should clear after IPv6 root-slash watcher receiver drops");
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "normalized IPv6 host:port root-slash watch_async should compact dead watcher sender after receiver drops"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_ipv6_with_port_and_root_slash_disconnect_clears_poll_generation_with_live_receiver(
+    ) {
+        let consul = ConsulDiscovery::new("[::1]:8501/");
+        let rx = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("watch_async should accept bracketed IPv6 host:port root-slash by normalizing http scheme");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch_async should create watcher sender entry for normalized IPv6 host:port root-slash address"
+        );
+        assert!(
+            consul_has_watch_poll_generation(&consul, "worker"),
+            "watch_async should seed poll-generation bookkeeping for normalized IPv6 host:port root-slash address"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "disconnect should preserve live watcher sender entries"
+        );
+        assert!(
+            !consul_has_watch_poll_generation(&consul, "worker"),
+            "disconnect should clear poll-generation bookkeeping even when receiver is live"
+        );
+
+        drop(rx);
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "disconnect should compact watcher sender after receiver is dropped"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_watch_async_config_error_cleans_poll_generation_entry() {
         let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
 
@@ -14163,6 +14248,87 @@ mod tests {
         assert!(
             !consul_has_watcher(&consul, "worker"),
             "dead watcher sender should be compacted on normalized IPv6 host:port async deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_ipv6_with_port_and_root_slash_uses_operation_context() {
+        let consul = ConsulDiscovery::new("[::1]:8501/");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("sync register should seed local cache");
+        let mut rx = consul.watch("worker").expect("watch should succeed");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
+            .await;
+        let err =
+            result.expect_err("IPv6 host:port root-slash address should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("deregister_entity") && msg.contains("8501")),
+            "expected Internal containing normalized IPv6 host:port root-slash deregister context, got {err:?}"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "worker-0"),
+            "expected ServiceRemoved(worker-0), got {event:?}"
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .is_empty(),
+            "normalized IPv6 host:port root-slash async deregister should remove service from local cache"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on normalized IPv6 host:port root-slash async deregister failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_ipv6_with_port_and_root_slash_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("[::1]:8501/");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("sync register should seed local cache");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
+            .await;
+        let err =
+            result.expect_err("IPv6 host:port root-slash address should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("deregister_entity") && msg.contains("8501")),
+            "expected Internal containing normalized IPv6 host:port root-slash deregister context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watcher sender should be compacted on normalized IPv6 host:port root-slash async deregister notification"
         );
     }
 
@@ -16802,6 +16968,88 @@ mod tests {
         assert!(
             consul_has_watcher(&consul, "worker"),
             "live watcher sender should be preserved on normalized IPv6 host:port async register failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_ipv6_with_port_and_root_slash_uses_operation_context() {
+        let consul = ConsulDiscovery::new("[::1]:8501/");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err =
+            result.expect_err("IPv6 host:port root-slash address should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("register_entity") && msg.contains("8501")),
+            "expected Internal containing normalized IPv6 host:port root-slash register context, got {err:?}"
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .is_empty(),
+            "normalized IPv6 host:port root-slash async register should not populate local service cache"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_ipv6_with_port_and_root_slash_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("[::1]:8501/");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err =
+            result.expect_err("IPv6 host:port root-slash address should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("register_entity") && msg.contains("8501")),
+            "expected Internal containing normalized IPv6 host:port root-slash register context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watcher sender should be compacted on normalized IPv6 host:port root-slash async register failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_ipv6_with_port_and_root_slash_keeps_live_watchers() {
+        let consul = ConsulDiscovery::new("[::1]:8501/");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err =
+            result.expect_err("IPv6 host:port root-slash address should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("register_entity") && msg.contains("8501")),
+            "expected Internal containing normalized IPv6 host:port root-slash register context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on normalized IPv6 host:port root-slash async register failure"
         );
     }
 
@@ -19540,6 +19788,51 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_discover_async_ipv6_with_port_and_root_slash_uses_operation_context() {
+        let consul = ConsulDiscovery::new("[::1]:8501/");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result.expect_err("unreachable IPv6 host:port root-slash Consul address should fail");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("get_service_nodes") && msg.contains("8501")),
+            "expected Internal containing discover context and normalized IPv6 root-slash port, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_ipv6_with_port_and_root_slash_preserves_local_cache() {
+        let consul = ConsulDiscovery::new("[::1]:8501/");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0", "worker-0", "worker", "127.0.0.1", 6000,
+            ))
+            .expect("sync register should seed local cache");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err =
+            result.expect_err("IPv6 host:port root-slash address should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("get_service_nodes") && msg.contains("8501")),
+            "expected Internal containing discover context and normalized IPv6 root-slash port, got {err:?}"
+        );
+
+        let cached = consul
+            .discover("worker")
+            .expect("discover should succeed after async IPv6 host:port root-slash failure");
+        assert_eq!(
+            cached.len(),
+            1,
+            "IPv6 host:port root-slash async discover failure should not evict local cache entries"
+        );
+        assert_eq!(cached[0].id, "worker-0");
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_discover_async_invalid_scheme_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("ftp://127.0.0.1:8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
@@ -20137,6 +20430,48 @@ mod tests {
         assert!(
             consul.client.lock().await.is_some(),
             "reconnect should reinitialize client handle for normalized IPv6 host:port address"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_connect_ipv6_with_port_and_root_slash_initializes_client_handle() {
+        let consul = ConsulDiscovery::new("[::1]:8501/");
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("IPv6 host:port root-slash address should normalize and initialize Consul client handle");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "IPv6 host:port root-slash connect should initialize client handle"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_connect_ipv6_with_port_and_root_slash_disconnect_and_reconnect() {
+        let consul = ConsulDiscovery::new("[::1]:8501/");
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("IPv6 host:port root-slash address should normalize and initialize Consul client handle");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "IPv6 host:port root-slash connect should initialize client handle"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            consul.client.lock().await.is_none(),
+            "disconnect should clear IPv6 host:port root-slash-normalized client handle"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("IPv6 host:port root-slash reconnect should recreate client handle after disconnect");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "reconnect should reinitialize client handle for normalized IPv6 host:port root-slash address"
         );
     }
 
