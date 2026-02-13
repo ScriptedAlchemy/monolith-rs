@@ -4608,6 +4608,90 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_rejects_zero_num_workers_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_workers: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject runtime config with zero num_workers");
+        assert!(err.to_string().contains("num_workers > 0"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_zero_num_workers_runtime_config_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            num_workers: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject runtime config with zero num_workers for ps role");
+        assert!(err.to_string().contains("num_workers > 0"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_empty_ps_service_type_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_service_type_ps: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject empty ps service type runtime config");
+        assert!(err.to_string().contains("non-empty discovery_service_type_ps"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_empty_ps_service_type_runtime_config_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            discovery_service_type_ps: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject empty ps service type runtime config for ps role",
+        );
+        assert!(err.to_string().contains("non-empty discovery_service_type_ps"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_empty_table_name_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            table_name: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject empty table name runtime config");
+        assert!(err.to_string().contains("non-empty table_name"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_empty_table_name_runtime_config_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            table_name: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject empty table name runtime config for ps role");
+        assert!(err.to_string().contains("non-empty table_name"));
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_rejects_whitespace_padded_ps_service_type_runtime_config_for_ps_role(
     ) {
         let discovery = Arc::new(InMemoryDiscovery::new());
@@ -4911,6 +4995,58 @@ mod tests {
             .expect_err("run_ps_role should reject zero heartbeat_interval without wrapper");
         assert!(
             err.to_string().contains("heartbeat_interval > 0 when configured"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_zero_num_workers_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            num_workers: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg)
+            .await
+            .expect_err("run_ps_role should reject zero num_workers without wrapper");
+        assert!(
+            err.to_string().contains("num_workers > 0"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_empty_ps_service_type_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            discovery_service_type_ps: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg)
+            .await
+            .expect_err("run_ps_role should reject empty ps service type without wrapper");
+        assert!(
+            err.to_string()
+                .contains("non-empty discovery_service_type_ps"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_empty_table_name_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            table_name: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg)
+            .await
+            .expect_err("run_ps_role should reject empty table name without wrapper");
+        assert!(
+            err.to_string().contains("non-empty table_name"),
             "unexpected ps-role validation error: {err}"
         );
     }
