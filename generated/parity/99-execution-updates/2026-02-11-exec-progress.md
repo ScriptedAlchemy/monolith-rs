@@ -7644,6 +7644,17 @@
   - `monolith-training` discovery tests compile and execute cleanly with both
     `consul` and `zookeeper` features enabled simultaneously.
 
+### 567) Discovery Consul watch_async address-path validation and watcher symmetry
+- Added explicit Consul `watch_async` address-path validation coverage in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_watch_async_path_rejects_without_state_changes`
+  - `test_consul_watch_async_path_compacts_dead_watch_sender`
+  - `test_consul_watch_async_path_preserves_live_watch_sender`
+- Result:
+  - Consul malformed-address watch coverage now includes path-suffix rejection
+    semantics with dead/live watcher sender symmetry and poll-generation
+    no-mutation guarantees.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8834,6 +8845,8 @@
 1187. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_out_of_range_port_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_invalid_ipv6_suffix_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_userinfo_authority_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_whitespace_authority_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_leading_trailing_whitespace_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_empty_host_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_address_fragment_compacts_dead_watchers -- --nocapture` ✅ (validated expanded Consul malformed-address deregister dead-watcher compaction regressions)
 1188. `rg "test_consul_async_deregister_(out_of_range_port|invalid_ipv6_suffix|userinfo_authority|whitespace_authority|leading_trailing_whitespace|empty_host|address_fragment)_compacts_dead_watchers" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul malformed-address deregister dead-watcher compaction tests are present)
 1189. `cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_address_fragment_compacts_dead_watchers -- --nocapture` ✅ (validated discovery module compiles and targeted regression executes under combined consul+zookeeper features)
+1190. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_path_rejects_without_state_changes -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_path_compacts_dead_watch_sender -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_path_preserves_live_watch_sender -- --nocapture` ✅ (validated Consul watch_async address-path rejection semantics and dead/live watcher sender symmetry)
+1191. `rg "test_consul_watch_async_path_(rejects_without_state_changes|compacts_dead_watch_sender|preserves_live_watch_sender)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul watch_async address-path regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
