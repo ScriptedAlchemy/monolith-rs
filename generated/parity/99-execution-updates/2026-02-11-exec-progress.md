@@ -10877,6 +10877,44 @@
   - retry/backoff contracts now explicitly prevent zero-delay retry loops while
     preserving disabled-retry configurability.
 
+### 730) Retry-backoff + parameter-sync name disabled-mode contracts tightened
+- Expanded distributed runner validation/runtime regressions in
+  `crates/monolith-training/src/runner.rs`:
+  - added explicit retry-backoff guard:
+    - `retry_backoff_ms = 0` now rejected when `connect_retries > 0`.
+  - added disabled-mode acceptance tests:
+    - `test_distributed_config_validate_allows_empty_parameter_sync_names_without_targets`
+    - `test_run_distributed_allows_empty_parameter_sync_names_without_targets`
+- Added regressions:
+  - `test_distributed_config_validate_rejects_zero_retry_backoff_when_retries_enabled`
+  - `test_distributed_config_validate_allows_zero_retry_backoff_when_retries_disabled`
+  - `test_run_distributed_rejects_zero_retry_backoff_when_retries_enabled`
+  - `test_run_distributed_allows_zero_retry_backoff_when_retries_disabled`
+- Coverage validates:
+  - retry-enabled mode cannot use zero backoff,
+  - retry-disabled mode remains permissive for zero backoff,
+  - parameter-sync name validation remains scoped to enabled sync mode.
+- Result:
+  - distributed runner config contracts now explicitly separate enabled vs
+    disabled behavior for both retry backoff and parameter-sync naming fields.
+
+### 731) Role-level defensive config validation for direct worker/ps entrypoints
+- Hardened `crates/monolith-training/src/runner.rs` role helpers:
+  - added `cfg.validate()?` at entry of:
+    - `run_worker_role`
+    - `run_ps_role`
+- Added direct-entrypoint regressions:
+  - `test_run_worker_role_rejects_zero_retry_backoff_without_wrapper`
+  - `test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper`
+- Coverage validates:
+  - internal role helpers now enforce the same config contracts as
+    `run_distributed`,
+  - invalid configs are rejected deterministically even when tests/utilities
+    call role helpers directly.
+- Result:
+  - distributed runtime role entrypoints are now contract-safe against direct
+    invocation paths, eliminating bypasses of top-level config validation.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12418,6 +12456,10 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1531. `rg "test_distributed_config_validate_allows_empty_parameter_sync_names_without_targets|test_run_distributed_allows_empty_parameter_sync_names_without_targets" crates/monolith-training/src/runner.rs` ✅ (verified parameter-sync name disabled-mode regressions are present)
 1532. `cargo test -p monolith-training test_distributed_config_validate_rejects_zero_retry_backoff_when_retries_enabled -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_allows_zero_retry_backoff_when_retries_disabled -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_retry_backoff_when_retries_enabled -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_zero_retry_backoff_when_retries_disabled -- --nocapture` ✅ (validated retry-backoff zero-value semantics across retry-enabled rejection and retry-disabled acceptance at config-validation + runtime levels)
 1533. `rg "retry_backoff_ms > 0 when connect_retries > 0|test_distributed_config_validate_rejects_zero_retry_backoff_when_retries_enabled|test_distributed_config_validate_allows_zero_retry_backoff_when_retries_disabled|test_run_distributed_rejects_zero_retry_backoff_when_retries_enabled|test_run_distributed_allows_zero_retry_backoff_when_retries_disabled" crates/monolith-training/src/runner.rs` ✅ (verified explicit retry-backoff validation message and associated regressions are present)
+1534. `cargo test -p monolith-training test_distributed_config_validate_allows_empty_parameter_sync_names_without_targets -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_empty_parameter_sync_names_without_targets -- --nocapture` ✅ (validated parameter-sync model/signature names are ignored when sync targets are disabled at config-validation and runtime entrypoint levels)
+1535. `rg "test_distributed_config_validate_allows_empty_parameter_sync_names_without_targets|test_run_distributed_allows_empty_parameter_sync_names_without_targets|retry_backoff_ms > 0 when connect_retries > 0" crates/monolith-training/src/runner.rs` ✅ (verified disabled-mode parameter-sync name regressions and retry-backoff enablement guard contracts are present together)
+1536. `cargo test -p monolith-training test_run_worker_role_rejects_zero_retry_backoff_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_discover_timeout_includes_service_type_context -- --nocapture` ✅ (validated direct role-entrypoint validation guards reject invalid configs and preserve existing worker-timeout discovery diagnostics)
+1537. `rg "test_run_worker_role_rejects_zero_retry_backoff_without_wrapper|test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper|cfg.validate\\(\\)\\?;" crates/monolith-training/src/runner.rs` ✅ (verified role-level validation guard wiring and direct-entrypoint invalid-config regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

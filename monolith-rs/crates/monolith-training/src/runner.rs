@@ -743,6 +743,7 @@ async fn run_ps_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     service_type: String,
     cfg: DistributedRunConfig,
 ) -> anyhow::Result<()> {
+    cfg.validate()?;
     // PS: start serving and optionally heartbeat in discovery (backend-specific).
     let ps = PsServer::new(cfg.index as i32, cfg.dim);
 
@@ -818,6 +819,7 @@ async fn run_worker_role<D: ServiceDiscoveryAsync + 'static + ?Sized>(
     service_id: &str,
     cfg: DistributedRunConfig,
 ) -> anyhow::Result<()> {
+    cfg.validate()?;
     // Worker: wait until we discover the expected PS set, then connect client.
     tracing::info!(
         role = "worker",
@@ -4303,6 +4305,42 @@ mod tests {
             err.to_string()
                 .contains("heartbeat_interval > 0 when configured"),
             "unexpected runtime config validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_rejects_zero_retry_backoff_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            connect_retries: 1,
+            retry_backoff_ms: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg).await.expect_err(
+            "run_worker_role should reject zero retry_backoff_ms when retries are enabled",
+        );
+        assert!(
+            err.to_string()
+                .contains("retry_backoff_ms > 0 when connect_retries > 0"),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            heartbeat_interval: Some(Duration::from_millis(0)),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg)
+            .await
+            .expect_err("run_ps_role should reject zero heartbeat_interval without wrapper");
+        assert!(
+            err.to_string().contains("heartbeat_interval > 0 when configured"),
+            "unexpected ps-role validation error: {err}"
         );
     }
 
