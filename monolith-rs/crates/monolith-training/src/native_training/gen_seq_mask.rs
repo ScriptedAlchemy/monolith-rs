@@ -1,16 +1,33 @@
 //! Sequence mask generation (Python parity for `monolith.native_training.gen_seq_mask`).
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GenSeqMaskError {
+    EmptyRowSplits,
+}
+
+impl std::fmt::Display for GenSeqMaskError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EmptyRowSplits => write!(f, "row_splits must be non-empty (batch+1)"),
+        }
+    }
+}
+
+impl std::error::Error for GenSeqMaskError {}
+
 /// Generate a 2D mask of shape `[batch, max_len]` from a `row_splits` vector.
 ///
 /// Python parity:
 /// - `split` is a 1-D tensor of length `batch + 1`, starting with 0.
 /// - Each row `i` has length `split[i + 1] - split[i]`.
 /// - Output contains 1s for `j < row_len` and 0s otherwise.
-pub fn gen_seq_mask_i64(row_splits: &[i64], max_len: usize) -> Vec<Vec<i64>> {
-    assert!(
-        row_splits.len() >= 1,
-        "row_splits must be non-empty (batch+1)"
-    );
+pub fn gen_seq_mask_i64(
+    row_splits: &[i64],
+    max_len: usize,
+) -> Result<Vec<Vec<i64>>, GenSeqMaskError> {
+    if row_splits.is_empty() {
+        return Err(GenSeqMaskError::EmptyRowSplits);
+    }
     let batch = row_splits.len() - 1;
     let mut out = vec![vec![0i64; max_len]; batch];
     for i in 0..batch {
@@ -20,15 +37,17 @@ pub fn gen_seq_mask_i64(row_splits: &[i64], max_len: usize) -> Vec<Vec<i64>> {
             out[i][j] = 1;
         }
     }
-    out
+    Ok(out)
 }
 
 /// Same as [`gen_seq_mask_i64`] but returns `i32` values (for Python's int32 path).
-pub fn gen_seq_mask_i32(row_splits: &[i32], max_len: usize) -> Vec<Vec<i32>> {
-    assert!(
-        row_splits.len() >= 1,
-        "row_splits must be non-empty (batch+1)"
-    );
+pub fn gen_seq_mask_i32(
+    row_splits: &[i32],
+    max_len: usize,
+) -> Result<Vec<Vec<i32>>, GenSeqMaskError> {
+    if row_splits.is_empty() {
+        return Err(GenSeqMaskError::EmptyRowSplits);
+    }
     let batch = row_splits.len() - 1;
     let mut out = vec![vec![0i32; max_len]; batch];
     for i in 0..batch {
@@ -38,7 +57,7 @@ pub fn gen_seq_mask_i32(row_splits: &[i32], max_len: usize) -> Vec<Vec<i32>> {
             out[i][j] = 1;
         }
     }
-    out
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -48,7 +67,7 @@ mod tests {
     #[test]
     fn test_gen_seq_mask_int32() {
         let split = [0i32, 5, 7, 9, 13];
-        let mask = gen_seq_mask_i32(&split, 6);
+        let mask = gen_seq_mask_i32(&split, 6).expect("non-empty row_splits should succeed");
         assert_eq!(
             mask,
             vec![
@@ -63,7 +82,7 @@ mod tests {
     #[test]
     fn test_gen_seq_mask_int64() {
         let split = [0i64, 5, 7, 9, 13];
-        let mask = gen_seq_mask_i64(&split, 6);
+        let mask = gen_seq_mask_i64(&split, 6).expect("non-empty row_splits should succeed");
         assert_eq!(
             mask,
             vec![
@@ -72,6 +91,23 @@ mod tests {
                 vec![1, 1, 0, 0, 0, 0],
                 vec![1, 1, 1, 1, 0, 0],
             ]
+        );
+    }
+
+    #[test]
+    fn test_gen_seq_mask_rejects_empty_row_splits() {
+        let err_i32 =
+            gen_seq_mask_i32(&[], 6).expect_err("empty row_splits should return explicit error");
+        assert!(
+            matches!(err_i32, GenSeqMaskError::EmptyRowSplits),
+            "expected EmptyRowSplits for i32 path, got {err_i32:?}"
+        );
+
+        let err_i64 =
+            gen_seq_mask_i64(&[], 6).expect_err("empty row_splits should return explicit error");
+        assert!(
+            matches!(err_i64, GenSeqMaskError::EmptyRowSplits),
+            "expected EmptyRowSplits for i64 path, got {err_i64:?}"
         );
     }
 }

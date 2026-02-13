@@ -10672,6 +10672,37 @@
   - public-facing usage guidance now aligns with explicit, diagnostic-friendly
     error-handling conventions used in runtime/test hardening.
 
+### 719) Native-training helper APIs: runtime assert/panic paths replaced with explicit errors
+- Hardened non-test helper APIs in `crates/monolith-training/src/native_training`:
+  - `device_utils.rs`:
+    - `get_visible_gpus` now returns
+      `Result<String, DeviceUtilsError>` and rejects invalid
+      `processes_per_gpu < 1` with explicit `InvalidProcessesPerGpu` diagnostics
+      instead of panicking.
+    - added regression:
+      - `test_get_visible_gpus_rejects_non_positive_processes_per_gpu`
+  - `gen_seq_mask.rs`:
+    - `gen_seq_mask_i32` and `gen_seq_mask_i64` now return
+      `Result<Vec<Vec<_>>, GenSeqMaskError>` and reject empty `row_splits`
+      explicitly via `EmptyRowSplits`.
+    - added regression:
+      - `test_gen_seq_mask_rejects_empty_row_splits`
+  - `ragged_utils.rs`:
+    - `fused_value_rowids` now returns
+      `Result<Vec<usize>, RaggedUtilsError>` with explicit:
+      - `EmptyRowSplits`,
+      - `NonMonotonicRowSplits { index, start, end }`.
+    - added regressions:
+      - `test_empty_row_splits_returns_explicit_error`
+      - `test_non_monotonic_row_splits_returns_explicit_error`
+- Coverage validates:
+  - existing happy-path parity tests remain green,
+  - formerly panic-based invariants now have deterministic error-shape
+    contracts.
+- Result:
+  - native-training TF-free helper APIs now avoid runtime `assert!` panics in
+    production paths and expose explicit error semantics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12190,6 +12221,9 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1508. `rg "join_result\\.is_err\\(" crates/monolith-training/src` ✅ (verified coarse join-result boolean assertions are removed from monolith-training source after assertion-style harmonization)
 1509. `cargo test -p monolith-training --doc -- --nocapture` ✅ (validated updated discovery/distributed/metrics/lib/estimator examples compile and run as doctests without expect-based example handling)
 1510. `rg "in-memory register should succeed in usage example|in-memory discover should succeed in usage example" crates/monolith-training/src/discovery.rs && rg "weights should be present after setting the parameter" crates/monolith-training/src/distributed.rs && rg "accuracy should be present after recording accuracy metrics" crates/monolith-training/src/metrics.rs && rg "training should succeed in this basic example|training should succeed in this estimator usage example" crates/monolith-training/src` ✅ (verified legacy expect-oriented documentation example strings are removed)
+1511. `cargo test -p monolith-training test_get_visible_gpus_ -- --nocapture && cargo test -p monolith-training test_gen_seq_mask_ -- --nocapture && cargo test -p monolith-training native_training::ragged_utils::tests::test_basic -- --nocapture && cargo test -p monolith-training test_empty_row_splits_returns_explicit_error -- --nocapture && cargo test -p monolith-training test_non_monotonic_row_splits_returns_explicit_error -- --nocapture` ✅ (validated device-utils, seq-mask, and ragged-utils helper regressions and new explicit error-path tests after runtime assert removal)
+1512. `python3 - <<'PY' ... TOTAL=0 ... PY` ✅ (verified no non-test `expect/unwrap/panic` hotspots remain in `crates/monolith-training/src` after helper hardening)
+1513. `python3 - <<'PY' ... non-test assert scan ... PY` ✅ (verified runtime `assert!` usage has been eliminated from non-test monolith-training source, aside from doc examples)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
