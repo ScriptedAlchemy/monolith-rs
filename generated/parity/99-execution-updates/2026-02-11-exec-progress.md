@@ -7910,6 +7910,16 @@
     disconnect+reconnect client-handle lifecycle guarantees, matching the
     host-port normalized lifecycle lane.
 
+### 588) Discovery Consul creation builder parity expansion (service-name override)
+- Added `test_consul_discovery_creation_with_service_name_override` in
+  `crates/monolith-training/src/discovery.rs`.
+- Coverage validates `with_service_name` builder semantics by asserting the
+  configured service name overrides the default `monolith` value.
+- Result:
+  - Consul creation-path parity now includes explicit service-name override
+    constructor/builder diagnostics in addition to address/datacenter/token
+    assertions.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9142,6 +9152,8 @@
 1229. `rg "test_consul_connect_host_port_without_scheme_disconnect_and_reconnect" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul host-port connect lifecycle reconnect regression is present)
 1230. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_connect_case_insensitive_scheme_and_root_slash_disconnect_and_reconnect -- --nocapture` ✅ (validated Consul case-insensitive/root-slash connect/disconnect/reconnect client-handle lifecycle regression)
 1231. `rg "test_consul_connect_case_insensitive_scheme_and_root_slash_disconnect_and_reconnect" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul case-insensitive/root-slash connect lifecycle reconnect regression is present)
+1232. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discovery_creation_with_service_name_override -- --nocapture` ✅ (validated Consul discovery builder service-name override parity regression)
+1233. `rg "test_consul_discovery_creation_with_service_name_override" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul discovery builder service-name override regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

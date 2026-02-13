@@ -4970,6 +4970,17 @@ mod tests {
     }
 
     #[cfg(feature = "consul")]
+    #[test]
+    fn test_consul_discovery_creation_with_service_name_override() {
+        let consul = ConsulDiscovery::new("http://localhost:8500")
+            .with_service_name("custom-monolith-service");
+        assert_eq!(
+            consul.service_name, "custom-monolith-service",
+            "with_service_name should override default Consul service name"
+        );
+    }
+
+    #[cfg(feature = "consul")]
     #[tokio::test]
     async fn test_consul_disconnect_increments_watch_generation() {
         let consul = ConsulDiscovery::new("http://localhost:8500");
