@@ -10397,6 +10397,29 @@
   - In-memory discovery now provides explicit failure-shape contracts for lock
     poisoning instead of panic-based termination.
 
+### 704) ZooKeeper/Consul discovery lock-poison panic-path hardening
+- Hardened `ZkDiscovery` and `ConsulDiscovery` in
+  `crates/monolith-training/src/discovery.rs`:
+  - replaced lock-poison `expect(...)` paths in service-cache operations with
+    deterministic `DiscoveryError::Internal(...)` propagation,
+  - converted watcher/watch-poll bookkeeping lock acquisition to poison-tolerant
+    recovery with warning logs (panic-free lifecycle maintenance),
+  - removed residual panic-prone lock expectations from disconnect/watch
+    lifecycle paths.
+- Added regressions:
+  - `test_zk_register_poisoned_services_lock_returns_internal_error`
+  - `test_zk_discover_poisoned_services_lock_returns_internal_error`
+  - `test_consul_register_poisoned_services_lock_returns_internal_error`
+  - `test_consul_discover_poisoned_services_lock_returns_internal_error`
+- Coverage validates:
+  - poisoned service-cache lock paths now return explicit internal errors for
+    both sync register/discover operations,
+  - disconnect lifecycle behavior for ZooKeeper/Consul remains stable after
+    panic-path removal.
+- Result:
+  - ZooKeeper/Consul discovery now expose deterministic lock-poison failure
+    contracts while keeping watcher/poll lifecycle cleanup panic-free.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11869,6 +11892,11 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1462. `cargo test -p monolith-training test_in_memory_ -- --nocapture` ✅ (validated in-memory discovery lock-poison error-path hardening plus existing in-memory discovery lifecycle/watch regressions)
 1463. `rg "test_in_memory_(register_poisoned_services_lock_returns_internal_error|watch_poisoned_watchers_lock_returns_internal_error)" crates/monolith-training/src/discovery.rs` ✅ (verified in-memory lock-poison error-path regressions are present)
 1464. `rg "in-memory discovery services write lock should not be poisoned|in-memory discovery watchers mutex should not be poisoned" crates/monolith-training/src/discovery.rs` ✅ (verified legacy in-memory lock-poison panic-path expect strings are removed)
+1465. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" poisoned_services_lock_returns_internal_error -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" poisoned_watchers_lock_returns_internal_error -- --nocapture` ✅ (validated in-memory, ZooKeeper, and Consul lock-poison error-path regressions for service-cache and watcher surfaces)
+1466. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_zk_disconnect_ -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" test_consul_disconnect_ -- --nocapture` ✅ (validated panic-path removal does not regress ZooKeeper/Consul disconnect watcher/poll-generation lifecycle semantics)
+1467. `rg "test_(zk|consul)_(register|discover)_poisoned_services_lock_returns_internal_error" crates/monolith-training/src/discovery.rs` ✅ (verified ZooKeeper/Consul lock-poison service-cache regressions are present)
+1468. `rg "zookeeper discovery services (read|write) lock poisoned|consul discovery services (read|write) lock poisoned" crates/monolith-training/src/discovery.rs` ✅ (verified explicit ZooKeeper/Consul lock-poison error message contracts are present)
+1469. `rg "zk discovery .*should not be poisoned|consul discovery .*should not be poisoned" crates/monolith-training/src/discovery.rs` ✅ (verified legacy backend panic-path expect strings were removed from production discovery code)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

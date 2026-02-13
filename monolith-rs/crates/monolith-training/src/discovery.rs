@@ -672,6 +672,42 @@ impl ZkDiscovery {
         self
     }
 
+    fn read_services(&self) -> Result<RwLockReadGuard<'_, HashMap<String, ServiceInfo>>> {
+        self.services.read().map_err(|_| {
+            DiscoveryError::Internal("zookeeper discovery services read lock poisoned".to_string())
+        })
+    }
+
+    fn write_services(&self) -> Result<RwLockWriteGuard<'_, HashMap<String, ServiceInfo>>> {
+        self.services.write().map_err(|_| {
+            DiscoveryError::Internal("zookeeper discovery services write lock poisoned".to_string())
+        })
+    }
+
+    fn lock_watchers_recover(&self) -> MutexGuard<'_, HashMap<String, Sender<DiscoveryEvent>>> {
+        match self.watchers.lock() {
+            Ok(watchers) => watchers,
+            Err(poisoned) => {
+                tracing::warn!(
+                    "zookeeper discovery watchers mutex was poisoned; continuing with recovered state"
+                );
+                poisoned.into_inner()
+            }
+        }
+    }
+
+    fn lock_watch_poll_generations_recover(&self) -> MutexGuard<'_, HashMap<String, u64>> {
+        match self.watch_poll_generations.lock() {
+            Ok(active) => active,
+            Err(poisoned) => {
+                tracing::warn!(
+                    "zookeeper discovery watch_poll_generations mutex was poisoned; continuing with recovered state"
+                );
+                poisoned.into_inner()
+            }
+        }
+    }
+
     /// Connects to ZooKeeper.
     ///
     /// This is a placeholder that would establish a connection to ZooKeeper.
@@ -712,19 +748,13 @@ impl ZkDiscovery {
         self.registered_paths.lock().await.clear();
         self.compact_dead_watch_senders();
         self.watch_generation.fetch_add(1, Ordering::SeqCst);
-        self.watch_poll_generations
-            .lock()
-            .expect("zk discovery watch_poll_generations mutex should not be poisoned")
-            .clear();
+        self.lock_watch_poll_generations_recover().clear();
         Ok(())
     }
 
     /// Gets or creates a sender for a service type.
     fn get_or_create_sender(&self, service_type: &str) -> Sender<DiscoveryEvent> {
-        let mut watchers = self
-            .watchers
-            .lock()
-            .expect("zk discovery watchers mutex should not be poisoned");
+        let mut watchers = self.lock_watchers_recover();
         watchers
             .entry(service_type.to_string())
             .or_insert_with(|| broadcast::channel(100).0)
@@ -733,10 +763,7 @@ impl ZkDiscovery {
 
     /// Notifies watchers for a service type and removes dead sender entries.
     fn notify_watchers(&self, service_type: &str, event: DiscoveryEvent) {
-        let mut watchers = self
-            .watchers
-            .lock()
-            .expect("zk discovery watchers mutex should not be poisoned");
+        let mut watchers = self.lock_watchers_recover();
         if let Some(sender) = watchers.get(service_type) {
             if sender.receiver_count() == 0 || sender.send(event).is_err() {
                 watchers.remove(service_type);
@@ -746,10 +773,7 @@ impl ZkDiscovery {
 
     /// Removes watcher sender for `service_type` if all receivers are dropped.
     fn compact_dead_watch_sender(&self, service_type: &str) {
-        let mut watchers = self
-            .watchers
-            .lock()
-            .expect("zk discovery watchers mutex should not be poisoned");
+        let mut watchers = self.lock_watchers_recover();
         if watchers
             .get(service_type)
             .map(|s| s.receiver_count() == 0)
@@ -761,19 +785,14 @@ impl ZkDiscovery {
 
     /// Compacts all watcher senders that have no active receivers.
     fn compact_dead_watch_senders(&self) {
-        self.watchers
-            .lock()
-            .expect("zk discovery watchers mutex should not be poisoned")
+        self.lock_watchers_recover()
             .retain(|_, sender| sender.receiver_count() > 0);
     }
 
     /// Returns true only when a new poll loop should be spawned for the service type.
     fn should_spawn_watch_poll(&self, service_type: &str) -> bool {
         let generation = self.watch_generation.load(Ordering::SeqCst);
-        let mut active = self
-            .watch_poll_generations
-            .lock()
-            .expect("zk discovery watch_poll_generations mutex should not be poisoned");
+        let mut active = self.lock_watch_poll_generations_recover();
         match active.get(service_type).copied() {
             Some(g) if g == generation => false,
             _ => {
@@ -785,10 +804,7 @@ impl ZkDiscovery {
 
     /// Cleans a poll-generation entry if it still matches the expected generation.
     fn cleanup_watch_poll_generation(&self, service_type: &str, generation: u64) {
-        let mut active = self
-            .watch_poll_generations
-            .lock()
-            .expect("zk discovery watch_poll_generations mutex should not be poisoned");
+        let mut active = self.lock_watch_poll_generations_recover();
         if active.get(service_type).copied() == Some(generation) {
             active.remove(service_type);
         }
@@ -806,10 +822,7 @@ impl ServiceDiscovery for ZkDiscovery {
 
         // Keep sync API best-effort: update local cache only. The distributed runner uses
         // `ServiceDiscoveryAsync` for real ZK I/O.
-        let mut services = self
-            .services
-            .write()
-            .expect("zk discovery services write lock should not be poisoned");
+        let mut services = self.write_services()?;
         if services.contains_key(&service.id) {
             return Err(DiscoveryError::AlreadyRegistered(service.id.clone()));
         }
@@ -827,10 +840,7 @@ impl ServiceDiscovery for ZkDiscovery {
         );
 
         // Sync API returns from cache only; see `discover_async` for real ZK query.
-        let services = self
-            .services
-            .read()
-            .expect("zk discovery services read lock should not be poisoned");
+        let services = self.read_services()?;
         Ok(services
             .values()
             .filter(|s| s.service_type == service_type)
@@ -855,10 +865,7 @@ impl ServiceDiscovery for ZkDiscovery {
         );
 
         // Cache-only removal for sync API.
-        let mut services = self
-            .services
-            .write()
-            .expect("zk discovery services write lock should not be poisoned");
+        let mut services = self.write_services()?;
         let service = services
             .remove(service_id)
             .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
@@ -946,9 +953,7 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
             .insert(service.id.clone(), path.clone());
 
         // Update local cache (for quick discover + tests).
-        self.services
-            .write()
-            .expect("zk discovery services write lock should not be poisoned")
+        self.write_services()?
             .insert(service.id.clone(), service.clone());
         let service_type = service.service_type.clone();
         self.notify_watchers(&service_type, DiscoveryEvent::ServiceAdded(service));
@@ -996,10 +1001,7 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
 
         // Keep cache in sync.
         {
-            let mut cache = self
-                .services
-                .write()
-                .expect("zk discovery services write lock should not be poisoned");
+            let mut cache = self.write_services()?;
             cache.retain(|_, v| v.service_type != service_type);
             for svc in &out {
                 cache.insert(svc.id.clone(), svc.clone());
@@ -1055,10 +1057,7 @@ impl ServiceDiscoveryAsync for ZkDiscovery {
 
     async fn deregister_async(&self, service_id: &str) -> Result<()> {
         let service = match {
-            let mut services = self
-                .services
-                .write()
-                .expect("zk discovery services write lock should not be poisoned");
+            let mut services = self.write_services()?;
             services.remove(service_id)
         } {
             Some(service) => service,
@@ -1177,6 +1176,42 @@ impl ConsulDiscovery {
         self
     }
 
+    fn read_services(&self) -> Result<RwLockReadGuard<'_, HashMap<String, ServiceInfo>>> {
+        self.services.read().map_err(|_| {
+            DiscoveryError::Internal("consul discovery services read lock poisoned".to_string())
+        })
+    }
+
+    fn write_services(&self) -> Result<RwLockWriteGuard<'_, HashMap<String, ServiceInfo>>> {
+        self.services.write().map_err(|_| {
+            DiscoveryError::Internal("consul discovery services write lock poisoned".to_string())
+        })
+    }
+
+    fn lock_watchers_recover(&self) -> MutexGuard<'_, HashMap<String, Sender<DiscoveryEvent>>> {
+        match self.watchers.lock() {
+            Ok(watchers) => watchers,
+            Err(poisoned) => {
+                tracing::warn!(
+                    "consul discovery watchers mutex was poisoned; continuing with recovered state"
+                );
+                poisoned.into_inner()
+            }
+        }
+    }
+
+    fn lock_watch_poll_generations_recover(&self) -> MutexGuard<'_, HashMap<String, u64>> {
+        match self.watch_poll_generations.lock() {
+            Ok(active) => active,
+            Err(poisoned) => {
+                tracing::warn!(
+                    "consul discovery watch_poll_generations mutex was poisoned; continuing with recovered state"
+                );
+                poisoned.into_inner()
+            }
+        }
+    }
+
     /// Connects to Consul.
     ///
     /// This is a placeholder that would establish a connection to Consul.
@@ -1206,10 +1241,7 @@ impl ConsulDiscovery {
 
     /// Gets or creates a sender for a service type.
     fn get_or_create_sender(&self, service_type: &str) -> Sender<DiscoveryEvent> {
-        let mut watchers = self
-            .watchers
-            .lock()
-            .expect("consul discovery watchers mutex should not be poisoned");
+        let mut watchers = self.lock_watchers_recover();
         watchers
             .entry(service_type.to_string())
             .or_insert_with(|| broadcast::channel(100).0)
@@ -1218,10 +1250,7 @@ impl ConsulDiscovery {
 
     /// Notifies watchers for a service type and removes dead sender entries.
     fn notify_watchers(&self, service_type: &str, event: DiscoveryEvent) {
-        let mut watchers = self
-            .watchers
-            .lock()
-            .expect("consul discovery watchers mutex should not be poisoned");
+        let mut watchers = self.lock_watchers_recover();
         if let Some(sender) = watchers.get(service_type) {
             if sender.receiver_count() == 0 || sender.send(event).is_err() {
                 watchers.remove(service_type);
@@ -1231,10 +1260,7 @@ impl ConsulDiscovery {
 
     /// Removes watcher sender for `service_type` if all receivers are dropped.
     fn compact_dead_watch_sender(&self, service_type: &str) {
-        let mut watchers = self
-            .watchers
-            .lock()
-            .expect("consul discovery watchers mutex should not be poisoned");
+        let mut watchers = self.lock_watchers_recover();
         if watchers
             .get(service_type)
             .map(|s| s.receiver_count() == 0)
@@ -1246,19 +1272,14 @@ impl ConsulDiscovery {
 
     /// Compacts all watcher senders that have no active receivers.
     fn compact_dead_watch_senders(&self) {
-        self.watchers
-            .lock()
-            .expect("consul discovery watchers mutex should not be poisoned")
+        self.lock_watchers_recover()
             .retain(|_, sender| sender.receiver_count() > 0);
     }
 
     /// Returns true only when a new poll loop should be spawned for the service type.
     fn should_spawn_watch_poll(&self, service_type: &str) -> bool {
         let generation = self.watch_generation.load(Ordering::SeqCst);
-        let mut active = self
-            .watch_poll_generations
-            .lock()
-            .expect("consul discovery watch_poll_generations mutex should not be poisoned");
+        let mut active = self.lock_watch_poll_generations_recover();
         match active.get(service_type).copied() {
             Some(g) if g == generation => false,
             _ => {
@@ -1270,10 +1291,7 @@ impl ConsulDiscovery {
 
     /// Cleans a poll-generation entry if it still matches the expected generation.
     fn cleanup_watch_poll_generation(&self, service_type: &str, generation: u64) {
-        let mut active = self
-            .watch_poll_generations
-            .lock()
-            .expect("consul discovery watch_poll_generations mutex should not be poisoned");
+        let mut active = self.lock_watch_poll_generations_recover();
         if active.get(service_type).copied() == Some(generation) {
             active.remove(service_type);
         }
@@ -1290,10 +1308,7 @@ impl ServiceDiscovery for ConsulDiscovery {
         );
 
         // Cache-only for sync API.
-        let mut services = self
-            .services
-            .write()
-            .expect("consul discovery services write lock should not be poisoned");
+        let mut services = self.write_services()?;
         if services.contains_key(&service.id) {
             return Err(DiscoveryError::AlreadyRegistered(service.id.clone()));
         }
@@ -1310,10 +1325,7 @@ impl ServiceDiscovery for ConsulDiscovery {
         );
 
         // Cache-only for sync API.
-        let services = self
-            .services
-            .read()
-            .expect("consul discovery services read lock should not be poisoned");
+        let services = self.read_services()?;
         Ok(services
             .values()
             .filter(|s| s.service_type == service_type)
@@ -1337,10 +1349,7 @@ impl ServiceDiscovery for ConsulDiscovery {
             "Deregistering service from Consul"
         );
 
-        let mut services = self
-            .services
-            .write()
-            .expect("consul discovery services write lock should not be poisoned");
+        let mut services = self.write_services()?;
         let service = services
             .remove(service_id)
             .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
@@ -1368,10 +1377,7 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
         }
         self.compact_dead_watch_senders();
         self.watch_generation.fetch_add(1, Ordering::SeqCst);
-        self.watch_poll_generations
-            .lock()
-            .expect("consul discovery watch_poll_generations mutex should not be poisoned")
-            .clear();
+        self.lock_watch_poll_generations_recover().clear();
         Ok(())
     }
 
@@ -1429,9 +1435,7 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
             map_consul_request_error("register_entity", e)
         })?;
 
-        self.services
-            .write()
-            .expect("consul discovery services write lock should not be poisoned")
+        self.write_services()?
             .insert(service.id.clone(), service.clone());
         let service_type = service.service_type.clone();
         self.notify_watchers(&service_type, DiscoveryEvent::ServiceAdded(service));
@@ -1528,9 +1532,7 @@ impl ServiceDiscoveryAsync for ConsulDiscovery {
 
     async fn deregister_async(&self, service_id: &str) -> Result<()> {
         let service = self
-            .services
-            .write()
-            .expect("consul discovery services write lock should not be poisoned")
+            .write_services()?
             .remove(service_id)
             .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
         self.notify_watchers(
@@ -3328,6 +3330,130 @@ mod tests {
             matches!(err, DiscoveryError::Internal(ref msg)
                 if msg.contains("in-memory discovery watchers mutex poisoned")),
             "expected Internal containing watchers-mutex poisoning details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_zk_register_poisoned_services_lock_returns_internal_error() {
+        let discovery = std::sync::Arc::new(ZkDiscovery::new("127.0.0.1:2181", "/services"));
+        let poison_target = std::sync::Arc::clone(&discovery);
+        let join_result = std::thread::spawn(move || {
+            let _guard = poison_target
+                .services
+                .write()
+                .expect("zookeeper services lock acquisition should succeed before poisoning");
+            panic!("poisoning zookeeper services lock for register error-path regression");
+        })
+        .join();
+        assert!(
+            join_result.is_err(),
+            "poisoning thread should panic to poison zookeeper services lock"
+        );
+
+        let err = discovery
+            .register(ServiceInfo::new(
+                "zk-poisoned-ps",
+                "ZK Poisoned PS",
+                "ps",
+                "localhost",
+                5000,
+            ))
+            .expect_err("zookeeper register should return Internal when services lock is poisoned");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("zookeeper discovery services write lock poisoned")),
+            "expected Internal containing zookeeper services-lock poisoning details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_zk_discover_poisoned_services_lock_returns_internal_error() {
+        let discovery = std::sync::Arc::new(ZkDiscovery::new("127.0.0.1:2181", "/services"));
+        let poison_target = std::sync::Arc::clone(&discovery);
+        let join_result = std::thread::spawn(move || {
+            let _guard = poison_target
+                .services
+                .write()
+                .expect("zookeeper services lock acquisition should succeed before poisoning");
+            panic!("poisoning zookeeper services lock for discover error-path regression");
+        })
+        .join();
+        assert!(
+            join_result.is_err(),
+            "poisoning thread should panic to poison zookeeper services lock"
+        );
+
+        let err = discovery
+            .discover("ps")
+            .expect_err("zookeeper discover should return Internal when services lock is poisoned");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("zookeeper discovery services read lock poisoned")),
+            "expected Internal containing zookeeper services-read-lock poisoning details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_consul_register_poisoned_services_lock_returns_internal_error() {
+        let discovery = std::sync::Arc::new(ConsulDiscovery::new("http://127.0.0.1:8500"));
+        let poison_target = std::sync::Arc::clone(&discovery);
+        let join_result = std::thread::spawn(move || {
+            let _guard = poison_target
+                .services
+                .write()
+                .expect("consul services lock acquisition should succeed before poisoning");
+            panic!("poisoning consul services lock for register error-path regression");
+        })
+        .join();
+        assert!(
+            join_result.is_err(),
+            "poisoning thread should panic to poison consul services lock"
+        );
+
+        let err = discovery
+            .register(ServiceInfo::new(
+                "consul-poisoned-ps",
+                "Consul Poisoned PS",
+                "ps",
+                "localhost",
+                5000,
+            ))
+            .expect_err("consul register should return Internal when services lock is poisoned");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("consul discovery services write lock poisoned")),
+            "expected Internal containing consul services-lock poisoning details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
+    fn test_consul_discover_poisoned_services_lock_returns_internal_error() {
+        let discovery = std::sync::Arc::new(ConsulDiscovery::new("http://127.0.0.1:8500"));
+        let poison_target = std::sync::Arc::clone(&discovery);
+        let join_result = std::thread::spawn(move || {
+            let _guard = poison_target
+                .services
+                .write()
+                .expect("consul services lock acquisition should succeed before poisoning");
+            panic!("poisoning consul services lock for discover error-path regression");
+        })
+        .join();
+        assert!(
+            join_result.is_err(),
+            "poisoning thread should panic to poison consul services lock"
+        );
+
+        let err = discovery
+            .discover("ps")
+            .expect_err("consul discover should return Internal when services lock is poisoned");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("consul discovery services read lock poisoned")),
+            "expected Internal containing consul services-read-lock poisoning details, got {err:?}"
         );
     }
 
