@@ -5091,6 +5091,35 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_disconnect_clears_client_handle_and_allows_reconnect() {
+        let consul = ConsulDiscovery::new("http://localhost:8500");
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("connect should initialize Consul client handle");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "connect should initialize client handle"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            consul.client.lock().await.is_none(),
+            "disconnect should clear client handle"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("connect should reinitialize client handle after disconnect");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "connect should recreate client handle after disconnect reset"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_should_spawn_watch_poll_once_per_generation() {
         let consul = ConsulDiscovery::new("http://localhost:8500");
 

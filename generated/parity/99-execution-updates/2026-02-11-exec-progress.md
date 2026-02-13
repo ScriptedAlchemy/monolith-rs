@@ -7690,6 +7690,19 @@
     port, and authority-shape validation failures with explicit cache-retention
     guarantees.
 
+### 571) Discovery Consul disconnect client-handle lifecycle cleanup parity
+- Added a Consul disconnect lifecycle regression in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_disconnect_clears_client_handle_and_allows_reconnect`
+- Coverage validates that:
+  - `connect` initializes the internal client handle,
+  - `disconnect` clears that handle deterministically,
+  - a subsequent `connect` reinitializes the handle (reconnect path remains
+    functional after cleanup).
+- Result:
+  - Consul disconnect cleanup guarantees now explicitly include client-handle
+    reset + reconnect readiness semantics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8888,6 +8901,8 @@
 1195. `rg "test_consul_discover_async_(address_query|address_fragment|empty_host)_preserves_local_cache" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul discover_async query/fragment/empty-host cache-preservation tests are present)
 1196. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_invalid_scheme_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_invalid_port_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_userinfo_authority_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_whitespace_authority_preserves_local_cache -- --nocapture` ✅ (validated additional Consul discover_async scheme/port/authority cache-preservation regressions)
 1197. `rg "test_consul_discover_async_(invalid_scheme|invalid_port|userinfo_authority|whitespace_authority)_preserves_local_cache" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul discover_async scheme/port/authority cache-preservation tests are present)
+1198. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_disconnect_clears_client_handle_and_allows_reconnect -- --nocapture` ✅ (validated Consul disconnect clears client handle and supports reconnect reinitialization)
+1199. `rg "test_consul_disconnect_clears_client_handle_and_allows_reconnect" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul disconnect lifecycle cleanup regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
