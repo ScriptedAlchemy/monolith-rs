@@ -11186,6 +11186,27 @@
   - heartbeat rejection semantics are now explicitly role-symmetric in runner
     unit/runtime coverage.
 
+### 747) Negative barrier-timeout PS-role bypass parity closure
+- Added integration regressions in
+  `crates/monolith-training/tests/native_training_parity.rs`:
+  - `distributed_runner_from_run_config_allows_negative_barrier_timeout_for_ps_role`
+  - `distributed_runner_from_runner_config_allows_negative_barrier_timeout_for_ps_role`
+- Re-ran existing barrier role-matrix regressions:
+  - `distributed_runner_from_run_config_rejects_zero_barrier_timeout`
+  - `distributed_runner_from_run_config_allows_zero_barrier_timeout_for_ps_role`
+  - `distributed_runner_from_run_config_rejects_negative_barrier_timeout`
+  - `distributed_runner_from_runner_config_rejects_zero_barrier_timeout`
+  - `distributed_runner_from_runner_config_allows_zero_barrier_timeout_for_ps_role`
+  - `distributed_runner_from_runner_config_rejects_negative_barrier_timeout`
+- Coverage validates:
+  - PS role remains permissive for worker-only non-positive barrier-timeout
+    contracts for both zero and negative values,
+  - worker role continues to reject non-positive barrier-timeout values.
+- Result:
+  - run-config and runner-config barrier matrices now explicitly cover
+    reject-on-worker / allow-on-ps symmetry for both zero and negative timeout
+    permutations.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12763,6 +12784,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1567. `rg "test_distributed_config_validate_allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role|test_run_worker_role_allows_duplicate_parameter_sync_targets_and_empty_names_without_wrapper|test_run_distributed_allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role" crates/monolith-training/src/runner.rs` ✅ (verified new runner-level parameter-sync duplicate/name worker-bypass regressions are present)
 1568. `cargo test -p monolith-training test_run_distributed_rejects_zero_heartbeat_interval_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_heartbeat_interval_runtime_config_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_zero_heartbeat_interval_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_rejects_zero_heartbeat_interval_when_configured -- --nocapture` ✅ (validated global heartbeat zero-interval rejection contracts for both roles across validation, run_distributed, and direct role helpers)
 1569. `rg "test_run_distributed_rejects_zero_heartbeat_interval_runtime_config_for_ps_role|test_run_worker_role_rejects_zero_heartbeat_interval_without_wrapper|test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper" crates/monolith-training/src/runner.rs` ✅ (verified role-symmetric heartbeat zero-interval rejection regressions are present in runner unit/runtime coverage)
+1570. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_zero_barrier_timeout -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_zero_barrier_timeout_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_negative_barrier_timeout_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_negative_barrier_timeout -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_zero_barrier_timeout -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_zero_barrier_timeout_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_negative_barrier_timeout_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_negative_barrier_timeout -- --nocapture` ✅ (validated barrier-timeout role matrix includes ps allow paths for both zero and negative values while worker rejection paths remain enforced)
+1571. `rg "distributed_runner_from_(run_config|runner_config)_(allows_negative_barrier_timeout_for_ps_role|rejects_negative_barrier_timeout|allows_zero_barrier_timeout_for_ps_role|rejects_zero_barrier_timeout)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified barrier-timeout reject/allow integration regressions are present for both run-config and runner-config entrypaths)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

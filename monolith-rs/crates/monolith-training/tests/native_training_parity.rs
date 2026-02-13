@@ -5090,6 +5090,37 @@ async fn distributed_runner_from_run_config_allows_zero_barrier_timeout_for_ps_r
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_allows_negative_barrier_timeout_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        barrier_timeout_ms: -1,
+        ..RunConfig::default()
+    };
+
+    let task = tokio::spawn({
+        let discovery = Arc::clone(&discovery);
+        async move {
+            run_distributed_from_run_config(discovery, &run, None, Role::Ps, test_bind_addr())
+                .await
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    assert!(
+        !task.is_finished(),
+        "ps role should continue serving; negative barrier_timeout_ms must not fail run-config validation"
+    );
+    task.abort();
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_negative_barrier_timeout() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -20903,6 +20934,37 @@ async fn distributed_runner_from_runner_config_allows_zero_barrier_timeout_for_p
     assert!(
         !task.is_finished(),
         "ps role should continue serving; zero barrier_timeout_ms must not fail runner-config validation"
+    );
+    task.abort();
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_allows_negative_barrier_timeout_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        barrier_timeout_ms: -1,
+        ..RunnerConfig::default()
+    };
+
+    let task = tokio::spawn({
+        let discovery = Arc::clone(&discovery);
+        async move {
+            run_distributed_from_runner_config(discovery, &runner, Role::Ps, test_bind_addr())
+                .await
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    assert!(
+        !task.is_finished(),
+        "ps role should continue serving; negative barrier_timeout_ms must not fail runner-config validation"
     );
     task.abort();
 }
