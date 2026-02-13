@@ -5495,6 +5495,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_worker_role_allows_malformed_parameter_sync_target_endpoint_without_wrapper()
+    {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: vec!["http://".to_string()],
+            parameter_sync_interval: Duration::from_millis(0),
+            parameter_sync_model_name: " ".to_string(),
+            parameter_sync_signature_name: "serving default".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg).await.expect_err(
+            "worker role should proceed past malformed parameter-sync endpoint validation because replication is ps-only",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker role should fail due to discovery timeout, not malformed parameter-sync endpoint validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_targets"),
+            "worker role should ignore malformed parameter-sync endpoint validation errors: {msg}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_worker_role_allows_parameter_sync_target_with_path_or_query_without_wrapper()
     {
         let discovery = Arc::new(InMemoryDiscovery::new());
@@ -7305,6 +7337,38 @@ mod tests {
         assert!(
             !msg.contains("parameter_sync_targets"),
             "runtime should ignore parameter-sync target validation errors for worker role: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_malformed_parameter_sync_target_endpoint_for_worker_role()
+    {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: vec!["http://".to_string()],
+            parameter_sync_interval: Duration::from_millis(0),
+            parameter_sync_model_name: " ".to_string(),
+            parameter_sync_signature_name: "serving default".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, cfg).await.expect_err(
+            "run_distributed should proceed past malformed parameter-sync endpoint validation for worker role",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "runtime should fail due to missing PS discovery, not malformed parameter-sync endpoint validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_targets"),
+            "runtime should ignore malformed parameter-sync endpoint validation errors for worker role: {msg}"
         );
     }
 
