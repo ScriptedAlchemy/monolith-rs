@@ -8538,6 +8538,29 @@
   - `crates/monolith-training` now has zero `.unwrap()` call-sites, including
     documentation examples.
 
+### 627) Discovery Consul case-insensitive IPv6 root-slash lifecycle parity
+- Added explicit case-insensitive IPv6 root-slash regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_normalize_consul_address_for_operation_accepts_case_insensitive_scheme_with_ipv6`
+  - `test_consul_connect_case_insensitive_scheme_and_root_slash_ipv6_succeeds`
+  - `test_consul_connect_case_insensitive_scheme_and_root_slash_ipv6_disconnect_and_reconnect`
+  - `test_consul_watch_async_case_insensitive_scheme_ipv6_disconnect_clears_poll_generation_with_live_receiver`
+  - `test_consul_async_register_case_insensitive_scheme_and_root_slash_ipv6_uses_operation_context`
+  - `test_consul_discover_async_case_insensitive_scheme_and_root_slash_ipv6_uses_operation_context`
+  - `test_consul_discover_async_case_insensitive_scheme_and_root_slash_ipv6_preserves_local_cache`
+  - `test_consul_async_deregister_case_insensitive_scheme_and_root_slash_ipv6_uses_operation_context`
+  - `test_consul_async_deregister_case_insensitive_scheme_and_root_slash_ipv6_compacts_dead_watchers`
+- Coverage validates normalization and lifecycle behavior for
+  `HTTP://[::1]:8501/`:
+  - scheme/root-slash canonicalization preserves valid IPv6 authority handling,
+  - connect/disconnect/reconnect semantics stay stable,
+  - discover/register/deregister retain explicit `Internal` operation context,
+  - watch/deregister watcher cleanup and poll-generation behavior remain
+    deterministic.
+- Result:
+  - Consul lifecycle parity now explicitly includes case-insensitive IPv6
+    root-slash endpoint handling across connect/watch/register/discover/deregister.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9855,6 +9878,8 @@ for p in root.rglob('*.rs'):
     count += p.read_text().count('.unwrap()')
 print('total_unwrap',count)
 PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
+1310. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_normalize_consul_address_for_operation_accepts_case_insensitive_scheme_with_ipv6 -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_case_insensitive_scheme_and_root_slash_ipv6_succeeds -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_case_insensitive_scheme_and_root_slash_ipv6_disconnect_and_reconnect -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_case_insensitive_scheme_ipv6_disconnect_clears_poll_generation_with_live_receiver -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_case_insensitive_scheme_and_root_slash_ipv6_uses_operation_context -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_case_insensitive_scheme_and_root_slash_ipv6_uses_operation_context -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_case_insensitive_scheme_and_root_slash_ipv6_preserves_local_cache -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_case_insensitive_scheme_and_root_slash_ipv6_uses_operation_context -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_case_insensitive_scheme_and_root_slash_ipv6_compacts_dead_watchers -- --nocapture` ✅ (validated case-insensitive IPv6 root-slash Consul lifecycle regressions across normalize/connect/watch/register/discover/deregister)
+1311. `rg "test_(normalize_consul_address_for_operation_accepts_case_insensitive_scheme_with_ipv6|consul_(connect_case_insensitive_scheme_and_root_slash_ipv6_(succeeds|disconnect_and_reconnect)|watch_async_case_insensitive_scheme_ipv6_disconnect_clears_poll_generation_with_live_receiver|async_register_case_insensitive_scheme_and_root_slash_ipv6_uses_operation_context|discover_async_case_insensitive_scheme_and_root_slash_ipv6_(uses_operation_context|preserves_local_cache)|async_deregister_case_insensitive_scheme_and_root_slash_ipv6_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified case-insensitive IPv6 root-slash Consul lifecycle regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
