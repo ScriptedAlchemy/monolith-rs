@@ -1090,10 +1090,7 @@ mod tests {
             panic!("poisoning mlp filters mutex for register recovery-path regression");
         })
         .join();
-        assert!(
-            join_result.is_err(),
-            "poisoning thread should panic to poison mlp filters mutex"
-        );
+        join_result.expect_err("poisoning thread should panic to poison mlp filters mutex");
 
         PyServiceDiscovery::register(&*d, "worker", 1, "worker1:2223")
             .expect("mlp register should recover from poisoned filters mutex");
@@ -1126,10 +1123,7 @@ mod tests {
             panic!("poisoning mlp filters mutex for close recovery-path regression");
         })
         .join();
-        assert!(
-            join_result.is_err(),
-            "poisoning thread should panic to poison mlp filters mutex"
-        );
+        join_result.expect_err("poisoning thread should panic to poison mlp filters mutex");
 
         PyServiceDiscovery::close(&*d)
             .expect("mlp close should recover from poisoned filters mutex and succeed");

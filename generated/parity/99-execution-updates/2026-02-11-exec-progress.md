@@ -10623,6 +10623,33 @@
   - Discovery poison-regression tests now use explicit assertion style with
     stronger diagnostics while preserving existing behavior coverage.
 
+### 717) Poisoned-mutex regression assertion-style harmonization (file/native paths)
+- Updated additional poisoned-mutex regressions to remove coarse
+  `assert!(join_result.is_err(), ...)` patterns in favor of explicit
+  `expect_err(...)` diagnostics across:
+  - `crates/monolith-training/src/file_ops.rs`
+    - `writable_file_append_poisoned_mutex_returns_io_error`
+    - `writable_file_close_poisoned_mutex_returns_io_error`
+  - `crates/monolith-training/src/native_training/consul.rs`
+    - `test_lookup_cache_enabled_poisoned_cache_mutex_returns_io_error`
+    - `test_lookup_cache_disabled_poisoned_cache_mutex_returns_io_error`
+  - `crates/monolith-training/src/native_training/graph_meta.rs`
+    - `test_get_meta_cloned_recovers_after_poisoned_store_mutex`
+    - `test_update_meta_recovers_after_poisoned_store_mutex`
+  - `crates/monolith-training/src/native_training/service_discovery.rs`
+    - `zk_register_recovers_from_poisoned_threads_mutex`
+    - `zk_close_recovers_from_poisoned_threads_mutex`
+  - `crates/monolith-training/src/py_discovery.rs`
+    - `test_mlp_register_recovers_after_poisoned_filters_mutex`
+    - `test_mlp_close_recovers_after_poisoned_filters_mutex`
+- Coverage validates:
+  - all touched poisoned-mutex regressions remain green,
+  - no residual coarse `join_result.is_err()` assertions remain in
+    `monolith-training/src`.
+- Result:
+  - Assertion style is now consistently explicit and diagnostic-rich across
+    non-trivial poisoned-lock/poisoned-mutex regression suites.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12137,6 +12164,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1504. `rg "restore_ckpt basename should be in checkpoint all_model_checkpoint_paths" crates/monolith-training/src/runner_utils.rs` ✅ (verified legacy restore-checkpoint basename panic-path expect string remains removed)
 1505. `cargo test -p monolith-training test_in_memory_register_poisoned_services_lock_returns_internal_error -- --nocapture && cargo test -p monolith-training test_in_memory_watch_poisoned_watchers_lock_returns_internal_error -- --nocapture && cargo test -p monolith-training test_zk_register_poisoned_services_lock_returns_internal_error -- --nocapture && cargo test -p monolith-training test_zk_discover_poisoned_services_lock_returns_internal_error -- --nocapture && cargo test -p monolith-training test_consul_register_poisoned_services_lock_returns_internal_error -- --nocapture && cargo test -p monolith-training test_consul_discover_poisoned_services_lock_returns_internal_error -- --nocapture` ✅ (validated discovery poisoned-lock regressions stay green after assertion hardening to expect_err)
 1506. `rg "join_result\\.is_err\\(" crates/monolith-training/src/discovery.rs` ✅ (verified coarse join-result boolean assertions were removed in poisoned-lock discovery regressions)
+1507. `cargo test -p monolith-training writable_file_append_poisoned_mutex_returns_io_error -- --nocapture && cargo test -p monolith-training writable_file_close_poisoned_mutex_returns_io_error -- --nocapture && cargo test -p monolith-training test_lookup_cache_enabled_poisoned_cache_mutex_returns_io_error -- --nocapture && cargo test -p monolith-training test_lookup_cache_disabled_poisoned_cache_mutex_returns_io_error -- --nocapture && cargo test -p monolith-training test_get_meta_cloned_recovers_after_poisoned_store_mutex -- --nocapture && cargo test -p monolith-training test_update_meta_recovers_after_poisoned_store_mutex -- --nocapture && cargo test -p monolith-training zk_register_recovers_from_poisoned_threads_mutex -- --nocapture && cargo test -p monolith-training zk_close_recovers_from_poisoned_threads_mutex -- --nocapture && cargo test -p monolith-training test_mlp_register_recovers_after_poisoned_filters_mutex -- --nocapture && cargo test -p monolith-training test_mlp_close_recovers_after_poisoned_filters_mutex -- --nocapture` ✅ (validated poisoned-mutex regression suites across file/native discovery modules remain green after expect_err assertion-style harmonization)
+1508. `rg "join_result\\.is_err\\(" crates/monolith-training/src` ✅ (verified coarse join-result boolean assertions are removed from monolith-training source after assertion-style harmonization)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

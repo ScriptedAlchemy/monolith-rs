@@ -1382,9 +1382,8 @@ mod tests {
             panic!("poisoning zk service-discovery threads mutex for register recovery-path regression");
         })
         .join();
-        assert!(
-            join_result.is_err(),
-            "poisoning thread should panic to poison zk service-discovery threads mutex"
+        join_result.expect_err(
+            "poisoning thread should panic to poison zk service-discovery threads mutex",
         );
 
         d.register("ps", 0, "192.168.0.1:1001")
@@ -1413,9 +1412,8 @@ mod tests {
             panic!("poisoning zk service-discovery threads mutex for close recovery-path regression");
         })
         .join();
-        assert!(
-            join_result.is_err(),
-            "poisoning thread should panic to poison zk service-discovery threads mutex"
+        join_result.expect_err(
+            "poisoning thread should panic to poison zk service-discovery threads mutex",
         );
 
         d.close()

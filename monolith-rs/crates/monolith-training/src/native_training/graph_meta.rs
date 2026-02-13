@@ -111,10 +111,7 @@ mod tests {
             panic!("poisoning graph-meta store mutex for recovery-path regression");
         })
         .join();
-        assert!(
-            join_result.is_err(),
-            "poisoning thread should panic to poison graph-meta store mutex"
-        );
+        join_result.expect_err("poisoning thread should panic to poison graph-meta store mutex");
 
         let v = get_meta_cloned("poisoned-graph", "counter", || 17i32);
         assert_eq!(
@@ -132,10 +129,7 @@ mod tests {
             panic!("poisoning graph-meta store mutex for update recovery-path regression");
         })
         .join();
-        assert!(
-            join_result.is_err(),
-            "poisoning thread should panic to poison graph-meta store mutex"
-        );
+        join_result.expect_err("poisoning thread should panic to poison graph-meta store mutex");
 
         let updated = update_meta("poisoned-graph-update", "counter", || 5i32, |v| *v += 8);
         assert_eq!(

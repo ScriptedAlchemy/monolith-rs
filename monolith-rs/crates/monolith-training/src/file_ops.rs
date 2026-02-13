@@ -221,10 +221,7 @@ mod tests {
             panic!("poisoning writable file mutex for append error-path regression");
         })
         .join();
-        assert!(
-            join_result.is_err(),
-            "poisoning thread should panic to poison writable file mutex"
-        );
+        join_result.expect_err("poisoning thread should panic to poison writable file mutex");
 
         let err = f
             .append("1234")
@@ -254,10 +251,7 @@ mod tests {
             panic!("poisoning writable file mutex for close error-path regression");
         })
         .join();
-        assert!(
-            join_result.is_err(),
-            "poisoning thread should panic to poison writable file mutex"
-        );
+        join_result.expect_err("poisoning thread should panic to poison writable file mutex");
 
         let err = f
             .close()

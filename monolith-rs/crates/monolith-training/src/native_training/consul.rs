@@ -481,10 +481,7 @@ mod tests {
             panic!("poisoning consul cache mutex for cache-enabled lookup error-path regression");
         })
         .join();
-        assert!(
-            join_result.is_err(),
-            "poisoning thread should panic to poison consul cache mutex"
-        );
+        join_result.expect_err("poisoning thread should panic to poison consul cache mutex");
 
         let err = client
             .lookup("poisoned", 1, 1)
@@ -520,10 +517,7 @@ mod tests {
             panic!("poisoning consul cache mutex for cache-disabled lookup error-path regression");
         })
         .join();
-        assert!(
-            join_result.is_err(),
-            "poisoning thread should panic to poison consul cache mutex"
-        );
+        join_result.expect_err("poisoning thread should panic to poison consul cache mutex");
 
         let err = client
             .lookup("poisoned", 1, 0)
