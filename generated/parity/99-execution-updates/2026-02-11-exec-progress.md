@@ -8915,6 +8915,25 @@
     explicit-HTTPS hostname-only lanes across
     connect/watch/register/discover/deregister operations.
 
+### 644) Discovery ZooKeeper connect disconnect/reconnect host-shape lifecycle parity
+- Added ZooKeeper connect lifecycle regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_zk_connect_valid_host_port_single_ipv4_host_disconnect_and_reconnect`
+  - `test_zk_connect_valid_host_only_single_ipv4_host_disconnect_and_reconnect`
+  - `test_zk_connect_valid_host_port_single_ipv6_host_disconnect_and_reconnect`
+  - `test_zk_connect_valid_host_only_single_ipv6_host_disconnect_and_reconnect`
+  - `test_zk_connect_valid_host_port_single_hostname_disconnect_and_reconnect`
+  - `test_zk_connect_valid_host_only_single_hostname_disconnect_and_reconnect`
+- Coverage validates unreachable-but-valid host-shape lanes remain parity-safe:
+  - initial connect attempts return explicit `ConnectionFailed` diagnostics,
+  - disconnect remains successful and idempotent after failed connect attempts,
+  - reconnect attempts preserve the same failure-shape contract,
+  - failed connect/reconnect attempts do not leave stale client handles.
+- Result:
+  - ZooKeeper connect lifecycle parity now explicitly includes
+    disconnect/reconnect determinism for single-host host:port and host-only
+    IPv4/IPv6/hostname authority permutations.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -10266,6 +10285,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1341. `rg "test_(normalize_consul_address_for_operation_accepts_case_insensitive_https_scheme_with_hostname|consul_(watch_async_case_insensitive_https_scheme_and_root_slash_hostname_with_port_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_case_insensitive_https_scheme_and_root_slash_hostname_with_port_(succeeds|disconnect_and_reconnect)|async_register_case_insensitive_https_scheme_and_root_slash_hostname_with_port_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_case_insensitive_https_scheme_and_root_slash_hostname_with_port_(uses_operation_context|preserves_local_cache)|async_deregister_case_insensitive_https_scheme_and_root_slash_hostname_with_port_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified case-insensitive explicit-HTTPS hostname-with-port Consul lifecycle regression tests are present)
 1342. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_normalize_consul_address_for_operation_accepts_case_insensitive_https_scheme_with_hostname_without_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_case_insensitive_https_scheme_and_root_slash_hostname_without_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_case_insensitive_https_scheme_and_root_slash_hostname_without_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_case_insensitive_https_scheme_and_root_slash_hostname_without_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_case_insensitive_https_scheme_and_root_slash_hostname_without_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_case_insensitive_https_scheme_and_root_slash_hostname_without_port -- --nocapture` ✅ (validated case-insensitive explicit-HTTPS hostname-only Consul lifecycle regressions across normalization/connect/watch/register/discover/deregister)
 1343. `rg "test_(normalize_consul_address_for_operation_accepts_case_insensitive_https_scheme_with_hostname_without_port|consul_(watch_async_case_insensitive_https_scheme_and_root_slash_hostname_without_port_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_case_insensitive_https_scheme_and_root_slash_hostname_without_port_(succeeds|disconnect_and_reconnect)|async_register_case_insensitive_https_scheme_and_root_slash_hostname_without_port_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_case_insensitive_https_scheme_and_root_slash_hostname_without_port_(uses_operation_context|preserves_local_cache)|async_deregister_case_insensitive_https_scheme_and_root_slash_hostname_without_port_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified case-insensitive explicit-HTTPS hostname-only Consul lifecycle regression tests are present)
+1344. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_valid_host_ -- --nocapture` ✅ (validated ZooKeeper valid-host connect lifecycle regressions, including new disconnect/reconnect permutations)
+1345. `rg "test_zk_connect_valid_(host_port_single_(ipv4_host|ipv6_host|hostname)|host_only_single_(ipv4_host|ipv6_host|hostname))_disconnect_and_reconnect" crates/monolith-training/src/discovery.rs` ✅ (verified ZooKeeper disconnect/reconnect host-shape regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

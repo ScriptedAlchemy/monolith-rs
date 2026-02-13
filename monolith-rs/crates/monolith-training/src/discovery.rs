@@ -5900,6 +5900,210 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_connect_valid_host_port_single_ipv4_host_disconnect_and_reconnect() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        let first = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let first_err = first.expect_err(
+            "unreachable but valid host:port single IPv4 host should fail connecting",
+        );
+        assert!(
+            matches!(first_err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for host:port IPv4 host, got {first_err:?}"
+        );
+        assert!(
+            zk.client.lock().await.is_none(),
+            "failed host:port IPv4 connect should not retain client handle"
+        );
+
+        <ZkDiscovery as ServiceDiscoveryAsync>::disconnect(&zk)
+            .await
+            .expect("disconnect should succeed after failed connect attempt");
+        let second = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let second_err = second.expect_err(
+            "reconnect attempt with unreachable but valid host:port single IPv4 host should fail",
+        );
+        assert!(
+            matches!(second_err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context on reconnect for host:port IPv4 host, got {second_err:?}"
+        );
+        assert!(
+            zk.client.lock().await.is_none(),
+            "failed reconnect for host:port IPv4 connect should keep client handle empty"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_connect_valid_host_only_single_ipv4_host_disconnect_and_reconnect() {
+        let zk = ZkDiscovery::new("127.0.0.1", "/services").with_session_timeout(100);
+        let first = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let first_err = first.expect_err(
+            "unreachable but valid host-only single IPv4 host should fail connecting",
+        );
+        assert!(
+            matches!(first_err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for host-only IPv4 host, got {first_err:?}"
+        );
+        assert!(
+            zk.client.lock().await.is_none(),
+            "failed host-only IPv4 connect should not retain client handle"
+        );
+
+        <ZkDiscovery as ServiceDiscoveryAsync>::disconnect(&zk)
+            .await
+            .expect("disconnect should succeed after failed connect attempt");
+        let second = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let second_err = second.expect_err(
+            "reconnect attempt with unreachable but valid host-only single IPv4 host should fail",
+        );
+        assert!(
+            matches!(second_err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context on reconnect for host-only IPv4 host, got {second_err:?}"
+        );
+        assert!(
+            zk.client.lock().await.is_none(),
+            "failed reconnect for host-only IPv4 connect should keep client handle empty"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_connect_valid_host_port_single_ipv6_host_disconnect_and_reconnect() {
+        let zk = ZkDiscovery::new("[::1]:1", "/services").with_session_timeout(100);
+        let first = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let first_err = first.expect_err(
+            "unreachable but valid host:port single IPv6 host should fail connecting",
+        );
+        assert!(
+            matches!(first_err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for host:port IPv6 host, got {first_err:?}"
+        );
+        assert!(
+            zk.client.lock().await.is_none(),
+            "failed host:port IPv6 connect should not retain client handle"
+        );
+
+        <ZkDiscovery as ServiceDiscoveryAsync>::disconnect(&zk)
+            .await
+            .expect("disconnect should succeed after failed connect attempt");
+        let second = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let second_err = second.expect_err(
+            "reconnect attempt with unreachable but valid host:port single IPv6 host should fail",
+        );
+        assert!(
+            matches!(second_err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context on reconnect for host:port IPv6 host, got {second_err:?}"
+        );
+        assert!(
+            zk.client.lock().await.is_none(),
+            "failed reconnect for host:port IPv6 connect should keep client handle empty"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_connect_valid_host_only_single_ipv6_host_disconnect_and_reconnect() {
+        let zk = ZkDiscovery::new("[::1]", "/services").with_session_timeout(100);
+        let first = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let first_err = first.expect_err(
+            "unreachable but valid host-only single IPv6 host should fail connecting",
+        );
+        assert!(
+            matches!(first_err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for host-only IPv6 host, got {first_err:?}"
+        );
+        assert!(
+            zk.client.lock().await.is_none(),
+            "failed host-only IPv6 connect should not retain client handle"
+        );
+
+        <ZkDiscovery as ServiceDiscoveryAsync>::disconnect(&zk)
+            .await
+            .expect("disconnect should succeed after failed connect attempt");
+        let second = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let second_err = second.expect_err(
+            "reconnect attempt with unreachable but valid host-only single IPv6 host should fail",
+        );
+        assert!(
+            matches!(second_err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context on reconnect for host-only IPv6 host, got {second_err:?}"
+        );
+        assert!(
+            zk.client.lock().await.is_none(),
+            "failed reconnect for host-only IPv6 connect should keep client handle empty"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_connect_valid_host_port_single_hostname_disconnect_and_reconnect() {
+        let zk = ZkDiscovery::new("localhost:1", "/services").with_session_timeout(100);
+        let first = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let first_err = first.expect_err(
+            "unreachable but valid host:port single hostname should fail connecting",
+        );
+        assert!(
+            matches!(first_err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for host:port hostname, got {first_err:?}"
+        );
+        assert!(
+            zk.client.lock().await.is_none(),
+            "failed host:port hostname connect should not retain client handle"
+        );
+
+        <ZkDiscovery as ServiceDiscoveryAsync>::disconnect(&zk)
+            .await
+            .expect("disconnect should succeed after failed connect attempt");
+        let second = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let second_err = second.expect_err(
+            "reconnect attempt with unreachable but valid host:port single hostname should fail",
+        );
+        assert!(
+            matches!(second_err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context on reconnect for host:port hostname, got {second_err:?}"
+        );
+        assert!(
+            zk.client.lock().await.is_none(),
+            "failed reconnect for host:port hostname connect should keep client handle empty"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_connect_valid_host_only_single_hostname_disconnect_and_reconnect() {
+        let zk = ZkDiscovery::new("localhost", "/services").with_session_timeout(100);
+        let first = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let first_err = first.expect_err(
+            "unreachable but valid host-only single hostname should fail connecting",
+        );
+        assert!(
+            matches!(first_err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for host-only hostname, got {first_err:?}"
+        );
+        assert!(
+            zk.client.lock().await.is_none(),
+            "failed host-only hostname connect should not retain client handle"
+        );
+
+        <ZkDiscovery as ServiceDiscoveryAsync>::disconnect(&zk)
+            .await
+            .expect("disconnect should succeed after failed connect attempt");
+        let second = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let second_err = second.expect_err(
+            "reconnect attempt with unreachable but valid host-only single hostname should fail",
+        );
+        assert!(
+            matches!(second_err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context on reconnect for host-only hostname, got {second_err:?}"
+        );
+        assert!(
+            zk.client.lock().await.is_none(),
+            "failed reconnect for host-only hostname connect should keep client handle empty"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_async_register_invalid_hosts_compacts_dead_watchers() {
         let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
         let rx = zk.watch("ps").expect("watch should succeed");
