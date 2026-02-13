@@ -10479,6 +10479,26 @@
   - Graph-meta global store now avoids panic-on-poison lock behavior and
     preserves deterministic recovery semantics with explicit diagnostics.
 
+### 708) ZK service-discovery thread-lock panic-path hardening
+- Hardened `crates/monolith-training/src/native_training/service_discovery.rs`
+  for `ZkServiceDiscovery`/`ZkRegThread`:
+  - replaced panic-prone thread-map and registration-thread lock `expect(...)`
+    paths with poison-tolerant lock recovery + warning diagnostics,
+  - removed panic-prone condvar `wait_timeout(...).expect(...)` usage from
+    periodic registration loop and recovered poisoned wait state explicitly,
+  - ensured listener wakeups, register replacement, deregister, and close
+    lifecycle paths remain functional under lock poisoning.
+- Added regressions:
+  - `zk_register_recovers_from_poisoned_threads_mutex`
+  - `zk_close_recovers_from_poisoned_threads_mutex`
+- Coverage validates:
+  - register/close continue to succeed after intentional poisoning of the
+    shared ZK thread-bookkeeping mutex,
+  - existing ZK lifecycle and periodic repair semantics remain green.
+- Result:
+  - ZK service-discovery background-thread lifecycle now avoids panic-based
+    lock-failure exits and preserves deterministic recovery behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11968,6 +11988,10 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1479. `rg "test_(get_meta_cloned|update_meta)_recovers_after_poisoned_store_mutex" crates/monolith-training/src/native_training/graph_meta.rs` ✅ (verified graph-meta poisoned-mutex recovery regressions are present)
 1480. `rg "graph meta store mutex should not be poisoned" crates/monolith-training/src/native_training/graph_meta.rs` ✅ (verified legacy graph-meta panic-path expect strings are removed)
 1481. `rg "graph meta store mutex was poisoned; continuing with recovered state" crates/monolith-training/src/native_training/graph_meta.rs` ✅ (verified graph-meta poisoned-mutex recovery warning diagnostics are present)
+1482. `cargo test -p monolith-training zk_ -- --nocapture` ✅ (validated ZK service-discovery thread-lock poisoning recovery regressions plus existing ZK lifecycle/parity tests)
+1483. `rg "zk_register_recovers_from_poisoned_threads_mutex|zk_close_recovers_from_poisoned_threads_mutex" crates/monolith-training/src/native_training/service_discovery.rs` ✅ (verified ZK thread-lock poisoning recovery regressions are present)
+1484. `rg "zk registration thread wakeup mutex should not be poisoned|zk registration thread handle mutex should not be poisoned|zk service-discovery threads mutex should not be poisoned|zk registration wakeup wait_timeout should not fail" crates/monolith-training/src/native_training/service_discovery.rs` ✅ (verified legacy ZK thread-lock/condvar panic-path expect strings are removed)
+1485. `rg "zk service-discovery threads mutex was poisoned; continuing with recovered state|zk registration thread wakeup mutex was poisoned; continuing with recovered state" crates/monolith-training/src/native_training/service_discovery.rs` ✅ (verified ZK lock-poison recovery warning diagnostics are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

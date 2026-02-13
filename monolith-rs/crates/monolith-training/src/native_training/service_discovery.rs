@@ -409,11 +409,34 @@ impl ZkRegThread {
         }
     }
 
+    fn lock_wakeup_flag_recover(&self) -> std::sync::MutexGuard<'_, bool> {
+        match self.mu.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                tracing::warn!(
+                    "zk registration thread wakeup mutex was poisoned; continuing with recovered state"
+                );
+                poisoned.into_inner()
+            }
+        }
+    }
+
+    fn lock_handle_recover(
+        &self,
+    ) -> std::sync::MutexGuard<'_, Option<std::thread::JoinHandle<()>>> {
+        match self.handle.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                tracing::warn!(
+                    "zk registration thread handle mutex was poisoned; continuing with recovered state"
+                );
+                poisoned.into_inner()
+            }
+        }
+    }
+
     fn request_wakeup(&self) {
-        let mut g = self
-            .mu
-            .lock()
-            .expect("zk registration thread wakeup mutex should not be poisoned");
+        let mut g = self.lock_wakeup_flag_recover();
         *g = true;
         self.wakeup.notify_all();
     }
@@ -421,12 +444,7 @@ impl ZkRegThread {
     fn stop_and_join(&self) {
         self.stop.store(true, Ordering::SeqCst);
         self.request_wakeup();
-        if let Some(h) = self
-            .handle
-            .lock()
-            .expect("zk registration thread handle mutex should not be poisoned")
-            .take()
-        {
+        if let Some(h) = self.lock_handle_recover().take() {
             let _ = h.join();
         }
     }
@@ -462,15 +480,35 @@ impl ZkServiceDiscovery {
         self
     }
 
+    fn lock_threads_recover(
+        &self,
+    ) -> std::sync::MutexGuard<'_, HashMap<(String, i32), Arc<ZkRegThread>>> {
+        match self.threads.lock() {
+            Ok(threads) => threads,
+            Err(poisoned) => {
+                tracing::warn!(
+                    "zk service-discovery threads mutex was poisoned; continuing with recovered state"
+                );
+                poisoned.into_inner()
+            }
+        }
+    }
+
     fn install_listener(&self) {
         let threads = Arc::clone(&self.threads);
         let f = Arc::new(move |state: ZkState| {
             // Match Python's semantics used by tests: on reconnect after lost,
             // best-effort wake periodic registration threads.
             if state == ZkState::Connected {
-                let guard = threads
-                    .lock()
-                    .expect("zk service-discovery threads mutex should not be poisoned");
+                let guard = match threads.lock() {
+                    Ok(guard) => guard,
+                    Err(poisoned) => {
+                        tracing::warn!(
+                            "zk service-discovery threads mutex was poisoned in listener; continuing with recovered state"
+                        );
+                        poisoned.into_inner()
+                    }
+                };
                 for ts in guard.values() {
                     ts.request_wakeup();
                 }
@@ -531,10 +569,7 @@ impl ServiceDiscovery for ZkServiceDiscovery {
         // Spawn periodic re-registration thread (best-effort), mirroring Python.
         let key = (name.to_string(), index);
         let old = {
-            let mut threads = self
-                .threads
-                .lock()
-                .expect("zk service-discovery threads mutex should not be poisoned");
+            let mut threads = self.lock_threads_recover();
             threads.remove(&key)
         };
         if let Some(old) = old {
@@ -552,28 +587,38 @@ impl ServiceDiscovery for ZkServiceDiscovery {
         let h = std::thread::spawn(move || loop {
             // Wake up periodically or on explicit wakeup.
             let period_ms = ZK_REGISTRATION_PERIOD_MS.load(Ordering::SeqCst);
-            let mut w = ts2
-                .mu
-                .lock()
-                .expect("zk registration thread wakeup mutex should not be poisoned");
+            let mut w = ts2.lock_wakeup_flag_recover();
             if !*w {
                 if period_ms == 0 {
                     // Busy-looping can be expensive; sleep a tiny bit between attempts.
-                    let (wg, _) = ts2
-                        .wakeup
-                        .wait_timeout(w, Duration::from_millis(10))
-                        .expect("zk registration wakeup wait_timeout should not fail");
+                    let (wg, _) = match ts2.wakeup.wait_timeout(w, Duration::from_millis(10)) {
+                        Ok((wg, res)) => (wg, res.timed_out()),
+                        Err(poisoned) => {
+                            tracing::warn!(
+                                "zk registration wakeup wait_timeout observed poisoned mutex; continuing with recovered state"
+                            );
+                            let (wg, res) = poisoned.into_inner();
+                            (wg, res.timed_out())
+                        }
+                    };
                     w = wg;
                 } else {
                     // Guard against spurious wakeups: only proceed on explicit wake or timeout.
                     let mut timed_out = false;
                     while !*w && !ts2.stop.load(Ordering::SeqCst) && !timed_out {
-                        let (wg, res) = ts2
-                            .wakeup
-                            .wait_timeout(w, Duration::from_millis(period_ms))
-                            .expect("zk registration wakeup wait_timeout should not fail");
+                        let (wg, did_timeout) =
+                            match ts2.wakeup.wait_timeout(w, Duration::from_millis(period_ms)) {
+                                Ok((wg, res)) => (wg, res.timed_out()),
+                                Err(poisoned) => {
+                                    tracing::warn!(
+                                        "zk registration wakeup wait_timeout observed poisoned mutex; continuing with recovered state"
+                                    );
+                                    let (wg, res) = poisoned.into_inner();
+                                    (wg, res.timed_out())
+                                }
+                            };
                         w = wg;
-                        timed_out = res.timed_out();
+                        timed_out = did_timeout;
                     }
                 }
             }
@@ -605,13 +650,8 @@ impl ServiceDiscovery for ZkServiceDiscovery {
             }
             let _ = last;
         });
-        *ts.handle
-            .lock()
-            .expect("zk registration thread handle mutex should not be poisoned") = Some(h);
-        self.threads
-            .lock()
-            .expect("zk service-discovery threads mutex should not be poisoned")
-            .insert(key, ts);
+        *ts.lock_handle_recover() = Some(h);
+        self.lock_threads_recover().insert(key, ts);
         Ok(())
     }
 
@@ -625,11 +665,7 @@ impl ServiceDiscovery for ZkServiceDiscovery {
         let _ = self.client.delete_recursive(&path);
 
         let key = (name.to_string(), index);
-        let removed = self
-            .threads
-            .lock()
-            .expect("zk service-discovery threads mutex should not be poisoned")
-            .remove(&key);
+        let removed = self.lock_threads_recover().remove(&key);
         if let Some(ts) = removed {
             ts.stop_and_join();
         }
@@ -669,10 +705,7 @@ impl ServiceDiscovery for ZkServiceDiscovery {
             return Ok(());
         }
         let drained = {
-            let mut threads = self
-                .threads
-                .lock()
-                .expect("zk service-discovery threads mutex should not be poisoned");
+            let mut threads = self.lock_threads_recover();
             threads.drain().map(|(_, ts)| ts).collect::<Vec<_>>()
         };
         for ts in drained {
@@ -1333,6 +1366,60 @@ mod tests {
             .expect("zk deregister(ps) should succeed");
         d.close().expect("first zk close should succeed");
         d.close().expect("second zk close should succeed");
+    }
+
+    #[test]
+    fn zk_register_recovers_from_poisoned_threads_mutex() {
+        let c = Arc::new(FakeZk::new());
+        let d = ZkServiceDiscovery::new("test_model", Arc::clone(&c) as Arc<dyn ZkClientLike>)
+            .expect("zk service discovery construction should succeed");
+
+        let threads = Arc::clone(&d.threads);
+        let join_result = std::thread::spawn(move || {
+            let _guard = threads
+                .lock()
+                .expect("zk service-discovery threads mutex acquisition should succeed before poisoning");
+            panic!("poisoning zk service-discovery threads mutex for register recovery-path regression");
+        })
+        .join();
+        assert!(
+            join_result.is_err(),
+            "poisoning thread should panic to poison zk service-discovery threads mutex"
+        );
+
+        d.register("ps", 0, "192.168.0.1:1001")
+            .expect("zk register should recover from poisoned threads mutex");
+        assert_eq!(
+            d.query("ps")
+                .expect("zk query(ps) should succeed after poisoned-mutex recovery"),
+            BTreeMap::from([(0, "192.168.0.1:1001".to_string())])
+        );
+        d.close().expect("zk close should succeed after poisoned-mutex recovery");
+    }
+
+    #[test]
+    fn zk_close_recovers_from_poisoned_threads_mutex() {
+        let c = Arc::new(FakeZk::new());
+        let d = ZkServiceDiscovery::new("test_model", Arc::clone(&c) as Arc<dyn ZkClientLike>)
+            .expect("zk service discovery construction should succeed");
+        d.register("ps", 0, "192.168.0.1:1001")
+            .expect("zk register should succeed before poisoned-close recovery path");
+
+        let threads = Arc::clone(&d.threads);
+        let join_result = std::thread::spawn(move || {
+            let _guard = threads
+                .lock()
+                .expect("zk service-discovery threads mutex acquisition should succeed before poisoning");
+            panic!("poisoning zk service-discovery threads mutex for close recovery-path regression");
+        })
+        .join();
+        assert!(
+            join_result.is_err(),
+            "poisoning thread should panic to poison zk service-discovery threads mutex"
+        );
+
+        d.close()
+            .expect("zk close should recover from poisoned threads mutex and succeed");
     }
 
     #[test]
