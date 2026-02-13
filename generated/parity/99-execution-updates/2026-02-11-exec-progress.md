@@ -7956,6 +7956,23 @@
   - Empty-address watch/disconnect parity now matches normalized-address
     cleanup guarantees for live/dead watcher transitions.
 
+### 592) Discovery ZooKeeper empty-hosts operation/lifecycle parity expansion
+- Added empty-hosts regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_zk_connect_empty_hosts_is_config_error`
+  - `test_zk_async_register_empty_hosts_compacts_dead_watchers`
+  - `test_zk_async_register_empty_hosts_keeps_live_watchers`
+  - `test_zk_async_deregister_empty_hosts_still_notifies_and_returns_error`
+  - `test_zk_async_deregister_empty_hosts_compacts_dead_watchers`
+- Coverage validates deterministic `ConfigError` classification and lifecycle
+  symmetry for empty ZooKeeper hosts across connect/register/deregister:
+  - register path compacts dead watchers and preserves live watchers,
+  - deregister path emits `ServiceRemoved`, preserves local removal semantics,
+    preserves live watchers, and compacts dead watchers.
+- Result:
+  - ZooKeeper parity now explicitly covers empty-host failure-shape contracts
+    and watcher/cache cleanup behavior at operation level.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9196,6 +9213,8 @@
 1237. `rg "test_zk_discovery_creation_uses_default_session_timeout" crates/monolith-training/src/discovery.rs` ✅ (verified new ZooKeeper creation default-timeout regression is present)
 1238. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_empty_address_disconnect_clears_poll_generation_with_live_receiver -- --nocapture` ✅ (validated Consul empty-address watch/disconnect live-receiver cleanup regression)
 1239. `rg "test_consul_watch_async_empty_address_disconnect_clears_poll_generation_with_live_receiver" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul empty-address watch/disconnect live-receiver cleanup regression is present)
+1240. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_empty_hosts_is_config_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_empty_hosts_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_empty_hosts_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_empty_hosts_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_empty_hosts_compacts_dead_watchers -- --nocapture` ✅ (validated ZooKeeper empty-hosts connect/register/deregister failure-shape and watcher/cache lifecycle regressions)
+1241. `rg "test_zk_(connect_empty_hosts_is_config_error|async_register_empty_hosts_(compacts_dead_watchers|keeps_live_watchers)|async_deregister_empty_hosts_(still_notifies_and_returns_error|compacts_dead_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper empty-hosts operation/lifecycle regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

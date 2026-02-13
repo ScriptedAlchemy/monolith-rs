@@ -3894,6 +3894,21 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_connect_empty_hosts_is_config_error() {
+        let zk = ZkDiscovery::new("", "/services");
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let err = result.expect_err("empty hosts should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("empty hosts")),
+            "expected ConfigError containing empty-hosts connect context, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_connect_invalid_port_is_config_error() {
         let zk = ZkDiscovery::new("127.0.0.1:notaport", "/services");
         let result = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
@@ -3993,6 +4008,65 @@ mod tests {
         assert!(
             zk_has_watcher(&zk, "ps"),
             "live watcher sender should be preserved on invalid-hosts register failure"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_register_empty_hosts_compacts_dead_watchers() {
+        let zk = ZkDiscovery::new("", "/services");
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(
+            &zk,
+            ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
+        )
+        .await;
+        let err = result.expect_err("empty hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("empty hosts")),
+            "expected ConfigError containing empty-hosts register context, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "config-error register should compact dead watcher sender entries for empty hosts"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_register_empty_hosts_keeps_live_watchers() {
+        let zk = ZkDiscovery::new("", "/services");
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(
+            &zk,
+            ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
+        )
+        .await;
+        let err = result.expect_err("empty hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("empty hosts")),
+            "expected ConfigError containing empty-hosts register context, got {err:?}"
+        );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "live watcher sender should be preserved on empty-hosts register failure"
         );
     }
 
@@ -4468,6 +4542,82 @@ mod tests {
         assert!(
             !zk_has_watcher(&zk, "ps"),
             "dead watcher sender should be compacted on invalid-hosts deregister notification"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_empty_hosts_still_notifies_and_returns_error() {
+        let zk = ZkDiscovery::new("", "/services");
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+        let mut rx = zk.watch("ps").expect("watch should succeed");
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        let err = result.expect_err("empty hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("empty hosts")),
+            "expected ConfigError containing empty-hosts connect context, got {err:?}"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "ps-0"),
+            "expected ServiceRemoved(ps-0), got {event:?}"
+        );
+        assert!(
+            zk.discover("ps").expect("discover should succeed").is_empty(),
+            "local cache entry should remain removed even when async deregister fails on empty hosts"
+        );
+        assert!(
+            !zk.registered_paths.lock().await.contains_key("ps-0"),
+            "registered-path bookkeeping should remain removed even on empty-hosts config failure"
+        );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "live watcher sender should be preserved after empty-hosts deregister notification"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_empty_hosts_compacts_dead_watchers() {
+        let zk = ZkDiscovery::new("", "/services");
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        let err = result.expect_err("empty hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("empty hosts")),
+            "expected ConfigError containing empty-hosts connect context, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "dead watcher sender should be compacted on empty-hosts deregister notification"
         );
     }
 
