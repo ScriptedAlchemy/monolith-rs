@@ -8512,6 +8512,18 @@
   - Consul lifecycle parity now explicitly covers valid IPv6 host:port address
     forms across connect/watch/register/discover/deregister flows.
 
+### 625) Discovery Consul IPv6 watch poll-generation cleanup parity
+- Added in `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_watch_async_ipv6_with_port_seeds_poll_generation_entry`
+- Coverage validates normalized IPv6 watcher lifecycle under receiver drop:
+  - `watch_async` seeds watcher sender and poll-generation bookkeeping for
+    `[::1]:8501`,
+  - dropping the receiver clears poll-generation state via poll-loop cleanup,
+  - dead watcher sender entries are compacted deterministically.
+- Result:
+  - Consul IPv6 watch lifecycle parity now mirrors existing host:port cleanup
+    guarantees for dead-receiver paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9818,6 +9830,8 @@
 1303. `rg "test_zk_(connect_valid_host_only_single_hostname_host_returns_connection_failed_when_unreachable|watch_async_valid_host_only_single_hostname_host_disconnect_clears_poll_generation_with_live_receiver|async_register_valid_host_only_single_hostname_host_failure_(compacts_dead_watchers|keeps_live_watchers|does_not_cache_service)|discover_async_valid_host_only_single_hostname_host_connection_failure_(is_connection_failed|preserves_local_cache)|async_deregister_valid_host_only_single_hostname_host_failure_(still_removes_local_cache_and_notifies_watchers|compacts_dead_watchers|cleans_registered_path|keeps_live_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified host-only single-hostname lifecycle regression tests are present)
 1304. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_normalize_consul_address_for_operation_adds_http_scheme_to_ipv6_with_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_ipv6_with_port_initializes_client_handle -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_ipv6_with_port_disconnect_and_reconnect -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_ipv6_with_port_disconnect_clears_poll_generation_with_live_receiver -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_ipv6_with_port_uses_operation_context -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_ipv6_with_port_compacts_dead_watchers -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_ipv6_with_port_keeps_live_watchers -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_ipv6_with_port_uses_operation_context -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_ipv6_with_port_preserves_local_cache -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_ipv6_with_port_uses_operation_context -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_ipv6_with_port_compacts_dead_watchers -- --nocapture` ✅ (validated Consul IPv6 host:port lifecycle regressions across normalization/connect/watch/register/discover/deregister)
 1305. `rg "test_(normalize_consul_address_for_operation_adds_http_scheme_to_ipv6_with_port|consul_(connect_ipv6_with_port_(initializes_client_handle|disconnect_and_reconnect)|watch_async_ipv6_with_port_disconnect_clears_poll_generation_with_live_receiver|async_register_ipv6_with_port_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_ipv6_with_port_(uses_operation_context|preserves_local_cache)|async_deregister_ipv6_with_port_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified Consul IPv6 host:port lifecycle regression tests are present)
+1306. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_ipv6_with_port_seeds_poll_generation_entry -- --nocapture` ✅ (validated Consul IPv6 watch poll-generation cleanup when receiver drops)
+1307. `rg "test_consul_watch_async_ipv6_with_port_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)" crates/monolith-training/src/discovery.rs` ✅ (verified Consul IPv6 watch lifecycle regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
