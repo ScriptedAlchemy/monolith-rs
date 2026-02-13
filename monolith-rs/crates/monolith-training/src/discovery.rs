@@ -27,10 +27,14 @@
 //!     "127.0.0.1",
 //!     5000,
 //! );
-//! discovery.register(service).unwrap();
+//! discovery
+//!     .register(service)
+//!     .expect("in-memory register should succeed in usage example");
 //!
 //! // Discover services
-//! let services = discovery.discover("ps").unwrap();
+//! let services = discovery
+//!     .discover("ps")
+//!     .expect("in-memory discover should succeed in usage example");
 //! assert_eq!(services.len(), 1);
 //! ```
 
@@ -379,9 +383,13 @@ where
 /// let discovery = InMemoryDiscovery::new();
 ///
 /// let service = ServiceInfo::new("ps-0", "PS 0", "ps", "localhost", 5000);
-/// discovery.register(service).unwrap();
+/// discovery
+///     .register(service)
+///     .expect("in-memory register should succeed in usage example");
 ///
-/// let services = discovery.discover("ps").unwrap();
+/// let services = discovery
+///     .discover("ps")
+///     .expect("in-memory discover should succeed in usage example");
 /// assert_eq!(services.len(), 1);
 /// ```
 pub struct InMemoryDiscovery {

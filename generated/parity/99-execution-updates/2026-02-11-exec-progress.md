@@ -8524,6 +8524,20 @@
   - Consul IPv6 watch lifecycle parity now mirrors existing host:port cleanup
     guarantees for dead-receiver paths.
 
+### 626) Training crate doc-diagnostics cleanup for residual unwrap examples
+- Replaced remaining `.unwrap()` usage in `monolith-training` docs/examples
+  with explicit diagnostics:
+  - `crates/monolith-training/src/discovery.rs`
+  - `crates/monolith-training/src/metrics.rs`
+  - `crates/monolith-training/src/distributed.rs`
+  - `crates/monolith-training/src/lib.rs`
+  - `crates/monolith-training/src/estimator.rs`
+- Updated snippets now use explicit `.expect("...")` messages for better
+  failure context and consistency with parity hardening direction.
+- Result:
+  - `crates/monolith-training` now has zero `.unwrap()` call-sites, including
+    documentation examples.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9832,6 +9846,15 @@
 1305. `rg "test_(normalize_consul_address_for_operation_adds_http_scheme_to_ipv6_with_port|consul_(connect_ipv6_with_port_(initializes_client_handle|disconnect_and_reconnect)|watch_async_ipv6_with_port_disconnect_clears_poll_generation_with_live_receiver|async_register_ipv6_with_port_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_ipv6_with_port_(uses_operation_context|preserves_local_cache)|async_deregister_ipv6_with_port_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified Consul IPv6 host:port lifecycle regression tests are present)
 1306. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_ipv6_with_port_seeds_poll_generation_entry -- --nocapture` ✅ (validated Consul IPv6 watch poll-generation cleanup when receiver drops)
 1307. `rg "test_consul_watch_async_ipv6_with_port_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)" crates/monolith-training/src/discovery.rs` ✅ (verified Consul IPv6 watch lifecycle regression tests are present)
+1308. `rg "\.unwrap\(\)" crates/monolith-training --glob "*.rs" || true && cargo test -p monolith-training -q` ✅ (validated no residual unwrap call-sites in monolith-training and ran full crate regression suite)
+1309. `python3 - <<'PY'
+from pathlib import Path
+root=Path('/workspace/monolith-rs/crates/monolith-training')
+count=0
+for p in root.rglob('*.rs'):
+    count += p.read_text().count('.unwrap()')
+print('total_unwrap',count)
+PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

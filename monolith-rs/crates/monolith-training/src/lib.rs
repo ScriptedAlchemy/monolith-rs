@@ -51,7 +51,9 @@
 //! estimator.add_hook(CheckpointHook::new(config.model_dir.clone(), 1000));
 //!
 //! // Run training
-//! // let result = estimator.train().unwrap();
+//! // let result = estimator
+//! //     .train()
+//! //     .expect("training should succeed in this basic example");
 //! ```
 
 pub mod barrier;

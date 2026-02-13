@@ -167,7 +167,9 @@ pub struct ParameterState {
 ///
 /// let mut ps = ParameterServer::new(0);
 /// ps.set_parameter("weights", vec![0.1, 0.2, 0.3]);
-/// let weights = ps.get_parameter("weights").unwrap();
+/// let weights = ps
+///     .get_parameter("weights")
+///     .expect("weights should be present after setting the parameter");
 /// assert_eq!(weights.len(), 3);
 /// ```
 #[derive(Debug)]
