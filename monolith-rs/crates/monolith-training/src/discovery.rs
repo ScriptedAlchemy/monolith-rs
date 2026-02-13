@@ -4497,6 +4497,38 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_async_deregister_malformed_ipv6_host_entry_compacts_dead_watchers() {
+        let zk = ZkDiscovery::new("[::1", "/services");
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        let err = result.expect_err("malformed host entry should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid host entry")),
+            "expected ConfigError containing malformed-host-entry connect context, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "dead watcher sender should be compacted on malformed-host-entry deregister notification"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_async_deregister_invalid_port_still_notifies_and_returns_error() {
         let zk = ZkDiscovery::new("127.0.0.1:notaport", "/services");
         zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
@@ -4612,6 +4644,38 @@ mod tests {
         assert!(
             zk_has_watcher(&zk, "ps"),
             "live watcher sender should be preserved after out-of-range-port deregister notification"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_out_of_range_port_compacts_dead_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:70000", "/services");
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        let err = result.expect_err("out-of-range host port should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing out-of-range-port connect context, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "dead watcher sender should be compacted on out-of-range-port deregister notification"
         );
     }
 
@@ -7345,6 +7409,38 @@ mod tests {
         );
         assert!(
             !consul_has_watcher(&consul, "worker"),
+            "dead watch sender should be compacted on invalid-scheme deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_invalid_scheme_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("ftp://127.0.0.1:8500");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result =
+            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id)
+                .await;
+        let err = result.expect_err("invalid-scheme address should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid scheme")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing invalid-scheme deregister context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
             "invalid-scheme deregister should compact dead watcher sender entries"
         );
         assert!(
@@ -7397,6 +7493,38 @@ mod tests {
         assert!(
             consul_has_watcher(&consul, "worker"),
             "live watcher sender should be preserved after invalid-port deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_invalid_port_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:notaport");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result =
+            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id)
+                .await;
+        let err = result.expect_err("invalid-port authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid port")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing invalid-port deregister context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watch sender should be compacted on invalid-port deregister notification"
         );
     }
 
@@ -7828,6 +7956,38 @@ mod tests {
         assert!(
             consul_has_watcher(&consul, "worker"),
             "live watcher sender should be preserved after address-path deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_address_path_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result =
+            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id)
+                .await;
+        let err = result.expect_err("address path should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("path is not allowed")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing address-path deregister context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watch sender should be compacted on address-path deregister notification"
         );
     }
 

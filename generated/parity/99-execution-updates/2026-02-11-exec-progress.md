@@ -7595,6 +7595,16 @@
     watcher preservation and dead watcher compaction assertions across major
     host/base-path validation failure shapes.
 
+### 563) Discovery ZooKeeper remaining deregister dead-watcher compaction parity
+- Expanded ZooKeeper malformed-config `deregister_async` dead-watcher
+  compaction coverage in `crates/monolith-training/src/discovery.rs` with:
+  - `test_zk_async_deregister_malformed_ipv6_host_entry_compacts_dead_watchers`
+  - `test_zk_async_deregister_out_of_range_port_compacts_dead_watchers`
+- Result:
+  - ZooKeeper malformed-config deregister compaction coverage now spans invalid
+    hosts, invalid/malformed host entries, invalid/out-of-range ports, and
+    invalid base path.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8778,6 +8788,8 @@
 1180. `rg "live watcher sender should be preserved after .* deregister notification" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper+Consul live-watcher-preservation assertions across deregister malformed-config tests)
 1181. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_invalid_hosts_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_invalid_port_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_invalid_base_path_compacts_dead_watchers -- --nocapture` ✅ (validated ZooKeeper malformed-config deregister dead-watcher compaction regressions)
 1182. `rg "test_zk_async_deregister_(invalid_hosts|invalid_port|invalid_base_path)_compacts_dead_watchers" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper deregister dead-watcher compaction tests are present)
+1183. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_malformed_ipv6_host_entry_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_out_of_range_port_compacts_dead_watchers -- --nocapture` ✅ (validated ZooKeeper malformed-host-entry and out-of-range-port deregister dead-watcher compaction regressions)
+1184. `rg "test_zk_async_deregister_(malformed_ipv6_host_entry|out_of_range_port)_compacts_dead_watchers" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper malformed-host/out-of-range deregister compaction tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
