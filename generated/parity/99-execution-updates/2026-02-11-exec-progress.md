@@ -7886,6 +7886,17 @@
   - ZooKeeper creation-path regression now provides concrete diagnostics and
     removes non-informative always-true assertion style.
 
+### 586) Discovery Consul host-port connect lifecycle reconnect parity
+- Added `test_consul_connect_host_port_without_scheme_disconnect_and_reconnect`
+  in `crates/monolith-training/src/discovery.rs`.
+- Coverage validates normalized host:port connect lifecycle behavior:
+  - initial connect initializes client handle,
+  - disconnect clears client handle,
+  - reconnect reinitializes handle deterministically.
+- Result:
+  - Host-port normalized connect parity now explicitly includes disconnect +
+    reconnect client-handle lifecycle guarantees.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9114,6 +9125,8 @@
 1225. `rg "test_consul_watch_async_(case_insensitive_scheme|host_port_without_scheme)_disconnect_clears_poll_generation_with_live_receiver" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul normalized-address watch/disconnect live-receiver cleanup regressions are present)
 1226. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discovery_creation -- --nocapture` ✅ (validated tightened ZooKeeper discovery creation assertions)
 1227. `rg "fn test_zk_discovery_creation\\(" crates/monolith-training/src/discovery.rs` ✅ (verified hardened ZooKeeper discovery creation regression location)
+1228. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_connect_host_port_without_scheme_disconnect_and_reconnect -- --nocapture` ✅ (validated Consul normalized host:port connect/disconnect/reconnect client-handle lifecycle regression)
+1229. `rg "test_consul_connect_host_port_without_scheme_disconnect_and_reconnect" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul host-port connect lifecycle reconnect regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

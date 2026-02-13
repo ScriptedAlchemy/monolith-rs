@@ -7538,6 +7538,35 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_connect_host_port_without_scheme_disconnect_and_reconnect() {
+        let consul = ConsulDiscovery::new("127.0.0.1:8501");
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("host:port address should normalize and initialize Consul client handle");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "host:port connect should initialize client handle"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            consul.client.lock().await.is_none(),
+            "disconnect should clear host:port-normalized client handle"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("host:port reconnect should recreate client handle after disconnect");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "reconnect should reinitialize client handle for normalized host:port address"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_connect_invalid_port_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("http://127.0.0.1:notaport");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
