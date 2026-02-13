@@ -10221,6 +10221,22 @@
   - Local-cluster train steps now provide deterministic all-or-nothing updates
     for parameter mutations under validation failures.
 
+### 692) Distributed barrier operations now require fully running local-cluster state
+- Hardened `LocalCluster::sync_barrier` in
+  `crates/monolith-training/src/distributed.rs` to call
+  `ensure_cluster_running()` before barrier bookkeeping:
+  - barrier calls now fail fast when any worker/PS role is down,
+  - blocking `wait_for_barrier` inherits the same guard via `sync_barrier`.
+- Added regressions:
+  - `test_local_cluster_sync_barrier_requires_fully_running_cluster`
+  - `test_local_cluster_wait_for_barrier_requires_fully_running_cluster`
+- Coverage validates barrier APIs no longer progress in degraded cluster states,
+  preserving deterministic lifecycle semantics between train-step and barrier
+  coordination paths.
+- Result:
+  - Local-cluster synchronization APIs now consistently enforce fully running
+    role state before barrier participation.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11668,6 +11684,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1437. `rg "test_local_cluster_train_step_(unknown_parameter|gradient_mismatch)_does_not_advance_worker_step" crates/monolith-training/src/distributed.rs` ✅ (verified distributed train-step failure atomicity regressions are present)
 1438. `cargo test -p monolith-training test_local_cluster_train_step_ -- --nocapture` ✅ (validated extended local-cluster train-step atomicity regressions, including no-partial-update guarantees across mixed valid/invalid gradients)
 1439. `rg "test_local_cluster_train_step_(unknown_parameter_keeps_existing_parameters_unchanged|gradient_mismatch_keeps_other_parameters_unchanged)" crates/monolith-training/src/distributed.rs` ✅ (verified all-or-nothing local-cluster train-step parameter-mutation regression tests are present)
+1440. `cargo test -p monolith-training test_local_cluster_sync_barrier_requires_fully_running_cluster -- --nocapture && cargo test -p monolith-training test_local_cluster_wait_for_barrier_requires_fully_running_cluster -- --nocapture` ✅ (validated barrier APIs now reject partially running local-cluster states)
+1441. `rg "test_local_cluster_(sync_barrier|wait_for_barrier)_requires_fully_running_cluster" crates/monolith-training/src/distributed.rs` ✅ (verified local-cluster barrier fully-running guard regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

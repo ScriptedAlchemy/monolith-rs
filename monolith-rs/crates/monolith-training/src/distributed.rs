@@ -657,6 +657,7 @@ impl LocalCluster {
     /// returns [`BarrierStatus::Waiting`] until all workers have arrived at the
     /// same epoch, then returns [`BarrierStatus::Released`] for the last caller.
     pub fn sync_barrier(&mut self, worker_index: usize) -> DistributedResult<BarrierStatus> {
+        self.ensure_cluster_running()?;
         self.prune_released_barriers();
 
         let worker = self.workers.get(worker_index).ok_or_else(|| {
@@ -1357,6 +1358,64 @@ mod tests {
             .sync_barrier(0)
             .expect("worker 0 barrier call should trigger prune pass"); // triggers prune pass
         assert!(!cluster.released_barriers.contains_key(&0));
+    }
+
+    #[test]
+    fn test_local_cluster_sync_barrier_requires_fully_running_cluster() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000)],
+            vec![make_addr(6000), make_addr(6001)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for barrier-running-state test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for barrier-running-state test");
+
+        cluster.parameter_servers[0]
+            .stop()
+            .expect("stopping one parameter server should succeed for running-state guard test");
+        let err = cluster
+            .sync_barrier(0)
+            .expect_err("sync_barrier should fail when cluster is not fully running");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("local cluster is not fully running")),
+            "expected InvalidConfiguration mentioning not-fully-running cluster, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_local_cluster_wait_for_barrier_requires_fully_running_cluster() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000)],
+            vec![make_addr(6000), make_addr(6001)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for wait_for_barrier running-state test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for wait_for_barrier running-state test");
+
+        cluster.workers[1]
+            .stop()
+            .expect("stopping one worker should succeed for running-state guard test");
+        let err = cluster
+            .wait_for_barrier(
+                0,
+                std::time::Duration::from_millis(10),
+                std::time::Duration::from_millis(1),
+            )
+            .expect_err("wait_for_barrier should fail when cluster is not fully running");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("local cluster is not fully running")),
+            "expected InvalidConfiguration mentioning not-fully-running cluster, got {err:?}"
+        );
     }
 
     #[test]
