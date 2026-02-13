@@ -6215,6 +6215,36 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_watch_async_empty_address_creates_state_and_disconnect_cleans_up() {
+        let consul = ConsulDiscovery::new("");
+        let rx = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("empty address should be accepted for watch_async via default endpoint");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "empty-address watch_async should create watcher sender entries"
+        );
+        assert!(
+            consul_has_watch_poll_generation(&consul, "worker"),
+            "empty-address watch_async should seed poll-generation bookkeeping"
+        );
+        drop(rx);
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "disconnect should compact empty-address watch sender entries after receiver drop"
+        );
+        assert!(
+            !consul_has_watch_poll_generation(&consul, "worker"),
+            "disconnect should clear empty-address watch poll-generation bookkeeping"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_watch_async_config_error_compacts_dead_watch_sender() {
         let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
         let rx = consul.watch("worker").expect("watch should succeed");

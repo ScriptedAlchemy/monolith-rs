@@ -7766,6 +7766,19 @@
   - Empty-address discover parity now includes explicit local-cache retention
     guarantees in addition to default-endpoint failure-shape context.
 
+### 577) Discovery Consul watch_async empty-address lifecycle state parity
+- Added a Consul empty-address watch lifecycle regression in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_watch_async_empty_address_creates_state_and_disconnect_cleans_up`
+- Coverage validates default-endpoint watch lifecycle behavior:
+  - `watch_async` accepts empty address and creates watcher + poll-generation
+    state,
+  - `disconnect` compacts dropped watcher senders and clears poll-generation
+    bookkeeping.
+- Result:
+  - Empty-address watch parity now includes explicit state creation and cleanup
+    contracts across watch/disconnect lifecycle boundaries.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8976,6 +8989,8 @@
 1207. `rg "test_consul_async_(deregister_empty_address_compacts_dead_watchers|register_empty_address_compacts_dead_watchers|register_empty_address_keeps_live_watchers)" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul async empty-address watcher-symmetry tests are present)
 1208. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_empty_address_preserves_local_cache -- --nocapture` ✅ (validated Consul discover_async empty-address failure preserves local cache entries)
 1209. `rg "test_consul_discover_async_empty_address_preserves_local_cache" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul discover_async empty-address cache-preservation regression is present)
+1210. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_empty_address_creates_state_and_disconnect_cleans_up -- --nocapture` ✅ (validated Consul watch_async accepts empty address and disconnect performs deterministic watcher/poll-generation cleanup)
+1211. `rg "test_consul_watch_async_empty_address_creates_state_and_disconnect_cleans_up" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul watch_async empty-address lifecycle regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
