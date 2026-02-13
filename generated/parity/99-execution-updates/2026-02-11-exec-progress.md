@@ -8100,6 +8100,22 @@
   - ZooKeeper host-list parity now explicitly covers mixed IPv4/IPv6 validity
     across connect/discover failure-shape and cache-retention contracts.
 
+### 601) Discovery ZooKeeper mixed-family register/deregister watcher symmetry expansion
+- Added mixed IPv4/IPv6 async lifecycle regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_zk_async_register_valid_mixed_ipv4_ipv6_hosts_failure_compacts_dead_watchers`
+  - `test_zk_async_register_valid_mixed_ipv4_ipv6_hosts_failure_keeps_live_watchers`
+  - `test_zk_async_deregister_valid_mixed_ipv4_ipv6_hosts_failure_still_removes_local_cache_and_notifies_watchers`
+  - `test_zk_async_deregister_valid_mixed_ipv4_ipv6_hosts_failure_compacts_dead_watchers`
+- Coverage validates mixed-family valid-but-unreachable hosts preserve
+  watcher/cache lifecycle guarantees:
+  - register failures compact dead watchers and preserve live watchers,
+  - deregister failures still emit `ServiceRemoved`, preserve local removal
+    semantics, and compact dead watchers.
+- Result:
+  - Mixed-family parity now extends from connect/discover failure-shape checks
+    to full register/deregister watcher symmetry behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9358,6 +9374,8 @@
 1255. `rg "test_zk_watch_async_valid_multi_hosts_disconnect_clears_poll_generation_with_live_receiver" crates/monolith-training/src/discovery.rs` ✅ (verified new ZooKeeper valid multi-host watch/disconnect live-receiver cleanup regression is present)
 1256. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_valid_mixed_ipv4_ipv6_hosts_returns_connection_failed_when_unreachable -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_valid_mixed_ipv4_ipv6_hosts_connection_failure_is_connection_failed -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_valid_mixed_ipv4_ipv6_hosts_connection_failure_preserves_local_cache -- --nocapture` ✅ (validated ZooKeeper mixed-family host-list connect/discover failure-shape and cache-retention regressions)
 1257. `rg "test_zk_(connect_valid_mixed_ipv4_ipv6_hosts_returns_connection_failed_when_unreachable|discover_async_valid_mixed_ipv4_ipv6_hosts_connection_failure_(is_connection_failed|preserves_local_cache))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper mixed-family host-list regression tests are present)
+1258. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_valid_mixed_ipv4_ipv6_hosts_failure_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_valid_mixed_ipv4_ipv6_hosts_failure_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_valid_mixed_ipv4_ipv6_hosts_failure_still_removes_local_cache_and_notifies_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_valid_mixed_ipv4_ipv6_hosts_failure_compacts_dead_watchers -- --nocapture` ✅ (validated ZooKeeper mixed-family register/deregister watcher-symmetry and local-removal lifecycle regressions)
+1259. `rg "test_zk_(async_register_valid_mixed_ipv4_ipv6_hosts_failure_(compacts_dead_watchers|keeps_live_watchers)|async_deregister_valid_mixed_ipv4_ipv6_hosts_failure_(still_removes_local_cache_and_notifies_watchers|compacts_dead_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper mixed-family register/deregister regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
