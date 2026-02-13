@@ -11362,6 +11362,23 @@
   - direct/helper runtime surfaces now align with validate/integration matrices
     for these global contracts.
 
+### 755) Direct worker-helper global reject matrix closure
+- Added direct worker-helper regressions in
+  `crates/monolith-training/src/runner.rs`:
+  - `test_run_worker_role_rejects_zero_num_ps_without_wrapper`
+  - `test_run_worker_role_rejects_zero_num_workers_without_wrapper`
+  - `test_run_worker_role_rejects_zero_dim_without_wrapper`
+  - `test_run_worker_role_rejects_empty_ps_service_type_without_wrapper`
+  - `test_run_worker_role_rejects_empty_table_name_without_wrapper`
+- Coverage validates:
+  - worker direct helper enforces global config-shape contracts that should
+    reject before discovery/bootstrap (`num_ps`, `num_workers`, `dim`,
+    `discovery_service_type_ps`, `table_name`).
+- Result:
+  - direct helper role-matrix coverage now includes explicit global reject
+    validation for worker role, complementing the previously added PS helper
+    reject coverage.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12955,6 +12972,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1583. `rg "rejects_whitespace_padded_ps_service_type_for_ps_role|rejects_internal_whitespace_ps_service_type_for_ps_role|rejects_whitespace_padded_table_name_for_ps_role|rejects_internal_whitespace_table_name_for_ps_role|run_distributed_rejects_(whitespace_padded_ps_service_type|internal_whitespace_ps_service_type|whitespace_padded_table_name|internal_whitespace_table_name)_runtime_config_for_ps_role" crates/monolith-training/src/runner.rs` ✅ (verified runner ps-role whitespace-hygiene global-contract regressions are present at validation and runtime layers)
 1584. `cargo test -p monolith-training test_run_distributed_rejects_zero_num_workers_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_num_workers_runtime_config_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_empty_ps_service_type_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_empty_ps_service_type_runtime_config_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_empty_table_name_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_empty_table_name_runtime_config_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_zero_num_workers_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_empty_ps_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_empty_table_name_without_wrapper -- --nocapture` ✅ (validated runtime/direct-helper global reject paths for num_workers/discovery_service_type_ps/table_name across worker+ps symmetry and direct ps helper entrypoint)
 1585. `rg "test_run_distributed_rejects_(zero_num_workers|empty_ps_service_type|empty_table_name)_runtime_config(_for_ps_role)?|test_run_ps_role_rejects_(zero_num_workers|empty_ps_service_type|empty_table_name)_without_wrapper" crates/monolith-training/src/runner.rs` ✅ (verified new runtime/direct-helper global-contract rejection regressions are present)
+1586. `cargo test -p monolith-training test_run_worker_role_rejects_zero_num_ps_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_zero_num_workers_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_zero_dim_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_empty_ps_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_empty_table_name_without_wrapper -- --nocapture` ✅ (validated direct worker helper rejects global config-shape invalid values before discovery/bootstrap runtime paths)
+1587. `rg "test_run_worker_role_rejects_(zero_num_ps|zero_num_workers|zero_dim|empty_ps_service_type|empty_table_name)_without_wrapper" crates/monolith-training/src/runner.rs` ✅ (verified direct worker-helper global reject regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

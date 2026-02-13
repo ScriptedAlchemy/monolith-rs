@@ -4871,6 +4871,92 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_worker_role_rejects_zero_num_ps_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg)
+            .await
+            .expect_err("run_worker_role should reject zero num_ps without wrapper");
+        assert!(
+            err.to_string().contains("num_ps > 0"),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_rejects_zero_num_workers_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_workers: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg)
+            .await
+            .expect_err("run_worker_role should reject zero num_workers without wrapper");
+        assert!(
+            err.to_string().contains("num_workers > 0"),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_rejects_zero_dim_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            dim: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg)
+            .await
+            .expect_err("run_worker_role should reject zero dim without wrapper");
+        assert!(
+            err.to_string().contains("dim > 0"),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_rejects_empty_ps_service_type_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_service_type_ps: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg)
+            .await
+            .expect_err("run_worker_role should reject empty ps service type without wrapper");
+        assert!(
+            err.to_string()
+                .contains("non-empty discovery_service_type_ps"),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_rejects_empty_table_name_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            table_name: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg)
+            .await
+            .expect_err("run_worker_role should reject empty table name without wrapper");
+        assert!(
+            err.to_string().contains("non-empty table_name"),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_worker_role_rejects_zero_heartbeat_interval_without_wrapper() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
