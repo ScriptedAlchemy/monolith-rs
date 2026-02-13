@@ -11566,6 +11566,17 @@
     userinfo rejection contracts in addition to scheme/duplicates/empty-target
     and name-shape checks.
 
+### 766) PS empty-target runtime-helper test registration repair
+- Restored `#[tokio::test]` attributes on:
+  - `test_run_ps_role_rejects_empty_parameter_sync_target_entry_without_wrapper`
+  - `test_run_distributed_rejects_empty_parameter_sync_target_entry_for_ps_role`
+- Coverage validates:
+  - both tests are now executed as intended (not dead code), preserving direct
+    helper and top-level runtime assertions for the PS empty-target contract.
+- Result:
+  - empty-target PS parameter-sync parity checks are actively executed alongside
+    newly added endpoint path/userinfo regressions.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -13181,6 +13192,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1605. `rg "test_run_(ps_role_rejects_empty_parameter_sync_target_entry_without_wrapper|distributed_rejects_empty_parameter_sync_target_entry_for_ps_role)" crates/monolith-training/src/runner.rs` ✅ (verified PS empty target-entry runtime/helper regression tests remain present)
 1606. `cargo test -p monolith-training test_run_ps_role_rejects_parameter_sync_target_endpoint_with_path_or_query_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_parameter_sync_target_endpoint_with_userinfo_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_parameter_sync_target_endpoint_with_path_or_query_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_parameter_sync_target_endpoint_with_userinfo_for_ps_role -- --nocapture` ✅ (validated PS parameter-sync endpoint path/query and userinfo reject paths for direct helper and top-level runtime entrypoints)
 1607. `rg "test_run_(ps_role_rejects_parameter_sync_target_endpoint_with_(path_or_query|userinfo)_without_wrapper|distributed_rejects_parameter_sync_target_endpoint_with_(path_or_query|userinfo)_for_ps_role)" crates/monolith-training/src/runner.rs` ✅ (verified PS endpoint path/userinfo runtime/helper reject regressions are present)
+1608. `cargo test -p monolith-training test_run_ps_role_rejects_empty_parameter_sync_target_entry_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_empty_parameter_sync_target_entry_for_ps_role -- --nocapture` ✅ (validated restored tokio test registration and execution for PS empty-target runtime/helper reject regressions)
+1609. `rg "test_run_(ps_role_rejects_parameter_sync_target_endpoint_with_(path_or_query|userinfo)_without_wrapper|distributed_rejects_parameter_sync_target_endpoint_with_(path_or_query|userinfo)_for_ps_role|ps_role_rejects_empty_parameter_sync_target_entry_without_wrapper|distributed_rejects_empty_parameter_sync_target_entry_for_ps_role)" crates/monolith-training/src/runner.rs` ✅ (verified PS endpoint path/userinfo and empty-target runtime/helper reject regression suite is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
