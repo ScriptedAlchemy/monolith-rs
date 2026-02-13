@@ -10575,6 +10575,24 @@
   - Runtime helper paths now avoid residual non-test panic assumptions tied to
     invariant literal parsing and redundant option access.
 
+### 714) Graph-meta type-mismatch panic-path hardening
+- Hardened `crates/monolith-training/src/native_training/graph_meta.rs`:
+  - replaced type-mismatch panic behavior in `get_meta_cloned`/`update_meta`
+    with deterministic mismatch-repair semantics:
+    - mismatched typed entries now log warnings and are replaced by factory
+      output,
+    - update flow rehydrates mismatched entries before applying mutation.
+- Added regressions:
+  - `test_get_meta_cloned_type_mismatch_replaces_stored_value`
+  - `test_update_meta_type_mismatch_replaces_stored_value`
+- Coverage validates:
+  - existing poisoned-mutex recovery semantics remain green,
+  - type-mismatch graph-meta entries no longer panic and are repaired
+    deterministically.
+- Result:
+  - Graph-meta runtime now avoids panic exits for stale type collisions and
+    preserves stable typed access semantics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12083,6 +12101,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1498. `cargo test -p monolith-training native_training::ragged_utils::tests::test_basic -- --nocapture && cargo test -p monolith-training test_distributed_config_from_runner_maps_fields -- --nocapture` ✅ (validated ragged-utils row-id parity and distributed-runner config mapping remain stable after panic-path cleanup)
 1499. `rg "loopback ephemeral bind address parsing should succeed" crates/monolith-training/src/runner.rs` ✅ (verified legacy runner loopback-parse panic-path expect string is removed)
 1500. `rg "row_splits should have at least one element" crates/monolith-training/src/native_training/ragged_utils.rs` ✅ (verified legacy ragged-utils redundant option-expect panic-path string is removed)
+1501. `cargo test -p monolith-training test_get_meta_cloned_ -- --nocapture && cargo test -p monolith-training test_update_meta_ -- --nocapture` ✅ (validated graph-meta type-mismatch repair regressions and poisoned-mutex recovery regressions remain stable)
+1502. `rg "graph_meta type mismatch" crates/monolith-training/src/native_training/graph_meta.rs` ✅ (verified graph-meta type-mismatch paths are warning-driven repair semantics rather than panic exits)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

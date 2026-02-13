@@ -36,16 +36,21 @@ pub fn get_meta_cloned<T: Clone + Send + Sync + 'static>(
 ) -> T {
     let mut guard = lock_store_recover();
     let g = guard.entry(graph_id.to_string()).or_default();
-    if !g.contains_key(key) {
-        g.insert(key.to_string(), Box::new(factory()));
+    if let Some(existing) = g.get(key).and_then(|v| v.downcast_ref::<T>()) {
+        return existing.clone();
     }
 
-    g.get(key)
-        .and_then(|v| v.downcast_ref::<T>())
-        .unwrap_or_else(|| {
-            panic!("graph_meta type mismatch for graph_id={graph_id}, key={key}")
-        })
-        .clone()
+    if g.contains_key(key) {
+        tracing::warn!(
+            graph_id = %graph_id,
+            key = %key,
+            "graph_meta type mismatch encountered; replacing stored value with factory output"
+        );
+    }
+
+    let created = factory();
+    g.insert(key.to_string(), Box::new(created.clone()));
+    created
 }
 
 /// Update a stored value (or create it) and return the new cloned value.
@@ -57,17 +62,25 @@ pub fn update_meta<T: Clone + Send + Sync + 'static>(
 ) -> T {
     let mut guard = lock_store_recover();
     let g = guard.entry(graph_id.to_string()).or_default();
-    if !g.contains_key(key) {
-        g.insert(key.to_string(), Box::new(factory()));
-    }
-    let v = g
-        .get_mut(key)
-        .and_then(|b| b.downcast_mut::<T>())
-        .unwrap_or_else(|| {
-            panic!("graph_meta type mismatch for graph_id={graph_id}, key={key}")
-        });
-    update(v);
-    v.clone()
+    let mut value = if let Some(existing) = g.remove(key) {
+        match existing.downcast::<T>() {
+            Ok(existing) => *existing,
+            Err(_) => {
+                tracing::warn!(
+                    graph_id = %graph_id,
+                    key = %key,
+                    "graph_meta type mismatch encountered during update; replacing stored value with factory output"
+                );
+                factory()
+            }
+        }
+    } else {
+        factory()
+    };
+    update(&mut value);
+    let ret = value.clone();
+    g.insert(key.to_string(), Box::new(value));
+    ret
 }
 
 #[cfg(test)]
@@ -128,6 +141,44 @@ mod tests {
         assert_eq!(
             updated, 13,
             "update_meta should recover from poisoned graph-meta mutex and apply update"
+        );
+    }
+
+    #[test]
+    fn test_get_meta_cloned_type_mismatch_replaces_stored_value() {
+        let graph_id = "g-mismatch";
+        let key = "k";
+        let _ = get_meta_cloned(graph_id, key, || 7i32);
+
+        let repaired = get_meta_cloned(graph_id, key, || "ok".to_string());
+        assert_eq!(
+            repaired, "ok",
+            "type mismatch should replace stale graph-meta value with factory output"
+        );
+
+        let stable = get_meta_cloned(graph_id, key, || "new".to_string());
+        assert_eq!(
+            stable, "ok",
+            "subsequent reads should reuse replaced graph-meta value after type-mismatch repair"
+        );
+    }
+
+    #[test]
+    fn test_update_meta_type_mismatch_replaces_stored_value() {
+        let graph_id = "g-mismatch-update";
+        let key = "k";
+        let _ = get_meta_cloned(graph_id, key, || 3i32);
+
+        let updated = update_meta(graph_id, key, || "x".to_string(), |v| v.push('y'));
+        assert_eq!(
+            updated, "xy",
+            "type mismatch during update should replace stale graph-meta value before applying update"
+        );
+
+        let stable = get_meta_cloned(graph_id, key, || "z".to_string());
+        assert_eq!(
+            stable, "xy",
+            "graph-meta value should persist after mismatch-recovery update"
         );
     }
 }
