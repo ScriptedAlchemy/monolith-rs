@@ -8689,6 +8689,31 @@
   - Consul lifecycle parity now explicitly includes case-insensitive HTTPS IPv6
     authority handling across connect/watch/register/discover/deregister flows.
 
+### 634) Discovery Consul hostname host:port lifecycle parity
+- Added hostname host:port regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_normalize_consul_address_for_operation_adds_http_scheme_to_hostname_with_port`
+  - `test_consul_watch_async_hostname_port_without_scheme_seeds_poll_generation_entry`
+  - `test_consul_watch_async_hostname_port_without_scheme_disconnect_clears_poll_generation_with_live_receiver`
+  - `test_consul_connect_hostname_port_without_scheme_initializes_client_handle`
+  - `test_consul_connect_hostname_port_without_scheme_disconnect_and_reconnect`
+  - `test_consul_async_register_hostname_port_without_scheme_uses_operation_context`
+  - `test_consul_async_register_hostname_port_without_scheme_compacts_dead_watchers`
+  - `test_consul_async_register_hostname_port_without_scheme_keeps_live_watchers`
+  - `test_consul_discover_async_hostname_port_without_scheme_uses_operation_context`
+  - `test_consul_discover_async_hostname_port_without_scheme_preserves_local_cache`
+  - `test_consul_async_deregister_hostname_port_without_scheme_uses_operation_context`
+  - `test_consul_async_deregister_hostname_port_without_scheme_compacts_dead_watchers`
+- Coverage validates `localhost:8501` authority handling remains parity-safe:
+  - normalization prepends `http://` for hostname host:port authorities,
+  - connect/disconnect client-handle lifecycle remains deterministic,
+  - watch poll-generation state and watcher sender compaction stay symmetric,
+  - register/discover/deregister preserve explicit `Internal` operation context
+    and stable local-cache cleanup semantics.
+- Result:
+  - Consul lifecycle parity now explicitly includes hostname host:port lanes
+    across connect/watch/register/discover/deregister operations.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -10020,6 +10045,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1321. `rg "test_(normalize_consul_address_for_operation_accepts_case_insensitive_https_scheme|consul_(connect_case_insensitive_https_scheme_and_root_slash_(succeeds|disconnect_and_reconnect)|watch_async_case_insensitive_https_scheme_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|async_register_case_insensitive_https_scheme_and_root_slash_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_case_insensitive_https_scheme_and_root_slash_(uses_operation_context|preserves_local_cache)|async_deregister_case_insensitive_https_scheme_and_root_slash_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified case-insensitive HTTPS Consul lifecycle regression tests are present)
 1322. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_normalize_consul_address_for_operation_accepts_case_insensitive_https_scheme_with_ipv6 -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_case_insensitive_https_scheme_ipv6 -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_case_insensitive_https_scheme_and_root_slash_ipv6 -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_case_insensitive_https_scheme_and_root_slash_ipv6 -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_case_insensitive_https_scheme_and_root_slash_ipv6 -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_case_insensitive_https_scheme_and_root_slash_ipv6 -- --nocapture` ✅ (validated case-insensitive HTTPS IPv6 Consul lifecycle regressions across normalization/connect/watch/register/discover/deregister)
 1323. `rg "test_(normalize_consul_address_for_operation_accepts_case_insensitive_https_scheme_with_ipv6|consul_(watch_async_case_insensitive_https_scheme_ipv6_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_case_insensitive_https_scheme_and_root_slash_ipv6_(succeeds|disconnect_and_reconnect)|async_register_case_insensitive_https_scheme_and_root_slash_ipv6_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_case_insensitive_https_scheme_and_root_slash_ipv6_(uses_operation_context|preserves_local_cache)|async_deregister_case_insensitive_https_scheme_and_root_slash_ipv6_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified case-insensitive HTTPS IPv6 Consul lifecycle regression tests are present)
+1324. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_normalize_consul_address_for_operation_adds_http_scheme_to_hostname_with_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_hostname_port_without_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_hostname_port_without_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_hostname_port_without_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_hostname_port_without_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_hostname_port_without_scheme -- --nocapture` ✅ (validated hostname host:port Consul lifecycle regressions across normalization/connect/watch/register/discover/deregister)
+1325. `rg "test_(normalize_consul_address_for_operation_adds_http_scheme_to_hostname_with_port|consul_(watch_async_hostname_port_without_scheme_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_hostname_port_without_scheme_(initializes_client_handle|disconnect_and_reconnect)|async_register_hostname_port_without_scheme_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_hostname_port_without_scheme_(uses_operation_context|preserves_local_cache)|async_deregister_hostname_port_without_scheme_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified hostname host:port Consul lifecycle regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
