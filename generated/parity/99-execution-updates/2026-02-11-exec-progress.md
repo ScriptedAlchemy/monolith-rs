@@ -7468,6 +7468,24 @@
     symmetry across fragment, empty-host, userinfo, whitespace-authority, and
     leading/trailing-whitespace address forms.
 
+### 554) Discovery Consul query/fragment lifecycle coverage across connect/register/deregister
+- Expanded Consul query/fragment malformed-address coverage in
+  `crates/monolith-training/src/discovery.rs` with new regressions spanning
+  connect/register/deregister operations:
+  - connect classification:
+    - `test_consul_connect_address_query_is_classified_as_config_error`
+    - `test_consul_connect_address_fragment_is_classified_as_config_error`
+  - register watcher behavior for query suffix:
+    - `test_consul_async_register_address_query_compacts_dead_watchers`
+    - `test_consul_async_register_address_query_keeps_live_watchers`
+  - deregister cleanup-notification behavior:
+    - `test_consul_async_deregister_address_query_still_notifies_and_returns_error`
+    - `test_consul_async_deregister_address_fragment_still_notifies_and_returns_error`
+- Result:
+  - query/fragment config-shape handling now has broader lifecycle parity
+    coverage across connect, register (dead/live watcher symmetry), and
+    deregister cleanup contracts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8633,6 +8651,8 @@
 1162. `rg "test_zk_(watch_async_out_of_range_port_(compacts_dead_watch_sender|preserves_live_watch_sender)|async_deregister_out_of_range_port_still_notifies_and_returns_error)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper out-of-range watch/deregister lifecycle tests are present)
 1163. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_address_fragment_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_empty_host_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_userinfo_authority_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_whitespace_authority_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_leading_trailing_whitespace_keeps_live_watchers -- --nocapture` ✅ (validated Consul register keep-live watcher symmetry regressions across remaining malformed-address shapes)
 1164. `rg "test_consul_async_register_(address_fragment|empty_host|userinfo_authority|whitespace_authority|leading_trailing_whitespace)_keeps_live_watchers" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul register keep-live watcher symmetry tests are present)
+1165. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_connect_address_query_is_classified_as_config_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_connect_address_fragment_is_classified_as_config_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_address_query_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_address_query_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_address_query_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_address_fragment_still_notifies_and_returns_error -- --nocapture` ✅ (validated Consul query/fragment lifecycle regressions across connect/register/deregister paths)
+1166. `rg "test_consul_(connect_address_(query|fragment)_is_classified_as_config_error|async_register_address_query_(compacts_dead_watchers|keeps_live_watchers)|async_deregister_address_(query|fragment)_still_notifies_and_returns_error)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul query/fragment lifecycle tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
