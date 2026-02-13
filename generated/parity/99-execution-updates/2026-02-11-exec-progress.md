@@ -10720,6 +10720,27 @@
     assumptions, aligning with explicit helper construction style used
     elsewhere.
 
+### 721) Native-training helper explicit-error contracts promoted to integration parity coverage
+- Expanded `crates/monolith-training/tests/native_training_parity.rs` with new
+  integration-level contract tests for helper APIs recently hardened away from
+  runtime panic/assert assumptions:
+  - `native_training_device_utils_visible_gpu_contracts`
+    - validates success behavior and explicit
+      `DeviceUtilsError::InvalidProcessesPerGpu`.
+  - `native_training_gen_seq_mask_empty_input_contracts`
+    - validates explicit `GenSeqMaskError::EmptyRowSplits` for i32/i64 empty
+      inputs.
+  - `native_training_ragged_value_rowids_error_contracts`
+    - validates `RaggedUtilsError::EmptyRowSplits` and
+      `RaggedUtilsError::NonMonotonicRowSplits { index, start, end }`.
+- Coverage validates:
+  - error-shape contracts are now guarded by integration parity tests (not only
+    unit-module regressions),
+  - helper API behavior remains stable under targeted parity execution.
+- Result:
+  - helper panic-path eliminations now have cross-layer parity locking at the
+    integration test level.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12243,6 +12264,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1513. `python3 - <<'PY' ... non-test assert scan ... PY` ✅ (verified runtime `assert!` usage has been eliminated from non-test monolith-training source, aside from doc examples)
 1514. `cargo test -p monolith-training test_estimator_run_distributed_runtime_smoke -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_in_memory_ps_and_worker -- --nocapture` ✅ (validated estimator and integration parity distributed-runner smoke paths remain stable after loopback bind-helper cleanup)
 1515. `rg "loopback ephemeral bind address parsing should succeed" crates/monolith-training` ✅ (verified legacy parse+expect loopback helper panic-path string is removed from monolith-training crate)
+1516. `cargo test -p monolith-training --test native_training_parity native_training_device_utils_visible_gpu_contracts -- --nocapture && cargo test -p monolith-training --test native_training_parity native_training_gen_seq_mask_empty_input_contracts -- --nocapture && cargo test -p monolith-training --test native_training_parity native_training_ragged_value_rowids_error_contracts -- --nocapture` ✅ (validated integration parity coverage for newly explicit helper error contracts in device_utils, gen_seq_mask, and ragged_utils)
+1517. `rg "native_training_(device_utils_visible_gpu_contracts|gen_seq_mask_empty_input_contracts|ragged_value_rowids_error_contracts)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified new integration parity helper-contract regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

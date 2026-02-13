@@ -98,6 +98,83 @@ fn entry_batch_softmax_initializer_errors_like_python() {
     );
 }
 
+#[test]
+fn native_training_device_utils_visible_gpu_contracts() {
+    use monolith_training::native_training::device_utils::{
+        get_visible_gpus, DeviceUtilsError,
+    };
+
+    assert_eq!(
+        get_visible_gpus(2, 1).expect("processes_per_gpu=1 should succeed"),
+        "2"
+    );
+    assert_eq!(
+        get_visible_gpus(3, 2).expect("processes_per_gpu=2 should succeed"),
+        "1"
+    );
+
+    let err =
+        get_visible_gpus(7, 0).expect_err("non-positive processes_per_gpu should return error");
+    assert!(
+        matches!(
+            err,
+            DeviceUtilsError::InvalidProcessesPerGpu {
+                processes_per_gpu: 0
+            }
+        ),
+        "expected InvalidProcessesPerGpu(0), got {err:?}"
+    );
+}
+
+#[test]
+fn native_training_gen_seq_mask_empty_input_contracts() {
+    use monolith_training::native_training::gen_seq_mask::{
+        gen_seq_mask_i32, gen_seq_mask_i64, GenSeqMaskError,
+    };
+
+    let err_i32 =
+        gen_seq_mask_i32(&[], 4).expect_err("empty i32 row_splits should return explicit error");
+    assert!(
+        matches!(err_i32, GenSeqMaskError::EmptyRowSplits),
+        "expected EmptyRowSplits for i32 path, got {err_i32:?}"
+    );
+
+    let err_i64 =
+        gen_seq_mask_i64(&[], 4).expect_err("empty i64 row_splits should return explicit error");
+    assert!(
+        matches!(err_i64, GenSeqMaskError::EmptyRowSplits),
+        "expected EmptyRowSplits for i64 path, got {err_i64:?}"
+    );
+}
+
+#[test]
+fn native_training_ragged_value_rowids_error_contracts() {
+    use monolith_training::native_training::ragged_utils::{
+        fused_value_rowids, RaggedUtilsError,
+    };
+
+    let empty_err =
+        fused_value_rowids(&[]).expect_err("empty row_splits should return explicit error");
+    assert!(
+        matches!(empty_err, RaggedUtilsError::EmptyRowSplits),
+        "expected EmptyRowSplits, got {empty_err:?}"
+    );
+
+    let non_monotonic_err = fused_value_rowids(&[0usize, 3, 2])
+        .expect_err("decreasing row_splits should return explicit non-monotonic error");
+    assert!(
+        matches!(
+            non_monotonic_err,
+            RaggedUtilsError::NonMonotonicRowSplits {
+                index: 1,
+                start: 3,
+                end: 2
+            }
+        ),
+        "expected NonMonotonicRowSplits(index=1,start=3,end=2), got {non_monotonic_err:?}"
+    );
+}
+
 #[tokio::test]
 async fn distributed_runner_in_memory_ps_and_worker() {
     // Mirrors "distributed" smoke tests: can start PS + worker, discover, lookup, barrier, apply.
