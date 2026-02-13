@@ -7716,6 +7716,17 @@
   - Consul connect parity now includes an explicit positive-path acceptance
     contract in addition to existing malformed-address rejection coverage.
 
+### 573) Discovery Consul connect empty-address default-endpoint acceptance parity
+- Added a Consul connect default-endpoint regression in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_connect_empty_address_initializes_default_client_handle`
+- Coverage validates the empty-address acceptance contract:
+  - empty address is accepted (normalized to default endpoint behavior),
+  - connect initializes the internal Consul client handle.
+- Result:
+  - Consul connect parity now explicitly covers default-endpoint initialization
+    behavior for empty configured addresses.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8918,6 +8929,8 @@
 1199. `rg "test_consul_disconnect_clears_client_handle_and_allows_reconnect" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul disconnect lifecycle cleanup regression is present)
 1200. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_connect_case_insensitive_scheme_and_root_slash_succeeds -- --nocapture` ✅ (validated Consul connect accepts case-insensitive scheme with root slash and initializes client handle)
 1201. `rg "test_consul_connect_case_insensitive_scheme_and_root_slash_succeeds" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul connect positive-path acceptance regression is present)
+1202. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_connect_empty_address_initializes_default_client_handle -- --nocapture` ✅ (validated Consul connect accepts empty address and initializes client handle via default endpoint semantics)
+1203. `rg "test_consul_connect_empty_address_initializes_default_client_handle" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul connect empty-address default-endpoint regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
