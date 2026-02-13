@@ -9618,6 +9618,33 @@
     host-only IPv6 no-root-slash lanes across
     connect/watch/register/discover/deregister operations.
 
+### 670) Discovery Consul explicit-HTTPS host-only IPv6 (root-slash) lifecycle parity
+- Added explicit-HTTPS host-only IPv6 + root-slash regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_normalize_consul_address_for_operation_accepts_explicit_https_scheme_with_ipv6_without_port`
+  - `test_consul_watch_async_https_ipv6_without_port_and_root_slash_seeds_poll_generation_entry`
+  - `test_consul_watch_async_https_ipv6_without_port_and_root_slash_disconnect_clears_poll_generation_with_live_receiver`
+  - `test_consul_connect_https_ipv6_without_port_and_root_slash_initializes_client_handle`
+  - `test_consul_connect_https_ipv6_without_port_and_root_slash_disconnect_and_reconnect`
+  - `test_consul_async_register_https_ipv6_without_port_and_root_slash_uses_operation_context`
+  - `test_consul_async_register_https_ipv6_without_port_and_root_slash_compacts_dead_watchers`
+  - `test_consul_async_register_https_ipv6_without_port_and_root_slash_keeps_live_watchers`
+  - `test_consul_discover_async_https_ipv6_without_port_and_root_slash_uses_operation_context`
+  - `test_consul_discover_async_https_ipv6_without_port_and_root_slash_preserves_local_cache`
+  - `test_consul_async_deregister_https_ipv6_without_port_and_root_slash_uses_operation_context`
+  - `test_consul_async_deregister_https_ipv6_without_port_and_root_slash_compacts_dead_watchers`
+- Coverage validates `https://[::1]/` normalization + lifecycle behavior remains parity-safe:
+  - explicit HTTPS scheme is preserved and root slash is trimmed for
+    host-only IPv6 authorities,
+  - connect/disconnect client-handle lifecycle remains deterministic,
+  - watch poll-generation state and watcher sender compaction stay symmetric,
+  - register/discover/deregister preserve explicit `Internal` operation context
+    and stable local-cache cleanup semantics.
+- Result:
+  - Consul lifecycle parity now explicitly includes explicit-HTTPS
+    host-only IPv6 root-slash lanes across
+    connect/watch/register/discover/deregister operations.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11021,6 +11048,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1393. `rg "test_(normalize_consul_address_for_operation_accepts_case_insensitive_scheme_with_ipv6_without_port|consul_(watch_async_case_insensitive_scheme_and_root_slash_ipv6_without_port_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_case_insensitive_scheme_and_root_slash_ipv6_without_port_(succeeds|disconnect_and_reconnect)|async_register_case_insensitive_scheme_and_root_slash_ipv6_without_port_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_case_insensitive_scheme_and_root_slash_ipv6_without_port_(uses_operation_context|preserves_local_cache)|async_deregister_case_insensitive_scheme_and_root_slash_ipv6_without_port_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified case-insensitive HTTP host-only IPv6 root-slash lifecycle regression tests are present)
 1394. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_normalize_consul_address_for_operation_accepts_explicit_https_scheme_with_ipv6_without_port_no_root_slash -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_https_ipv6_without_port_no_root_slash -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_https_ipv6_without_port_no_root_slash -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_https_ipv6_without_port_no_root_slash -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_https_ipv6_without_port_no_root_slash -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_https_ipv6_without_port_no_root_slash -- --nocapture` ✅ (validated explicit-HTTPS host-only IPv6 no-root-slash Consul lifecycle regressions across normalization/connect/watch/register/discover/deregister)
 1395. `rg "test_(normalize_consul_address_for_operation_accepts_explicit_https_scheme_with_ipv6_without_port_no_root_slash|consul_(watch_async_https_ipv6_without_port_no_root_slash_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_https_ipv6_without_port_no_root_slash_(initializes_client_handle|disconnect_and_reconnect)|async_register_https_ipv6_without_port_no_root_slash_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_https_ipv6_without_port_no_root_slash_(uses_operation_context|preserves_local_cache)|async_deregister_https_ipv6_without_port_no_root_slash_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified explicit-HTTPS host-only IPv6 no-root-slash lifecycle regression tests are present)
+1396. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_normalize_consul_address_for_operation_accepts_explicit_https_scheme_with_ipv6_without_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_https_ipv6_without_port_and_root_slash -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_https_ipv6_without_port_and_root_slash -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_https_ipv6_without_port_and_root_slash -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_https_ipv6_without_port_and_root_slash -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_https_ipv6_without_port_and_root_slash -- --nocapture` ✅ (validated explicit-HTTPS host-only IPv6 root-slash Consul lifecycle regressions across normalization/connect/watch/register/discover/deregister)
+1397. `rg "test_(normalize_consul_address_for_operation_accepts_explicit_https_scheme_with_ipv6_without_port|consul_(watch_async_https_ipv6_without_port_and_root_slash_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_https_ipv6_without_port_and_root_slash_(initializes_client_handle|disconnect_and_reconnect)|async_register_https_ipv6_without_port_and_root_slash_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_https_ipv6_without_port_and_root_slash_(uses_operation_context|preserves_local_cache)|async_deregister_https_ipv6_without_port_and_root_slash_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified explicit-HTTPS host-only IPv6 root-slash lifecycle regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
