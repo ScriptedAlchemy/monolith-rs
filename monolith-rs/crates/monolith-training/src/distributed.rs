@@ -588,8 +588,31 @@ impl LocalCluster {
             ));
         }
 
+        let mut ordered_gradients: Vec<(&String, &Vec<f32>)> = gradients.iter().collect();
+        ordered_gradients.sort_by(|(left, _), (right, _)| left.cmp(right));
+
+        // Validate all gradient targets before mutating parameter shards so that
+        // failed train steps remain atomic.
+        for (param_name, grad) in &ordered_gradients {
+            let ps_idx = get_ps_index(param_name, self.parameter_servers.len());
+            let ps = self.parameter_servers.get(ps_idx).ok_or_else(|| {
+                DistributedError::InvalidConfiguration(format!("Invalid PS index {}", ps_idx))
+            })?;
+            let state = ps
+                .parameters
+                .get(*param_name)
+                .ok_or_else(|| DistributedError::ParameterNotFound((*param_name).clone()))?;
+            if grad.len() != state.values.len() {
+                return Err(DistributedError::CommunicationError(format!(
+                    "Gradient size mismatch: expected {}, got {}",
+                    state.values.len(),
+                    grad.len()
+                )));
+            }
+        }
+
         let mut updated = HashMap::new();
-        for (param_name, grad) in gradients {
+        for (param_name, grad) in ordered_gradients {
             let ps_idx = get_ps_index(param_name, self.parameter_servers.len());
             let ps = self.parameter_servers.get_mut(ps_idx).ok_or_else(|| {
                 DistributedError::InvalidConfiguration(format!("Invalid PS index {}", ps_idx))
@@ -1394,6 +1417,87 @@ mod tests {
                 .expect("worker_step(0) should remain readable after failed train_step"),
             0,
             "failed train_step should not advance worker step for gradient-size mismatch errors"
+        );
+    }
+
+    #[test]
+    fn test_local_cluster_train_step_unknown_parameter_keeps_existing_parameters_unchanged() {
+        let cfg = ClusterConfig::new(vec![make_addr(5000)], vec![make_addr(6000)], 0, false);
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for unknown-parameter atomicity test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for unknown-parameter atomicity test");
+        cluster
+            .register_parameter("a_known", vec![1.0, 2.0])
+            .expect("register_parameter should seed known parameter before atomicity failure case");
+
+        let mut grads = HashMap::new();
+        grads.insert("a_known".to_string(), vec![0.5, 1.0]);
+        grads.insert("z_unknown".to_string(), vec![0.5, 1.0]);
+        let err = cluster
+            .train_step(0, &grads)
+            .expect_err("train_step should fail when one gradient target is unknown");
+        assert!(
+            matches!(err, DistributedError::ParameterNotFound(ref name) if name == "z_unknown"),
+            "expected ParameterNotFound(z_unknown), got {err:?}"
+        );
+        assert_eq!(
+            cluster.get_parameter("a_known"),
+            Some(vec![1.0, 2.0]),
+            "failed train_step should not partially update known parameters when another gradient target is missing"
+        );
+        assert_eq!(
+            cluster
+                .worker_step(0)
+                .expect("worker_step(0) should remain readable after failed train_step"),
+            0,
+            "failed train_step should not advance worker step when unknown parameter is present"
+        );
+    }
+
+    #[test]
+    fn test_local_cluster_train_step_gradient_mismatch_keeps_other_parameters_unchanged() {
+        let cfg = ClusterConfig::new(vec![make_addr(5000)], vec![make_addr(6000)], 0, false);
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for gradient-mismatch atomicity test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for gradient-mismatch atomicity test");
+        cluster
+            .register_parameter("a_known", vec![1.0, 2.0])
+            .expect("register_parameter should seed known parameter before atomicity mismatch case");
+        cluster
+            .register_parameter("b_mismatch", vec![3.0, 4.0])
+            .expect("register_parameter should seed mismatch parameter before atomicity mismatch case");
+
+        let mut grads = HashMap::new();
+        grads.insert("a_known".to_string(), vec![0.5, 1.0]);
+        grads.insert("b_mismatch".to_string(), vec![0.5]);
+        let err = cluster
+            .train_step(0, &grads)
+            .expect_err("train_step should fail when one gradient has a size mismatch");
+        assert!(
+            matches!(err, DistributedError::CommunicationError(ref msg)
+                if msg.contains("Gradient size mismatch")),
+            "expected CommunicationError mentioning gradient-size mismatch, got {err:?}"
+        );
+        assert_eq!(
+            cluster.get_parameter("a_known"),
+            Some(vec![1.0, 2.0]),
+            "failed train_step should not partially update valid parameters when another gradient has mismatched shape"
+        );
+        assert_eq!(
+            cluster.get_parameter("b_mismatch"),
+            Some(vec![3.0, 4.0]),
+            "failed train_step should preserve mismatched parameter values"
+        );
+        assert_eq!(
+            cluster
+                .worker_step(0)
+                .expect("worker_step(0) should remain readable after failed train_step"),
+            0,
+            "failed train_step should not advance worker step when gradient shape mismatch is present"
         );
     }
 

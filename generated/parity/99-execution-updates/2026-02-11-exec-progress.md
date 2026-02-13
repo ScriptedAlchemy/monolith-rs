@@ -10205,6 +10205,22 @@
   - Local-cluster worker-step progression now remains success-gated for
     train-step updates, avoiding step drift on failed gradient application.
 
+### 691) Distributed local-cluster train-step all-or-nothing parameter update semantics
+- Further hardened `LocalCluster::train_step` in
+  `crates/monolith-training/src/distributed.rs`:
+  - gradients are now processed in deterministic key order,
+  - all gradient targets are pre-validated (parameter existence + shape) before
+    any parameter shard mutation,
+  - parameter updates are applied only after full validation passes.
+- Added regression coverage:
+  - `test_local_cluster_train_step_unknown_parameter_keeps_existing_parameters_unchanged`
+  - `test_local_cluster_train_step_gradient_mismatch_keeps_other_parameters_unchanged`
+- Coverage validates failed multi-parameter train steps do not partially mutate
+  already-valid parameters, preserving deterministic retry and barrier behavior.
+- Result:
+  - Local-cluster train steps now provide deterministic all-or-nothing updates
+    for parameter mutations under validation failures.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11650,6 +11666,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1435. `rg "test_(normalize_consul_address_for_operation_accepts_explicit_http_scheme_with_ipv6_without_port(_no_root_slash)?|consul_(watch_async_http_ipv6_without_port(_no_root_slash|_and_root_slash)?_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_http_ipv6_without_port(_no_root_slash|_and_root_slash)?_(initializes_client_handle|disconnect_and_reconnect)|async_register_http_ipv6_without_port(_no_root_slash|_and_root_slash)?_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_http_ipv6_without_port(_no_root_slash|_and_root_slash)?_(uses_operation_context|preserves_local_cache)|async_deregister_http_ipv6_without_port(_no_root_slash|_and_root_slash)?_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified explicit-HTTP IPv6 host-only no-root/root-slash lifecycle regression tests are present)
 1436. `cargo test -p monolith-training test_local_cluster_train_step_unknown_parameter_does_not_advance_worker_step -- --nocapture && cargo test -p monolith-training test_local_cluster_train_step_gradient_mismatch_does_not_advance_worker_step -- --nocapture` ✅ (validated local-cluster train-step failures no longer advance worker step on unknown-parameter and gradient-size mismatch errors)
 1437. `rg "test_local_cluster_train_step_(unknown_parameter|gradient_mismatch)_does_not_advance_worker_step" crates/monolith-training/src/distributed.rs` ✅ (verified distributed train-step failure atomicity regressions are present)
+1438. `cargo test -p monolith-training test_local_cluster_train_step_ -- --nocapture` ✅ (validated extended local-cluster train-step atomicity regressions, including no-partial-update guarantees across mixed valid/invalid gradients)
+1439. `rg "test_local_cluster_train_step_(unknown_parameter_keeps_existing_parameters_unchanged|gradient_mismatch_keeps_other_parameters_unchanged)" crates/monolith-training/src/distributed.rs` ✅ (verified all-or-nothing local-cluster train-step parameter-mutation regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
