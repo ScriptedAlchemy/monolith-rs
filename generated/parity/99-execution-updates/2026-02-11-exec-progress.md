@@ -7254,6 +7254,20 @@
   - malformed-host-entry lifecycle coverage now spans watch/connect/register/
     deregister paths with explicit cleanup/failure-shape guarantees.
 
+### 539) Discovery Consul invalid-IPv6-suffix watch/deregister lifecycle contracts
+- Expanded Consul invalid-IPv6-suffix lifecycle coverage in
+  `crates/monolith-training/src/discovery.rs` for malformed bracketed authority
+  suffixes (`http://[::1]x:8500`):
+  - added `watch_async` regression to verify operation-scoped config errors and
+    no watcher/poll-generation state creation.
+  - added `deregister_async` regression to verify config failures still:
+    - emit `ServiceRemoved` events,
+    - preserve local-cache removal semantics.
+- Result:
+  - invalid-IPv6-suffix coverage now spans watch/connect/discover/register/
+    deregister lifecycle paths with explicit failure-shape and cleanup
+    guarantees.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8389,6 +8403,8 @@
 1132. `rg "test_consul_async_(register_out_of_range_port_compacts_dead_watchers|deregister_out_of_range_port_still_notifies_and_returns_error)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul out-of-range register/deregister tests are present)
 1133. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_malformed_ipv6_host_entry_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_malformed_ipv6_host_entry_still_notifies_and_returns_error -- --nocapture` ✅ (validated ZooKeeper malformed-host-entry register/deregister cleanup regressions)
 1134. `rg "test_zk_async_(register_malformed_ipv6_host_entry_compacts_dead_watchers|deregister_malformed_ipv6_host_entry_still_notifies_and_returns_error)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper malformed-host-entry register/deregister cleanup tests are present)
+1135. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_invalid_ipv6_suffix_rejects_without_state_changes -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_invalid_ipv6_suffix_still_notifies_and_returns_error -- --nocapture` ✅ (validated Consul invalid-IPv6-suffix watch/deregister lifecycle cleanup regressions)
+1136. `rg "test_consul_(watch_async_invalid_ipv6_suffix_rejects_without_state_changes|async_deregister_invalid_ipv6_suffix_still_notifies_and_returns_error)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul invalid-IPv6-suffix watch/deregister tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

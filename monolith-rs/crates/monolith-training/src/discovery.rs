@@ -4740,6 +4740,31 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_watch_async_invalid_ipv6_suffix_rejects_without_state_changes() {
+        let consul = ConsulDiscovery::new("http://[::1]x:8500");
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("invalid IPv6 suffix should be rejected before watch state is created");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("invalid authority")),
+            "expected ConfigError containing watch_service invalid-IPv6-suffix context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "invalid-IPv6-suffix watch_async should not create watcher sender entries"
+        );
+        assert!(
+            !consul_has_watch_poll_generation(&consul, "worker"),
+            "invalid-IPv6-suffix watch_async should not seed poll-generation bookkeeping"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_watch_async_userinfo_authority_rejects_without_state_changes() {
         let consul = ConsulDiscovery::new("http://user@127.0.0.1:8500");
 
@@ -5907,6 +5932,46 @@ mod tests {
                 .expect("sync discover should succeed after async deregister failure")
                 .is_empty(),
             "local cache entry should remain removed even when async deregister fails due to out-of-range port"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_invalid_ipv6_suffix_still_notifies_and_returns_error() {
+        let consul = ConsulDiscovery::new("http://[::1]x:8500");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let mut rx = consul.watch("worker").expect("watch should succeed");
+
+        let result =
+            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id)
+                .await;
+        let err = result.expect_err("invalid IPv6 suffix authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid authority")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing invalid-IPv6-suffix deregister context, got {err:?}"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == &service.id),
+            "expected ServiceRemoved({}), got {event:?}",
+            service.id
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("sync discover should succeed after async deregister failure")
+                .is_empty(),
+            "local cache entry should remain removed even when async deregister fails due to invalid IPv6 suffix"
         );
     }
 
