@@ -9250,6 +9250,80 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_watch_async_case_insensitive_scheme_and_root_slash_seeds_poll_generation_entry(
+    ) {
+        let consul = ConsulDiscovery::new("HTTP://127.0.0.1:8500/");
+
+        let rx = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("watch_async should accept case-insensitive scheme and root slash");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch_async should create watcher sender entry for normalized case-insensitive root-slash address"
+        );
+        assert!(
+            consul_has_watch_poll_generation(&consul, "worker"),
+            "watch_async should seed poll-generation bookkeeping for normalized case-insensitive root-slash address"
+        );
+
+        drop(rx);
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                if !consul_has_watch_poll_generation(&consul, "worker") {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        })
+        .await
+        .expect("poll-generation entry should clear after case-insensitive root-slash watcher receiver drops");
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "case-insensitive root-slash watch_async should compact dead watcher sender after receiver drops"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_case_insensitive_scheme_and_root_slash_disconnect_clears_poll_generation_with_live_receiver(
+    ) {
+        let consul = ConsulDiscovery::new("HTTP://127.0.0.1:8500/");
+        let rx = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("watch_async should accept case-insensitive scheme and root slash");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch_async should create watcher sender entry for normalized case-insensitive root-slash address"
+        );
+        assert!(
+            consul_has_watch_poll_generation(&consul, "worker"),
+            "watch_async should seed poll-generation bookkeeping for normalized case-insensitive root-slash address"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "disconnect should preserve live watcher sender entries"
+        );
+        assert!(
+            !consul_has_watch_poll_generation(&consul, "worker"),
+            "disconnect should clear poll-generation bookkeeping even when receiver is live"
+        );
+
+        drop(rx);
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "disconnect should compact watcher sender after receiver is dropped"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_watch_async_case_insensitive_https_scheme_seeds_poll_generation_entry() {
         let consul = ConsulDiscovery::new("HtTpS://127.0.0.1:8501/");
 

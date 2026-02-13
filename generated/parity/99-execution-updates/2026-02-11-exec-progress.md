@@ -8714,6 +8714,20 @@
   - Consul lifecycle parity now explicitly includes hostname host:port lanes
     across connect/watch/register/discover/deregister operations.
 
+### 635) Discovery Consul case-insensitive root-slash watch naming parity closure
+- Added explicit root-slash watch regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_watch_async_case_insensitive_scheme_and_root_slash_seeds_poll_generation_entry`
+  - `test_consul_watch_async_case_insensitive_scheme_and_root_slash_disconnect_clears_poll_generation_with_live_receiver`
+- Coverage validates the exact `HTTP://127.0.0.1:8500/` lane now has
+  watch-specific seed/disconnect tests named with full lane taxonomy:
+  - watch subscribe seeds poll-generation bookkeeping,
+  - disconnect clears poll-generation state while preserving live senders,
+  - dropped receivers are compacted deterministically.
+- Result:
+  - Case-insensitive root-slash lane now has explicit watch test-name symmetry
+    aligned with connect/register/discover/deregister lane naming.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -10047,6 +10061,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1323. `rg "test_(normalize_consul_address_for_operation_accepts_case_insensitive_https_scheme_with_ipv6|consul_(watch_async_case_insensitive_https_scheme_ipv6_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_case_insensitive_https_scheme_and_root_slash_ipv6_(succeeds|disconnect_and_reconnect)|async_register_case_insensitive_https_scheme_and_root_slash_ipv6_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_case_insensitive_https_scheme_and_root_slash_ipv6_(uses_operation_context|preserves_local_cache)|async_deregister_case_insensitive_https_scheme_and_root_slash_ipv6_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified case-insensitive HTTPS IPv6 Consul lifecycle regression tests are present)
 1324. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_normalize_consul_address_for_operation_adds_http_scheme_to_hostname_with_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_hostname_port_without_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_hostname_port_without_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_hostname_port_without_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_hostname_port_without_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_hostname_port_without_scheme -- --nocapture` ✅ (validated hostname host:port Consul lifecycle regressions across normalization/connect/watch/register/discover/deregister)
 1325. `rg "test_(normalize_consul_address_for_operation_adds_http_scheme_to_hostname_with_port|consul_(watch_async_hostname_port_without_scheme_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_hostname_port_without_scheme_(initializes_client_handle|disconnect_and_reconnect)|async_register_hostname_port_without_scheme_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_hostname_port_without_scheme_(uses_operation_context|preserves_local_cache)|async_deregister_hostname_port_without_scheme_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified hostname host:port Consul lifecycle regression tests are present)
+1326. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_case_insensitive_scheme_and_root_slash -- --nocapture` ✅ (validated case-insensitive root-slash watch seed/disconnect lifecycle regressions)
+1327. `rg "test_consul_watch_async_case_insensitive_scheme_and_root_slash_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)" crates/monolith-training/src/discovery.rs` ✅ (verified case-insensitive root-slash watch lifecycle regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
