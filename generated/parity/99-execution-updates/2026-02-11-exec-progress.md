@@ -8235,6 +8235,21 @@
   - Host-only mixed-family parity now extends from connect/discover contracts
     to async register/deregister watcher symmetry and cache-retention behavior.
 
+### 610) Discovery ZooKeeper host-only mixed-family retention/cleanup tightening
+- Added additional host-only mixed-family lifecycle regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_zk_async_deregister_valid_host_only_mixed_ipv4_ipv6_hosts_failure_cleans_registered_path`
+  - `test_zk_async_deregister_valid_host_only_mixed_ipv4_ipv6_hosts_failure_keeps_live_watchers`
+  - `test_zk_watch_async_valid_host_only_mixed_ipv4_ipv6_hosts_disconnect_clears_poll_generation_with_live_receiver`
+- Coverage tightens retention and disconnect cleanup semantics:
+  - deregister failures clear registered-path bookkeeping and preserve live
+    watcher sender entries post-notification,
+  - watch/disconnect preserves live watcher sender entries while clearing
+    poll-generation state, then compacts dead watchers after receiver drop.
+- Result:
+  - Host-only mixed-family parity now includes full deregister retention and
+    watch/disconnect cleanup guarantees aligned with other host-list lanes.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9511,6 +9526,8 @@
 1273. `rg "test_zk_(connect_valid_host_only_mixed_ipv4_ipv6_hosts_returns_connection_failed_when_unreachable|discover_async_valid_host_only_mixed_ipv4_ipv6_hosts_connection_failure_(is_connection_failed|preserves_local_cache))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper host-only mixed-family regression tests are present)
 1274. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_valid_host_only_mixed_ipv4_ipv6_hosts_failure_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_valid_host_only_mixed_ipv4_ipv6_hosts_failure_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_valid_host_only_mixed_ipv4_ipv6_hosts_failure_does_not_cache_service -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_valid_host_only_mixed_ipv4_ipv6_hosts_failure_still_removes_local_cache_and_notifies_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_valid_host_only_mixed_ipv4_ipv6_hosts_failure_compacts_dead_watchers -- --nocapture` ✅ (validated ZooKeeper host-only mixed-family async register/deregister watcher-symmetry and cache-retention regressions)
 1275. `rg "test_zk_(async_register_valid_host_only_mixed_ipv4_ipv6_hosts_failure_(compacts_dead_watchers|keeps_live_watchers|does_not_cache_service)|async_deregister_valid_host_only_mixed_ipv4_ipv6_hosts_failure_(still_removes_local_cache_and_notifies_watchers|compacts_dead_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper host-only mixed-family async lifecycle regression tests are present)
+1276. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_valid_host_only_mixed_ipv4_ipv6_hosts_failure_cleans_registered_path -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_valid_host_only_mixed_ipv4_ipv6_hosts_failure_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_valid_host_only_mixed_ipv4_ipv6_hosts_disconnect_clears_poll_generation_with_live_receiver -- --nocapture` ✅ (validated ZooKeeper host-only mixed-family deregister retention and watch/disconnect cleanup regressions)
+1277. `rg "test_zk_(async_deregister_valid_host_only_mixed_ipv4_ipv6_hosts_failure_(cleans_registered_path|keeps_live_watchers)|watch_async_valid_host_only_mixed_ipv4_ipv6_hosts_disconnect_clears_poll_generation_with_live_receiver)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper host-only mixed-family retention/cleanup regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
