@@ -4563,6 +4563,86 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_async_register_valid_host_only_ipv6_multi_hosts_failure_compacts_dead_watchers()
+    {
+        let zk = ZkDiscovery::new("[::1],[::2]", "/services").with_session_timeout(100);
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(
+            &zk,
+            ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
+        )
+        .await;
+        let err = result.expect_err(
+            "async register should fail when valid host-only IPv6 multi-host list is unreachable",
+        );
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid host-only IPv6 multi-host register, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "valid host-only IPv6 multi-host register failure should compact dead watcher sender"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_register_valid_host_only_ipv6_multi_hosts_failure_keeps_live_watchers()
+    {
+        let zk = ZkDiscovery::new("[::1],[::2]", "/services").with_session_timeout(100);
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(
+            &zk,
+            ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
+        )
+        .await;
+        let err = result.expect_err(
+            "async register should fail when valid host-only IPv6 multi-host list is unreachable",
+        );
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid host-only IPv6 multi-host register, got {err:?}"
+        );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "valid host-only IPv6 multi-host register failure should preserve live watcher sender"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_register_valid_host_only_ipv6_multi_hosts_failure_does_not_cache_service(
+    ) {
+        let zk = ZkDiscovery::new("[::1],[::2]", "/services").with_session_timeout(100);
+        let service = ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(&zk, service).await;
+        let err = result.expect_err(
+            "async register should fail when valid host-only IPv6 multi-host list is unreachable",
+        );
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid host-only IPv6 multi-host register, got {err:?}"
+        );
+        assert!(
+            zk.discover("ps").expect("discover should succeed").is_empty(),
+            "valid host-only IPv6 multi-host register failure should not populate local service cache"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_connect_invalid_hosts_is_config_error() {
         let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
         let result = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
@@ -5944,6 +6024,74 @@ mod tests {
         assert!(
             zk_has_watcher(&zk, "ps"),
             "valid host-only mixed-family deregister failure should preserve live watcher sender after notification"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_valid_host_only_ipv6_multi_hosts_failure_still_removes_local_cache_and_notifies_watchers(
+    ) {
+        let zk = ZkDiscovery::new("[::1],[::2]", "/services").with_session_timeout(100);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+
+        let mut rx = zk.watch("ps").expect("watch should succeed");
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        let err = result.expect_err(
+            "async deregister should fail when valid host-only IPv6 multi-host list is unreachable",
+        );
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid host-only IPv6 multi-host deregister, got {err:?}"
+        );
+        assert!(
+            zk.discover("ps").expect("discover should succeed").is_empty(),
+            "valid host-only IPv6 multi-host async deregister failure should still remove service from local cache"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "ps-0"),
+            "expected ServiceRemoved(ps-0), got {event:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_valid_host_only_ipv6_multi_hosts_failure_compacts_dead_watchers(
+    ) {
+        let zk = ZkDiscovery::new("[::1],[::2]", "/services").with_session_timeout(100);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        let err = result.expect_err(
+            "async deregister should fail when valid host-only IPv6 multi-host list is unreachable",
+        );
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid host-only IPv6 multi-host deregister, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "valid host-only IPv6 multi-host deregister failure should compact dead watcher sender"
         );
     }
 
