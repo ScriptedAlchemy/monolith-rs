@@ -7862,6 +7862,19 @@
   - Host-port deregister coverage now has explicit dead-watcher compaction
     symmetry alongside the existing live-watcher preservation regression.
 
+### 584) Discovery Consul normalized-address watch/disconnect live-receiver cleanup parity
+- Added Consul watch/disconnect lifecycle regressions for normalized valid
+  addresses in `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_watch_async_case_insensitive_scheme_disconnect_clears_poll_generation_with_live_receiver`
+  - `test_consul_watch_async_host_port_without_scheme_disconnect_clears_poll_generation_with_live_receiver`
+- Coverage validates disconnect semantics when watchers remain live:
+  - poll-generation bookkeeping is cleared,
+  - live watcher sender entries are preserved,
+  - a follow-up disconnect compacts sender entries after receiver drop.
+- Result:
+  - Case-insensitive/root-slash and host-port normalized watch lanes now have
+    explicit disconnect cleanup parity with live-receiver coverage.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9086,6 +9099,8 @@
 1221. `rg "test_consul_(async_deregister_host_port_without_scheme_uses_operation_context|async_deregister_case_insensitive_scheme_and_root_slash_uses_operation_context|async_register_host_port_without_scheme_compacts_dead_watchers|async_register_host_port_without_scheme_keeps_live_watchers|discover_async_case_insensitive_scheme_and_root_slash_preserves_local_cache)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added/updated Consul host-port/root-slash watcher-cache symmetry regressions are present)
 1222. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_host_port_without_scheme_compacts_dead_watchers -- --nocapture` ✅ (validated Consul host-port async deregister dead-watcher compaction regression)
 1223. `rg "test_consul_async_deregister_host_port_without_scheme_compacts_dead_watchers" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul host-port async deregister dead-watcher compaction regression is present)
+1224. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_case_insensitive_scheme_disconnect_clears_poll_generation_with_live_receiver -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_host_port_without_scheme_disconnect_clears_poll_generation_with_live_receiver -- --nocapture` ✅ (validated Consul normalized-address watch/disconnect cleanup semantics with live receivers)
+1225. `rg "test_consul_watch_async_(case_insensitive_scheme|host_port_without_scheme)_disconnect_clears_poll_generation_with_live_receiver" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul normalized-address watch/disconnect live-receiver cleanup regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
