@@ -4730,6 +4730,87 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_rejects_empty_worker_service_type_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_service_type_worker: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject empty worker service type for worker role");
+        assert!(err.to_string().contains("non-empty discovery_service_type_worker"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_whitespace_padded_worker_service_type_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_service_type_worker: " worker ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject whitespace-padded worker service type for worker role",
+        );
+        assert!(err
+            .to_string()
+            .contains("discovery_service_type_worker without leading/trailing whitespace"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_internal_whitespace_worker_service_type_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_service_type_worker: "worker cluster".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject internal-whitespace worker service type for worker role",
+        );
+        assert!(err
+            .to_string()
+            .contains("discovery_service_type_worker without whitespace characters"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_identical_ps_and_worker_service_types_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_service_type_ps: "service".to_string(),
+            discovery_service_type_worker: "service".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject identical worker/ps service types for worker role",
+        );
+        assert!(err.to_string().contains(
+            "distinct discovery_service_type_ps and discovery_service_type_worker"
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_case_insensitive_identical_ps_and_worker_service_types_runtime_config(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_service_type_ps: "Service".to_string(),
+            discovery_service_type_worker: "service".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject case-insensitive identical worker/ps service types for worker role",
+        );
+        assert!(err.to_string().contains(
+            "distinct discovery_service_type_ps and discovery_service_type_worker"
+        ));
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_rejects_zero_discovery_operation_timeout_runtime_config() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -5133,6 +5214,102 @@ mod tests {
             .expect_err("run_worker_role should reject empty table name without wrapper");
         assert!(
             err.to_string().contains("non-empty table_name"),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_rejects_empty_worker_service_type_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_service_type_worker: String::new(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg)
+            .await
+            .expect_err("run_worker_role should reject empty worker service type without wrapper");
+        assert!(
+            err.to_string()
+                .contains("non-empty discovery_service_type_worker"),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_rejects_whitespace_padded_worker_service_type_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_service_type_worker: " worker ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg).await.expect_err(
+            "run_worker_role should reject whitespace-padded worker service type without wrapper",
+        );
+        assert!(
+            err.to_string().contains(
+                "discovery_service_type_worker without leading/trailing whitespace",
+            ),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_rejects_internal_whitespace_worker_service_type_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_service_type_worker: "worker cluster".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg).await.expect_err(
+            "run_worker_role should reject internal-whitespace worker service type without wrapper",
+        );
+        assert!(
+            err.to_string()
+                .contains("discovery_service_type_worker without whitespace characters"),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_rejects_identical_ps_and_worker_service_types_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_service_type_ps: "service".to_string(),
+            discovery_service_type_worker: "service".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg).await.expect_err(
+            "run_worker_role should reject identical worker/ps service types without wrapper",
+        );
+        assert!(
+            err.to_string().contains(
+                "distinct discovery_service_type_ps and discovery_service_type_worker"
+            ),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_rejects_case_insensitive_identical_ps_and_worker_service_types_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_service_type_ps: "Service".to_string(),
+            discovery_service_type_worker: "service".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg).await.expect_err(
+            "run_worker_role should reject case-insensitive identical worker/ps service types without wrapper",
+        );
+        assert!(
+            err.to_string().contains(
+                "distinct discovery_service_type_ps and discovery_service_type_worker"
+            ),
             "unexpected worker-role validation error: {err}"
         );
     }
@@ -5729,6 +5906,121 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_ps_role_allows_whitespace_padded_worker_service_type_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            discovery_service_type_worker: " worker ".to_string(),
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_ps_role(
+            Arc::clone(&discovery),
+            "ps-0",
+            "ps".to_string(),
+            cfg,
+        ));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !task.is_finished(),
+            "run_ps_role should keep serving; whitespace-padded worker service type must not fail ps-role validation"
+        );
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_allows_internal_whitespace_worker_service_type_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            discovery_service_type_worker: "worker cluster".to_string(),
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_ps_role(
+            Arc::clone(&discovery),
+            "ps-0",
+            "ps".to_string(),
+            cfg,
+        ));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !task.is_finished(),
+            "run_ps_role should keep serving; internal-whitespace worker service type must not fail ps-role validation"
+        );
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_allows_identical_ps_and_worker_service_types_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            discovery_service_type_ps: "service".to_string(),
+            discovery_service_type_worker: "service".to_string(),
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_ps_role(
+            Arc::clone(&discovery),
+            "ps-0",
+            "ps".to_string(),
+            cfg,
+        ));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !task.is_finished(),
+            "run_ps_role should keep serving; identical worker/ps service types must not fail ps-role validation"
+        );
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_allows_case_insensitive_identical_ps_and_worker_service_types_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            discovery_service_type_ps: "Service".to_string(),
+            discovery_service_type_worker: "service".to_string(),
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_ps_role(
+            Arc::clone(&discovery),
+            "ps-0",
+            "ps".to_string(),
+            cfg,
+        ));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !task.is_finished(),
+            "run_ps_role should keep serving; case-insensitive identical worker/ps service types must not fail ps-role validation"
+        );
+        task.abort();
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_allows_zero_parameter_sync_interval_without_targets() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let cfg = DistributedRunConfig {
@@ -5895,6 +6187,101 @@ mod tests {
         assert!(
             !task.is_finished(),
             "ps role should continue serving; empty worker service type must not fail ps-role validation"
+        );
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_whitespace_padded_worker_service_type_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            discovery_service_type_worker: " worker ".to_string(),
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_distributed(Arc::clone(&discovery), cfg));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !task.is_finished(),
+            "ps role should continue serving; whitespace-padded worker service type must not fail ps-role validation"
+        );
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_internal_whitespace_worker_service_type_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            discovery_service_type_worker: "worker cluster".to_string(),
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_distributed(Arc::clone(&discovery), cfg));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !task.is_finished(),
+            "ps role should continue serving; internal-whitespace worker service type must not fail ps-role validation"
+        );
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_identical_ps_and_worker_service_types_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            discovery_service_type_ps: "service".to_string(),
+            discovery_service_type_worker: "service".to_string(),
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_distributed(Arc::clone(&discovery), cfg));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !task.is_finished(),
+            "ps role should continue serving; identical worker/ps service types must not fail ps-role validation"
+        );
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_case_insensitive_identical_ps_and_worker_service_types_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            discovery_service_type_ps: "Service".to_string(),
+            discovery_service_type_worker: "service".to_string(),
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_distributed(Arc::clone(&discovery), cfg));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !task.is_finished(),
+            "ps role should continue serving; case-insensitive identical worker/ps service types must not fail ps-role validation"
         );
         task.abort();
     }

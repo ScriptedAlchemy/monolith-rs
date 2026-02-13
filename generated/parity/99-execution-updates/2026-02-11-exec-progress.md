@@ -11452,6 +11452,37 @@
   - role-matrix parity now includes explicit index-bound rejection coverage
     across top-level runtime and direct role-helper entrypaths.
 
+### 760) Worker-service-type runtime/direct-helper role matrix closure
+- Added runner regressions in `crates/monolith-training/src/runner.rs`:
+  - worker-role rejects at runtime/direct helper:
+    - `test_run_distributed_rejects_empty_worker_service_type_runtime_config`
+    - `test_run_distributed_rejects_whitespace_padded_worker_service_type_runtime_config`
+    - `test_run_distributed_rejects_internal_whitespace_worker_service_type_runtime_config`
+    - `test_run_distributed_rejects_identical_ps_and_worker_service_types_runtime_config`
+    - `test_run_distributed_rejects_case_insensitive_identical_ps_and_worker_service_types_runtime_config`
+    - `test_run_worker_role_rejects_empty_worker_service_type_without_wrapper`
+    - `test_run_worker_role_rejects_whitespace_padded_worker_service_type_without_wrapper`
+    - `test_run_worker_role_rejects_internal_whitespace_worker_service_type_without_wrapper`
+    - `test_run_worker_role_rejects_identical_ps_and_worker_service_types_without_wrapper`
+    - `test_run_worker_role_rejects_case_insensitive_identical_ps_and_worker_service_types_without_wrapper`
+  - ps-role allow paths at runtime/direct helper:
+    - `test_run_ps_role_allows_whitespace_padded_worker_service_type_without_wrapper`
+    - `test_run_ps_role_allows_internal_whitespace_worker_service_type_without_wrapper`
+    - `test_run_ps_role_allows_identical_ps_and_worker_service_types_without_wrapper`
+    - `test_run_ps_role_allows_case_insensitive_identical_ps_and_worker_service_types_without_wrapper`
+    - `test_run_distributed_allows_whitespace_padded_worker_service_type_for_ps_role`
+    - `test_run_distributed_allows_internal_whitespace_worker_service_type_for_ps_role`
+    - `test_run_distributed_allows_identical_ps_and_worker_service_types_for_ps_role`
+    - `test_run_distributed_allows_case_insensitive_identical_ps_and_worker_service_types_for_ps_role`
+- Coverage validates:
+  - worker-only `discovery_service_type_worker` constraints (emptiness,
+    whitespace hygiene, and distinctness from PS type) are now explicitly
+    enforced on runtime/helper worker paths while ps runtime/helper paths remain
+    permissive for the same worker-only fields.
+- Result:
+  - runtime/direct-helper role matrices now match existing validation and
+    run/runner integration parity coverage for worker-service-type contracts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -13055,6 +13086,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1593. `rg "test_run_distributed_rejects_zero_discovery_(operation|cleanup)_timeout_runtime_config(_for_ps_role)?" crates/monolith-training/src/runner.rs` ✅ (verified top-level runtime discovery-timeout symmetry regressions are present)
 1594. `cargo test -p monolith-training test_run_distributed_rejects_worker_index_out_of_range_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_ps_index_out_of_range_runtime_config -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_worker_index_out_of_range_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_ps_index_out_of_range_without_wrapper -- --nocapture` ✅ (validated index-bound rejection symmetry at run_distributed and direct worker/ps helper entrypaths)
 1595. `rg "test_run_(distributed_rejects_(worker|ps)_index_out_of_range_runtime_config|worker_role_rejects_worker_index_out_of_range_without_wrapper|ps_role_rejects_ps_index_out_of_range_without_wrapper)" crates/monolith-training/src/runner.rs` ✅ (verified runtime/direct-helper index-bound rejection regressions are present)
+1596. `cargo test -p monolith-training test_run_distributed_rejects_empty_worker_service_type_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_whitespace_padded_worker_service_type_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_internal_whitespace_worker_service_type_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_identical_ps_and_worker_service_types_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_case_insensitive_identical_ps_and_worker_service_types_runtime_config -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_empty_worker_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_whitespace_padded_worker_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_internal_whitespace_worker_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_identical_ps_and_worker_service_types_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_case_insensitive_identical_ps_and_worker_service_types_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_allows_whitespace_padded_worker_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_allows_internal_whitespace_worker_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_allows_identical_ps_and_worker_service_types_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_allows_case_insensitive_identical_ps_and_worker_service_types_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_whitespace_padded_worker_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_internal_whitespace_worker_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_identical_ps_and_worker_service_types_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_case_insensitive_identical_ps_and_worker_service_types_for_ps_role -- --nocapture` ✅ (validated worker-service-type runtime/direct-helper worker-reject plus ps-allow role matrix for whitespace/empty/distinctness contracts)
+1597. `rg "test_run_(distributed_(rejects_(empty|whitespace_padded|internal_whitespace)_worker_service_type_runtime_config|rejects_(case_insensitive_)?identical_ps_and_worker_service_types_runtime_config|allows_(whitespace_padded|internal_whitespace)_worker_service_type_for_ps_role|allows_(case_insensitive_)?identical_ps_and_worker_service_types_for_ps_role)|worker_role_rejects_(empty|whitespace_padded|internal_whitespace)_worker_service_type_without_wrapper|worker_role_rejects_(case_insensitive_)?identical_ps_and_worker_service_types_without_wrapper|ps_role_allows_(whitespace_padded|internal_whitespace)_worker_service_type_without_wrapper|ps_role_allows_(case_insensitive_)?identical_ps_and_worker_service_types_without_wrapper)" crates/monolith-training/src/runner.rs` ✅ (verified expanded worker-service-type runtime/direct-helper role-matrix regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
