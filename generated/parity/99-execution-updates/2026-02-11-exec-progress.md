@@ -7703,6 +7703,19 @@
   - Consul disconnect cleanup guarantees now explicitly include client-handle
     reset + reconnect readiness semantics.
 
+### 572) Discovery Consul connect valid-address acceptance parity
+- Added a Consul connect success-path regression in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_connect_case_insensitive_scheme_and_root_slash_succeeds`
+- Coverage validates operation-level acceptance semantics for normalized valid
+  addresses by asserting that `connect` accepts:
+  - case-insensitive scheme (`HTTP://...`)
+  - optional root path slash
+  and initializes the internal client handle.
+- Result:
+  - Consul connect parity now includes an explicit positive-path acceptance
+    contract in addition to existing malformed-address rejection coverage.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8903,6 +8916,8 @@
 1197. `rg "test_consul_discover_async_(invalid_scheme|invalid_port|userinfo_authority|whitespace_authority)_preserves_local_cache" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul discover_async scheme/port/authority cache-preservation tests are present)
 1198. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_disconnect_clears_client_handle_and_allows_reconnect -- --nocapture` ✅ (validated Consul disconnect clears client handle and supports reconnect reinitialization)
 1199. `rg "test_consul_disconnect_clears_client_handle_and_allows_reconnect" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul disconnect lifecycle cleanup regression is present)
+1200. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_connect_case_insensitive_scheme_and_root_slash_succeeds -- --nocapture` ✅ (validated Consul connect accepts case-insensitive scheme with root slash and initializes client handle)
+1201. `rg "test_consul_connect_case_insensitive_scheme_and_root_slash_succeeds" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul connect positive-path acceptance regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

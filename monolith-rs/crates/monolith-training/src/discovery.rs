@@ -7091,6 +7091,19 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_connect_case_insensitive_scheme_and_root_slash_succeeds() {
+        let consul = ConsulDiscovery::new("HTTP://127.0.0.1:8500/");
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("case-insensitive scheme and root slash should be accepted");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "successful connect should initialize client handle"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_discover_async_whitespace_authority_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
