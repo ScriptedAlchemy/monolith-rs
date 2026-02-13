@@ -5267,6 +5267,43 @@ async fn distributed_runner_from_run_config_rejects_empty_worker_service_type() 
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_allows_empty_worker_service_type_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_service_type_worker: "".to_string(),
+        ..RunConfig::default()
+    };
+
+    let task = tokio::spawn({
+        let discovery = Arc::clone(&discovery);
+        async move {
+            run_distributed_from_run_config(
+                discovery,
+                &run,
+                None,
+                Role::Ps,
+                test_bind_addr(),
+            )
+            .await
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    assert!(
+        !task.is_finished(),
+        "ps role should continue serving; empty worker discovery service type must not fail run-config validation"
+    );
+    task.abort();
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_whitespace_padded_worker_service_type() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -5665,6 +5702,50 @@ async fn distributed_runner_from_run_config_rejects_invalid_parameter_sync_targe
     assert!(
         err.contains("distributed config has invalid parameter_sync_targets entry `http://`"),
         "invalid run-config parameter-sync target endpoint should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_allows_invalid_parameter_sync_target_for_worker_role()
+{
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["ftp://127.0.0.1:8500".to_string()],
+        parameter_sync_interval_ms: 0,
+        parameter_sync_model_name: " ".to_string(),
+        parameter_sync_signature_name: "serving default".to_string(),
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("worker role should bypass parameter-sync target validation in run-config path")
+    .to_string();
+    assert!(
+        err.contains("Timed out waiting for PS discovery"),
+        "worker role should fail due to discovery timeout, not parameter-sync validation: {err}"
+    );
+    assert!(
+        !err.contains("parameter_sync_targets"),
+        "worker role should not fail on invalid parameter-sync target contracts: {err}"
     );
 }
 
@@ -20661,6 +20742,37 @@ async fn distributed_runner_from_runner_config_rejects_empty_worker_service_type
 }
 
 #[tokio::test]
+async fn distributed_runner_from_runner_config_allows_empty_worker_service_type_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_service_type_worker: "".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let task = tokio::spawn({
+        let discovery = Arc::clone(&discovery);
+        async move {
+            run_distributed_from_runner_config(discovery, &runner, Role::Ps, test_bind_addr())
+                .await
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    assert!(
+        !task.is_finished(),
+        "ps role should continue serving; empty worker discovery service type must not fail runner-config validation"
+    );
+    task.abort();
+}
+
+#[tokio::test]
 async fn distributed_runner_from_runner_config_rejects_whitespace_padded_worker_service_type() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_runner_config, Role};
@@ -21058,6 +21170,51 @@ async fn distributed_runner_from_runner_config_rejects_invalid_parameter_sync_ta
     assert!(
         err.contains("distributed config has invalid parameter_sync_targets entry `http://`"),
         "invalid runner-config parameter-sync target endpoint should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_allows_invalid_parameter_sync_target_for_worker_role(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["ftp://127.0.0.1:8500".to_string()],
+        parameter_sync_interval_ms: 0,
+        parameter_sync_model_name: " ".to_string(),
+        parameter_sync_signature_name: "serving default".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Worker,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err(
+        "worker role should bypass parameter-sync target validation in runner-config path",
+    )
+    .to_string();
+    assert!(
+        err.contains("Timed out waiting for PS discovery"),
+        "worker role should fail due to discovery timeout, not parameter-sync validation: {err}"
+    );
+    assert!(
+        !err.contains("parameter_sync_targets"),
+        "worker role should not fail on invalid parameter-sync target contracts: {err}"
     );
 }
 

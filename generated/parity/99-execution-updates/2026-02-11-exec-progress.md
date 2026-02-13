@@ -11039,6 +11039,23 @@
   - heartbeat contract once again matches actual runtime behavior for both role
     helper paths.
 
+### 739) Run/runner-config parity coverage for role-scoped worker/parameter-sync contracts
+- Added integration regressions in
+  `crates/monolith-training/tests/native_training_parity.rs` to lock high-level
+  entrypoint parity for recently scoped contracts:
+  - `distributed_runner_from_run_config_allows_empty_worker_service_type_for_ps_role`
+  - `distributed_runner_from_runner_config_allows_empty_worker_service_type_for_ps_role`
+  - `distributed_runner_from_run_config_allows_invalid_parameter_sync_target_for_worker_role`
+  - `distributed_runner_from_runner_config_allows_invalid_parameter_sync_target_for_worker_role`
+- Coverage validates:
+  - PS role remains permissive for worker-only discovery service-type fields via
+    both run-config and runner-config entrypoints.
+  - worker role bypasses PS-owned parameter-sync validation fields and proceeds
+    to expected discovery-timeout paths instead of failing config validation.
+- Result:
+  - role-scoped contract semantics are now explicitly locked at both top-level
+    config entry surfaces, not only direct distributed-runner unit tests.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12599,6 +12616,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1550. `cargo test -p monolith-training parameter_sync -- --nocapture` ✅ (ran full parameter-sync test slice across unit + parity suites to confirm ps-scoped validation and worker-role bypass semantics do not regress broader parameter-sync contracts)
 1551. `cargo test -p monolith-training test_distributed_config_validate_rejects_zero_heartbeat_interval_when_configured -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_heartbeat_interval_runtime_config -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper -- --nocapture && cargo test -p monolith-training heartbeat_interval -- --nocapture` ✅ (validated global heartbeat guard rejection paths across validation, top-level distributed runtime, direct ps helper, and full heartbeat regression slice)
 1552. `rg "test_distributed_config_validate_rejects_zero_heartbeat_interval_when_configured|test_run_distributed_rejects_zero_heartbeat_interval_runtime_config|test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper|heartbeat_interval > 0 when configured" crates/monolith-training/src/runner.rs` ✅ (verified restored global heartbeat validation guard and rejection regressions are present)
+1553. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_empty_worker_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_invalid_parameter_sync_target_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_empty_worker_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_invalid_parameter_sync_target_for_worker_role -- --nocapture` ✅ (validated run/runner config role-scoped permissiveness contracts for ps worker-service-type and worker parameter-sync bypass paths)
+1554. `rg "distributed_runner_from_(run_config|runner_config)_allows_(empty_worker_service_type_for_ps_role|invalid_parameter_sync_target_for_worker_role)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified new run/runner config role-scoped permissiveness integration regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
