@@ -8026,6 +8026,17 @@
   - ZooKeeper host-list validation parity now includes operation-level handling
     for comma-separated host strings containing internal whitespace.
 
+### 596) Discovery ZooKeeper valid multi-host connect failure-shape parity
+- Added
+  `test_zk_connect_valid_multi_hosts_returns_connection_failed_when_unreachable`
+  in `crates/monolith-training/src/discovery.rs`.
+- Coverage validates that a syntactically valid multi-host ZooKeeper list
+  (`host:port,host:port`) is accepted by config validation and, when
+  unreachable, fails with `ConnectionFailed` rather than `ConfigError`.
+- Result:
+  - Connect-path parity now explicitly distinguishes valid-but-unreachable
+    multi-host inputs from malformed host-list configuration failures.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9274,6 +9285,8 @@
 1245. `rg "test_zk_(connect_empty_host_entry_is_config_error|watch_async_empty_host_entry_(rejects_without_state_changes|compacts_dead_watch_sender|preserves_live_watch_sender)|async_register_empty_host_entry_(compacts_dead_watchers|keeps_live_watchers)|discover_async_empty_host_entry_preserves_local_cache|async_deregister_empty_host_entry_(still_notifies_and_returns_error|compacts_dead_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper empty-host-entry regression tests are present)
 1246. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_whitespace_in_hosts_is_config_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_whitespace_in_hosts_rejects_without_state_changes -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_whitespace_in_hosts_compacts_dead_watch_sender -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_whitespace_in_hosts_preserves_live_watch_sender -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_whitespace_in_hosts_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_whitespace_in_hosts_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_whitespace_in_hosts_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_whitespace_in_hosts_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_whitespace_in_hosts_compacts_dead_watchers -- --nocapture` ✅ (validated ZooKeeper whitespace-in-hosts operation-level failure-shape and watcher/cache lifecycle regressions)
 1247. `rg "test_zk_(connect_whitespace_in_hosts_is_config_error|watch_async_whitespace_in_hosts_(rejects_without_state_changes|compacts_dead_watch_sender|preserves_live_watch_sender)|async_register_whitespace_in_hosts_(compacts_dead_watchers|keeps_live_watchers)|discover_async_whitespace_in_hosts_preserves_local_cache|async_deregister_whitespace_in_hosts_(still_notifies_and_returns_error|compacts_dead_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper whitespace-in-hosts regression tests are present)
+1248. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_valid_multi_hosts_returns_connection_failed_when_unreachable -- --nocapture` ✅ (validated valid multi-host ZooKeeper connect path reports ConnectionFailed when endpoints are unreachable)
+1249. `rg "test_zk_connect_valid_multi_hosts_returns_connection_failed_when_unreachable" crates/monolith-training/src/discovery.rs` ✅ (verified new ZooKeeper valid multi-host connect failure-shape regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

@@ -4218,6 +4218,19 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_connect_valid_multi_hosts_returns_connection_failed_when_unreachable() {
+        let zk =
+            ZkDiscovery::new("127.0.0.1:1,127.0.0.1:2", "/services").with_session_timeout(100);
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let err = result.expect_err("unreachable but valid multi-host list should fail connecting");
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid multi-host list, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_async_register_invalid_hosts_compacts_dead_watchers() {
         let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
         let rx = zk.watch("ps").expect("watch should succeed");
