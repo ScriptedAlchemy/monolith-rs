@@ -4451,6 +4451,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_rejects_zero_heartbeat_interval_runtime_config_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            heartbeat_interval: Some(Duration::from_millis(0)),
+            bind_addr: loopback_ephemeral_bind_addr(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject zero heartbeat interval for ps role as a global contract",
+        );
+        assert!(
+            err.to_string()
+                .contains("heartbeat_interval > 0 when configured"),
+            "unexpected runtime config validation error for ps role: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_worker_role_rejects_zero_retry_backoff_without_wrapper() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -4465,6 +4484,23 @@ mod tests {
         assert!(
             err.to_string()
                 .contains("retry_backoff_ms > 0 when connect_retries > 0"),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_rejects_zero_heartbeat_interval_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            heartbeat_interval: Some(Duration::from_millis(0)),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg)
+            .await
+            .expect_err("run_worker_role should reject zero heartbeat_interval without wrapper");
+        assert!(
+            err.to_string().contains("heartbeat_interval > 0 when configured"),
             "unexpected worker-role validation error: {err}"
         );
     }
