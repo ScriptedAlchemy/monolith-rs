@@ -11112,6 +11112,26 @@
     reject-on-worker / allow-on-ps across both run-config and runner-config
     integration surfaces.
 
+### 743) Worker-service-type whitespace hygiene PS-role bypass parity closure
+- Added integration regressions in
+  `crates/monolith-training/tests/native_training_parity.rs`:
+  - `distributed_runner_from_run_config_allows_whitespace_padded_worker_service_type_for_ps_role`
+  - `distributed_runner_from_run_config_allows_internal_whitespace_worker_service_type_for_ps_role`
+  - `distributed_runner_from_runner_config_allows_whitespace_padded_worker_service_type_for_ps_role`
+  - `distributed_runner_from_runner_config_allows_internal_whitespace_worker_service_type_for_ps_role`
+- Re-ran existing worker rejection regressions:
+  - `distributed_runner_from_run_config_rejects_whitespace_padded_worker_service_type`
+  - `distributed_runner_from_run_config_rejects_internal_whitespace_worker_service_type`
+  - `distributed_runner_from_runner_config_rejects_whitespace_padded_worker_service_type`
+  - `distributed_runner_from_runner_config_rejects_internal_whitespace_worker_service_type`
+- Coverage validates:
+  - worker role continues enforcing worker-service-type whitespace hygiene,
+  - PS role remains permissive for this worker-only constraint across both
+    run-config and runner-config integration entrypaths.
+- Result:
+  - whitespace hygiene contracts now have explicit reject-on-worker / allow-on-ps
+    integration parity coverage in both config entry surfaces.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12681,6 +12701,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1559. `rg "distributed_runner_from_(run_config|runner_config)_(allows_zero_retry_backoff_when_retries_disabled_for_worker_role|allows_identical_ps_and_worker_service_types_for_ps_role|rejects_identical_ps_and_worker_service_types|rejects_zero_retry_backoff_for_worker_role_when_retries_enabled|allows_zero_retry_backoff_for_ps_role)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified run/runner retry-disabled and identical-service-type role-matrix integration regressions are present)
 1560. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_case_insensitive_identical_ps_and_worker_service_types_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_case_insensitive_identical_ps_and_worker_service_types_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_case_insensitive_identical_ps_and_worker_service_types -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_case_insensitive_identical_ps_and_worker_service_types -- --nocapture` ✅ (validated case-insensitive identical service-type contracts remain worker-reject while ps-role allow paths stay permissive across run-config/runner-config entrypoints)
 1561. `rg "allows_case_insensitive_identical_ps_and_worker_service_types_for_ps_role|rejects_case_insensitive_identical_ps_and_worker_service_types" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified case-insensitive identical service-type reject/allow integration regressions are present for both run-config and runner-config paths)
+1562. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_whitespace_padded_worker_service_type -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_whitespace_padded_worker_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_internal_whitespace_worker_service_type -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_internal_whitespace_worker_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_whitespace_padded_worker_service_type -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_whitespace_padded_worker_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_internal_whitespace_worker_service_type -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_internal_whitespace_worker_service_type_for_ps_role -- --nocapture` ✅ (validated worker-service-type whitespace hygiene remains worker-reject while ps-role allow paths are preserved across run-config and runner-config entrypoints)
+1563. `rg "distributed_runner_from_(run_config|runner_config)_(allows_whitespace_padded_worker_service_type_for_ps_role|allows_internal_whitespace_worker_service_type_for_ps_role|rejects_whitespace_padded_worker_service_type|rejects_internal_whitespace_worker_service_type)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified worker-service-type whitespace reject/allow integration regressions are present in both run-config and runner-config matrices)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
