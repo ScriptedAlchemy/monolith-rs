@@ -3461,6 +3461,41 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_watch_async_valid_single_ipv4_host_disconnect_clears_poll_generation_with_live_receiver(
+    ) {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        let rx = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect("valid single IPv4 host should be accepted by watch_async");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+        assert!(
+            zk_has_watch_poll_generation(&zk, "ps"),
+            "watch_async should seed poll-generation bookkeeping before disconnect"
+        );
+
+        zk.disconnect().await.expect("disconnect should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "disconnect should preserve live watcher sender entries"
+        );
+        assert!(
+            !zk_has_watch_poll_generation(&zk, "ps"),
+            "disconnect should clear poll-generation bookkeeping even when receiver is live"
+        );
+
+        drop(rx);
+        zk.disconnect().await.expect("disconnect should succeed");
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "disconnect should compact watcher sender after receiver is dropped"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_watch_async_valid_host_only_multi_hosts_disconnect_clears_poll_generation_with_live_receiver(
     ) {
         let zk = ZkDiscovery::new("127.0.0.1,127.0.0.1", "/services").with_session_timeout(100);
@@ -4732,6 +4767,80 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_async_register_valid_single_ipv4_host_failure_compacts_dead_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(
+            &zk,
+            ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
+        )
+        .await;
+        let err =
+            result.expect_err("async register should fail when valid single IPv4 host is unreachable");
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid single IPv4 host register, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "valid single IPv4 host register failure should compact dead watcher sender"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_register_valid_single_ipv4_host_failure_keeps_live_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(
+            &zk,
+            ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
+        )
+        .await;
+        let err =
+            result.expect_err("async register should fail when valid single IPv4 host is unreachable");
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid single IPv4 host register, got {err:?}"
+        );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "valid single IPv4 host register failure should preserve live watcher sender"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_register_valid_single_ipv4_host_failure_does_not_cache_service() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        let service = ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(&zk, service).await;
+        let err =
+            result.expect_err("async register should fail when valid single IPv4 host is unreachable");
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid single IPv4 host register, got {err:?}"
+        );
+        assert!(
+            zk.discover("ps").expect("discover should succeed").is_empty(),
+            "valid single IPv4 host register failure should not populate local service cache"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_async_register_valid_host_only_multi_hosts_failure_compacts_dead_watchers() {
         let zk = ZkDiscovery::new("127.0.0.1,127.0.0.1", "/services").with_session_timeout(100);
         let rx = zk.watch("ps").expect("watch should succeed");
@@ -5239,6 +5348,19 @@ mod tests {
         assert!(
             matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
             "expected ConnectionFailed containing ZK connect context for valid single IPv6 host, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_connect_valid_single_ipv4_host_returns_connection_failed_when_unreachable() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let err =
+            result.expect_err("unreachable but valid single IPv4 host should fail connecting");
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid single IPv4 host, got {err:?}"
         );
     }
 
@@ -6554,6 +6676,128 @@ mod tests {
         assert!(
             zk_has_watcher(&zk, "ps"),
             "valid single IPv6 host deregister failure should preserve live watcher sender after notification"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_valid_single_ipv4_host_failure_still_removes_local_cache_and_notifies_watchers(
+    ) {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+
+        let mut rx = zk.watch("ps").expect("watch should succeed");
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        let err =
+            result.expect_err("async deregister should fail when valid single IPv4 host is unreachable");
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid single IPv4 host deregister, got {err:?}"
+        );
+        assert!(
+            zk.discover("ps").expect("discover should succeed").is_empty(),
+            "valid single IPv4 host async deregister failure should still remove service from local cache"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "ps-0"),
+            "expected ServiceRemoved(ps-0), got {event:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_valid_single_ipv4_host_failure_compacts_dead_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        let err =
+            result.expect_err("async deregister should fail when valid single IPv4 host is unreachable");
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid single IPv4 host deregister, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "valid single IPv4 host deregister failure should compact dead watcher sender"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_valid_single_ipv4_host_failure_cleans_registered_path() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        let err =
+            result.expect_err("async deregister should fail when valid single IPv4 host is unreachable");
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid single IPv4 host deregister, got {err:?}"
+        );
+        assert!(
+            !zk.registered_paths.lock().await.contains_key("ps-0"),
+            "valid single IPv4 host deregister failure should remove registered path entry even when backend delete fails"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_valid_single_ipv4_host_failure_keeps_live_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+
+        let mut rx = zk.watch("ps").expect("watch should succeed");
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        let err =
+            result.expect_err("async deregister should fail when valid single IPv4 host is unreachable");
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid single IPv4 host deregister, got {err:?}"
+        );
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "ps-0"),
+            "expected ServiceRemoved(ps-0), got {event:?}"
+        );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "valid single IPv4 host deregister failure should preserve live watcher sender after notification"
         );
     }
 
@@ -10435,6 +10679,47 @@ mod tests {
             cached.len(),
             1,
             "valid single IPv6 host async discover failure should not evict local cache entries"
+        );
+        assert_eq!(cached[0].id, "ps-0");
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_discover_async_valid_single_ipv4_host_connection_failure_is_connection_failed(
+    ) {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::discover_async(&zk, "ps").await;
+        let err =
+            result.expect_err("discover should fail when valid single IPv4 host endpoint is unreachable");
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid single IPv4 host discover, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_discover_async_valid_single_ipv4_host_connection_failure_preserves_local_cache(
+    ) {
+        let zk = ZkDiscovery::new("127.0.0.1:1", "/services").with_session_timeout(100);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::discover_async(&zk, "ps").await;
+        let err =
+            result.expect_err("discover should fail when valid single IPv4 host endpoint is unreachable");
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid single IPv4 host discover, got {err:?}"
+        );
+
+        let cached = zk
+            .discover("ps")
+            .expect("discover should succeed after async failure");
+        assert_eq!(
+            cached.len(),
+            1,
+            "valid single IPv4 host async discover failure should not evict local cache entries"
         );
         assert_eq!(cached[0].id, "ps-0");
     }
