@@ -6792,6 +6792,35 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_register_address_fragment_keeps_live_watchers() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500#consul");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("address fragment should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("fragment is not allowed")
+                    && msg.contains("register_entity")),
+            "expected ConfigError containing address-fragment register context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on address-fragment register failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_deregister_invalid_scheme_still_notifies_and_returns_error() {
         let consul = ConsulDiscovery::new("ftp://127.0.0.1:8500");
         let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
@@ -7112,6 +7141,35 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_register_empty_host_keeps_live_watchers() {
+        let consul = ConsulDiscovery::new("http://:8500");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("empty-host authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("empty host")
+                    && msg.contains("register_entity")),
+            "expected ConfigError containing empty-host register context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on empty-host register failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_register_invalid_port_compacts_dead_watchers() {
         let consul = ConsulDiscovery::new("http://127.0.0.1:notaport");
         let rx = consul.watch("worker").expect("watch should succeed");
@@ -7260,6 +7318,35 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_register_userinfo_authority_keeps_live_watchers() {
+        let consul = ConsulDiscovery::new("http://user@127.0.0.1:8500");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("userinfo authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("userinfo in authority")
+                    && msg.contains("register_entity")),
+            "expected ConfigError containing userinfo-authority register context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on userinfo-authority register failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_register_whitespace_authority_compacts_dead_watchers() {
         let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
         let rx = consul.watch("worker").expect("watch should succeed");
@@ -7290,6 +7377,35 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_register_whitespace_authority_keeps_live_watchers() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("whitespace authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("whitespace in authority")
+                    && msg.contains("register_entity")),
+            "expected ConfigError containing whitespace-authority register context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on whitespace-authority register failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_register_leading_trailing_whitespace_compacts_dead_watchers() {
         let consul = ConsulDiscovery::new(" http://127.0.0.1:8500 ");
         let rx = consul.watch("worker").expect("watch should succeed");
@@ -7315,6 +7431,35 @@ mod tests {
         assert!(
             !consul_has_watcher(&consul, "worker"),
             "dead watch sender should be compacted on leading/trailing-whitespace register validation failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_leading_trailing_whitespace_keeps_live_watchers() {
+        let consul = ConsulDiscovery::new(" http://127.0.0.1:8500 ");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("leading/trailing whitespace should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("leading/trailing whitespace")
+                    && msg.contains("register_entity")),
+            "expected ConfigError containing leading/trailing-whitespace register context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on leading/trailing-whitespace register failure"
         );
     }
 

@@ -7452,6 +7452,22 @@
     compaction/preservation semantics and deregister local-cache + watcher
     notification cleanup behavior under config errors.
 
+### 553) Discovery Consul register keep-live watcher symmetry expansion
+- Expanded Consul `register_async` config-error lifecycle coverage in
+  `crates/monolith-training/src/discovery.rs` by adding live-watcher
+  preservation regressions for remaining malformed-address shapes:
+  - `test_consul_async_register_address_fragment_keeps_live_watchers`
+  - `test_consul_async_register_empty_host_keeps_live_watchers`
+  - `test_consul_async_register_userinfo_authority_keeps_live_watchers`
+  - `test_consul_async_register_whitespace_authority_keeps_live_watchers`
+  - `test_consul_async_register_leading_trailing_whitespace_keeps_live_watchers`
+- These complement existing dead-watcher compaction tests for the same
+  register failure shapes, closing live/dead watcher symmetry gaps.
+- Result:
+  - Consul register config-error lanes now have broader dead/live watcher
+    symmetry across fragment, empty-host, userinfo, whitespace-authority, and
+    leading/trailing-whitespace address forms.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8615,6 +8631,8 @@
 1160. `rg "test_zk_(watch_async_out_of_range_port_rejects_without_state_changes|connect_out_of_range_port_is_config_error|async_register_out_of_range_port_(compacts_dead_watchers|keeps_live_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper out-of-range lifecycle tests are present)
 1161. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_out_of_range_port_compacts_dead_watch_sender -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_out_of_range_port_preserves_live_watch_sender -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_out_of_range_port_still_notifies_and_returns_error -- --nocapture` ✅ (validated ZooKeeper out-of-range watch dead/live symmetry and deregister cleanup-notification regressions)
 1162. `rg "test_zk_(watch_async_out_of_range_port_(compacts_dead_watch_sender|preserves_live_watch_sender)|async_deregister_out_of_range_port_still_notifies_and_returns_error)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper out-of-range watch/deregister lifecycle tests are present)
+1163. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_address_fragment_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_empty_host_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_userinfo_authority_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_whitespace_authority_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_leading_trailing_whitespace_keeps_live_watchers -- --nocapture` ✅ (validated Consul register keep-live watcher symmetry regressions across remaining malformed-address shapes)
+1164. `rg "test_consul_async_register_(address_fragment|empty_host|userinfo_authority|whitespace_authority|leading_trailing_whitespace)_keeps_live_watchers" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul register keep-live watcher symmetry tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
