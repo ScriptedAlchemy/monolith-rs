@@ -11577,6 +11577,25 @@
   - empty-target PS parameter-sync parity checks are actively executed alongside
     newly added endpoint path/userinfo regressions.
 
+### 767) Parameter-sync disabled-mode runtime/helper role-matrix closure
+- Added runner regressions in `crates/monolith-training/src/runner.rs`:
+  - worker direct-helper allow paths:
+    - `test_run_worker_role_allows_zero_parameter_sync_interval_without_targets_without_wrapper`
+    - `test_run_worker_role_allows_empty_parameter_sync_names_without_targets_without_wrapper`
+  - ps direct-helper allow paths:
+    - `test_run_ps_role_allows_zero_parameter_sync_interval_without_targets_without_wrapper`
+    - `test_run_ps_role_allows_empty_parameter_sync_names_without_targets_without_wrapper`
+  - top-level runtime ps-role allow paths:
+    - `test_run_distributed_allows_zero_parameter_sync_interval_without_targets_for_ps_role`
+    - `test_run_distributed_allows_empty_parameter_sync_names_without_targets_for_ps_role`
+- Coverage validates:
+  - disabled-mode parameter-sync contracts (empty targets) remain permissive
+    across worker and ps direct helper/runtime entrypaths for interval/name
+    fields that should only be validated when targets are configured.
+- Result:
+  - runtime/helper role matrix now explicitly includes no-target allow semantics
+    for both worker bypass and ps conditional validation behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -13194,6 +13213,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1607. `rg "test_run_(ps_role_rejects_parameter_sync_target_endpoint_with_(path_or_query|userinfo)_without_wrapper|distributed_rejects_parameter_sync_target_endpoint_with_(path_or_query|userinfo)_for_ps_role)" crates/monolith-training/src/runner.rs` ✅ (verified PS endpoint path/userinfo runtime/helper reject regressions are present)
 1608. `cargo test -p monolith-training test_run_ps_role_rejects_empty_parameter_sync_target_entry_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_empty_parameter_sync_target_entry_for_ps_role -- --nocapture` ✅ (validated restored tokio test registration and execution for PS empty-target runtime/helper reject regressions)
 1609. `rg "test_run_(ps_role_rejects_parameter_sync_target_endpoint_with_(path_or_query|userinfo)_without_wrapper|distributed_rejects_parameter_sync_target_endpoint_with_(path_or_query|userinfo)_for_ps_role|ps_role_rejects_empty_parameter_sync_target_entry_without_wrapper|distributed_rejects_empty_parameter_sync_target_entry_for_ps_role)" crates/monolith-training/src/runner.rs` ✅ (verified PS endpoint path/userinfo and empty-target runtime/helper reject regression suite is present)
+1610. `cargo test -p monolith-training test_run_worker_role_allows_zero_parameter_sync_interval_without_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_allows_empty_parameter_sync_names_without_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_allows_zero_parameter_sync_interval_without_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_allows_empty_parameter_sync_names_without_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_zero_parameter_sync_interval_without_targets_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_empty_parameter_sync_names_without_targets_for_ps_role -- --nocapture` ✅ (validated parameter-sync disabled-mode allow semantics across worker/ps direct helper paths and ps runtime entrypath)
+1611. `rg "test_run_(worker_role_allows_zero_parameter_sync_interval_without_targets_without_wrapper|worker_role_allows_empty_parameter_sync_names_without_targets_without_wrapper|ps_role_allows_zero_parameter_sync_interval_without_targets_without_wrapper|ps_role_allows_empty_parameter_sync_names_without_targets_without_wrapper|distributed_allows_zero_parameter_sync_interval_without_targets_for_ps_role|distributed_allows_empty_parameter_sync_names_without_targets_for_ps_role)" crates/monolith-training/src/runner.rs` ✅ (verified disabled-mode parameter-sync allow-path runtime/helper regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

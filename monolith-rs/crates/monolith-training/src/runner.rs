@@ -5532,6 +5532,67 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_worker_role_allows_zero_parameter_sync_interval_without_targets_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: Vec::new(),
+            parameter_sync_interval: Duration::from_millis(0),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg).await.expect_err(
+            "worker role should proceed past parameter-sync interval validation when sync targets are disabled",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker role should fail due to discovery timeout, not parameter-sync interval validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_interval > 0"),
+            "worker role should allow zero parameter_sync_interval when parameter-sync targets are empty: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_allows_empty_parameter_sync_names_without_targets_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: Vec::new(),
+            parameter_sync_model_name: "".to_string(),
+            parameter_sync_signature_name: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg).await.expect_err(
+            "worker role should proceed past parameter-sync name validation when sync targets are disabled",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker role should fail due to discovery timeout, not parameter-sync name validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_model_name") && !msg.contains("parameter_sync_signature_name"),
+            "worker role should not validate parameter sync names when parameter-sync targets are empty: {msg}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -6293,6 +6354,65 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_ps_role_allows_zero_parameter_sync_interval_without_targets_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            parameter_sync_targets: Vec::new(),
+            parameter_sync_interval: Duration::from_millis(0),
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_ps_role(
+            Arc::clone(&discovery),
+            "ps-0",
+            "ps".to_string(),
+            cfg,
+        ));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !task.is_finished(),
+            "run_ps_role should keep serving; zero parameter_sync_interval without targets must not fail ps-role validation"
+        );
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_allows_empty_parameter_sync_names_without_targets_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            parameter_sync_targets: Vec::new(),
+            parameter_sync_model_name: "".to_string(),
+            parameter_sync_signature_name: " ".to_string(),
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_ps_role(
+            Arc::clone(&discovery),
+            "ps-0",
+            "ps".to_string(),
+            cfg,
+        ));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !task.is_finished(),
+            "run_ps_role should keep serving; empty parameter sync names without targets must not fail ps-role validation"
+        );
+        task.abort();
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_rejects_zero_parameter_sync_interval_with_targets_for_ps_role() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -6559,6 +6679,30 @@ mod tests {
             !msg.contains("parameter_sync_interval > 0"),
             "runtime should not reject zero parameter_sync_interval when parameter-sync targets are empty: {msg}"
         );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_zero_parameter_sync_interval_without_targets_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            parameter_sync_targets: Vec::new(),
+            parameter_sync_interval: Duration::from_millis(0),
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_distributed(Arc::clone(&discovery), cfg));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !task.is_finished(),
+            "ps role should continue serving; zero parameter_sync_interval without targets must not fail validation"
+        );
+        task.abort();
     }
 
     #[tokio::test]
@@ -6872,6 +7016,31 @@ mod tests {
             !msg.contains("parameter_sync_model_name") && !msg.contains("parameter_sync_signature_name"),
             "runtime should not validate parameter sync model/signature names when parameter-sync targets are empty: {msg}"
         );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_empty_parameter_sync_names_without_targets_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            parameter_sync_targets: Vec::new(),
+            parameter_sync_model_name: "".to_string(),
+            parameter_sync_signature_name: " ".to_string(),
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_distributed(Arc::clone(&discovery), cfg));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !task.is_finished(),
+            "ps role should continue serving; empty parameter sync names without targets must not fail validation"
+        );
+        task.abort();
     }
 
     #[tokio::test]
