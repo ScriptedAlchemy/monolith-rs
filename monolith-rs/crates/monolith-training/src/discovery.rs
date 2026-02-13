@@ -6443,6 +6443,51 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_deregister_empty_address_uses_default_endpoint_context() {
+        let consul = ConsulDiscovery::new("");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("sync register should seed local cache");
+        let mut rx = consul.watch("worker").expect("watch should succeed");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
+            .await;
+        let err = result.expect_err("empty-address async deregister should fail against default endpoint");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("deregister_entity") && msg.contains("8500")),
+            "expected Internal containing default-endpoint deregister context, got {err:?}"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "worker-0"),
+            "expected ServiceRemoved(worker-0), got {event:?}"
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .is_empty(),
+            "empty-address async deregister should remove service from local cache"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on empty-address async deregister failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_deregister_missing_service_returns_not_found() {
         let consul = ConsulDiscovery::new("http://localhost:8500");
         let result =
@@ -6625,6 +6670,30 @@ mod tests {
                 .expect("discover should succeed")
                 .is_empty(),
             "failed async register should not populate local service cache"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_empty_address_uses_default_endpoint_context() {
+        let consul = ConsulDiscovery::new("");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("empty-address async register should fail against default endpoint");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("register_entity") && msg.contains("8500")),
+            "expected Internal containing default-endpoint register context, got {err:?}"
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .is_empty(),
+            "empty-address async register should not populate local service cache"
         );
     }
 

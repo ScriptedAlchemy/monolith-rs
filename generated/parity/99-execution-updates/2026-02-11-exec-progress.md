@@ -7727,6 +7727,21 @@
   - Consul connect parity now explicitly covers default-endpoint initialization
     behavior for empty configured addresses.
 
+### 574) Discovery Consul async register/deregister empty-address default-endpoint contracts
+- Added Consul empty-address async-operation regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_async_register_empty_address_uses_default_endpoint_context`
+  - `test_consul_async_deregister_empty_address_uses_default_endpoint_context`
+- Coverage validates default-endpoint behavior under async service lifecycle
+  operations:
+  - register/deregister failures are surfaced as `Internal` with operation
+    context and normalized default port evidence (`8500`),
+  - deregister still emits `ServiceRemoved`, preserves live watchers, and keeps
+    local cache/removal semantics deterministic.
+- Result:
+  - Empty-address parity now spans connect/discover/register/deregister with
+    explicit default-endpoint failure-shape contracts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8931,6 +8946,8 @@
 1201. `rg "test_consul_connect_case_insensitive_scheme_and_root_slash_succeeds" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul connect positive-path acceptance regression is present)
 1202. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_connect_empty_address_initializes_default_client_handle -- --nocapture` ✅ (validated Consul connect accepts empty address and initializes client handle via default endpoint semantics)
 1203. `rg "test_consul_connect_empty_address_initializes_default_client_handle" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul connect empty-address default-endpoint regression is present)
+1204. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_empty_address_uses_default_endpoint_context -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_empty_address_uses_default_endpoint_context -- --nocapture` ✅ (validated Consul async deregister/register empty-address default-endpoint failure contracts and lifecycle behavior)
+1205. `rg "test_consul_async_(deregister|register)_empty_address_uses_default_endpoint_context" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul async empty-address default-endpoint regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
