@@ -535,10 +535,14 @@ impl LocalCluster {
             ));
         }
         for worker in &mut self.workers {
-            worker.stop()?;
+            if worker.is_running() {
+                worker.stop()?;
+            }
         }
         for ps in &mut self.parameter_servers {
-            ps.stop()?;
+            if ps.is_running() {
+                ps.stop()?;
+            }
         }
         self.barrier_waiters.clear();
         self.released_barriers.clear();
@@ -1601,6 +1605,68 @@ mod tests {
             matches!(err, DistributedError::InvalidConfiguration(ref msg)
                 if msg.contains("local cluster is not running")),
             "expected InvalidConfiguration mentioning not-running local cluster, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_local_cluster_stop_succeeds_from_partially_running_worker_state() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000)],
+            vec![make_addr(6000), make_addr(6001)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for partial-worker stop test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for partial-worker stop test");
+
+        cluster.workers[1]
+            .stop()
+            .expect("stopping one worker should succeed before cluster stop");
+        cluster
+            .stop()
+            .expect("cluster stop should still succeed when one worker is already stopped");
+
+        assert!(
+            cluster.parameter_servers.iter().all(|ps| !ps.is_running()),
+            "cluster stop should leave all parameter servers stopped"
+        );
+        assert!(
+            cluster.workers.iter().all(|worker| !worker.is_running()),
+            "cluster stop should leave all workers stopped"
+        );
+    }
+
+    #[test]
+    fn test_local_cluster_stop_succeeds_from_partially_running_ps_state() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000), make_addr(5001)],
+            vec![make_addr(6000)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for partial-ps stop test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for partial-ps stop test");
+
+        cluster.parameter_servers[1]
+            .stop()
+            .expect("stopping one parameter server should succeed before cluster stop");
+        cluster
+            .stop()
+            .expect("cluster stop should still succeed when one parameter server is already stopped");
+
+        assert!(
+            cluster.parameter_servers.iter().all(|ps| !ps.is_running()),
+            "cluster stop should leave all parameter servers stopped"
+        );
+        assert!(
+            cluster.workers.iter().all(|worker| !worker.is_running()),
+            "cluster stop should leave all workers stopped"
         );
     }
 }

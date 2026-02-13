@@ -10237,6 +10237,21 @@
   - Local-cluster synchronization APIs now consistently enforce fully running
     role state before barrier participation.
 
+### 693) Distributed partial-stop cleanup semantics in local-cluster shutdown
+- Hardened `LocalCluster::stop` in
+  `crates/monolith-training/src/distributed.rs`:
+  - shutdown now stops only currently-running workers/PS roles,
+  - partial pre-stopped role states no longer abort shutdown early,
+  - barrier bookkeeping cleanup still runs after shutdown.
+- Added regressions:
+  - `test_local_cluster_stop_succeeds_from_partially_running_worker_state`
+  - `test_local_cluster_stop_succeeds_from_partially_running_ps_state`
+- Coverage validates shutdown remains deterministic and complete even when role
+  state is partially degraded before stop is invoked.
+- Result:
+  - Local-cluster stop behavior now guarantees best-effort full cleanup for any
+    partially running cluster state.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11686,6 +11701,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1439. `rg "test_local_cluster_train_step_(unknown_parameter_keeps_existing_parameters_unchanged|gradient_mismatch_keeps_other_parameters_unchanged)" crates/monolith-training/src/distributed.rs` ✅ (verified all-or-nothing local-cluster train-step parameter-mutation regression tests are present)
 1440. `cargo test -p monolith-training test_local_cluster_sync_barrier_requires_fully_running_cluster -- --nocapture && cargo test -p monolith-training test_local_cluster_wait_for_barrier_requires_fully_running_cluster -- --nocapture` ✅ (validated barrier APIs now reject partially running local-cluster states)
 1441. `rg "test_local_cluster_(sync_barrier|wait_for_barrier)_requires_fully_running_cluster" crates/monolith-training/src/distributed.rs` ✅ (verified local-cluster barrier fully-running guard regressions are present)
+1442. `cargo test -p monolith-training test_local_cluster_stop_succeeds_from_partially_running_worker_state -- --nocapture && cargo test -p monolith-training test_local_cluster_stop_succeeds_from_partially_running_ps_state -- --nocapture` ✅ (validated local-cluster stop now fully cleans up from partial worker/PS running states)
+1443. `rg "test_local_cluster_stop_succeeds_from_partially_running_(worker|ps)_state" crates/monolith-training/src/distributed.rs` ✅ (verified partial-stop shutdown cleanup regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
