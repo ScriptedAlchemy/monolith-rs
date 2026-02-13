@@ -6866,6 +6866,65 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_register_invalid_scheme_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("ftp://127.0.0.1:8500");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("invalid scheme should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid scheme")
+                    && msg.contains("register_entity")),
+            "expected ConfigError containing invalid-scheme register context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watch sender should be compacted on invalid-scheme register validation failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_invalid_scheme_keeps_live_watchers() {
+        let consul = ConsulDiscovery::new("ftp://127.0.0.1:8500");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("invalid scheme should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid scheme")
+                    && msg.contains("register_entity")),
+            "expected ConfigError containing invalid-scheme register context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on invalid-scheme register failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_register_invalid_ipv6_suffix_compacts_dead_watchers() {
         let consul = ConsulDiscovery::new("http://[::1]x:8500");
         let rx = consul.watch("worker").expect("watch should succeed");

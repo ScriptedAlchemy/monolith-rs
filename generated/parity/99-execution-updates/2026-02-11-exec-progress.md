@@ -7538,6 +7538,17 @@
   - address-path handling now has explicit lifecycle coverage across watch,
     connect, discover, register, and deregister paths.
 
+### 559) Discovery Consul invalid-scheme register dead/live watcher symmetry
+- Expanded Consul invalid-scheme (`ftp://...`) `register_async` lifecycle
+  coverage in `crates/monolith-training/src/discovery.rs` with explicit
+  dead/live watcher symmetry regressions:
+  - `test_consul_async_register_invalid_scheme_compacts_dead_watchers`
+  - `test_consul_async_register_invalid_scheme_keeps_live_watchers`
+- Result:
+  - invalid-scheme register paths now have explicit watcher compaction and
+    live-preservation coverage aligned with other malformed-address register
+    lanes.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8713,6 +8724,8 @@
 1172. `rg "test_consul_discover_async_(out_of_range_port|leading_trailing_whitespace)_is_classified_as_config_error" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul discover out-of-range/whitespace tests are present)
 1173. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_address_path_is_classified_as_config_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_address_path_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_address_path_keeps_live_watchers -- --nocapture` ✅ (validated Consul address-path discover classification and register dead/live watcher symmetry regressions)
 1174. `rg "test_consul_(discover_async_address_path_is_classified_as_config_error|async_register_address_path_(compacts_dead_watchers|keeps_live_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul address-path discover/register lifecycle tests are present)
+1175. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_invalid_scheme_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_invalid_scheme_keeps_live_watchers -- --nocapture` ✅ (validated Consul invalid-scheme register dead/live watcher symmetry regressions)
+1176. `rg "test_consul_async_register_invalid_scheme_(compacts_dead_watchers|keeps_live_watchers)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul invalid-scheme register symmetry tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
