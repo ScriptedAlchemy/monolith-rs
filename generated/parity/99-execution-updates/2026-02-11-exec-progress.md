@@ -8074,6 +8074,19 @@
     retention guarantees for cache, registered-path cleanup, and live watcher
     preservation.
 
+### 599) Discovery ZooKeeper valid multi-host watch/disconnect cleanup parity
+- Added
+  `test_zk_watch_async_valid_multi_hosts_disconnect_clears_poll_generation_with_live_receiver`
+  in `crates/monolith-training/src/discovery.rs`.
+- Coverage validates valid multi-host watch/disconnect lifecycle with a live
+  receiver:
+  - disconnect preserves live watcher sender entries,
+  - disconnect clears watch poll-generation bookkeeping,
+  - subsequent disconnect after receiver drop compacts dead watchers.
+- Result:
+  - ZooKeeper valid multi-host watch/disconnect parity now explicitly matches
+    live/dead watcher cleanup guarantees used in other normalized address lanes.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9328,6 +9341,8 @@
 1251. `rg "test_zk_(async_register_valid_multi_hosts_failure_(compacts_dead_watchers|keeps_live_watchers)|async_deregister_valid_multi_hosts_failure_(still_removes_local_cache_and_notifies_watchers|compacts_dead_watchers)|discover_async_valid_multi_hosts_connection_failure_(is_connection_failed|preserves_local_cache))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper valid multi-host async lifecycle regression tests are present)
 1252. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_valid_multi_hosts_failure_does_not_cache_service -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_valid_multi_hosts_failure_cleans_registered_path -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_valid_multi_hosts_failure_keeps_live_watchers -- --nocapture` ✅ (validated ZooKeeper valid multi-host async cache-retention, registered-path cleanup, and live-watcher preservation regressions)
 1253. `rg "test_zk_(async_register_valid_multi_hosts_failure_does_not_cache_service|async_deregister_valid_multi_hosts_failure_(cleans_registered_path|keeps_live_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper valid multi-host async retention regression tests are present)
+1254. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_valid_multi_hosts_disconnect_clears_poll_generation_with_live_receiver -- --nocapture` ✅ (validated ZooKeeper valid multi-host watch/disconnect live-receiver cleanup regression)
+1255. `rg "test_zk_watch_async_valid_multi_hosts_disconnect_clears_poll_generation_with_live_receiver" crates/monolith-training/src/discovery.rs` ✅ (verified new ZooKeeper valid multi-host watch/disconnect live-receiver cleanup regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

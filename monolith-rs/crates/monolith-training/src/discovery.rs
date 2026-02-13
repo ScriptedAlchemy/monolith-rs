@@ -3319,6 +3319,42 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_watch_async_valid_multi_hosts_disconnect_clears_poll_generation_with_live_receiver(
+    ) {
+        let zk =
+            ZkDiscovery::new("127.0.0.1:1,127.0.0.1:2", "/services").with_session_timeout(100);
+        let rx = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect("valid multi-host list should be accepted by watch_async");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+        assert!(
+            zk_has_watch_poll_generation(&zk, "ps"),
+            "watch_async should seed poll-generation bookkeeping before disconnect"
+        );
+
+        zk.disconnect().await.expect("disconnect should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "disconnect should preserve live watcher sender entries"
+        );
+        assert!(
+            !zk_has_watch_poll_generation(&zk, "ps"),
+            "disconnect should clear poll-generation bookkeeping even when receiver is live"
+        );
+
+        drop(rx);
+        zk.disconnect().await.expect("disconnect should succeed");
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "disconnect should compact watcher sender after receiver is dropped"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_watch_async_invalid_hosts_rejects_without_state_changes() {
         let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
 
