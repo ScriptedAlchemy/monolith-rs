@@ -137,9 +137,10 @@ impl DistributedRunConfig {
         if self.discovery_cleanup_timeout.is_zero() {
             anyhow::bail!("distributed config requires discovery_cleanup_timeout > 0");
         }
-        if self
-            .heartbeat_interval
-            .is_some_and(|interval| interval.is_zero())
+        if matches!(self.role, Role::Ps)
+            && self
+                .heartbeat_interval
+                .is_some_and(|interval| interval.is_zero())
         {
             anyhow::bail!("distributed config requires heartbeat_interval > 0 when configured");
         }
@@ -3164,6 +3165,7 @@ mod tests {
     #[test]
     fn test_distributed_config_validate_rejects_zero_heartbeat_interval_when_configured() {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             heartbeat_interval: Some(Duration::from_millis(0)),
             ..DistributedRunConfig::default()
         };
@@ -3171,6 +3173,18 @@ mod tests {
         assert!(
             err.contains("distributed config requires heartbeat_interval > 0 when configured"),
             "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_allows_zero_heartbeat_interval_for_worker_role() {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            heartbeat_interval: Some(Duration::from_millis(0)),
+            ..DistributedRunConfig::default()
+        };
+        cfg.validate().expect(
+            "worker role should allow zero heartbeat interval because heartbeat loop is ps-only",
         );
     }
 
@@ -4414,20 +4428,26 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_run_distributed_rejects_zero_heartbeat_interval_runtime_config() {
+    async fn test_run_distributed_allows_zero_heartbeat_interval_for_worker_role() {
         let discovery = Arc::new(InMemoryDiscovery::new());
-        let bad_cfg = DistributedRunConfig {
+        let cfg = DistributedRunConfig {
             role: Role::Worker,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
             heartbeat_interval: Some(Duration::from_millis(0)),
             ..DistributedRunConfig::default()
         };
-        let err = run_distributed(discovery, bad_cfg).await.expect_err(
-            "run_distributed should reject runtime config with zero heartbeat interval",
+        let err = run_distributed(discovery, cfg).await.expect_err(
+            "run_distributed should proceed past validation for worker heartbeat interval",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "runtime should fail due to missing PS discovery, not heartbeat validation: {msg}"
         );
         assert!(
-            err.to_string()
-                .contains("heartbeat_interval > 0 when configured"),
-            "unexpected runtime config validation error: {err}"
+            !msg.contains("heartbeat_interval > 0 when configured"),
+            "worker role should ignore zero heartbeat interval validation: {msg}"
         );
     }
 
@@ -4522,6 +4542,30 @@ mod tests {
         assert!(
             err.to_string().contains("heartbeat_interval > 0 when configured"),
             "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_allows_zero_heartbeat_interval_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: Some(Duration::from_millis(0)),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg).await.expect_err(
+            "worker role should proceed past zero-heartbeat validation because heartbeat is ps-only",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker role should fail due to discovery timeout, not heartbeat validation: {msg}"
+        );
+        assert!(
+            !msg.contains("heartbeat_interval > 0 when configured"),
+            "worker role should ignore zero heartbeat interval validation: {msg}"
         );
     }
 
