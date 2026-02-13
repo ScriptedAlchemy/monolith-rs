@@ -7241,6 +7241,19 @@
   - out-of-range port coverage now spans watch/connect/register/deregister
     lifecycle paths with explicit cleanup/failure-shape guarantees.
 
+### 538) Discovery ZooKeeper malformed-host register/deregister cleanup contracts
+- Expanded ZooKeeper malformed-host-entry cleanup coverage in
+  `crates/monolith-training/src/discovery.rs` for malformed bracketed IPv6
+  host entries (`"[::1"`):
+  - `register_async` regression verifies malformed-host config failures still
+    compact dead watcher senders.
+  - `deregister_async` regression verifies malformed-host config failures still:
+    - emit `ServiceRemoved` watch events,
+    - preserve local-cache and registered-path removal semantics.
+- Result:
+  - malformed-host-entry lifecycle coverage now spans watch/connect/register/
+    deregister paths with explicit cleanup/failure-shape guarantees.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8374,6 +8387,8 @@
 1130. `rg "test_zk_(watch_async_malformed_ipv6_host_entry_rejects_without_state_changes|connect_malformed_ipv6_host_entry_is_config_error)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper malformed-host-entry lifecycle tests are present)
 1131. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_out_of_range_port_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_out_of_range_port_still_notifies_and_returns_error -- --nocapture` ✅ (validated Consul out-of-range register/deregister cleanup regressions)
 1132. `rg "test_consul_async_(register_out_of_range_port_compacts_dead_watchers|deregister_out_of_range_port_still_notifies_and_returns_error)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul out-of-range register/deregister tests are present)
+1133. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_malformed_ipv6_host_entry_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_malformed_ipv6_host_entry_still_notifies_and_returns_error -- --nocapture` ✅ (validated ZooKeeper malformed-host-entry register/deregister cleanup regressions)
+1134. `rg "test_zk_async_(register_malformed_ipv6_host_entry_compacts_dead_watchers|deregister_malformed_ipv6_host_entry_still_notifies_and_returns_error)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper malformed-host-entry register/deregister cleanup tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
