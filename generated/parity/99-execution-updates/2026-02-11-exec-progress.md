@@ -11821,6 +11821,23 @@
     whitespace and trim-whitespace contract lanes for non-empty target
     configurations.
 
+### 781) Worker empty-name-with-targets parameter-sync bypass closure
+- Added regressions in:
+  - `crates/monolith-training/src/runner.rs`:
+    - `test_run_worker_role_allows_empty_parameter_sync_names_with_targets_without_wrapper`
+    - `test_run_distributed_allows_empty_parameter_sync_names_with_targets_for_worker_role`
+  - `crates/monolith-training/tests/native_training_parity.rs`:
+    - `distributed_runner_from_run_config_allows_empty_parameter_sync_names_with_targets_for_worker_role`
+    - `distributed_runner_from_runner_config_allows_empty_parameter_sync_names_with_targets_for_worker_role`
+- Coverage validates:
+  - worker role bypass of PS-only parameter-sync model/signature emptiness
+    contracts remains explicitly preserved even when parameter-sync targets are
+    configured (non-empty targets).
+- Result:
+  - worker name-shape bypass matrix now explicitly covers empty, trim-whitespace,
+    and internal-whitespace name contracts under active parameter-sync target
+    configurations.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -13466,6 +13483,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1635. `rg "allows_duplicate_parameter_sync_targets_after_(http_prefix|https_default_port)_normalization" crates/monolith-training/src/runner.rs && rg "distributed_runner_from_(run_config|runner_config)_allows_duplicate_parameter_sync_targets_after_(http_prefix|https_default_port)_normalization_for_worker_role" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified worker http-prefix and https-default-port canonical-duplicate bypass regressions are present across runner and integration suites)
 1636. `cargo test -p monolith-training test_run_worker_role_allows_parameter_sync_names_with_leading_trailing_whitespace_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_parameter_sync_names_with_leading_trailing_whitespace_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_parameter_sync_names_with_leading_trailing_whitespace_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_parameter_sync_names_with_leading_trailing_whitespace_for_worker_role -- --nocapture` ✅ (validated worker trim-whitespace parameter-sync name bypass semantics across helper/runtime and run/runner integration entrypaths)
 1637. `rg "allows_parameter_sync_names_with_leading_trailing_whitespace" crates/monolith-training/src/runner.rs && rg "distributed_runner_from_(run_config|runner_config)_allows_parameter_sync_names_with_leading_trailing_whitespace_for_worker_role" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified worker trim-whitespace name bypass regressions are present across runner and integration suites)
+1638. `cargo test -p monolith-training test_run_worker_role_allows_empty_parameter_sync_names_with_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_empty_parameter_sync_names_with_targets_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_empty_parameter_sync_names_with_targets_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_empty_parameter_sync_names_with_targets_for_worker_role -- --nocapture` ✅ (validated worker empty-name-with-targets parameter-sync bypass semantics across helper/runtime and run/runner integration entrypaths)
+1639. `rg "allows_empty_parameter_sync_names_with_targets" crates/monolith-training/src/runner.rs && rg "distributed_runner_from_(run_config|runner_config)_allows_empty_parameter_sync_names_with_targets_for_worker_role" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified worker empty-name-with-targets bypass regressions are present across runner and integration suites)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
