@@ -3750,6 +3750,35 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_async_register_invalid_hosts_keeps_live_watchers() {
+        let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(
+            &zk,
+            ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
+        )
+        .await;
+        let err = result.expect_err("invalid hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("leading/trailing whitespace")),
+            "expected ConfigError containing invalid-hosts register context, got {err:?}"
+        );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "live watcher sender should be preserved on invalid-hosts register failure"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_async_register_malformed_ipv6_host_entry_compacts_dead_watchers() {
         let zk = ZkDiscovery::new("[::1", "/services");
         let rx = zk.watch("ps").expect("watch should succeed");
@@ -3931,6 +3960,35 @@ mod tests {
         assert!(
             !zk_has_watcher(&zk, "ps"),
             "config-error register should compact dead watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_register_invalid_base_path_keeps_live_watchers() {
+        let zk = ZkDiscovery::new("127.0.0.1:2181", "services");
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::register_async(
+            &zk,
+            ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000),
+        )
+        .await;
+        let err = result.expect_err("invalid base_path should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid base_path")
+                    && msg.contains("path must start with /")),
+            "expected ConfigError containing invalid-base_path register context, got {err:?}"
+        );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "live watcher sender should be preserved on invalid-base_path register failure"
         );
     }
 
