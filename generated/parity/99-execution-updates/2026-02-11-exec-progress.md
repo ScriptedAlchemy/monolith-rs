@@ -11421,6 +11421,21 @@
   - helper-layer parity matrices now cover a broader global-contract rejection
     set for both worker and PS direct entrypaths.
 
+### 758) run_distributed discovery-timeout global runtime symmetry closure
+- Added top-level runtime regressions in
+  `crates/monolith-training/src/runner.rs`:
+  - `test_run_distributed_rejects_zero_discovery_operation_timeout_runtime_config`
+  - `test_run_distributed_rejects_zero_discovery_operation_timeout_runtime_config_for_ps_role`
+  - `test_run_distributed_rejects_zero_discovery_cleanup_timeout_runtime_config`
+  - `test_run_distributed_rejects_zero_discovery_cleanup_timeout_runtime_config_for_ps_role`
+- Coverage validates:
+  - global discovery timeout contracts are explicitly rejected by
+    `run_distributed` for both worker and PS roles, complementing existing
+    validate/integration/helper coverage.
+- Result:
+  - top-level runtime role matrix now includes explicit worker+PS symmetry for
+    discovery timeout zero-value rejection paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -13020,6 +13035,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1589. `rg "test_run_distributed_rejects_(whitespace_padded_ps_service_type|internal_whitespace_ps_service_type|whitespace_padded_table_name|internal_whitespace_table_name)_runtime_config(_for_ps_role)?" crates/monolith-training/src/runner.rs` ✅ (verified worker and ps runtime whitespace global-contract reject regressions are present)
 1590. `cargo test -p monolith-training test_run_worker_role_rejects_zero_num_ps_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_zero_num_workers_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_zero_dim_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_empty_ps_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_empty_table_name_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_zero_discovery_operation_timeout_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_zero_discovery_cleanup_timeout_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_whitespace_padded_ps_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_internal_whitespace_ps_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_whitespace_padded_table_name_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_internal_whitespace_table_name_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_zero_num_ps_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_zero_dim_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_zero_discovery_operation_timeout_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_zero_discovery_cleanup_timeout_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_whitespace_padded_ps_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_internal_whitespace_ps_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_whitespace_padded_table_name_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_internal_whitespace_table_name_without_wrapper -- --nocapture` ✅ (validated expanded direct role-helper global timeout/string-shape reject matrix across worker and ps entrypaths)
 1591. `rg "test_run_(worker|ps)_role_rejects_(zero_discovery_operation_timeout|zero_discovery_cleanup_timeout|whitespace_padded_ps_service_type|internal_whitespace_ps_service_type|whitespace_padded_table_name|internal_whitespace_table_name|zero_num_ps|zero_dim)_without_wrapper" crates/monolith-training/src/runner.rs` ✅ (verified expanded direct helper global-contract reject regressions are present for both roles)
+1592. `cargo test -p monolith-training test_run_distributed_rejects_zero_discovery_operation_timeout_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_discovery_operation_timeout_runtime_config_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_discovery_cleanup_timeout_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_discovery_cleanup_timeout_runtime_config_for_ps_role -- --nocapture` ✅ (validated run_distributed global discovery-timeout zero-value rejection symmetry across worker and ps roles)
+1593. `rg "test_run_distributed_rejects_zero_discovery_(operation|cleanup)_timeout_runtime_config(_for_ps_role)?" crates/monolith-training/src/runner.rs` ✅ (verified top-level runtime discovery-timeout symmetry regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

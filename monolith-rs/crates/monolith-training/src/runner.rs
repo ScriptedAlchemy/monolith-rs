@@ -4692,6 +4692,64 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_rejects_zero_discovery_operation_timeout_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_operation_timeout: Duration::from_millis(0),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject zero discovery operation timeout");
+        assert!(err.to_string().contains("discovery_operation_timeout > 0"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_zero_discovery_operation_timeout_runtime_config_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            discovery_operation_timeout: Duration::from_millis(0),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject zero discovery operation timeout for ps role",
+        );
+        assert!(err.to_string().contains("discovery_operation_timeout > 0"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_zero_discovery_cleanup_timeout_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_cleanup_timeout: Duration::from_millis(0),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject zero discovery cleanup timeout");
+        assert!(err.to_string().contains("discovery_cleanup_timeout > 0"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_zero_discovery_cleanup_timeout_runtime_config_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            discovery_cleanup_timeout: Duration::from_millis(0),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject zero discovery cleanup timeout for ps role",
+        );
+        assert!(err.to_string().contains("discovery_cleanup_timeout > 0"));
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_rejects_whitespace_padded_ps_service_type_runtime_config() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
