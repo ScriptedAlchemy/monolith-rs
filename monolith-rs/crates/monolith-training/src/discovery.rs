@@ -6641,6 +6641,22 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_discover_async_address_fragment_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500#consul");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result.expect_err("address fragment should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("fragment is not allowed")
+                    && msg.contains("get_service_nodes")),
+            "expected ConfigError containing address-fragment discover context, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_connect_empty_host_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("http://:8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
@@ -7139,6 +7155,86 @@ mod tests {
                 .expect("sync discover should succeed after async deregister failure")
                 .is_empty(),
             "local cache entry should remain removed even when async deregister fails due to whitespace authority"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_leading_trailing_whitespace_still_notifies_and_returns_error() {
+        let consul = ConsulDiscovery::new(" http://127.0.0.1:8500 ");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let mut rx = consul.watch("worker").expect("watch should succeed");
+
+        let result =
+            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id)
+                .await;
+        let err = result.expect_err("leading/trailing whitespace should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("leading/trailing whitespace")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing leading/trailing-whitespace deregister context, got {err:?}"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == &service.id),
+            "expected ServiceRemoved({}), got {event:?}",
+            service.id
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("sync discover should succeed after async deregister failure")
+                .is_empty(),
+            "local cache entry should remain removed even when async deregister fails due to leading/trailing whitespace"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_empty_host_still_notifies_and_returns_error() {
+        let consul = ConsulDiscovery::new("http://:8500");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let mut rx = consul.watch("worker").expect("watch should succeed");
+
+        let result =
+            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id)
+                .await;
+        let err = result.expect_err("empty-host authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("empty host")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing empty-host deregister context, got {err:?}"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == &service.id),
+            "expected ServiceRemoved({}), got {event:?}",
+            service.id
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("sync discover should succeed after async deregister failure")
+                .is_empty(),
+            "local cache entry should remain removed even when async deregister fails due to empty host"
         );
     }
 

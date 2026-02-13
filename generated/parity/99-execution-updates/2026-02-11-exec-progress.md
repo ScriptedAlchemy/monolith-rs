@@ -7486,6 +7486,19 @@
     coverage across connect, register (dead/live watcher symmetry), and
     deregister cleanup contracts.
 
+### 555) Discovery Consul fragment discover classification + deregister edge-shape cleanup
+- Expanded Consul malformed-address lifecycle coverage in
+  `crates/monolith-training/src/discovery.rs` with:
+  - discover classification for fragment suffix:
+    - `test_consul_discover_async_address_fragment_is_classified_as_config_error`
+  - deregister cleanup-notification contracts for additional edge shapes:
+    - `test_consul_async_deregister_leading_trailing_whitespace_still_notifies_and_returns_error`
+    - `test_consul_async_deregister_empty_host_still_notifies_and_returns_error`
+- Result:
+  - Consul discover/deregister paths now include explicit fragment classification
+    and broader cleanup-notification coverage for leading/trailing-whitespace
+    and empty-host address forms.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8653,6 +8666,8 @@
 1164. `rg "test_consul_async_register_(address_fragment|empty_host|userinfo_authority|whitespace_authority|leading_trailing_whitespace)_keeps_live_watchers" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul register keep-live watcher symmetry tests are present)
 1165. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_connect_address_query_is_classified_as_config_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_connect_address_fragment_is_classified_as_config_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_address_query_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_address_query_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_address_query_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_address_fragment_still_notifies_and_returns_error -- --nocapture` ✅ (validated Consul query/fragment lifecycle regressions across connect/register/deregister paths)
 1166. `rg "test_consul_(connect_address_(query|fragment)_is_classified_as_config_error|async_register_address_query_(compacts_dead_watchers|keeps_live_watchers)|async_deregister_address_(query|fragment)_still_notifies_and_returns_error)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul query/fragment lifecycle tests are present)
+1167. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_address_fragment_is_classified_as_config_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_leading_trailing_whitespace_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_empty_host_still_notifies_and_returns_error -- --nocapture` ✅ (validated Consul fragment discover classification and additional deregister cleanup-notification regressions)
+1168. `rg "test_consul_(discover_async_address_fragment_is_classified_as_config_error|async_deregister_(leading_trailing_whitespace|empty_host)_still_notifies_and_returns_error)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul fragment-discover and deregister edge-shape tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
