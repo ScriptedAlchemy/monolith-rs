@@ -5458,6 +5458,59 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_watch_async_leading_trailing_whitespace_compacts_dead_watch_sender() {
+        let consul = ConsulDiscovery::new(" http://127.0.0.1:8500 ");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("leading/trailing whitespace should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("leading/trailing whitespace")),
+            "expected ConfigError containing watch_service leading/trailing-whitespace context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "whitespace-padded watch_async should compact dead watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_leading_trailing_whitespace_preserves_live_watch_sender() {
+        let consul = ConsulDiscovery::new(" http://127.0.0.1:8500 ");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("leading/trailing whitespace should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("leading/trailing whitespace")),
+            "expected ConfigError containing watch_service leading/trailing-whitespace context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "whitespace-padded watch_async should preserve live watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_watch_async_whitespace_authority_rejects_without_state_changes() {
         let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
 

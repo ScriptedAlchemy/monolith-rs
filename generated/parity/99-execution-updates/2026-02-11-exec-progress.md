@@ -7411,6 +7411,18 @@
   - Consul whitespace-authority/empty-host watch paths now have full dead/live
     watcher symmetry coverage aligned with other config-error watch lanes.
 
+### 550) Discovery Consul leading/trailing-whitespace watch dead/live watcher symmetry
+- Expanded Consul `watch_async` leading/trailing-whitespace lifecycle coverage
+  in `crates/monolith-training/src/discovery.rs` with explicit dead/live
+  watcher parity tests:
+  - `test_consul_watch_async_leading_trailing_whitespace_compacts_dead_watch_sender`
+  - `test_consul_watch_async_leading_trailing_whitespace_preserves_live_watch_sender`
+- These complement the existing reject-without-state check by validating watcher
+  compaction and preservation behavior when subscribers already exist.
+- Result:
+  - Consul leading/trailing-whitespace watch paths now have full dead/live
+    watcher symmetry coverage aligned with other config-error watch lanes.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8568,6 +8580,8 @@
 1154. `rg "test_consul_watch_async_(query|fragment)_(compacts_dead_watch_sender|preserves_live_watch_sender)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul query/fragment watch symmetry tests are present)
 1155. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_whitespace_authority_compacts_dead_watch_sender -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_whitespace_authority_preserves_live_watch_sender -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_empty_host_compacts_dead_watch_sender -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_empty_host_preserves_live_watch_sender -- --nocapture` ✅ (validated Consul whitespace-authority/empty-host watch dead/live watcher symmetry regressions)
 1156. `rg "test_consul_watch_async_(whitespace_authority|empty_host)_(compacts_dead_watch_sender|preserves_live_watch_sender)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul whitespace-authority/empty-host watch symmetry tests are present)
+1157. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_leading_trailing_whitespace_compacts_dead_watch_sender -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_leading_trailing_whitespace_preserves_live_watch_sender -- --nocapture` ✅ (validated Consul leading/trailing-whitespace watch dead/live watcher symmetry regressions)
+1158. `rg "test_consul_watch_async_leading_trailing_whitespace_(compacts_dead_watch_sender|preserves_live_watch_sender)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul leading/trailing-whitespace watch symmetry tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
