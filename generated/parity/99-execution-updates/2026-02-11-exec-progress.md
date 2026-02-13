@@ -7742,6 +7742,20 @@
   - Empty-address parity now spans connect/discover/register/deregister with
     explicit default-endpoint failure-shape contracts.
 
+### 575) Discovery Consul async empty-address watcher-symmetry expansion
+- Added Consul empty-address watcher-symmetry regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_async_deregister_empty_address_compacts_dead_watchers`
+  - `test_consul_async_register_empty_address_compacts_dead_watchers`
+  - `test_consul_async_register_empty_address_keeps_live_watchers`
+- Coverage validates that default-endpoint async failure lanes preserve existing
+  watcher lifecycle guarantees:
+  - dead watcher senders are compacted,
+  - live watcher senders are preserved.
+- Result:
+  - Empty-address async register/deregister parity now includes explicit
+    dead/live watcher symmetry assertions, not only failure-shape context.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8948,6 +8962,8 @@
 1203. `rg "test_consul_connect_empty_address_initializes_default_client_handle" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul connect empty-address default-endpoint regression is present)
 1204. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_empty_address_uses_default_endpoint_context -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_empty_address_uses_default_endpoint_context -- --nocapture` ✅ (validated Consul async deregister/register empty-address default-endpoint failure contracts and lifecycle behavior)
 1205. `rg "test_consul_async_(deregister|register)_empty_address_uses_default_endpoint_context" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul async empty-address default-endpoint regression tests are present)
+1206. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_empty_address_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_empty_address_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_empty_address_keeps_live_watchers -- --nocapture` ✅ (validated Consul async empty-address watcher dead/live symmetry regressions)
+1207. `rg "test_consul_async_(deregister_empty_address_compacts_dead_watchers|register_empty_address_compacts_dead_watchers|register_empty_address_keeps_live_watchers)" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul async empty-address watcher-symmetry tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
