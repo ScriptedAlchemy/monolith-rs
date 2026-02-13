@@ -11023,24 +11023,21 @@
   - parameter-sync contracts now match runtime ownership boundaries and avoid
     worker-role over-validation.
 
-### 738) Heartbeat-interval validation scoped to PS heartbeat ownership
-- Refined `DistributedRunConfig::validate` in
-  `crates/monolith-training/src/runner.rs`:
-  - zero heartbeat interval validation now applies only to PS role configs
-    (where heartbeat task wiring exists).
-- Added/updated regressions:
-  - `test_distributed_config_validate_rejects_zero_heartbeat_interval_when_configured`
-    now explicitly targets PS role.
-  - `test_distributed_config_validate_allows_zero_heartbeat_interval_for_worker_role`
-  - `test_run_distributed_allows_zero_heartbeat_interval_for_worker_role`
-  - `test_run_worker_role_allows_zero_heartbeat_interval_without_wrapper`
+### 738) Heartbeat interval guard restored for both worker and PS roles
+- Corrected `DistributedRunConfig::validate` in
+  `crates/monolith-training/src/runner.rs` to enforce
+  `heartbeat_interval > 0` for **all** roles when configured.
+- Root-cause alignment:
+  - `run_worker_role` also starts `spawn_heartbeat_task(...)`; therefore worker
+    role is not heartbeat-free and must reject zero interval to avoid
+    non-terminating zero-sleep heartbeat loops.
 - Coverage validates:
-  - PS role still enforces non-zero configured heartbeat interval,
-  - worker role no longer fails validation on unused heartbeat fields and still
-    fails only on expected discovery-timeout behavior.
+  - worker runtime path rejects zero heartbeat interval at validation boundary,
+  - PS direct helper path continues rejecting zero heartbeat interval,
+  - broader heartbeat slice remains green after restoring global guard.
 - Result:
-  - heartbeat validation now matches runtime ownership and eliminates
-    worker-role over-validation.
+  - heartbeat contract once again matches actual runtime behavior for both role
+    helper paths.
 
 ## Validation evidence (commands run)
 
@@ -12600,9 +12597,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1548. `cargo test -p monolith-training test_distributed_config_validate_rejects_zero_parameter_sync_interval_when_targets_configured -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_rejects_invalid_parameter_sync_target_endpoint -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_allows_invalid_parameter_sync_target_for_worker_role -- --nocapture && cargo test -p monolith-training test_run_worker_role_allows_invalid_parameter_sync_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_invalid_parameter_sync_targets_for_worker_role -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_zero_parameter_sync_interval_without_targets -- --nocapture` ✅ (validated ps-role strict parameter-sync contract enforcement and worker-role permissiveness for unused parameter-sync settings)
 1549. `rg "if matches!\\(self.role, Role::Ps\\)|test_distributed_config_validate_allows_invalid_parameter_sync_target_for_worker_role|test_run_worker_role_allows_invalid_parameter_sync_targets_without_wrapper|test_run_distributed_allows_invalid_parameter_sync_targets_for_worker_role|test_distributed_config_validate_rejects_zero_parameter_sync_interval_when_targets_configured" crates/monolith-training/src/runner.rs` ✅ (verified parameter-sync validation is ps-scoped and worker-role permissiveness regressions are present)
 1550. `cargo test -p monolith-training parameter_sync -- --nocapture` ✅ (ran full parameter-sync test slice across unit + parity suites to confirm ps-scoped validation and worker-role bypass semantics do not regress broader parameter-sync contracts)
-1551. `cargo test -p monolith-training test_distributed_config_validate_rejects_zero_heartbeat_interval_when_configured -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_allows_zero_heartbeat_interval_for_worker_role -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_zero_heartbeat_interval_for_worker_role -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_allows_zero_heartbeat_interval_without_wrapper -- --nocapture` ✅ (validated ps-only heartbeat interval rejection and worker-role permissiveness across top-level and direct helper entrypoints)
-1552. `cargo test -p monolith-training heartbeat_interval -- --nocapture` ✅ (ran full heartbeat-interval regression slice to confirm scoped validation does not regress broader heartbeat lifecycle contracts)
-1553. `rg "test_distributed_config_validate_allows_zero_heartbeat_interval_for_worker_role|test_run_distributed_allows_zero_heartbeat_interval_for_worker_role|test_run_worker_role_allows_zero_heartbeat_interval_without_wrapper|heartbeat_interval > 0 when configured" crates/monolith-training/src/runner.rs` ✅ (verified ps-scoped heartbeat validation regressions and worker-role allowance regressions are present)
+1551. `cargo test -p monolith-training test_distributed_config_validate_rejects_zero_heartbeat_interval_when_configured -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_heartbeat_interval_runtime_config -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper -- --nocapture && cargo test -p monolith-training heartbeat_interval -- --nocapture` ✅ (validated global heartbeat guard rejection paths across validation, top-level distributed runtime, direct ps helper, and full heartbeat regression slice)
+1552. `rg "test_distributed_config_validate_rejects_zero_heartbeat_interval_when_configured|test_run_distributed_rejects_zero_heartbeat_interval_runtime_config|test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper|heartbeat_interval > 0 when configured" crates/monolith-training/src/runner.rs` ✅ (verified restored global heartbeat validation guard and rejection regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
