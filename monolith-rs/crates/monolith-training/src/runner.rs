@@ -5818,6 +5818,46 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_ps_role_rejects_parameter_sync_target_endpoint_with_path_or_query_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["127.0.0.1:8500/path?foo=bar".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
+            "run_ps_role should reject parameter sync target containing URL path/query",
+        );
+        assert!(
+            err.to_string()
+                .contains("endpoint must not include a URL path or query"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_parameter_sync_target_endpoint_with_userinfo_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["http://user@127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
+            "run_ps_role should reject parameter sync target containing userinfo",
+        );
+        assert!(
+            err.to_string()
+                .contains("endpoint must not include userinfo"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_ps_role_rejects_empty_parameter_sync_target_entry_without_wrapper() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -6301,6 +6341,42 @@ mod tests {
         assert!(err.to_string().contains(
             "parameter_sync_targets entries without leading/trailing whitespace"
         ));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_parameter_sync_target_endpoint_with_path_or_query_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["127.0.0.1:8500/path?foo=bar".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject parameter sync target containing URL path/query for ps role",
+        );
+        assert!(err
+            .to_string()
+            .contains("endpoint must not include a URL path or query"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_parameter_sync_target_endpoint_with_userinfo_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["http://user@127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject parameter sync target containing userinfo for ps role",
+        );
+        assert!(err
+            .to_string()
+            .contains("endpoint must not include userinfo"));
     }
 
     #[tokio::test]
