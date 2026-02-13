@@ -8934,6 +8934,25 @@
     disconnect/reconnect determinism for single-host host:port and host-only
     IPv4/IPv6/hostname authority permutations.
 
+### 645) Discovery ZooKeeper connect disconnect/reconnect multi-host lifecycle parity
+- Added ZooKeeper connect lifecycle regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_zk_connect_valid_multi_hosts_disconnect_and_reconnect`
+  - `test_zk_connect_valid_mixed_ipv4_ipv6_hosts_disconnect_and_reconnect`
+  - `test_zk_connect_valid_ipv6_multi_hosts_disconnect_and_reconnect`
+  - `test_zk_connect_valid_host_only_multi_hosts_disconnect_and_reconnect`
+  - `test_zk_connect_valid_host_only_mixed_ipv4_ipv6_hosts_disconnect_and_reconnect`
+  - `test_zk_connect_valid_host_only_ipv6_multi_hosts_disconnect_and_reconnect`
+- Coverage validates unreachable-but-valid multi-host lanes remain parity-safe:
+  - initial connect attempts return explicit `ConnectionFailed` diagnostics,
+  - disconnect remains successful and idempotent after failed connect attempts,
+  - reconnect attempts preserve the same failure-shape contract,
+  - failed connect/reconnect attempts do not leave stale client handles.
+- Result:
+  - ZooKeeper connect lifecycle parity now explicitly includes
+    disconnect/reconnect determinism for multi-host host:port and host-only
+    IPv4/IPv6/mixed-family authority permutations.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -10287,6 +10306,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1343. `rg "test_(normalize_consul_address_for_operation_accepts_case_insensitive_https_scheme_with_hostname_without_port|consul_(watch_async_case_insensitive_https_scheme_and_root_slash_hostname_without_port_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_case_insensitive_https_scheme_and_root_slash_hostname_without_port_(succeeds|disconnect_and_reconnect)|async_register_case_insensitive_https_scheme_and_root_slash_hostname_without_port_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_case_insensitive_https_scheme_and_root_slash_hostname_without_port_(uses_operation_context|preserves_local_cache)|async_deregister_case_insensitive_https_scheme_and_root_slash_hostname_without_port_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified case-insensitive explicit-HTTPS hostname-only Consul lifecycle regression tests are present)
 1344. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_valid_host_ -- --nocapture` ✅ (validated ZooKeeper valid-host connect lifecycle regressions, including new disconnect/reconnect permutations)
 1345. `rg "test_zk_connect_valid_(host_port_single_(ipv4_host|ipv6_host|hostname)|host_only_single_(ipv4_host|ipv6_host|hostname))_disconnect_and_reconnect" crates/monolith-training/src/discovery.rs` ✅ (verified ZooKeeper disconnect/reconnect host-shape regression tests are present)
+1346. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_valid_ -- --nocapture` ✅ (validated ZooKeeper valid-host connect lifecycle regressions, including new multi-host disconnect/reconnect permutations)
+1347. `rg "test_zk_connect_valid_(multi_hosts|mixed_ipv4_ipv6_hosts|ipv6_multi_hosts|host_only_multi_hosts|host_only_mixed_ipv4_ipv6_hosts|host_only_ipv6_multi_hosts)_disconnect_and_reconnect" crates/monolith-training/src/discovery.rs` ✅ (verified ZooKeeper multi-host disconnect/reconnect regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
