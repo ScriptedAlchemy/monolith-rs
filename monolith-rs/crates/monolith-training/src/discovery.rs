@@ -4939,12 +4939,24 @@ mod tests {
     #[cfg(feature = "consul")]
     #[test]
     fn test_consul_discovery_creation() {
-        let _consul = ConsulDiscovery::new("http://localhost:8500")
+        let consul = ConsulDiscovery::new("http://localhost:8500")
             .with_datacenter("dc1")
             .with_token("secret-token");
-
-        // Just test that it can be created
-        assert!(true);
+        assert_eq!(consul.address, "http://localhost:8500");
+        assert_eq!(
+            consul.datacenter.as_deref(),
+            Some("dc1"),
+            "with_datacenter should store configured datacenter"
+        );
+        assert_eq!(
+            consul.token.as_deref(),
+            Some("secret-token"),
+            "with_token should store configured ACL token"
+        );
+        assert_eq!(
+            consul.service_name, "monolith",
+            "Consul discovery should default to monolith service name"
+        );
     }
 
     #[cfg(feature = "consul")]

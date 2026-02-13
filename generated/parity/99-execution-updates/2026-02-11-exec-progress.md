@@ -7796,6 +7796,17 @@
   - Consul root-slash/case-insensitive acceptance parity now spans discover,
     register, and deregister async operations.
 
+### 579) Discovery Consul creation-test assertion hardening
+- Tightened `test_consul_discovery_creation` in
+  `crates/monolith-training/src/discovery.rs` by replacing the vacuous
+  `assert!(true)` with explicit construction-state assertions:
+  - configured address is preserved,
+  - datacenter/token builder setters are persisted,
+  - default service name remains `monolith`.
+- Result:
+  - Creation-path regression now emits concrete diagnostics on builder/state
+    mismatches instead of a non-informative always-true assertion.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9010,6 +9021,8 @@
 1211. `rg "test_consul_watch_async_empty_address_creates_state_and_disconnect_cleans_up" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul watch_async empty-address lifecycle regression is present)
 1212. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_case_insensitive_scheme_and_root_slash_uses_operation_context -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_case_insensitive_scheme_and_root_slash_uses_operation_context -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_case_insensitive_scheme_and_root_slash_uses_operation_context -- --nocapture` ✅ (validated operation-context failure contracts for normalized case-insensitive/root-slash Consul addresses across discover/register/deregister async operations)
 1213. `rg "test_consul_(discover_async_case_insensitive_scheme_and_root_slash_uses_operation_context|async_register_case_insensitive_scheme_and_root_slash_uses_operation_context|async_deregister_case_insensitive_scheme_and_root_slash_uses_operation_context)" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul normalized-root-slash operation-context regressions are present)
+1214. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discovery_creation -- --nocapture` ✅ (validated tightened Consul creation-path builder/state assertions)
+1215. `rg "fn test_consul_discovery_creation\\(" crates/monolith-training/src/discovery.rs` ✅ (verified hardened Consul discovery creation regression location)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
