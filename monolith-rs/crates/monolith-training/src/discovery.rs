@@ -5302,6 +5302,59 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_watch_async_query_compacts_dead_watch_sender() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500?dc=prod");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("query suffix should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("query is not allowed")),
+            "expected ConfigError containing watch_service query-suffix context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "query-suffix watch_async should compact dead watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_query_preserves_live_watch_sender() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500?dc=prod");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("query suffix should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("query is not allowed")),
+            "expected ConfigError containing watch_service query-suffix context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "query-suffix watch_async should preserve live watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_watch_async_fragment_rejects_without_state_changes() {
         let consul = ConsulDiscovery::new("http://127.0.0.1:8500#consul");
 
@@ -5322,6 +5375,59 @@ mod tests {
         assert!(
             !consul_has_watch_poll_generation(&consul, "worker"),
             "fragment-suffix watch_async should not seed poll-generation bookkeeping"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_fragment_compacts_dead_watch_sender() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500#consul");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("fragment suffix should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("fragment is not allowed")),
+            "expected ConfigError containing watch_service fragment-suffix context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "fragment-suffix watch_async should compact dead watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_fragment_preserves_live_watch_sender() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500#consul");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("fragment suffix should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("fragment is not allowed")),
+            "expected ConfigError containing watch_service fragment-suffix context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "fragment-suffix watch_async should preserve live watcher sender entries"
         );
     }
 
