@@ -7897,6 +7897,19 @@
   - Host-port normalized connect parity now explicitly includes disconnect +
     reconnect client-handle lifecycle guarantees.
 
+### 587) Discovery Consul case-insensitive root-slash connect lifecycle reconnect parity
+- Added
+  `test_consul_connect_case_insensitive_scheme_and_root_slash_disconnect_and_reconnect`
+  in `crates/monolith-training/src/discovery.rs`.
+- Coverage validates normalized case-insensitive/root-slash connect lifecycle:
+  - connect initializes client handle,
+  - disconnect clears handle,
+  - reconnect reinitializes handle deterministically.
+- Result:
+  - Case-insensitive/root-slash connect parity now includes explicit
+    disconnect+reconnect client-handle lifecycle guarantees, matching the
+    host-port normalized lifecycle lane.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9127,6 +9140,8 @@
 1227. `rg "fn test_zk_discovery_creation\\(" crates/monolith-training/src/discovery.rs` ✅ (verified hardened ZooKeeper discovery creation regression location)
 1228. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_connect_host_port_without_scheme_disconnect_and_reconnect -- --nocapture` ✅ (validated Consul normalized host:port connect/disconnect/reconnect client-handle lifecycle regression)
 1229. `rg "test_consul_connect_host_port_without_scheme_disconnect_and_reconnect" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul host-port connect lifecycle reconnect regression is present)
+1230. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_connect_case_insensitive_scheme_and_root_slash_disconnect_and_reconnect -- --nocapture` ✅ (validated Consul case-insensitive/root-slash connect/disconnect/reconnect client-handle lifecycle regression)
+1231. `rg "test_consul_connect_case_insensitive_scheme_and_root_slash_disconnect_and_reconnect" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul case-insensitive/root-slash connect lifecycle reconnect regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

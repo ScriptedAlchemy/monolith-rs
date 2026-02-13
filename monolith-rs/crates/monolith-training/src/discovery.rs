@@ -7778,6 +7778,35 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_connect_case_insensitive_scheme_and_root_slash_disconnect_and_reconnect() {
+        let consul = ConsulDiscovery::new("HTTP://127.0.0.1:8500/");
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("case-insensitive scheme and root slash should be accepted");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "successful connect should initialize client handle"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            consul.client.lock().await.is_none(),
+            "disconnect should clear normalized case-insensitive root-slash client handle"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("reconnect should reinitialize client handle for normalized address");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "reconnect should recreate client handle for normalized case-insensitive root-slash address"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_connect_empty_address_initializes_default_client_handle() {
         let consul = ConsulDiscovery::new("");
         <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
