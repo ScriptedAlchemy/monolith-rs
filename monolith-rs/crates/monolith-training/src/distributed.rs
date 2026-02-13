@@ -712,6 +712,11 @@ impl LocalCluster {
         timeout: std::time::Duration,
         poll_interval: std::time::Duration,
     ) -> DistributedResult<BarrierStatus> {
+        if poll_interval.is_zero() {
+            return Err(DistributedError::InvalidConfiguration(
+                "wait_for_barrier requires a non-zero poll interval".to_string(),
+            ));
+        }
         let start = std::time::Instant::now();
         loop {
             match self.sync_barrier(worker_index)? {
@@ -1419,6 +1424,34 @@ mod tests {
             matches!(err, DistributedError::InvalidConfiguration(ref msg)
                 if msg.contains("local cluster is not fully running")),
             "expected InvalidConfiguration mentioning not-fully-running cluster, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_local_cluster_wait_for_barrier_zero_poll_interval_is_invalid_configuration() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000)],
+            vec![make_addr(6000), make_addr(6001)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for zero-poll-interval test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for zero-poll-interval test");
+
+        let err = cluster
+            .wait_for_barrier(
+                0,
+                std::time::Duration::from_millis(10),
+                std::time::Duration::from_millis(0),
+            )
+            .expect_err("zero poll interval should return InvalidConfiguration");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("wait_for_barrier requires a non-zero poll interval")),
+            "expected InvalidConfiguration mentioning non-zero poll interval requirement, got {err:?}"
         );
     }
 

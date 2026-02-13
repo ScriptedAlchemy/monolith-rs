@@ -10292,6 +10292,19 @@
   - Local-cluster mutating operations now have explicit regression evidence for
     fully-running role-state enforcement and step-stability under rejection.
 
+### 697) Distributed wait_for_barrier poll-interval contract hardening
+- Hardened `LocalCluster::wait_for_barrier` in
+  `crates/monolith-training/src/distributed.rs` to reject zero poll intervals
+  as explicit configuration errors:
+  - returns `InvalidConfiguration("wait_for_barrier requires a non-zero poll interval")`.
+- Added regression:
+  - `test_local_cluster_wait_for_barrier_zero_poll_interval_is_invalid_configuration`
+- Coverage validates this guard alongside existing wait-for-barrier success,
+  timeout, timeout-cleanup retry, and partially-running-cluster guard paths.
+- Result:
+  - `wait_for_barrier` now has deterministic non-zero poll-interval input
+    requirements, preventing undefined busy-loop behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11749,6 +11762,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1447. `rg "test_local_cluster_stop_from_partial_state_clears_(waiting|released)_barrier_bookkeeping" crates/monolith-training/src/distributed.rs` ✅ (verified partial-state shutdown barrier-bookkeeping cleanup regressions are present)
 1448. `cargo test -p monolith-training test_local_cluster_register_parameter_rejects_partially_running_cluster -- --nocapture && cargo test -p monolith-training test_local_cluster_train_step_rejects_partially_running_cluster_without_step_advance -- --nocapture` ✅ (validated partially running cluster guards for register/train-step and non-advancing step semantics on rejection)
 1449. `rg "test_local_cluster_(register_parameter_rejects_partially_running_cluster|train_step_rejects_partially_running_cluster_without_step_advance)" crates/monolith-training/src/distributed.rs` ✅ (verified partially running cluster guard regressions are present)
+1450. `cargo test -p monolith-training test_local_cluster_wait_for_barrier_zero_poll_interval_is_invalid_configuration -- --nocapture && cargo test -p monolith-training test_local_cluster_wait_for_barrier_ -- --nocapture` ✅ (validated non-zero poll-interval guard plus full wait_for_barrier success/timeout/retry/partially-running regressions)
+1451. `rg "test_local_cluster_wait_for_barrier_zero_poll_interval_is_invalid_configuration" crates/monolith-training/src/distributed.rs` ✅ (verified wait_for_barrier non-zero poll-interval regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
