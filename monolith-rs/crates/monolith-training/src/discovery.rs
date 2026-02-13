@@ -4594,6 +4594,20 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_connect_valid_host_only_mixed_ipv4_ipv6_hosts_returns_connection_failed_when_unreachable(
+    ) {
+        let zk = ZkDiscovery::new("[::1],127.0.0.1", "/services").with_session_timeout(100);
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let err = result
+            .expect_err("unreachable but valid host-only mixed-family list should fail connecting");
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid host-only mixed-family list, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_async_register_invalid_hosts_compacts_dead_watchers() {
         let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
         let rx = zk.watch("ps").expect("watch should succeed");
@@ -8996,6 +9010,49 @@ mod tests {
             cached.len(),
             1,
             "valid host-only multi-host async discover failure should not evict local cache entries"
+        );
+        assert_eq!(cached[0].id, "ps-0");
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_discover_async_valid_host_only_mixed_ipv4_ipv6_hosts_connection_failure_is_connection_failed(
+    ) {
+        let zk = ZkDiscovery::new("[::1],127.0.0.1", "/services").with_session_timeout(100);
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::discover_async(&zk, "ps").await;
+        let err = result.expect_err(
+            "discover should fail when valid host-only mixed-family list is unreachable",
+        );
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid host-only mixed-family discover, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_discover_async_valid_host_only_mixed_ipv4_ipv6_hosts_connection_failure_preserves_local_cache(
+    ) {
+        let zk = ZkDiscovery::new("[::1],127.0.0.1", "/services").with_session_timeout(100);
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::discover_async(&zk, "ps").await;
+        let err = result.expect_err(
+            "discover should fail when valid host-only mixed-family list is unreachable",
+        );
+        assert!(
+            matches!(err, DiscoveryError::ConnectionFailed(ref msg) if msg.contains("ZK connect failed")),
+            "expected ConnectionFailed containing ZK connect context for valid host-only mixed-family discover, got {err:?}"
+        );
+
+        let cached = zk
+            .discover("ps")
+            .expect("discover should succeed after async failure");
+        assert_eq!(
+            cached.len(),
+            1,
+            "valid host-only mixed-family async discover failure should not evict local cache entries"
         );
         assert_eq!(cached[0].id, "ps-0");
     }
