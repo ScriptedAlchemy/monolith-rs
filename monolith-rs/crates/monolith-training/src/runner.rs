@@ -146,9 +146,6 @@ impl DistributedRunConfig {
         if self.discovery_service_type_ps.trim().is_empty() {
             anyhow::bail!("distributed config requires non-empty discovery_service_type_ps");
         }
-        if self.discovery_service_type_worker.trim().is_empty() {
-            anyhow::bail!("distributed config requires non-empty discovery_service_type_worker");
-        }
         if self.discovery_service_type_ps.trim() != self.discovery_service_type_ps {
             anyhow::bail!(
                 "distributed config requires discovery_service_type_ps without leading/trailing whitespace"
@@ -163,28 +160,33 @@ impl DistributedRunConfig {
                 "distributed config requires discovery_service_type_ps without whitespace characters"
             );
         }
-        if self.discovery_service_type_worker.trim() != self.discovery_service_type_worker {
-            anyhow::bail!(
-                "distributed config requires discovery_service_type_worker without leading/trailing whitespace"
-            );
-        }
-        if self
-            .discovery_service_type_worker
-            .chars()
-            .any(char::is_whitespace)
-        {
-            anyhow::bail!(
-                "distributed config requires discovery_service_type_worker without whitespace characters"
-            );
-        }
-        if self
-            .discovery_service_type_ps
-            .trim()
-            .eq_ignore_ascii_case(self.discovery_service_type_worker.trim())
-        {
-            anyhow::bail!(
-                "distributed config requires distinct discovery_service_type_ps and discovery_service_type_worker"
-            );
+        if matches!(self.role, Role::Worker) {
+            if self.discovery_service_type_worker.trim().is_empty() {
+                anyhow::bail!("distributed config requires non-empty discovery_service_type_worker");
+            }
+            if self.discovery_service_type_worker.trim() != self.discovery_service_type_worker {
+                anyhow::bail!(
+                    "distributed config requires discovery_service_type_worker without leading/trailing whitespace"
+                );
+            }
+            if self
+                .discovery_service_type_worker
+                .chars()
+                .any(char::is_whitespace)
+            {
+                anyhow::bail!(
+                    "distributed config requires discovery_service_type_worker without whitespace characters"
+                );
+            }
+            if self
+                .discovery_service_type_ps
+                .trim()
+                .eq_ignore_ascii_case(self.discovery_service_type_worker.trim())
+            {
+                anyhow::bail!(
+                    "distributed config requires distinct discovery_service_type_ps and discovery_service_type_worker"
+                );
+            }
         }
         if self.table_name.trim().is_empty() {
             anyhow::bail!("distributed config requires non-empty table_name");
@@ -3267,6 +3269,18 @@ mod tests {
     }
 
     #[test]
+    fn test_distributed_config_validate_allows_empty_worker_service_type_for_ps_role() {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            discovery_service_type_worker: "".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        cfg.validate().expect(
+            "ps role should allow empty worker discovery service type because worker service registration/discovery is unused",
+        );
+    }
+
+    #[test]
     fn test_distributed_config_validate_rejects_whitespace_padded_worker_service_type() {
         let cfg = DistributedRunConfig {
             discovery_service_type_worker: " worker ".to_string(),
@@ -3326,6 +3340,19 @@ mod tests {
                 "distributed config requires distinct discovery_service_type_ps and discovery_service_type_worker"
             ),
             "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_allows_identical_ps_and_worker_service_types_for_ps_role() {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            discovery_service_type_ps: "service".to_string(),
+            discovery_service_type_worker: "service".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        cfg.validate().expect(
+            "ps role should allow identical worker service type because worker discovery service type is unused",
         );
     }
 
@@ -4505,6 +4532,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_ps_role_allows_empty_worker_service_type_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            discovery_service_type_worker: String::new(),
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_ps_role(
+            Arc::clone(&discovery),
+            "ps-0",
+            "ps".to_string(),
+            cfg,
+        ));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !task.is_finished(),
+            "run_ps_role should keep serving; empty worker service type must not fail ps-role validation"
+        );
+        task.abort();
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_allows_zero_parameter_sync_interval_without_targets() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let cfg = DistributedRunConfig {
@@ -4580,6 +4635,29 @@ mod tests {
         assert!(
             !task.is_finished(),
             "ps role should continue serving; zero retry_backoff_ms must not fail validation for ps role"
+        );
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_empty_worker_service_type_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            discovery_service_type_worker: String::new(),
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_distributed(Arc::clone(&discovery), cfg));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !task.is_finished(),
+            "ps role should continue serving; empty worker service type must not fail ps-role validation"
         );
         task.abort();
     }

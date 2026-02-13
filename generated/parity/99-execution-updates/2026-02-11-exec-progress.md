@@ -10983,6 +10983,27 @@
   - direct helper retry-backoff contracts now fully mirror scoped validation
     semantics across worker and ps paths.
 
+### 736) Worker discovery-service-type validation scoped to worker role usage
+- Refined `DistributedRunConfig::validate` in
+  `crates/monolith-training/src/runner.rs`:
+  - `discovery_service_type_worker` non-empty/trim/whitespace constraints are
+    now enforced only for worker role.
+  - worker-vs-ps discovery service-type distinctness is now enforced only for
+    worker role.
+- Added regressions:
+  - `test_distributed_config_validate_allows_empty_worker_service_type_for_ps_role`
+  - `test_distributed_config_validate_allows_identical_ps_and_worker_service_types_for_ps_role`
+  - `test_run_ps_role_allows_empty_worker_service_type_without_wrapper`
+  - `test_run_distributed_allows_empty_worker_service_type_for_ps_role`
+- Coverage validates:
+  - worker role still enforces worker discovery service-type hygiene and
+    distinctness against ps type,
+  - ps role configs are no longer over-constrained by worker-only discovery
+    fields.
+- Result:
+  - discovery service-type contracts now align with actual per-role runtime
+    field usage.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12536,6 +12557,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1543. `rg "test_run_worker_role_rejects_non_positive_barrier_timeout_without_wrapper|test_run_ps_role_allows_non_positive_barrier_timeout_without_wrapper|cfg.validate\\(\\)\\?;" crates/monolith-training/src/runner.rs` ✅ (verified direct role-entry barrier-timeout regressions and role-level validation guard wiring are present)
 1544. `cargo test -p monolith-training test_run_worker_role_allows_zero_retry_backoff_when_retries_disabled_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_allows_zero_retry_backoff_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_zero_retry_backoff_without_wrapper -- --nocapture` ✅ (validated direct role-entry retry-backoff behavior across worker enabled/disabled modes and ps-role permissiveness)
 1545. `rg "test_run_worker_role_allows_zero_retry_backoff_when_retries_disabled_without_wrapper|test_run_ps_role_allows_zero_retry_backoff_without_wrapper|test_run_worker_role_rejects_zero_retry_backoff_without_wrapper" crates/monolith-training/src/runner.rs` ✅ (verified direct role-entry retry-backoff contract regressions for worker/ps helper paths are present)
+1546. `cargo test -p monolith-training test_distributed_config_validate_rejects_empty_worker_service_type -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_allows_empty_worker_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_rejects_identical_ps_and_worker_service_types -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_allows_identical_ps_and_worker_service_types_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_ps_role_allows_empty_worker_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_empty_worker_service_type_for_ps_role -- --nocapture` ✅ (validated worker-only enforcement of worker discovery-service-type constraints while ps role remains permissive)
+1547. `rg "test_distributed_config_validate_allows_empty_worker_service_type_for_ps_role|test_distributed_config_validate_allows_identical_ps_and_worker_service_types_for_ps_role|test_run_ps_role_allows_empty_worker_service_type_without_wrapper|test_run_distributed_allows_empty_worker_service_type_for_ps_role|non-empty discovery_service_type_worker|distinct discovery_service_type_ps and discovery_service_type_worker" crates/monolith-training/src/runner.rs` ✅ (verified worker-scoped discovery-service-type validation and ps-role allowance regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
