@@ -10460,6 +10460,25 @@
   - Native-training Consul cache handling now uses explicit lock-poison error
     contracts instead of panic-based failure.
 
+### 707) Graph-meta store lock-poison recovery hardening
+- Hardened `crates/monolith-training/src/native_training/graph_meta.rs`:
+  - introduced `lock_store_recover()` helper to recover from poisoned global
+    graph-meta mutexes and continue with warning diagnostics,
+  - removed panic-prone lock `expect(...)` paths from:
+    - `get_meta_cloned`
+    - `update_meta`
+  - upgraded type-mismatch panic sites to include explicit
+    `graph_id`/`key` context for debugging parity drift.
+- Added regressions:
+  - `test_get_meta_cloned_recovers_after_poisoned_store_mutex`
+  - `test_update_meta_recovers_after_poisoned_store_mutex`
+- Coverage validates:
+  - graph-meta read/update flows continue functioning after lock poisoning,
+  - existing graph-meta factory/update semantics remain intact.
+- Result:
+  - Graph-meta global store now avoids panic-on-poison lock behavior and
+    preserves deterministic recovery semantics with explicit diagnostics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11945,6 +11964,10 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1475. `rg "test_lookup_cache_(enabled|disabled)_poisoned_cache_mutex_returns_io_error" crates/monolith-training/src/native_training/consul.rs` ✅ (verified native-training consul cache lock-poison regressions are present)
 1476. `rg "consul client cache mutex should not be poisoned" crates/monolith-training/src/native_training/consul.rs` ✅ (verified legacy native-training consul cache panic-path expect strings are removed)
 1477. `rg "consul client cache mutex poisoned" crates/monolith-training/src/native_training/consul.rs` ✅ (verified explicit native-training consul poisoned-cache diagnostics are present)
+1478. `cargo test -p monolith-training test_get_meta_cloned_ -- --nocapture && cargo test -p monolith-training test_update_meta_recovers_after_poisoned_store_mutex -- --nocapture` ✅ (validated graph-meta poisoned-mutex recovery regressions and existing factory/update semantics)
+1479. `rg "test_(get_meta_cloned|update_meta)_recovers_after_poisoned_store_mutex" crates/monolith-training/src/native_training/graph_meta.rs` ✅ (verified graph-meta poisoned-mutex recovery regressions are present)
+1480. `rg "graph meta store mutex should not be poisoned" crates/monolith-training/src/native_training/graph_meta.rs` ✅ (verified legacy graph-meta panic-path expect strings are removed)
+1481. `rg "graph meta store mutex was poisoned; continuing with recovered state" crates/monolith-training/src/native_training/graph_meta.rs` ✅ (verified graph-meta poisoned-mutex recovery warning diagnostics are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
