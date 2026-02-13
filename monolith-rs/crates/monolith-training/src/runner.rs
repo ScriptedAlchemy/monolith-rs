@@ -5759,6 +5759,111 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_ps_role_rejects_zero_parameter_sync_interval_with_targets_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(0),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
+            "run_ps_role should reject zero parameter sync interval when targets are configured",
+        );
+        assert!(
+            err.to_string().contains(
+                "parameter_sync_interval > 0 when parameter_sync_targets are configured"
+            ),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_invalid_parameter_sync_target_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["ftp://127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
+            "run_ps_role should reject invalid parameter sync target endpoint",
+        );
+        assert!(
+            err.to_string()
+                .contains("invalid parameter_sync_targets entry"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_duplicate_parameter_sync_target_entries_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec![
+                "127.0.0.1:8500".to_string(),
+                "127.0.0.1:8500".to_string(),
+            ],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
+            "run_ps_role should reject duplicate parameter sync target entries",
+        );
+        assert!(
+            err.to_string()
+                .contains("requires unique parameter_sync_targets entries"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_empty_parameter_sync_model_name_with_targets_without_wrapper()
+    {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            parameter_sync_model_name: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
+            "run_ps_role should reject empty parameter sync model name with targets",
+        );
+        assert!(
+            err.to_string().contains(
+                "non-empty parameter_sync_model_name when parameter_sync_targets are configured"
+            ),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_empty_parameter_sync_signature_name_with_targets_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            parameter_sync_signature_name: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
+            "run_ps_role should reject empty parameter sync signature name with targets",
+        );
+        assert!(
+            err.to_string().contains(
+                "non-empty parameter_sync_signature_name when parameter_sync_targets are configured"
+            ),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_worker_role_rejects_non_positive_barrier_timeout_without_wrapper() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -6018,6 +6123,100 @@ mod tests {
             "run_ps_role should keep serving; case-insensitive identical worker/ps service types must not fail ps-role validation"
         );
         task.abort();
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_zero_parameter_sync_interval_with_targets_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(0),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject zero parameter sync interval when targets are configured for ps role",
+        );
+        assert!(err.to_string().contains(
+            "parameter_sync_interval > 0 when parameter_sync_targets are configured"
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_invalid_parameter_sync_target_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["ftp://127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject invalid parameter sync target for ps role",
+        );
+        assert!(err
+            .to_string()
+            .contains("invalid parameter_sync_targets entry"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_duplicate_parameter_sync_target_entries_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec![
+                "127.0.0.1:8500".to_string(),
+                "127.0.0.1:8500".to_string(),
+            ],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject duplicate parameter sync targets for ps role",
+        );
+        assert!(
+            err.to_string()
+                .contains("requires unique parameter_sync_targets entries"),
+            "unexpected runtime validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_empty_parameter_sync_model_name_with_targets_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            parameter_sync_model_name: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject empty parameter sync model name with targets for ps role",
+        );
+        assert!(err.to_string().contains(
+            "non-empty parameter_sync_model_name when parameter_sync_targets are configured"
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_empty_parameter_sync_signature_name_with_targets_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            parameter_sync_signature_name: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject empty parameter sync signature name with targets for ps role",
+        );
+        assert!(err.to_string().contains(
+            "non-empty parameter_sync_signature_name when parameter_sync_targets are configured"
+        ));
     }
 
     #[tokio::test]
