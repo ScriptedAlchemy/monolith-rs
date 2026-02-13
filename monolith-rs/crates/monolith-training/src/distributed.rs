@@ -1565,6 +1565,75 @@ mod tests {
     }
 
     #[test]
+    fn test_local_cluster_train_step_cross_shard_failure_keeps_all_parameters_unchanged() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000), make_addr(5001)],
+            vec![make_addr(6000)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for cross-shard atomicity test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for cross-shard atomicity test");
+
+        let mut shard0_name: Option<String> = None;
+        let mut shard1_name: Option<String> = None;
+        for i in 0..256 {
+            let candidate = format!("param_{i}");
+            match get_ps_index(&candidate, cluster.num_ps()) {
+                0 if shard0_name.is_none() => shard0_name = Some(candidate),
+                1 if shard1_name.is_none() => shard1_name = Some(candidate),
+                _ => {}
+            }
+            if shard0_name.is_some() && shard1_name.is_some() {
+                break;
+            }
+        }
+        let shard0_name = shard0_name
+            .expect("expected at least one generated parameter name to hash to PS shard 0");
+        let shard1_name = shard1_name
+            .expect("expected at least one generated parameter name to hash to PS shard 1");
+
+        cluster
+            .register_parameter(shard0_name.clone(), vec![1.0, 2.0])
+            .expect("register_parameter should seed shard-0 parameter");
+        cluster
+            .register_parameter(shard1_name.clone(), vec![3.0, 4.0])
+            .expect("register_parameter should seed shard-1 parameter");
+
+        let mut grads = HashMap::new();
+        grads.insert(shard0_name.clone(), vec![0.5, 1.0]);
+        grads.insert(shard1_name.clone(), vec![0.5]);
+        let err = cluster
+            .train_step(0, &grads)
+            .expect_err("train_step should fail when one cross-shard gradient has a size mismatch");
+        assert!(
+            matches!(err, DistributedError::CommunicationError(ref msg)
+                if msg.contains("Gradient size mismatch")),
+            "expected CommunicationError mentioning gradient-size mismatch, got {err:?}"
+        );
+        assert_eq!(
+            cluster.get_parameter(&shard0_name),
+            Some(vec![1.0, 2.0]),
+            "failed cross-shard train_step should not mutate shard-0 parameter values"
+        );
+        assert_eq!(
+            cluster.get_parameter(&shard1_name),
+            Some(vec![3.0, 4.0]),
+            "failed cross-shard train_step should not mutate shard-1 parameter values"
+        );
+        assert_eq!(
+            cluster
+                .worker_step(0)
+                .expect("worker_step(0) should remain readable after failed cross-shard train_step"),
+            0,
+            "failed cross-shard train_step should not advance worker step"
+        );
+    }
+
+    #[test]
     fn test_local_cluster_start_is_not_reentrant() {
         let cfg = ClusterConfig::new(
             vec![make_addr(5000)],

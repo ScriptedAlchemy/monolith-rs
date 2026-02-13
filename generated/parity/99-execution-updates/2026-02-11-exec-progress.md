@@ -10252,6 +10252,20 @@
   - Local-cluster stop behavior now guarantees best-effort full cleanup for any
     partially running cluster state.
 
+### 694) Distributed cross-shard train-step atomicity regression coverage
+- Added cross-shard atomicity regression in
+  `crates/monolith-training/src/distributed.rs`:
+  - `test_local_cluster_train_step_cross_shard_failure_keeps_all_parameters_unchanged`
+- Coverage validates local-cluster all-or-nothing train-step behavior across
+  multiple PS shards:
+  - one shard receives a valid gradient while another shard receives a
+    mismatched gradient,
+  - train-step fails with explicit mismatch context,
+  - no shard is partially mutated and worker step remains unchanged.
+- Result:
+  - Train-step atomicity guarantees now explicitly cover cross-shard failure
+    paths, not just single-shard parameter sets.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11703,6 +11717,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1441. `rg "test_local_cluster_(sync_barrier|wait_for_barrier)_requires_fully_running_cluster" crates/monolith-training/src/distributed.rs` ✅ (verified local-cluster barrier fully-running guard regressions are present)
 1442. `cargo test -p monolith-training test_local_cluster_stop_succeeds_from_partially_running_worker_state -- --nocapture && cargo test -p monolith-training test_local_cluster_stop_succeeds_from_partially_running_ps_state -- --nocapture` ✅ (validated local-cluster stop now fully cleans up from partial worker/PS running states)
 1443. `rg "test_local_cluster_stop_succeeds_from_partially_running_(worker|ps)_state" crates/monolith-training/src/distributed.rs` ✅ (verified partial-stop shutdown cleanup regressions are present)
+1444. `cargo test -p monolith-training test_local_cluster_train_step_cross_shard_failure_keeps_all_parameters_unchanged -- --nocapture` ✅ (validated cross-shard train-step failures preserve all parameter shards and worker-step atomicity)
+1445. `rg "test_local_cluster_train_step_cross_shard_failure_keeps_all_parameters_unchanged" crates/monolith-training/src/distributed.rs` ✅ (verified cross-shard train-step atomicity regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
