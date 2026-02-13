@@ -1964,6 +1964,20 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[test]
+    fn test_normalize_consul_address_for_operation_accepts_case_insensitive_https_scheme() {
+        let normalized = normalize_consul_address_for_operation(
+            "connect",
+            "HtTpS://127.0.0.1:8501/",
+        )
+        .expect("case-insensitive https scheme with root path should normalize");
+        assert_eq!(
+            normalized, "https://127.0.0.1:8501",
+            "normalization should canonicalize https scheme casing and trim root path suffix"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
     fn test_normalize_consul_address_for_operation_accepts_case_insensitive_scheme_with_ipv6() {
         let normalized =
             normalize_consul_address_for_operation("connect", "HTTP://[::1]:8501/")
@@ -9211,6 +9225,79 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_watch_async_case_insensitive_https_scheme_seeds_poll_generation_entry() {
+        let consul = ConsulDiscovery::new("HtTpS://127.0.0.1:8501/");
+
+        let rx = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("watch_async should accept case-insensitive https scheme");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch_async should create watcher sender entry for normalized case-insensitive https address"
+        );
+        assert!(
+            consul_has_watch_poll_generation(&consul, "worker"),
+            "watch_async should seed poll-generation bookkeeping for normalized case-insensitive https address"
+        );
+
+        drop(rx);
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                if !consul_has_watch_poll_generation(&consul, "worker") {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        })
+        .await
+        .expect("poll-generation entry should clear after case-insensitive https watcher receiver drops");
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "case-insensitive https watch_async should compact dead watcher sender after receiver drops"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_case_insensitive_https_scheme_disconnect_clears_poll_generation_with_live_receiver(
+    ) {
+        let consul = ConsulDiscovery::new("HtTpS://127.0.0.1:8501/");
+        let rx = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("watch_async should accept case-insensitive https scheme");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch_async should create watcher sender entry for normalized case-insensitive https address"
+        );
+        assert!(
+            consul_has_watch_poll_generation(&consul, "worker"),
+            "watch_async should seed poll-generation bookkeeping for normalized case-insensitive https address"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "disconnect should preserve live watcher sender entries"
+        );
+        assert!(
+            !consul_has_watch_poll_generation(&consul, "worker"),
+            "disconnect should clear poll-generation bookkeeping even when receiver is live"
+        );
+
+        drop(rx);
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "disconnect should compact watcher sender after receiver is dropped"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_watch_async_case_insensitive_scheme_ipv6_disconnect_clears_poll_generation_with_live_receiver(
     ) {
         let consul = ConsulDiscovery::new("HTTP://[::1]:8501/");
@@ -11280,6 +11367,91 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_deregister_case_insensitive_https_scheme_and_root_slash_uses_operation_context(
+    ) {
+        let consul = ConsulDiscovery::new("HtTpS://127.0.0.1:8501/");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("sync register should seed local cache");
+        let mut rx = consul.watch("worker").expect("watch should succeed");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
+            .await;
+        let err = result.expect_err(
+            "case-insensitive https scheme + root slash should normalize and fail in backend call",
+        );
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("deregister_entity") && msg.contains("8501")),
+            "expected Internal containing normalized case-insensitive https root-slash deregister context, got {err:?}"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "worker-0"),
+            "expected ServiceRemoved(worker-0), got {event:?}"
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .is_empty(),
+            "normalized case-insensitive https root-slash async deregister should remove service from local cache"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on normalized case-insensitive https root-slash async deregister failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_case_insensitive_https_scheme_and_root_slash_compacts_dead_watchers(
+    ) {
+        let consul = ConsulDiscovery::new("HtTpS://127.0.0.1:8501/");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("sync register should seed local cache");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
+            .await;
+        let err = result.expect_err(
+            "case-insensitive https scheme + root slash should normalize and fail in backend call",
+        );
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("deregister_entity") && msg.contains("8501")),
+            "expected Internal containing normalized case-insensitive https root-slash deregister context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watcher sender should be compacted on normalized case-insensitive https root-slash async deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_deregister_empty_address_compacts_dead_watchers() {
         let consul = ConsulDiscovery::new("");
         consul
@@ -11839,6 +12011,91 @@ mod tests {
                 .expect("discover should succeed")
                 .is_empty(),
             "empty-address async register should not populate local service cache"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_case_insensitive_https_scheme_and_root_slash_uses_operation_context(
+    ) {
+        let consul = ConsulDiscovery::new("HtTpS://127.0.0.1:8501/");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result
+            .expect_err("case-insensitive https scheme + root slash should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("register_entity") && msg.contains("8501")),
+            "expected Internal containing normalized case-insensitive https register context, got {err:?}"
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .is_empty(),
+            "normalized case-insensitive https async register should not populate local service cache"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_case_insensitive_https_scheme_and_root_slash_compacts_dead_watchers(
+    ) {
+        let consul = ConsulDiscovery::new("HtTpS://127.0.0.1:8501/");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result
+            .expect_err("case-insensitive https scheme + root slash should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("register_entity") && msg.contains("8501")),
+            "expected Internal containing normalized case-insensitive https register context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watcher sender should be compacted on normalized case-insensitive https async register failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_case_insensitive_https_scheme_and_root_slash_keeps_live_watchers(
+    ) {
+        let consul = ConsulDiscovery::new("HtTpS://127.0.0.1:8501/");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result
+            .expect_err("case-insensitive https scheme + root slash should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("register_entity") && msg.contains("8501")),
+            "expected Internal containing normalized case-insensitive https register context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on normalized case-insensitive https async register failure"
         );
     }
 
@@ -13209,6 +13466,54 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_discover_async_case_insensitive_https_scheme_and_root_slash_uses_operation_context(
+    ) {
+        let consul = ConsulDiscovery::new("HtTpS://127.0.0.1:8501/");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result
+            .expect_err("case-insensitive https scheme + root slash should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("get_service_nodes") && msg.contains("8501")),
+            "expected Internal containing normalized case-insensitive https discover context, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_case_insensitive_https_scheme_and_root_slash_preserves_local_cache(
+    ) {
+        let consul = ConsulDiscovery::new("HtTpS://127.0.0.1:8501/");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0", "worker-0", "worker", "127.0.0.1", 6000,
+            ))
+            .expect("sync register should seed local cache");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result
+            .expect_err("case-insensitive https scheme + root slash should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("get_service_nodes") && msg.contains("8501")),
+            "expected Internal containing normalized case-insensitive https discover context, got {err:?}"
+        );
+
+        let cached = consul
+            .discover("worker")
+            .expect("discover should succeed after async normalized case-insensitive https failure");
+        assert_eq!(
+            cached.len(),
+            1,
+            "normalized case-insensitive https async discover failure should not evict local cache entries"
+        );
+        assert_eq!(cached[0].id, "worker-0");
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_connect_address_path_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul).await;
@@ -13442,6 +13747,49 @@ mod tests {
         assert!(
             consul.client.lock().await.is_some(),
             "reconnect should recreate client handle for normalized case-insensitive root-slash address"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_connect_case_insensitive_https_scheme_and_root_slash_succeeds() {
+        let consul = ConsulDiscovery::new("HtTpS://127.0.0.1:8501/");
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("case-insensitive https scheme and root slash should be accepted");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "successful connect should initialize client handle"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_connect_case_insensitive_https_scheme_and_root_slash_disconnect_and_reconnect(
+    ) {
+        let consul = ConsulDiscovery::new("HtTpS://127.0.0.1:8501/");
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("case-insensitive https scheme and root slash should be accepted");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "successful connect should initialize client handle"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            consul.client.lock().await.is_none(),
+            "disconnect should clear normalized case-insensitive https root-slash client handle"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("reconnect should reinitialize client handle for normalized https address");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "reconnect should recreate client handle for normalized case-insensitive https root-slash address"
         );
     }
 
