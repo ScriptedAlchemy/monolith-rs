@@ -199,6 +199,7 @@ impl DistributedRunConfig {
         if self.table_name.chars().any(char::is_whitespace) {
             anyhow::bail!("distributed config requires table_name without whitespace characters");
         }
+        if matches!(self.role, Role::Ps) {
         if !self.parameter_sync_targets.is_empty() && self.parameter_sync_interval.is_zero() {
             anyhow::bail!(
                 "distributed config requires parameter_sync_interval > 0 when parameter_sync_targets are configured"
@@ -344,6 +345,7 @@ impl DistributedRunConfig {
             anyhow::bail!(
                 "distributed config requires parameter_sync_signature_name without whitespace characters when parameter_sync_targets are configured"
             );
+        }
         }
         Ok(())
     }
@@ -3399,6 +3401,7 @@ mod tests {
     fn test_distributed_config_validate_rejects_zero_parameter_sync_interval_when_targets_configured(
     ) {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
             parameter_sync_interval: Duration::from_millis(0),
             ..DistributedRunConfig::default()
@@ -3421,6 +3424,21 @@ mod tests {
         };
         cfg.validate().expect(
             "zero parameter_sync_interval should be accepted when no parameter_sync_targets are configured",
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_allows_invalid_parameter_sync_target_for_worker_role() {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            parameter_sync_targets: vec!["ftp://127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(0),
+            parameter_sync_model_name: " ".to_string(),
+            parameter_sync_signature_name: "serving default".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        cfg.validate().expect(
+            "worker role should ignore parameter-sync target validation because replication only runs on ps role",
         );
     }
 
@@ -3452,6 +3470,7 @@ mod tests {
     #[test]
     fn test_distributed_config_validate_rejects_empty_parameter_sync_target_entry() {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec!["".to_string()],
             ..DistributedRunConfig::default()
         };
@@ -3465,6 +3484,7 @@ mod tests {
     #[test]
     fn test_distributed_config_validate_rejects_whitespace_padded_parameter_sync_target_entry() {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec![" 127.0.0.1:8500 ".to_string()],
             ..DistributedRunConfig::default()
         };
@@ -3480,6 +3500,7 @@ mod tests {
     #[test]
     fn test_distributed_config_validate_rejects_invalid_parameter_sync_target_endpoint() {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec!["http://".to_string()],
             ..DistributedRunConfig::default()
         };
@@ -3494,6 +3515,7 @@ mod tests {
     fn test_distributed_config_validate_rejects_parameter_sync_target_endpoint_with_path_or_query(
     ) {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec!["http://127.0.0.1:8500/v1?foo=bar".to_string()],
             ..DistributedRunConfig::default()
         };
@@ -3508,6 +3530,7 @@ mod tests {
     fn test_distributed_config_validate_rejects_parameter_sync_target_endpoint_with_unsupported_scheme(
     ) {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec!["ftp://127.0.0.1:8500".to_string()],
             ..DistributedRunConfig::default()
         };
@@ -3521,6 +3544,7 @@ mod tests {
     #[test]
     fn test_distributed_config_validate_rejects_parameter_sync_target_endpoint_with_userinfo() {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec!["http://user@127.0.0.1:8500".to_string()],
             ..DistributedRunConfig::default()
         };
@@ -3535,6 +3559,7 @@ mod tests {
     fn test_distributed_config_validate_accepts_case_insensitive_http_scheme_parameter_sync_target(
     ) {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec!["HtTp://127.0.0.1:8500".to_string()],
             ..DistributedRunConfig::default()
         };
@@ -3546,6 +3571,7 @@ mod tests {
     #[test]
     fn test_distributed_config_validate_rejects_duplicate_parameter_sync_target_entries() {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec![
                 "127.0.0.1:8500".to_string(),
                 "127.0.0.1:8500".to_string(),
@@ -3563,6 +3589,7 @@ mod tests {
     fn test_distributed_config_validate_rejects_duplicate_parameter_sync_target_entries_after_http_prefix_normalization(
     ) {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec![
                 "127.0.0.1:8500".to_string(),
                 "http://127.0.0.1:8500".to_string(),
@@ -3580,6 +3607,7 @@ mod tests {
     fn test_distributed_config_validate_rejects_duplicate_parameter_sync_target_entries_after_trailing_slash_normalization(
     ) {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec![
                 "127.0.0.1:8500".to_string(),
                 "http://127.0.0.1:8500/".to_string(),
@@ -3597,6 +3625,7 @@ mod tests {
     fn test_distributed_config_validate_rejects_duplicate_parameter_sync_target_entries_after_http_default_port_normalization(
     ) {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec![
                 "127.0.0.1".to_string(),
                 "http://127.0.0.1:80".to_string(),
@@ -3614,6 +3643,7 @@ mod tests {
     fn test_distributed_config_validate_rejects_duplicate_parameter_sync_target_entries_after_https_default_port_normalization(
     ) {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec![
                 "https://127.0.0.1".to_string(),
                 "https://127.0.0.1:443".to_string(),
@@ -3631,6 +3661,7 @@ mod tests {
     fn test_distributed_config_validate_rejects_duplicate_parameter_sync_target_entries_after_case_insensitive_http_prefix_and_host_normalization(
     ) {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec![
                 "EXAMPLE.com:8500".to_string(),
                 "HtTp://example.COM:8500".to_string(),
@@ -3648,6 +3679,7 @@ mod tests {
     fn test_distributed_config_validate_rejects_empty_parameter_sync_model_name_when_targets_configured(
     ) {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
             parameter_sync_model_name: " ".to_string(),
             ..DistributedRunConfig::default()
@@ -3665,6 +3697,7 @@ mod tests {
     fn test_distributed_config_validate_rejects_whitespace_padded_parameter_sync_model_name_when_targets_configured(
     ) {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
             parameter_sync_model_name: " model ".to_string(),
             ..DistributedRunConfig::default()
@@ -3682,6 +3715,7 @@ mod tests {
     fn test_distributed_config_validate_rejects_internal_whitespace_parameter_sync_model_name_when_targets_configured(
     ) {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
             parameter_sync_model_name: "my model".to_string(),
             ..DistributedRunConfig::default()
@@ -3699,6 +3733,7 @@ mod tests {
     fn test_distributed_config_validate_rejects_empty_parameter_sync_signature_when_targets_configured(
     ) {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
             parameter_sync_signature_name: "".to_string(),
             ..DistributedRunConfig::default()
@@ -3716,6 +3751,7 @@ mod tests {
     fn test_distributed_config_validate_rejects_whitespace_padded_parameter_sync_signature_when_targets_configured(
     ) {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
             parameter_sync_signature_name: " signature ".to_string(),
             ..DistributedRunConfig::default()
@@ -3733,6 +3769,7 @@ mod tests {
     fn test_distributed_config_validate_rejects_internal_whitespace_parameter_sync_signature_when_targets_configured(
     ) {
         let cfg = DistributedRunConfig {
+            role: Role::Ps,
             parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
             parameter_sync_signature_name: "serving default".to_string(),
             ..DistributedRunConfig::default()
@@ -4441,6 +4478,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_worker_role_allows_invalid_parameter_sync_targets_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: vec!["ftp://127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(0),
+            parameter_sync_model_name: " ".to_string(),
+            parameter_sync_signature_name: "serving default".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg).await.expect_err(
+            "worker role should proceed past parameter-sync validation because replication is ps-only",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker role should fail due to discovery timeout, not parameter-sync validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_targets"),
+            "worker role should ignore parameter-sync target validation errors: {msg}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -4585,6 +4653,37 @@ mod tests {
         assert!(
             !msg.contains("parameter_sync_interval > 0"),
             "runtime should not reject zero parameter_sync_interval when parameter-sync targets are empty: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_invalid_parameter_sync_targets_for_worker_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: vec!["ftp://127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(0),
+            parameter_sync_model_name: " ".to_string(),
+            parameter_sync_signature_name: "serving default".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, cfg).await.expect_err(
+            "run_distributed should proceed past parameter-sync validation for worker role",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "runtime should fail due to missing PS discovery, not parameter-sync validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_targets"),
+            "runtime should ignore parameter-sync target validation errors for worker role: {msg}"
         );
     }
 

@@ -11004,6 +11004,25 @@
   - discovery service-type contracts now align with actual per-role runtime
     field usage.
 
+### 737) Parameter-sync validation scoped to PS role replication paths
+- Refined `DistributedRunConfig::validate` in
+  `crates/monolith-training/src/runner.rs`:
+  - parameter-sync target/model/signature/interval validation now executes only
+    for PS role configs (where `ParameterSyncReplicator` is actually used).
+- Updated parameter-sync validation regressions to target PS role explicitly for
+  invalid-target/error-shape contracts.
+- Added worker-role permissiveness regressions:
+  - `test_distributed_config_validate_allows_invalid_parameter_sync_target_for_worker_role`
+  - `test_run_worker_role_allows_invalid_parameter_sync_targets_without_wrapper`
+  - `test_run_distributed_allows_invalid_parameter_sync_targets_for_worker_role`
+- Coverage validates:
+  - PS role still enforces strict parameter-sync endpoint/name contracts,
+  - worker role no longer fails on unused parameter-sync settings and continues
+    to fail only on expected discovery-timeout behavior.
+- Result:
+  - parameter-sync contracts now match runtime ownership boundaries and avoid
+    worker-role over-validation.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12559,6 +12578,9 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1545. `rg "test_run_worker_role_allows_zero_retry_backoff_when_retries_disabled_without_wrapper|test_run_ps_role_allows_zero_retry_backoff_without_wrapper|test_run_worker_role_rejects_zero_retry_backoff_without_wrapper" crates/monolith-training/src/runner.rs` ✅ (verified direct role-entry retry-backoff contract regressions for worker/ps helper paths are present)
 1546. `cargo test -p monolith-training test_distributed_config_validate_rejects_empty_worker_service_type -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_allows_empty_worker_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_rejects_identical_ps_and_worker_service_types -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_allows_identical_ps_and_worker_service_types_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_ps_role_allows_empty_worker_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_empty_worker_service_type_for_ps_role -- --nocapture` ✅ (validated worker-only enforcement of worker discovery-service-type constraints while ps role remains permissive)
 1547. `rg "test_distributed_config_validate_allows_empty_worker_service_type_for_ps_role|test_distributed_config_validate_allows_identical_ps_and_worker_service_types_for_ps_role|test_run_ps_role_allows_empty_worker_service_type_without_wrapper|test_run_distributed_allows_empty_worker_service_type_for_ps_role|non-empty discovery_service_type_worker|distinct discovery_service_type_ps and discovery_service_type_worker" crates/monolith-training/src/runner.rs` ✅ (verified worker-scoped discovery-service-type validation and ps-role allowance regressions are present)
+1548. `cargo test -p monolith-training test_distributed_config_validate_rejects_zero_parameter_sync_interval_when_targets_configured -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_rejects_invalid_parameter_sync_target_endpoint -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_allows_invalid_parameter_sync_target_for_worker_role -- --nocapture && cargo test -p monolith-training test_run_worker_role_allows_invalid_parameter_sync_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_invalid_parameter_sync_targets_for_worker_role -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_zero_parameter_sync_interval_without_targets -- --nocapture` ✅ (validated ps-role strict parameter-sync contract enforcement and worker-role permissiveness for unused parameter-sync settings)
+1549. `rg "if matches!\\(self.role, Role::Ps\\)|test_distributed_config_validate_allows_invalid_parameter_sync_target_for_worker_role|test_run_worker_role_allows_invalid_parameter_sync_targets_without_wrapper|test_run_distributed_allows_invalid_parameter_sync_targets_for_worker_role|test_distributed_config_validate_rejects_zero_parameter_sync_interval_when_targets_configured" crates/monolith-training/src/runner.rs` ✅ (verified parameter-sync validation is ps-scoped and worker-role permissiveness regressions are present)
+1550. `cargo test -p monolith-training parameter_sync -- --nocapture` ✅ (ran full parameter-sync test slice across unit + parity suites to confirm ps-scoped validation and worker-role bypass semantics do not regress broader parameter-sync contracts)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
