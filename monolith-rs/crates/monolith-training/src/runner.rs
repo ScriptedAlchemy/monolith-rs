@@ -24,9 +24,7 @@ use std::time::Duration;
 const DEFAULT_DISCOVERY_CLEANUP_TIMEOUT: Duration = Duration::from_millis(200);
 
 fn loopback_ephemeral_bind_addr() -> SocketAddr {
-    "127.0.0.1:0"
-        .parse()
-        .expect("loopback ephemeral bind address parsing should succeed")
+    SocketAddr::from(([127, 0, 0, 1], 0))
 }
 
 /// Helper for tests: bind to `127.0.0.1:0` and return the chosen address.

@@ -10560,6 +10560,21 @@
   - Base-embedding vocab bootstrap path now avoids panic-based Option
     assumptions during HDFS vocab-file resolution.
 
+### 713) Runner loopback + ragged-utils panic-path cleanup
+- Hardened runtime helpers in `crates/monolith-training/src`:
+  - `runner.rs`:
+    - replaced loopback bind-address string parse `expect(...)` with direct
+      `SocketAddr::from(([127, 0, 0, 1], 0))` construction.
+  - `native_training/ragged_utils.rs`:
+    - removed redundant `row_splits.last().expect(...)` by using indexed access
+      after existing non-empty assertion contract.
+- Coverage validates:
+  - ragged row-id parity behavior remains unchanged,
+  - distributed-runner config mapping path remains green.
+- Result:
+  - Runtime helper paths now avoid residual non-test panic assumptions tied to
+    invariant literal parsing and redundant option access.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12065,6 +12080,9 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1495. `rg "test_(copy_checkpoint_from_restore_dir|get_checkpoint_state_with_restore_override_matches_basename_to_full_path)" crates/monolith-training/src/runner_utils.rs` ✅ (verified runner-utils checkpoint-copy and basename-override regression coverage remains present)
 1496. `cargo test -p monolith-training test_create_vocab_dict_ -- --nocapture` ✅ (validated base-embedding vocab parsing parity regressions remain green after panic-path removal in optional HDFS-vocab bootstrap branch)
 1497. `rg "vocab_file_folder_prefix should be present when branch is entered|end_date should be present when branch is entered" crates/monolith-training/src/base_embedding_task.rs` ✅ (verified legacy create_vocab_dict branch-invariant panic-path expect strings are removed)
+1498. `cargo test -p monolith-training native_training::ragged_utils::tests::test_basic -- --nocapture && cargo test -p monolith-training test_distributed_config_from_runner_maps_fields -- --nocapture` ✅ (validated ragged-utils row-id parity and distributed-runner config mapping remain stable after panic-path cleanup)
+1499. `rg "loopback ephemeral bind address parsing should succeed" crates/monolith-training/src/runner.rs` ✅ (verified legacy runner loopback-parse panic-path expect string is removed)
+1500. `rg "row_splits should have at least one element" crates/monolith-training/src/native_training/ragged_utils.rs` ✅ (verified legacy ragged-utils redundant option-expect panic-path string is removed)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
