@@ -11154,6 +11154,23 @@
     reject-on-ps / allow-on-worker behavior for parameter-sync duplicate/name
     contract surfaces.
 
+### 745) Runner unit/runtime parameter-sync duplicate/name worker-bypass closure
+- Added regressions in `crates/monolith-training/src/runner.rs`:
+  - `test_distributed_config_validate_allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role`
+  - `test_run_worker_role_allows_duplicate_parameter_sync_targets_and_empty_names_without_wrapper`
+  - `test_run_distributed_allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role`
+- Re-ran existing role-contract guards:
+  - `test_distributed_config_validate_rejects_duplicate_parameter_sync_target_entries`
+  - `test_run_worker_role_allows_invalid_parameter_sync_targets_without_wrapper`
+- Coverage validates:
+  - worker role bypasses PS-only parameter-sync duplicate/name validation at
+    config-validation, direct worker helper, and top-level `run_distributed`
+    entrypoints,
+  - existing PS-role duplicate-target rejection remains enforced.
+- Result:
+  - runner unit/runtime parity now mirrors run/runner integration parity for
+    parameter-sync duplicate/name worker-bypass semantics.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12727,6 +12744,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1563. `rg "distributed_runner_from_(run_config|runner_config)_(allows_whitespace_padded_worker_service_type_for_ps_role|allows_internal_whitespace_worker_service_type_for_ps_role|rejects_whitespace_padded_worker_service_type|rejects_internal_whitespace_worker_service_type)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified worker-service-type whitespace reject/allow integration regressions are present in both run-config and runner-config matrices)
 1564. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_duplicate_parameter_sync_target_entry -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_duplicate_parameter_sync_target_entry -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_empty_parameter_sync_model_name_with_targets -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_empty_parameter_sync_model_name_with_targets -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_empty_parameter_sync_signature_name_with_targets -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_empty_parameter_sync_signature_name_with_targets -- --nocapture` ✅ (validated parameter-sync duplicate/name role matrix: worker bypass remains permissive while ps rejection contracts stay enforced across run-config and runner-config entrypoints)
 1565. `rg "distributed_runner_from_(run_config|runner_config)_(allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role|rejects_duplicate_parameter_sync_target_entry|rejects_empty_parameter_sync_model_name_with_targets|rejects_empty_parameter_sync_signature_name_with_targets)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified worker-bypass and ps-reject parameter-sync duplicate/name integration regressions are present in both config-entry matrices)
+1566. `cargo test -p monolith-training test_distributed_config_validate_rejects_duplicate_parameter_sync_target_entries -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role -- --nocapture && cargo test -p monolith-training test_run_worker_role_allows_duplicate_parameter_sync_targets_and_empty_names_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role -- --nocapture && cargo test -p monolith-training test_run_worker_role_allows_invalid_parameter_sync_targets_without_wrapper -- --nocapture` ✅ (validated runner unit/runtime worker-bypass contracts for parameter-sync duplicate/name validation while preserving ps duplicate-target rejection)
+1567. `rg "test_distributed_config_validate_allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role|test_run_worker_role_allows_duplicate_parameter_sync_targets_and_empty_names_without_wrapper|test_run_distributed_allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role" crates/monolith-training/src/runner.rs` ✅ (verified new runner-level parameter-sync duplicate/name worker-bypass regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

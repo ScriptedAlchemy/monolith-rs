@@ -3443,6 +3443,25 @@ mod tests {
     }
 
     #[test]
+    fn test_distributed_config_validate_allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role(
+    ) {
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            parameter_sync_targets: vec![
+                "127.0.0.1:8500".to_string(),
+                "127.0.0.1:8500".to_string(),
+            ],
+            parameter_sync_interval: Duration::from_millis(0),
+            parameter_sync_model_name: " ".to_string(),
+            parameter_sync_signature_name: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        cfg.validate().expect(
+            "worker role should ignore parameter-sync duplicate and name validation because replication only runs on ps role",
+        );
+    }
+
+    #[test]
     fn test_distributed_config_validate_allows_zero_retry_backoff_when_retries_disabled() {
         let cfg = DistributedRunConfig {
             connect_retries: 0,
@@ -4509,6 +4528,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_worker_role_allows_duplicate_parameter_sync_targets_and_empty_names_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: vec![
+                "127.0.0.1:8500".to_string(),
+                "127.0.0.1:8500".to_string(),
+            ],
+            parameter_sync_interval: Duration::from_millis(0),
+            parameter_sync_model_name: " ".to_string(),
+            parameter_sync_signature_name: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg).await.expect_err(
+            "worker role should proceed past parameter-sync duplicate/name validation because replication is ps-only",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker role should fail due to discovery timeout, not parameter-sync validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_targets")
+                && !msg.contains("parameter_sync_model_name")
+                && !msg.contains("parameter_sync_signature_name"),
+            "worker role should ignore parameter-sync duplicate/name validation errors: {msg}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -4684,6 +4740,43 @@ mod tests {
         assert!(
             !msg.contains("parameter_sync_targets"),
             "runtime should ignore parameter-sync target validation errors for worker role: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: vec![
+                "127.0.0.1:8500".to_string(),
+                "127.0.0.1:8500".to_string(),
+            ],
+            parameter_sync_interval: Duration::from_millis(0),
+            parameter_sync_model_name: " ".to_string(),
+            parameter_sync_signature_name: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, cfg).await.expect_err(
+            "run_distributed should proceed past parameter-sync duplicate/name validation for worker role",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "runtime should fail due to missing PS discovery, not parameter-sync validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_targets")
+                && !msg.contains("parameter_sync_model_name")
+                && !msg.contains("parameter_sync_signature_name"),
+            "runtime should ignore parameter-sync duplicate/name validation errors for worker role: {msg}"
         );
     }
 
