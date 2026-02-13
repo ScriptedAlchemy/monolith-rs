@@ -7195,6 +7195,10 @@ mod tests {
                 .is_empty(),
             "local cache entry should remain removed even when async deregister fails due to invalid scheme"
         );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved after invalid-scheme deregister notification"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -7234,6 +7238,10 @@ mod tests {
                 .expect("sync discover should succeed after async deregister failure")
                 .is_empty(),
             "local cache entry should remain removed even when async deregister fails due to invalid port"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved after invalid-port deregister notification"
         );
     }
 
@@ -7275,6 +7283,10 @@ mod tests {
                 .is_empty(),
             "local cache entry should remain removed even when async deregister fails due to out-of-range port"
         );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved after out-of-range-port deregister notification"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -7315,6 +7327,10 @@ mod tests {
                 .is_empty(),
             "local cache entry should remain removed even when async deregister fails due to invalid IPv6 suffix"
         );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved after invalid-IPv6-suffix deregister notification"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -7353,6 +7369,10 @@ mod tests {
                 .is_empty(),
             "local cache entry should remain removed even when async deregister fails due to userinfo authority"
         );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved after userinfo-authority deregister notification"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -7390,6 +7410,10 @@ mod tests {
                 .expect("sync discover should succeed after async deregister failure")
                 .is_empty(),
             "local cache entry should remain removed even when async deregister fails due to whitespace authority"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved after whitespace-authority deregister notification"
         );
     }
 
@@ -7431,6 +7455,10 @@ mod tests {
                 .is_empty(),
             "local cache entry should remain removed even when async deregister fails due to leading/trailing whitespace"
         );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved after leading/trailing-whitespace deregister notification"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -7470,6 +7498,10 @@ mod tests {
                 .expect("sync discover should succeed after async deregister failure")
                 .is_empty(),
             "local cache entry should remain removed even when async deregister fails due to empty host"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved after empty-host deregister notification"
         );
     }
 
@@ -7511,6 +7543,10 @@ mod tests {
                 .is_empty(),
             "local cache entry should remain removed even when async deregister fails due to address query"
         );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved after address-query deregister notification"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -7551,6 +7587,10 @@ mod tests {
                 .is_empty(),
             "local cache entry should remain removed even when async deregister fails due to address fragment"
         );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved after address-fragment deregister notification"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -7590,6 +7630,10 @@ mod tests {
                 .expect("sync discover should succeed after async deregister failure")
                 .is_empty(),
             "local cache entry should remain removed even when async deregister fails due to address path"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved after address-path deregister notification"
         );
     }
 

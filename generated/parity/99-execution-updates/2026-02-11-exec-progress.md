@@ -7549,6 +7549,26 @@
     live-preservation coverage aligned with other malformed-address register
     lanes.
 
+### 560) Discovery Consul deregister live-watcher preservation assertions across config-shapes
+- Tightened Consul malformed-address `deregister_async` regressions in
+  `crates/monolith-training/src/discovery.rs` by adding explicit
+  live-watcher-preservation assertions after notification delivery for:
+  - invalid scheme,
+  - invalid port,
+  - out-of-range port,
+  - invalid IPv6 suffix,
+  - userinfo authority,
+  - whitespace authority,
+  - leading/trailing whitespace,
+  - empty host,
+  - address query,
+  - address fragment,
+  - address path.
+- Result:
+  - Consul deregister malformed-address tests now explicitly verify both
+    cleanup-notification behavior and post-notification live watcher retention
+    across all covered config-shapes.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8726,6 +8746,8 @@
 1174. `rg "test_consul_(discover_async_address_path_is_classified_as_config_error|async_register_address_path_(compacts_dead_watchers|keeps_live_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul address-path discover/register lifecycle tests are present)
 1175. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_invalid_scheme_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_invalid_scheme_keeps_live_watchers -- --nocapture` ✅ (validated Consul invalid-scheme register dead/live watcher symmetry regressions)
 1176. `rg "test_consul_async_register_invalid_scheme_(compacts_dead_watchers|keeps_live_watchers)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul invalid-scheme register symmetry tests are present)
+1177. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_invalid_scheme_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_invalid_port_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_out_of_range_port_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_invalid_ipv6_suffix_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_userinfo_authority_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_whitespace_authority_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_leading_trailing_whitespace_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_empty_host_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_address_query_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_address_fragment_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_address_path_still_notifies_and_returns_error -- --nocapture` ✅ (validated strengthened Consul deregister malformed-address regressions with live-watcher preservation assertions)
+1178. `rg "live watcher sender should be preserved after .* deregister notification" crates/monolith-training/src/discovery.rs` ✅ (verified newly added live-watcher-preservation assertions across Consul deregister malformed-address tests)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
