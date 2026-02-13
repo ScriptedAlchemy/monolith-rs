@@ -1279,6 +1279,41 @@ mod tests {
     }
 
     #[test]
+    fn test_local_cluster_wait_for_barrier_zero_timeout_cleans_waiter_before_return() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000)],
+            vec![make_addr(6000), make_addr(6001)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed");
+        cluster
+            .start()
+            .expect("cluster start should succeed before barrier wait");
+
+        let err = cluster
+            .wait_for_barrier(
+                0,
+                std::time::Duration::from_millis(0),
+                std::time::Duration::from_millis(1),
+            )
+            .expect_err("zero-timeout wait_for_barrier should return immediately");
+        assert!(
+            matches!(err, DistributedError::BarrierTimeout { epoch: 0, timeout_ms: 0 }),
+            "expected immediate BarrierTimeout {{ epoch: 0, timeout_ms: 0 }}, got {err:?}"
+        );
+
+        let worker1_status = cluster
+            .sync_barrier(1)
+            .expect("other worker barrier call should not observe stale timed-out waiter");
+        assert!(
+            matches!(worker1_status, BarrierStatus::Waiting { epoch: 0, arrived: 1, required: 2 }),
+            "expected worker-1 to remain waiting after worker-0 timeout cleanup, got {worker1_status:?}"
+        );
+    }
+
+    #[test]
     fn test_duration_to_timeout_ms_saturates_for_large_durations() {
         assert_eq!(
             duration_to_timeout_ms(std::time::Duration::from_millis(1234)),

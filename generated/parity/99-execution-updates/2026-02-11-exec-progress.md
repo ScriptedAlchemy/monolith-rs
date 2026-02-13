@@ -10339,6 +10339,18 @@
   - Barrier-timeout diagnostics now use deterministic saturating conversion for
     large timeout values.
 
+### 700) Distributed zero-timeout barrier waiter cleanup parity hardening
+- Added `test_local_cluster_wait_for_barrier_zero_timeout_cleans_waiter_before_return`
+  in `crates/monolith-training/src/distributed.rs`.
+- Coverage validates:
+  - `wait_for_barrier` with `timeout=0` returns immediate
+    `BarrierTimeout { epoch: 0, timeout_ms: 0 }`,
+  - timed-out waiter state is removed before returning,
+  - subsequent worker barrier calls do not observe stale waiter entries.
+- Result:
+  - Zero-timeout barrier waits now have explicit regression-locked cleanup
+    semantics for deterministic retry behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11802,6 +11814,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1453. `rg "test_local_cluster_new_rejects_(negative_learning_rate|non_finite_learning_rate)" crates/monolith-training/src/distributed.rs` ✅ (verified LocalCluster constructor learning-rate validation regressions are present)
 1454. `cargo test -p monolith-training test_duration_to_timeout_ms_saturates_for_large_durations -- --nocapture && cargo test -p monolith-training test_local_cluster_wait_for_barrier_timeout -- --nocapture` ✅ (validated saturating timeout-millis conversion helper and verified barrier-timeout behavior remains stable)
 1455. `rg "test_duration_to_timeout_ms_saturates_for_large_durations" crates/monolith-training/src/distributed.rs` ✅ (verified timeout-millis saturation regression is present)
+1456. `cargo test -p monolith-training test_local_cluster_wait_for_barrier_zero_timeout_cleans_waiter_before_return -- --nocapture && cargo test -p monolith-training test_local_cluster_wait_for_barrier_timeout_cleanup_allows_retry -- --nocapture` ✅ (validated immediate zero-timeout barrier failure path cleans waiter bookkeeping and preserves retry semantics)
+1457. `rg "test_local_cluster_wait_for_barrier_zero_timeout_cleans_waiter_before_return" crates/monolith-training/src/distributed.rs` ✅ (verified zero-timeout barrier cleanup regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
