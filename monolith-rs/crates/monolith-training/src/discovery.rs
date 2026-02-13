@@ -6364,6 +6364,44 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_watch_async_empty_address_disconnect_clears_poll_generation_with_live_receiver() {
+        let consul = ConsulDiscovery::new("");
+        let rx = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("empty address should be accepted for watch_async via default endpoint");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        assert!(
+            consul_has_watch_poll_generation(&consul, "worker"),
+            "watch_async should seed poll-generation bookkeeping before disconnect"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "disconnect should preserve live watcher sender entries"
+        );
+        assert!(
+            !consul_has_watch_poll_generation(&consul, "worker"),
+            "disconnect should clear poll-generation bookkeeping even when receiver is live"
+        );
+
+        drop(rx);
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "disconnect should compact watcher sender after receiver is dropped"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_watch_async_config_error_compacts_dead_watch_sender() {
         let consul = ConsulDiscovery::new("http://127.0.0.1:8500/v1");
         let rx = consul.watch("worker").expect("watch should succeed");

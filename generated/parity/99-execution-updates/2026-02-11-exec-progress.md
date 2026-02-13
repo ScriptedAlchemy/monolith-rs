@@ -7943,6 +7943,19 @@
   - ZooKeeper creation-path parity now covers both builder override semantics
     and default timeout initialization contracts.
 
+### 591) Discovery Consul empty-address watch/disconnect live-receiver cleanup parity
+- Added
+  `test_consul_watch_async_empty_address_disconnect_clears_poll_generation_with_live_receiver`
+  in `crates/monolith-training/src/discovery.rs`.
+- Coverage validates empty-address watch/disconnect lifecycle symmetry with a
+  live receiver:
+  - disconnect preserves live watcher sender entries,
+  - disconnect clears watch poll-generation bookkeeping,
+  - a subsequent disconnect after receiver drop compacts dead watchers.
+- Result:
+  - Empty-address watch/disconnect parity now matches normalized-address
+    cleanup guarantees for live/dead watcher transitions.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9181,6 +9194,8 @@
 1235. `rg "test_consul_connect_empty_address_disconnect_and_reconnect" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul empty-address connect lifecycle reconnect regression is present)
 1236. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discovery_creation_uses_default_session_timeout -- --nocapture` ✅ (validated ZooKeeper discovery creation default-session-timeout regression)
 1237. `rg "test_zk_discovery_creation_uses_default_session_timeout" crates/monolith-training/src/discovery.rs` ✅ (verified new ZooKeeper creation default-timeout regression is present)
+1238. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_empty_address_disconnect_clears_poll_generation_with_live_receiver -- --nocapture` ✅ (validated Consul empty-address watch/disconnect live-receiver cleanup regression)
+1239. `rg "test_consul_watch_async_empty_address_disconnect_clears_poll_generation_with_live_receiver" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul empty-address watch/disconnect live-receiver cleanup regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
