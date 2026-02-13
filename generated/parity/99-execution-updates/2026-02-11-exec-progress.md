@@ -9088,6 +9088,33 @@
     explicit-HTTP IPv4/IPv6 lanes without root slash across
     connect/watch/register/discover/deregister operations.
 
+### 650) Discovery Consul case-insensitive explicit-HTTP hostname-only (no root-slash) lifecycle parity
+- Added case-insensitive explicit-HTTP hostname-only regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_normalize_consul_address_for_operation_accepts_case_insensitive_scheme_with_hostname_without_port_no_root_slash`
+  - `test_consul_watch_async_case_insensitive_scheme_hostname_without_port_seeds_poll_generation_entry`
+  - `test_consul_watch_async_case_insensitive_scheme_hostname_without_port_disconnect_clears_poll_generation_with_live_receiver`
+  - `test_consul_connect_case_insensitive_scheme_hostname_without_port_succeeds`
+  - `test_consul_connect_case_insensitive_scheme_hostname_without_port_disconnect_and_reconnect`
+  - `test_consul_async_register_case_insensitive_scheme_hostname_without_port_uses_operation_context`
+  - `test_consul_async_register_case_insensitive_scheme_hostname_without_port_compacts_dead_watchers`
+  - `test_consul_async_register_case_insensitive_scheme_hostname_without_port_keeps_live_watchers`
+  - `test_consul_discover_async_case_insensitive_scheme_hostname_without_port_uses_operation_context`
+  - `test_consul_discover_async_case_insensitive_scheme_hostname_without_port_preserves_local_cache`
+  - `test_consul_async_deregister_case_insensitive_scheme_hostname_without_port_uses_operation_context`
+  - `test_consul_async_deregister_case_insensitive_scheme_hostname_without_port_compacts_dead_watchers`
+- Coverage validates `HtTp://localhost` authority handling remains parity-safe
+  without requiring root slash:
+  - normalization canonicalizes mixed-case scheme for hostname-only authority,
+  - connect/disconnect client-handle lifecycle remains deterministic,
+  - watch poll-generation state and watcher sender compaction stay symmetric,
+  - register/discover/deregister preserve explicit `Internal` operation context
+    and stable local-cache cleanup semantics.
+- Result:
+  - Consul lifecycle parity now explicitly includes case-insensitive
+    explicit-HTTP hostname-only lanes without root slash across
+    connect/watch/register/discover/deregister operations.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -10451,6 +10478,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1353. `rg "test_(normalize_consul_address_for_operation_accepts_case_insensitive_https_scheme(_with_ipv6)?_no_root_slash|consul_(watch_async_case_insensitive_https_scheme(_ipv6)?_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_case_insensitive_https_scheme(_ipv6)?_no_root_slash_(succeeds|disconnect_and_reconnect)|async_register_case_insensitive_https_scheme(_ipv6)?_no_root_slash_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_case_insensitive_https_scheme(_ipv6)?_no_root_slash_(uses_operation_context|preserves_local_cache)|async_deregister_case_insensitive_https_scheme(_ipv6)?_no_root_slash_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified case-insensitive explicit-HTTPS IPv4/IPv6 no-root-slash lifecycle regression tests are present)
 1354. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_normalize_consul_address_for_operation_accepts_case_insensitive_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_case_insensitive_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_case_insensitive_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_case_insensitive_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_case_insensitive_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_case_insensitive_scheme -- --nocapture` ✅ (validated case-insensitive explicit-HTTP IPv4/IPv6 no-root-slash Consul lifecycle regressions across normalization/connect/watch/register/discover/deregister)
 1355. `rg "test_(normalize_consul_address_for_operation_accepts_case_insensitive_scheme(_with_ipv6)?_no_root_slash|consul_(watch_async_case_insensitive_scheme(_ipv6)?_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_case_insensitive_scheme(_ipv6)?_no_root_slash_(succeeds|disconnect_and_reconnect)|async_register_case_insensitive_scheme(_ipv6)?_no_root_slash_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_case_insensitive_scheme(_ipv6)?_no_root_slash_(uses_operation_context|preserves_local_cache)|async_deregister_case_insensitive_scheme(_ipv6)?_no_root_slash_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified case-insensitive explicit-HTTP IPv4/IPv6 no-root-slash lifecycle regression tests are present)
+1356. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_normalize_consul_address_for_operation_accepts_case_insensitive_scheme_with_hostname_without_port_no_root_slash -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_case_insensitive_scheme_hostname_without_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_case_insensitive_scheme_hostname_without_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_case_insensitive_scheme_hostname_without_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_case_insensitive_scheme_hostname_without_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_case_insensitive_scheme_hostname_without_port -- --nocapture` ✅ (validated case-insensitive explicit-HTTP hostname-only no-root-slash Consul lifecycle regressions across normalization/connect/watch/register/discover/deregister)
+1357. `rg "test_(normalize_consul_address_for_operation_accepts_case_insensitive_scheme_with_hostname_without_port_no_root_slash|consul_(watch_async_case_insensitive_scheme_hostname_without_port_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_case_insensitive_scheme_hostname_without_port_(succeeds|disconnect_and_reconnect)|async_register_case_insensitive_scheme_hostname_without_port_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_case_insensitive_scheme_hostname_without_port_(uses_operation_context|preserves_local_cache)|async_deregister_case_insensitive_scheme_hostname_without_port_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified case-insensitive explicit-HTTP hostname-only no-root-slash lifecycle regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
