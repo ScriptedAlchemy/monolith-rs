@@ -8625,6 +8625,19 @@
   - Consul lifecycle parity now explicitly covers the HTTPS+IPv6 authority lane
     across connect/watch/register/discover/deregister flows.
 
+### 631) Discovery Consul HTTPS watch poll-generation symmetry completion
+- Added in `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_watch_async_https_scheme_seeds_poll_generation_entry`
+  - `test_consul_watch_async_https_ipv6_with_port_seeds_poll_generation_entry`
+- Coverage validates HTTPS lanes now mirror existing watch-lifecycle symmetry:
+  - watch_async seeds poll-generation bookkeeping on subscribe,
+  - dropped receiver paths deterministically clear poll-generation state,
+  - dead watcher sender entries are compacted for both HTTPS IPv4 and HTTPS
+    IPv6 authority forms.
+- Result:
+  - Consul HTTPS watcher lifecycle now has full seed+disconnect coverage parity
+    across IPv4 and IPv6 lanes.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9950,6 +9963,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1315. `rg "test_(normalize_consul_address_for_operation_accepts_explicit_https_scheme|consul_(connect_https_scheme_(initializes_client_handle|disconnect_and_reconnect)|watch_async_https_scheme_disconnect_clears_poll_generation_with_live_receiver|async_register_https_scheme_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_https_scheme_(uses_operation_context|preserves_local_cache)|async_deregister_https_scheme_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified explicit-HTTPS Consul lifecycle regression tests are present)
 1316. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_normalize_consul_address_for_operation_accepts_explicit_https_scheme_with_ipv6 -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_https_ipv6_with_port_initializes_client_handle -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_https_ipv6_with_port_disconnect_and_reconnect -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_https_ipv6_with_port_disconnect_clears_poll_generation_with_live_receiver -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_https_ipv6_with_port_uses_operation_context -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_https_ipv6_with_port_compacts_dead_watchers -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_https_ipv6_with_port_keeps_live_watchers -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_https_ipv6_with_port_uses_operation_context -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_https_ipv6_with_port_preserves_local_cache -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_https_ipv6_with_port_uses_operation_context -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_https_ipv6_with_port_compacts_dead_watchers -- --nocapture` ✅ (validated explicit-HTTPS IPv6 Consul lifecycle regressions across normalization/connect/watch/register/discover/deregister)
 1317. `rg "test_(normalize_consul_address_for_operation_accepts_explicit_https_scheme_with_ipv6|consul_(connect_https_ipv6_with_port_(initializes_client_handle|disconnect_and_reconnect)|watch_async_https_ipv6_with_port_disconnect_clears_poll_generation_with_live_receiver|async_register_https_ipv6_with_port_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_https_ipv6_with_port_(uses_operation_context|preserves_local_cache)|async_deregister_https_ipv6_with_port_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified explicit-HTTPS IPv6 Consul lifecycle regression tests are present)
+1318. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_https_scheme_seeds_poll_generation_entry -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_https_ipv6_with_port_seeds_poll_generation_entry -- --nocapture` ✅ (validated explicit-HTTPS watch poll-generation seeding + dropped-receiver cleanup regressions for IPv4 and IPv6 lanes)
+1319. `rg "test_consul_watch_async_https(_ipv6_with_port)?_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)" crates/monolith-training/src/discovery.rs` ✅ (verified explicit-HTTPS watch seed/disconnect lifecycle regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
