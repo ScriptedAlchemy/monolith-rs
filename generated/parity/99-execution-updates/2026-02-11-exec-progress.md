@@ -10604,6 +10604,25 @@
   - restore checkpoint bootstrap now has direct regression coverage proving the
     panic-path replacement behavior under missing-basename fixtures.
 
+### 716) Discovery poisoned-lock regression assertions made diagnostic-explicit
+- Updated poisoned-lock regression assertions in
+  `crates/monolith-training/src/discovery.rs`:
+  - replaced coarse `assert!(join_result.is_err(), ...)` checks with
+    `join_result.expect_err(...)` in:
+    - `test_in_memory_register_poisoned_services_lock_returns_internal_error`
+    - `test_in_memory_watch_poisoned_watchers_lock_returns_internal_error`
+    - `test_zk_register_poisoned_services_lock_returns_internal_error`
+    - `test_zk_discover_poisoned_services_lock_returns_internal_error`
+    - `test_consul_register_poisoned_services_lock_returns_internal_error`
+    - `test_consul_discover_poisoned_services_lock_returns_internal_error`
+- Coverage validates:
+  - poisoned-lock setup threads still panic as intended for lock poisoning,
+  - follow-up runtime paths still return explicit `DiscoveryError::Internal`
+    contracts.
+- Result:
+  - Discovery poison-regression tests now use explicit assertion style with
+    stronger diagnostics while preserving existing behavior coverage.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12116,6 +12135,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1502. `rg "graph_meta type mismatch" crates/monolith-training/src/native_training/graph_meta.rs` ✅ (verified graph-meta type-mismatch paths are warning-driven repair semantics rather than panic exits)
 1503. `cargo test -p monolith-training test_copy_checkpoint_from_restore_dir_ -- --nocapture` ✅ (validated restore-checkpoint copy baseline and missing-basename explicit-error regression remain green)
 1504. `rg "restore_ckpt basename should be in checkpoint all_model_checkpoint_paths" crates/monolith-training/src/runner_utils.rs` ✅ (verified legacy restore-checkpoint basename panic-path expect string remains removed)
+1505. `cargo test -p monolith-training test_in_memory_register_poisoned_services_lock_returns_internal_error -- --nocapture && cargo test -p monolith-training test_in_memory_watch_poisoned_watchers_lock_returns_internal_error -- --nocapture && cargo test -p monolith-training test_zk_register_poisoned_services_lock_returns_internal_error -- --nocapture && cargo test -p monolith-training test_zk_discover_poisoned_services_lock_returns_internal_error -- --nocapture && cargo test -p monolith-training test_consul_register_poisoned_services_lock_returns_internal_error -- --nocapture && cargo test -p monolith-training test_consul_discover_poisoned_services_lock_returns_internal_error -- --nocapture` ✅ (validated discovery poisoned-lock regressions stay green after assertion hardening to expect_err)
+1506. `rg "join_result\\.is_err\\(" crates/monolith-training/src/discovery.rs` ✅ (verified coarse join-result boolean assertions were removed in poisoned-lock discovery regressions)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

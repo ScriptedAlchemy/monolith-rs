@@ -3291,10 +3291,8 @@ mod tests {
             panic!("poisoning in-memory services lock for register error-path regression");
         })
         .join();
-        assert!(
-            join_result.is_err(),
-            "poisoning thread should panic to poison in-memory services lock"
-        );
+        join_result
+            .expect_err("poisoning thread should panic to poison in-memory services lock");
 
         let err = discovery
             .register(ServiceInfo::new("poisoned-ps", "Poisoned PS", "ps", "localhost", 5000))
@@ -3318,10 +3316,8 @@ mod tests {
             panic!("poisoning in-memory watchers mutex for watch error-path regression");
         })
         .join();
-        assert!(
-            join_result.is_err(),
-            "poisoning thread should panic to poison in-memory watchers mutex"
-        );
+        join_result
+            .expect_err("poisoning thread should panic to poison in-memory watchers mutex");
 
         let err = discovery
             .watch("ps")
@@ -3346,10 +3342,8 @@ mod tests {
             panic!("poisoning zookeeper services lock for register error-path regression");
         })
         .join();
-        assert!(
-            join_result.is_err(),
-            "poisoning thread should panic to poison zookeeper services lock"
-        );
+        join_result
+            .expect_err("poisoning thread should panic to poison zookeeper services lock");
 
         let err = discovery
             .register(ServiceInfo::new(
@@ -3380,10 +3374,8 @@ mod tests {
             panic!("poisoning zookeeper services lock for discover error-path regression");
         })
         .join();
-        assert!(
-            join_result.is_err(),
-            "poisoning thread should panic to poison zookeeper services lock"
-        );
+        join_result
+            .expect_err("poisoning thread should panic to poison zookeeper services lock");
 
         let err = discovery
             .discover("ps")
@@ -3408,10 +3400,8 @@ mod tests {
             panic!("poisoning consul services lock for register error-path regression");
         })
         .join();
-        assert!(
-            join_result.is_err(),
-            "poisoning thread should panic to poison consul services lock"
-        );
+        join_result
+            .expect_err("poisoning thread should panic to poison consul services lock");
 
         let err = discovery
             .register(ServiceInfo::new(
@@ -3442,10 +3432,8 @@ mod tests {
             panic!("poisoning consul services lock for discover error-path regression");
         })
         .join();
-        assert!(
-            join_result.is_err(),
-            "poisoning thread should panic to poison consul services lock"
-        );
+        join_result
+            .expect_err("poisoning thread should panic to poison consul services lock");
 
         let err = discovery
             .discover("ps")
