@@ -5798,6 +5798,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_ps_role_rejects_whitespace_padded_parameter_sync_target_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec![" 127.0.0.1:8500 ".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
+            "run_ps_role should reject whitespace-padded parameter sync target",
+        );
+        assert!(
+            err.to_string().contains(
+                "parameter_sync_targets entries without leading/trailing whitespace"
+            ),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_ps_role_rejects_duplicate_parameter_sync_target_entries_without_wrapper() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -5842,6 +5862,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_ps_role_rejects_whitespace_padded_parameter_sync_model_name_with_targets_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            parameter_sync_model_name: " default ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
+            "run_ps_role should reject whitespace-padded parameter sync model name with targets",
+        );
+        assert!(
+            err.to_string().contains(
+                "parameter_sync_model_name without leading/trailing whitespace when parameter_sync_targets are configured"
+            ),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_internal_whitespace_parameter_sync_model_name_with_targets_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            parameter_sync_model_name: "default model".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
+            "run_ps_role should reject internal-whitespace parameter sync model name with targets",
+        );
+        assert!(
+            err.to_string().contains(
+                "parameter_sync_model_name without whitespace characters when parameter_sync_targets are configured"
+            ),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_ps_role_rejects_empty_parameter_sync_signature_name_with_targets_without_wrapper(
     ) {
         let discovery = Arc::new(InMemoryDiscovery::new());
@@ -5858,6 +5922,50 @@ mod tests {
         assert!(
             err.to_string().contains(
                 "non-empty parameter_sync_signature_name when parameter_sync_targets are configured"
+            ),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_whitespace_padded_parameter_sync_signature_name_with_targets_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            parameter_sync_signature_name: " serving_default ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
+            "run_ps_role should reject whitespace-padded parameter sync signature name with targets",
+        );
+        assert!(
+            err.to_string().contains(
+                "parameter_sync_signature_name without leading/trailing whitespace when parameter_sync_targets are configured"
+            ),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_internal_whitespace_parameter_sync_signature_name_with_targets_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            parameter_sync_signature_name: "serving default".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
+            "run_ps_role should reject internal-whitespace parameter sync signature name with targets",
+        );
+        assert!(
+            err.to_string().contains(
+                "parameter_sync_signature_name without whitespace characters when parameter_sync_targets are configured"
             ),
             "unexpected ps-role validation error: {err}"
         );
@@ -6160,6 +6268,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_rejects_whitespace_padded_parameter_sync_target_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec![" 127.0.0.1:8500 ".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject whitespace-padded parameter sync target for ps role",
+        );
+        assert!(err.to_string().contains(
+            "parameter_sync_targets entries without leading/trailing whitespace"
+        ));
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_rejects_duplicate_parameter_sync_target_entries_for_ps_role() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -6201,6 +6326,44 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_rejects_whitespace_padded_parameter_sync_model_name_with_targets_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            parameter_sync_model_name: " default ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject whitespace-padded parameter sync model name with targets for ps role",
+        );
+        assert!(err.to_string().contains(
+            "parameter_sync_model_name without leading/trailing whitespace when parameter_sync_targets are configured"
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_internal_whitespace_parameter_sync_model_name_with_targets_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            parameter_sync_model_name: "default model".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject internal-whitespace parameter sync model name with targets for ps role",
+        );
+        assert!(err.to_string().contains(
+            "parameter_sync_model_name without whitespace characters when parameter_sync_targets are configured"
+        ));
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_rejects_empty_parameter_sync_signature_name_with_targets_for_ps_role(
     ) {
         let discovery = Arc::new(InMemoryDiscovery::new());
@@ -6216,6 +6379,44 @@ mod tests {
         );
         assert!(err.to_string().contains(
             "non-empty parameter_sync_signature_name when parameter_sync_targets are configured"
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_whitespace_padded_parameter_sync_signature_name_with_targets_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            parameter_sync_signature_name: " serving_default ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject whitespace-padded parameter sync signature name with targets for ps role",
+        );
+        assert!(err.to_string().contains(
+            "parameter_sync_signature_name without leading/trailing whitespace when parameter_sync_targets are configured"
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_internal_whitespace_parameter_sync_signature_name_with_targets_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            parameter_sync_signature_name: "serving default".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject internal-whitespace parameter sync signature name with targets for ps role",
+        );
+        assert!(err.to_string().contains(
+            "parameter_sync_signature_name without whitespace characters when parameter_sync_targets are configured"
         ));
     }
 

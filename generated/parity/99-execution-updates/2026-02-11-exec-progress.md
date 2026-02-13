@@ -11505,6 +11505,29 @@
     assertions at runtime/helper layers, complementing existing worker bypass
     and integration-level coverage.
 
+### 762) PS parameter-sync whitespace/name-shape runtime-helper closure
+- Added runner regressions in `crates/monolith-training/src/runner.rs`:
+  - direct `run_ps_role` rejects:
+    - `test_run_ps_role_rejects_whitespace_padded_parameter_sync_target_without_wrapper`
+    - `test_run_ps_role_rejects_whitespace_padded_parameter_sync_model_name_with_targets_without_wrapper`
+    - `test_run_ps_role_rejects_internal_whitespace_parameter_sync_model_name_with_targets_without_wrapper`
+    - `test_run_ps_role_rejects_whitespace_padded_parameter_sync_signature_name_with_targets_without_wrapper`
+    - `test_run_ps_role_rejects_internal_whitespace_parameter_sync_signature_name_with_targets_without_wrapper`
+  - top-level `run_distributed` ps-role rejects:
+    - `test_run_distributed_rejects_whitespace_padded_parameter_sync_target_for_ps_role`
+    - `test_run_distributed_rejects_whitespace_padded_parameter_sync_model_name_with_targets_for_ps_role`
+    - `test_run_distributed_rejects_internal_whitespace_parameter_sync_model_name_with_targets_for_ps_role`
+    - `test_run_distributed_rejects_whitespace_padded_parameter_sync_signature_name_with_targets_for_ps_role`
+    - `test_run_distributed_rejects_internal_whitespace_parameter_sync_signature_name_with_targets_for_ps_role`
+- Coverage validates:
+  - PS-only parameter-sync whitespace/name-shape contracts are now explicitly
+    enforced at runtime and direct helper layers (target-entry trim, model name
+    trim/internal whitespace, signature name trim/internal whitespace).
+- Result:
+  - parameter-sync reject-path parity now covers both structural endpoint
+    constraints and string-hygiene constraints across PS runtime/helper
+    entrypaths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -13112,6 +13135,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1597. `rg "test_run_(distributed_(rejects_(empty|whitespace_padded|internal_whitespace)_worker_service_type_runtime_config|rejects_(case_insensitive_)?identical_ps_and_worker_service_types_runtime_config|allows_(whitespace_padded|internal_whitespace)_worker_service_type_for_ps_role|allows_(case_insensitive_)?identical_ps_and_worker_service_types_for_ps_role)|worker_role_rejects_(empty|whitespace_padded|internal_whitespace)_worker_service_type_without_wrapper|worker_role_rejects_(case_insensitive_)?identical_ps_and_worker_service_types_without_wrapper|ps_role_allows_(whitespace_padded|internal_whitespace)_worker_service_type_without_wrapper|ps_role_allows_(case_insensitive_)?identical_ps_and_worker_service_types_without_wrapper)" crates/monolith-training/src/runner.rs` ✅ (verified expanded worker-service-type runtime/direct-helper role-matrix regressions are present)
 1598. `cargo test -p monolith-training test_run_ps_role_rejects_zero_parameter_sync_interval_with_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_invalid_parameter_sync_target_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_duplicate_parameter_sync_target_entries_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_empty_parameter_sync_model_name_with_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_empty_parameter_sync_signature_name_with_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_parameter_sync_interval_with_targets_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_invalid_parameter_sync_target_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_duplicate_parameter_sync_target_entries_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_empty_parameter_sync_model_name_with_targets_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_empty_parameter_sync_signature_name_with_targets_for_ps_role -- --nocapture` ✅ (validated PS-only parameter-sync reject-path enforcement for runtime and direct helper entrypoints)
 1599. `rg "test_run_(ps_role_rejects_(zero_parameter_sync_interval_with_targets|invalid_parameter_sync_target|duplicate_parameter_sync_target_entries|empty_parameter_sync_model_name_with_targets|empty_parameter_sync_signature_name_with_targets)_without_wrapper|distributed_rejects_(zero_parameter_sync_interval_with_targets|invalid_parameter_sync_target|duplicate_parameter_sync_target_entries|empty_parameter_sync_model_name_with_targets|empty_parameter_sync_signature_name_with_targets)_for_ps_role)" crates/monolith-training/src/runner.rs` ✅ (verified new PS parameter-sync runtime/direct-helper reject regressions are present)
+1600. `cargo test -p monolith-training test_run_ps_role_rejects_whitespace_padded_parameter_sync_target_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_whitespace_padded_parameter_sync_model_name_with_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_internal_whitespace_parameter_sync_model_name_with_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_whitespace_padded_parameter_sync_signature_name_with_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_internal_whitespace_parameter_sync_signature_name_with_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_whitespace_padded_parameter_sync_target_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_whitespace_padded_parameter_sync_model_name_with_targets_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_internal_whitespace_parameter_sync_model_name_with_targets_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_whitespace_padded_parameter_sync_signature_name_with_targets_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_internal_whitespace_parameter_sync_signature_name_with_targets_for_ps_role -- --nocapture` ✅ (validated PS parameter-sync whitespace/name-shape reject contracts for direct helper and top-level runtime entrypoints)
+1601. `rg "test_run_(ps_role_rejects_(whitespace_padded_parameter_sync_target|whitespace_padded_parameter_sync_model_name_with_targets|internal_whitespace_parameter_sync_model_name_with_targets|whitespace_padded_parameter_sync_signature_name_with_targets|internal_whitespace_parameter_sync_signature_name_with_targets)_without_wrapper|distributed_rejects_(whitespace_padded_parameter_sync_target|whitespace_padded_parameter_sync_model_name_with_targets|internal_whitespace_parameter_sync_model_name_with_targets|whitespace_padded_parameter_sync_signature_name_with_targets|internal_whitespace_parameter_sync_signature_name_with_targets)_for_ps_role)" crates/monolith-training/src/runner.rs` ✅ (verified expanded PS parameter-sync whitespace/name-shape runtime/helper regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
