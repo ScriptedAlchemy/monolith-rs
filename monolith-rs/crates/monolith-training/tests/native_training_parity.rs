@@ -6237,6 +6237,87 @@ async fn distributed_runner_from_run_config_rejects_zero_parameter_sync_interval
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_allows_zero_parameter_sync_interval_without_targets_for_ps_role(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: Vec::new(),
+        parameter_sync_interval_ms: 0,
+        ..RunConfig::default()
+    };
+
+    let task = tokio::spawn({
+        let discovery = Arc::clone(&discovery);
+        async move {
+            run_distributed_from_run_config(
+                discovery,
+                &run,
+                None,
+                Role::Ps,
+                test_bind_addr(),
+            )
+            .await
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    assert!(
+        !task.is_finished(),
+        "ps role should continue serving; zero parameter-sync interval with no targets must not fail run-config validation"
+    );
+    task.abort();
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_allows_empty_parameter_sync_names_without_targets_for_ps_role(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: Vec::new(),
+        parameter_sync_model_name: "".to_string(),
+        parameter_sync_signature_name: " ".to_string(),
+        ..RunConfig::default()
+    };
+
+    let task = tokio::spawn({
+        let discovery = Arc::clone(&discovery);
+        async move {
+            run_distributed_from_run_config(
+                discovery,
+                &run,
+                None,
+                Role::Ps,
+                test_bind_addr(),
+            )
+            .await
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    assert!(
+        !task.is_finished(),
+        "ps role should continue serving; empty parameter-sync model/signature names with no targets must not fail run-config validation"
+    );
+    task.abort();
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_empty_parameter_sync_target_entry() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -22395,6 +22476,75 @@ async fn distributed_runner_from_runner_config_rejects_zero_parameter_sync_inter
         ),
         "zero runner-config parameter-sync interval with targets should be rejected by distributed config validation: {err}"
     );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_allows_zero_parameter_sync_interval_without_targets_for_ps_role(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: Vec::new(),
+        parameter_sync_interval_ms: 0,
+        ..RunnerConfig::default()
+    };
+
+    let task = tokio::spawn({
+        let discovery = Arc::clone(&discovery);
+        async move {
+            run_distributed_from_runner_config(discovery, &runner, Role::Ps, test_bind_addr())
+                .await
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    assert!(
+        !task.is_finished(),
+        "ps role should continue serving; zero parameter-sync interval with no targets must not fail runner-config validation"
+    );
+    task.abort();
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_allows_empty_parameter_sync_names_without_targets_for_ps_role(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        enable_parameter_sync: true,
+        parameter_sync_targets: Vec::new(),
+        parameter_sync_model_name: "".to_string(),
+        parameter_sync_signature_name: " ".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let task = tokio::spawn({
+        let discovery = Arc::clone(&discovery);
+        async move {
+            run_distributed_from_runner_config(discovery, &runner, Role::Ps, test_bind_addr())
+                .await
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    assert!(
+        !task.is_finished(),
+        "ps role should continue serving; empty parameter-sync model/signature names with no targets must not fail runner-config validation"
+    );
+    task.abort();
 }
 
 #[tokio::test]

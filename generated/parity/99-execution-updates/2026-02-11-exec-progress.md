@@ -11596,6 +11596,23 @@
   - runtime/helper role matrix now explicitly includes no-target allow semantics
     for both worker bypass and ps conditional validation behavior.
 
+### 768) Integration PS disabled-parameter-sync allow-path closure
+- Added integration regressions in
+  `crates/monolith-training/tests/native_training_parity.rs`:
+  - run-config ps-role allow paths:
+    - `distributed_runner_from_run_config_allows_zero_parameter_sync_interval_without_targets_for_ps_role`
+    - `distributed_runner_from_run_config_allows_empty_parameter_sync_names_without_targets_for_ps_role`
+  - runner-config ps-role allow paths:
+    - `distributed_runner_from_runner_config_allows_zero_parameter_sync_interval_without_targets_for_ps_role`
+    - `distributed_runner_from_runner_config_allows_empty_parameter_sync_names_without_targets_for_ps_role`
+- Coverage validates:
+  - ps-role distributed runner entrypaths remain permissive for parameter-sync
+    interval/name fields when `parameter_sync_targets` is empty in both
+    run-config and runner-config integration surfaces.
+- Result:
+  - integration parity now explicitly captures conditional ps parameter-sync
+    allow semantics for disabled-mode configurations.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -13215,6 +13232,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1609. `rg "test_run_(ps_role_rejects_parameter_sync_target_endpoint_with_(path_or_query|userinfo)_without_wrapper|distributed_rejects_parameter_sync_target_endpoint_with_(path_or_query|userinfo)_for_ps_role|ps_role_rejects_empty_parameter_sync_target_entry_without_wrapper|distributed_rejects_empty_parameter_sync_target_entry_for_ps_role)" crates/monolith-training/src/runner.rs` ✅ (verified PS endpoint path/userinfo and empty-target runtime/helper reject regression suite is present)
 1610. `cargo test -p monolith-training test_run_worker_role_allows_zero_parameter_sync_interval_without_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_allows_empty_parameter_sync_names_without_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_allows_zero_parameter_sync_interval_without_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_allows_empty_parameter_sync_names_without_targets_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_zero_parameter_sync_interval_without_targets_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_empty_parameter_sync_names_without_targets_for_ps_role -- --nocapture` ✅ (validated parameter-sync disabled-mode allow semantics across worker/ps direct helper paths and ps runtime entrypath)
 1611. `rg "test_run_(worker_role_allows_zero_parameter_sync_interval_without_targets_without_wrapper|worker_role_allows_empty_parameter_sync_names_without_targets_without_wrapper|ps_role_allows_zero_parameter_sync_interval_without_targets_without_wrapper|ps_role_allows_empty_parameter_sync_names_without_targets_without_wrapper|distributed_allows_zero_parameter_sync_interval_without_targets_for_ps_role|distributed_allows_empty_parameter_sync_names_without_targets_for_ps_role)" crates/monolith-training/src/runner.rs` ✅ (verified disabled-mode parameter-sync allow-path runtime/helper regressions are present)
+1612. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_zero_parameter_sync_interval_without_targets_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_empty_parameter_sync_names_without_targets_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_zero_parameter_sync_interval_without_targets_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_empty_parameter_sync_names_without_targets_for_ps_role -- --nocapture` ✅ (validated integration ps-role disabled-parameter-sync allow semantics across run-config and runner-config entrypaths)
+1613. `rg "distributed_runner_from_(run_config|runner_config)_allows_(zero_parameter_sync_interval_without_targets_for_ps_role|empty_parameter_sync_names_without_targets_for_ps_role)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified new integration ps-role disabled-parameter-sync allow-path regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
