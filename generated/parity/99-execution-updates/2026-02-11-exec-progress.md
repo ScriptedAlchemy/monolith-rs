@@ -7779,6 +7779,23 @@
   - Empty-address watch parity now includes explicit state creation and cleanup
     contracts across watch/disconnect lifecycle boundaries.
 
+### 578) Discovery Consul normalized root-slash acceptance operation-context parity
+- Added Consul operation-level regressions for case-insensitive scheme + root
+  slash addresses in `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_discover_async_case_insensitive_scheme_and_root_slash_uses_operation_context`
+  - `test_consul_async_register_case_insensitive_scheme_and_root_slash_uses_operation_context`
+  - `test_consul_async_deregister_case_insensitive_scheme_and_root_slash_uses_operation_context`
+- Coverage validates that normalized valid address forms are accepted by parser
+  and propagate to backend-call failure paths with explicit operation context:
+  - `get_service_nodes`
+  - `register_entity`
+  - `deregister_entity`
+  while preserving existing deregister local-removal + watch notification
+  behavior.
+- Result:
+  - Consul root-slash/case-insensitive acceptance parity now spans discover,
+    register, and deregister async operations.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8991,6 +9008,8 @@
 1209. `rg "test_consul_discover_async_empty_address_preserves_local_cache" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul discover_async empty-address cache-preservation regression is present)
 1210. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_empty_address_creates_state_and_disconnect_cleans_up -- --nocapture` ✅ (validated Consul watch_async accepts empty address and disconnect performs deterministic watcher/poll-generation cleanup)
 1211. `rg "test_consul_watch_async_empty_address_creates_state_and_disconnect_cleans_up" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul watch_async empty-address lifecycle regression is present)
+1212. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_case_insensitive_scheme_and_root_slash_uses_operation_context -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_case_insensitive_scheme_and_root_slash_uses_operation_context -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_case_insensitive_scheme_and_root_slash_uses_operation_context -- --nocapture` ✅ (validated operation-context failure contracts for normalized case-insensitive/root-slash Consul addresses across discover/register/deregister async operations)
+1213. `rg "test_consul_(discover_async_case_insensitive_scheme_and_root_slash_uses_operation_context|async_register_case_insensitive_scheme_and_root_slash_uses_operation_context|async_deregister_case_insensitive_scheme_and_root_slash_uses_operation_context)" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul normalized-root-slash operation-context regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
