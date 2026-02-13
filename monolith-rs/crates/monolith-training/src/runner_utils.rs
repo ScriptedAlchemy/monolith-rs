@@ -728,6 +728,34 @@ all_model_checkpoint_paths: "model.ckpt-0"
     }
 
     #[test]
+    fn test_copy_checkpoint_from_restore_dir_basename_not_found_returns_explicit_error() {
+        let tmp = tempdir().expect("tempdir creation should succeed");
+        let restore_dir = tmp.path().join("restore_dir");
+        let model_dir = tmp.path().join("model_dir");
+        fs::create_dir_all(&restore_dir).expect("restore_dir creation should succeed");
+
+        let pbtxt = r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-30"
+"#;
+        fs::write(restore_dir.join("checkpoint"), pbtxt)
+            .expect("checkpoint fixture write should succeed");
+
+        let err = copy_checkpoint_from_restore_dir(
+            &restore_dir,
+            &model_dir,
+            Some("model.ckpt-999"),
+        )
+        .expect_err("unknown restore_ckpt basename should return RestoreCkptNotFound");
+        assert!(
+            matches!(err, RunnerUtilsError::RestoreCkptNotFound { ref restore_ckpt }
+                if restore_ckpt == "model.ckpt-999"),
+            "expected RestoreCkptNotFound(model.ckpt-999), got {err:?}"
+        );
+    }
+
+    #[test]
     fn test_isabs_supports_hdfs_scheme() {
         assert!(isabs("hdfs:/tmp/model"));
         assert!(isabs("/tmp/model"));

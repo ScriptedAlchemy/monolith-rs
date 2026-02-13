@@ -10593,6 +10593,17 @@
   - Graph-meta runtime now avoids panic exits for stale type collisions and
     preserves stable typed access semantics.
 
+### 715) Runner-utils restore checkpoint explicit failure-shape regression
+- Expanded `crates/monolith-training/src/runner_utils.rs` regressions:
+  - added `test_copy_checkpoint_from_restore_dir_basename_not_found_returns_explicit_error`
+    to lock in `RunnerUtilsError::RestoreCkptNotFound` contract when
+    `restore_ckpt` basename does not exist in `checkpoint` metadata.
+- Coverage validates:
+  - fallback from removed panic-path expect remains explicit and diagnostic-rich.
+- Result:
+  - restore checkpoint bootstrap now has direct regression coverage proving the
+    panic-path replacement behavior under missing-basename fixtures.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12103,6 +12114,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1500. `rg "row_splits should have at least one element" crates/monolith-training/src/native_training/ragged_utils.rs` ✅ (verified legacy ragged-utils redundant option-expect panic-path string is removed)
 1501. `cargo test -p monolith-training test_get_meta_cloned_ -- --nocapture && cargo test -p monolith-training test_update_meta_ -- --nocapture` ✅ (validated graph-meta type-mismatch repair regressions and poisoned-mutex recovery regressions remain stable)
 1502. `rg "graph_meta type mismatch" crates/monolith-training/src/native_training/graph_meta.rs` ✅ (verified graph-meta type-mismatch paths are warning-driven repair semantics rather than panic exits)
+1503. `cargo test -p monolith-training test_copy_checkpoint_from_restore_dir_ -- --nocapture` ✅ (validated restore-checkpoint copy baseline and missing-basename explicit-error regression remain green)
+1504. `rg "restore_ckpt basename should be in checkpoint all_model_checkpoint_paths" crates/monolith-training/src/runner_utils.rs` ✅ (verified legacy restore-checkpoint basename panic-path expect string remains removed)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
