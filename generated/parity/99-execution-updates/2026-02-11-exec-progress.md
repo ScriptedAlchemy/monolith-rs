@@ -10499,6 +10499,28 @@
   - ZK service-discovery background-thread lifecycle now avoids panic-based
     lock-failure exits and preserves deterministic recovery behavior.
 
+### 709) MLP discovery filters lock-poison panic-path hardening
+- Hardened `crates/monolith-training/src/py_discovery.rs` for
+  `MlpServiceDiscovery`:
+  - added `lock_filters_recover()` helper that recovers from poisoned filter
+    mutexes with warning diagnostics,
+  - removed panic-prone filter lock `expect(...)` paths across:
+    - `deregister_all`
+    - `register`
+    - `deregister`
+    - `query`
+    - `close`
+- Added regressions:
+  - `test_mlp_register_recovers_after_poisoned_filters_mutex`
+  - `test_mlp_close_recovers_after_poisoned_filters_mutex`
+- Coverage validates:
+  - MLP register/close operations remain successful after intentional filter
+    mutex poisoning,
+  - existing MLP discovery query/filter lifecycle semantics remain green.
+- Result:
+  - MLP discovery now enforces panic-free poisoned-mutex recovery for runtime
+    filter bookkeeping operations.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11992,6 +12014,10 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1483. `rg "zk_register_recovers_from_poisoned_threads_mutex|zk_close_recovers_from_poisoned_threads_mutex" crates/monolith-training/src/native_training/service_discovery.rs` ✅ (verified ZK thread-lock poisoning recovery regressions are present)
 1484. `rg "zk registration thread wakeup mutex should not be poisoned|zk registration thread handle mutex should not be poisoned|zk service-discovery threads mutex should not be poisoned|zk registration wakeup wait_timeout should not fail" crates/monolith-training/src/native_training/service_discovery.rs` ✅ (verified legacy ZK thread-lock/condvar panic-path expect strings are removed)
 1485. `rg "zk service-discovery threads mutex was poisoned; continuing with recovered state|zk registration thread wakeup mutex was poisoned; continuing with recovered state" crates/monolith-training/src/native_training/service_discovery.rs` ✅ (verified ZK lock-poison recovery warning diagnostics are present)
+1486. `cargo test -p monolith-training test_mlp_ -- --nocapture` ✅ (validated MLP discovery filters lock-poison recovery regressions and existing query/filter lifecycle parity tests)
+1487. `rg "test_mlp_(register_recovers_after_poisoned_filters_mutex|close_recovers_after_poisoned_filters_mutex)" crates/monolith-training/src/py_discovery.rs` ✅ (verified MLP poisoned-filter-mutex recovery regressions are present)
+1488. `rg "mlp discovery filters mutex should not be poisoned" crates/monolith-training/src/py_discovery.rs` ✅ (verified legacy MLP filters panic-path expect strings are removed)
+1489. `rg "mlp discovery filters mutex was poisoned; continuing with recovered state" crates/monolith-training/src/py_discovery.rs` ✅ (verified MLP lock-poison recovery warning diagnostics are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

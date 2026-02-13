@@ -528,14 +528,23 @@ impl MlpServiceDiscovery {
         format!("{}:{}", name.trim().to_lowercase(), index)
     }
 
+    fn lock_filters_recover(&self) -> std::sync::MutexGuard<'_, HashSet<String>> {
+        match self.filters.lock() {
+            Ok(filters) => filters,
+            Err(poisoned) => {
+                tracing::warn!(
+                    "mlp discovery filters mutex was poisoned; continuing with recovered state"
+                );
+                poisoned.into_inner()
+            }
+        }
+    }
+
     pub fn deregister_all(&self) {
         if self.closed.load(Ordering::SeqCst) {
             return;
         }
-        let mut filters = self
-            .filters
-            .lock()
-            .expect("mlp discovery filters mutex should not be poisoned");
+        let mut filters = self.lock_filters_recover();
         for (name, num) in &self.env.all_roles {
             for idx in 0..*num {
                 filters.insert(Self::key(&name.to_lowercase(), idx as i32));
@@ -637,10 +646,7 @@ impl PyServiceDiscovery for MlpServiceDiscovery {
             return Ok(());
         }
         self.validate(name, index, addr)?;
-        let mut filters = self
-            .filters
-            .lock()
-            .expect("mlp discovery filters mutex should not be poisoned");
+        let mut filters = self.lock_filters_recover();
         filters.remove(&Self::key(name, index));
         Ok(())
     }
@@ -650,10 +656,7 @@ impl PyServiceDiscovery for MlpServiceDiscovery {
             return Ok(());
         }
         self.validate(name, index, addr)?;
-        let mut filters = self
-            .filters
-            .lock()
-            .expect("mlp discovery filters mutex should not be poisoned");
+        let mut filters = self.lock_filters_recover();
         filters.insert(Self::key(name, index));
         Ok(())
     }
@@ -673,10 +676,7 @@ impl PyServiceDiscovery for MlpServiceDiscovery {
             return Ok(HashMap::new());
         }
 
-        let filters = self
-            .filters
-            .lock()
-            .expect("mlp discovery filters mutex should not be poisoned");
+        let filters = self.lock_filters_recover();
         let mut out = HashMap::new();
 
         for idx in 0..num {
@@ -694,10 +694,7 @@ impl PyServiceDiscovery for MlpServiceDiscovery {
 
     fn close(&self) -> Result<()> {
         self.closed.store(true, Ordering::SeqCst);
-        self.filters
-            .lock()
-            .expect("mlp discovery filters mutex should not be poisoned")
-            .clear();
+        self.lock_filters_recover().clear();
         Ok(())
     }
 }
@@ -1073,6 +1070,74 @@ mod tests {
         assert!(
             !all.contains_key("trainer"),
             "unsupported role names should not be included"
+        );
+    }
+
+    #[test]
+    fn test_mlp_register_recovers_after_poisoned_filters_mutex() {
+        let _guard = MLP_ENV_TEST_MUTEX
+            .lock()
+            .expect("mlp env test mutex should not be poisoned");
+        let _env = install_default_mlp_env();
+
+        let d = std::sync::Arc::new(MlpServiceDiscovery::new());
+        let poison_target = std::sync::Arc::clone(&d);
+        let join_result = std::thread::spawn(move || {
+            let _guard = poison_target
+                .filters
+                .lock()
+                .expect("mlp filters mutex acquisition should succeed before poisoning");
+            panic!("poisoning mlp filters mutex for register recovery-path regression");
+        })
+        .join();
+        assert!(
+            join_result.is_err(),
+            "poisoning thread should panic to poison mlp filters mutex"
+        );
+
+        PyServiceDiscovery::register(&*d, "worker", 1, "worker1:2223")
+            .expect("mlp register should recover from poisoned filters mutex");
+        let workers = d
+            .query("worker")
+            .expect("mlp query(worker) should succeed after poisoned-mutex register recovery");
+        assert_eq!(
+            workers.get(&1).expect("worker[1] should remain visible after register recovery"),
+            "worker1:2223"
+        );
+    }
+
+    #[test]
+    fn test_mlp_close_recovers_after_poisoned_filters_mutex() {
+        let _guard = MLP_ENV_TEST_MUTEX
+            .lock()
+            .expect("mlp env test mutex should not be poisoned");
+        let _env = install_default_mlp_env();
+
+        let d = std::sync::Arc::new(MlpServiceDiscovery::new());
+        PyServiceDiscovery::deregister(&*d, "worker", 1, "worker1:2223")
+            .expect("mlp deregister should seed filters before poisoned-close recovery test");
+
+        let poison_target = std::sync::Arc::clone(&d);
+        let join_result = std::thread::spawn(move || {
+            let _guard = poison_target
+                .filters
+                .lock()
+                .expect("mlp filters mutex acquisition should succeed before poisoning");
+            panic!("poisoning mlp filters mutex for close recovery-path regression");
+        })
+        .join();
+        assert!(
+            join_result.is_err(),
+            "poisoning thread should panic to poison mlp filters mutex"
+        );
+
+        PyServiceDiscovery::close(&*d)
+            .expect("mlp close should recover from poisoned filters mutex and succeed");
+        assert!(
+            d.query("worker")
+                .expect("mlp query(worker) should succeed after poisoned-mutex close recovery")
+                .is_empty(),
+            "closed MLP discovery should remain empty after poisoned-mutex close recovery"
         );
     }
 }
