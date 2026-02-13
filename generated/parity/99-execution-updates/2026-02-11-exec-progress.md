@@ -10858,6 +10858,25 @@
   - parameter-sync naming contracts now explicitly distinguish enabled vs
     disabled modes, reducing accidental overvalidation regressions.
 
+### 729) Retry-backoff zero-value semantics scoped by retry enablement
+- Hardened distributed runner config validation in
+  `crates/monolith-training/src/runner.rs`:
+  - added explicit rejection for `retry_backoff_ms = 0` when
+    `connect_retries > 0`:
+    - `"distributed config requires retry_backoff_ms > 0 when connect_retries > 0"`.
+- Added regressions:
+  - `test_distributed_config_validate_rejects_zero_retry_backoff_when_retries_enabled`
+  - `test_distributed_config_validate_allows_zero_retry_backoff_when_retries_disabled`
+  - `test_run_distributed_rejects_zero_retry_backoff_when_retries_enabled`
+  - `test_run_distributed_allows_zero_retry_backoff_when_retries_disabled`
+- Coverage validates:
+  - retry-enabled mode cannot use zero backoff,
+  - retry-disabled mode may keep zero backoff without triggering validation
+    failures.
+- Result:
+  - retry/backoff contracts now explicitly prevent zero-delay retry loops while
+    preserving disabled-retry configurability.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12397,6 +12416,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1529. `rg "test_distributed_config_validate_allows_zero_parameter_sync_interval_without_targets|test_run_distributed_allows_zero_parameter_sync_interval_without_targets" crates/monolith-training/src/runner.rs` ✅ (verified zero-interval parameter-sync disabled-mode regressions are present)
 1530. `cargo test -p monolith-training test_distributed_config_validate_allows_empty_parameter_sync_names_without_targets -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_empty_parameter_sync_names_without_targets -- --nocapture` ✅ (validated empty/whitespace parameter-sync model/signature names are accepted when parameter-sync targets are disabled, at both validation and runtime entrypoint levels)
 1531. `rg "test_distributed_config_validate_allows_empty_parameter_sync_names_without_targets|test_run_distributed_allows_empty_parameter_sync_names_without_targets" crates/monolith-training/src/runner.rs` ✅ (verified parameter-sync name disabled-mode regressions are present)
+1532. `cargo test -p monolith-training test_distributed_config_validate_rejects_zero_retry_backoff_when_retries_enabled -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_allows_zero_retry_backoff_when_retries_disabled -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_retry_backoff_when_retries_enabled -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_zero_retry_backoff_when_retries_disabled -- --nocapture` ✅ (validated retry-backoff zero-value semantics across retry-enabled rejection and retry-disabled acceptance at config-validation + runtime levels)
+1533. `rg "retry_backoff_ms > 0 when connect_retries > 0|test_distributed_config_validate_rejects_zero_retry_backoff_when_retries_enabled|test_distributed_config_validate_allows_zero_retry_backoff_when_retries_disabled|test_run_distributed_rejects_zero_retry_backoff_when_retries_enabled|test_run_distributed_allows_zero_retry_backoff_when_retries_disabled" crates/monolith-training/src/runner.rs` ✅ (verified explicit retry-backoff validation message and associated regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

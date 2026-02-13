@@ -120,6 +120,11 @@ impl DistributedRunConfig {
         if self.dim == 0 {
             anyhow::bail!("distributed config requires dim > 0");
         }
+        if self.connect_retries > 0 && self.retry_backoff_ms == 0 {
+            anyhow::bail!(
+                "distributed config requires retry_backoff_ms > 0 when connect_retries > 0"
+            );
+        }
         if self.barrier_timeout_ms <= 0 {
             anyhow::bail!("distributed config requires barrier_timeout_ms > 0");
         }
@@ -3095,6 +3100,20 @@ mod tests {
     }
 
     #[test]
+    fn test_distributed_config_validate_rejects_zero_retry_backoff_when_retries_enabled() {
+        let cfg = DistributedRunConfig {
+            connect_retries: 1,
+            retry_backoff_ms: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
+        assert!(
+            err.contains("distributed config requires retry_backoff_ms > 0 when connect_retries > 0"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_distributed_config_validate_rejects_zero_discovery_cleanup_timeout() {
         let cfg = DistributedRunConfig {
             discovery_cleanup_timeout: Duration::from_millis(0),
@@ -3344,6 +3363,18 @@ mod tests {
         };
         cfg.validate().expect(
             "zero parameter_sync_interval should be accepted when no parameter_sync_targets are configured",
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_allows_zero_retry_backoff_when_retries_disabled() {
+        let cfg = DistributedRunConfig {
+            connect_retries: 0,
+            retry_backoff_ms: 0,
+            ..DistributedRunConfig::default()
+        };
+        cfg.validate().expect(
+            "zero retry_backoff_ms should be accepted when connect_retries is disabled",
         );
     }
 
@@ -4239,6 +4270,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_rejects_zero_retry_backoff_when_retries_enabled() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            connect_retries: 1,
+            retry_backoff_ms: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject runtime config with zero retry_backoff_ms when retries are enabled");
+        assert!(
+            err.to_string()
+                .contains("retry_backoff_ms > 0 when connect_retries > 0"),
+            "unexpected runtime config validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_rejects_zero_heartbeat_interval_runtime_config() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -4282,6 +4332,33 @@ mod tests {
         assert!(
             !msg.contains("parameter_sync_interval > 0"),
             "runtime should not reject zero parameter_sync_interval when parameter-sync targets are empty: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_zero_retry_backoff_when_retries_disabled() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 0,
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, cfg).await.expect_err(
+            "run_distributed should proceed past retry-backoff validation when retries are disabled",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "runtime should fail due to missing PS discovery, not retry-backoff validation: {msg}"
+        );
+        assert!(
+            !msg.contains("retry_backoff_ms > 0"),
+            "runtime should not reject zero retry_backoff_ms when connect_retries is disabled: {msg}"
         );
     }
 
