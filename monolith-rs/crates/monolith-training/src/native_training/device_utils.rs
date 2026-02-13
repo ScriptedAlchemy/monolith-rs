@@ -112,4 +112,18 @@ mod tests {
             "expected InvalidProcessesPerGpu for zero, got {err:?}"
         );
     }
+
+    #[test]
+    fn test_get_visible_gpus_negative_local_rank_matches_python_truncation() {
+        assert_eq!(
+            get_visible_gpus(-1, 2).expect("valid processes_per_gpu should succeed"),
+            "0",
+            "Python int(-1 / 2) truncates toward zero"
+        );
+        assert_eq!(
+            get_visible_gpus(-3, 2).expect("valid processes_per_gpu should succeed"),
+            "-1",
+            "Python int(-3 / 2) truncates toward zero"
+        );
+    }
 }

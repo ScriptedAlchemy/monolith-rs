@@ -10759,6 +10759,25 @@
   - helper hardening is now reflected in user-facing API examples, reinforcing
     deterministic error semantics at both runtime and documentation layers.
 
+### 723) Negative-rank and negative-delta parity coverage for helper semantics
+- Expanded helper parity regressions to lock Python-consistent edge semantics:
+  - `crates/monolith-training/src/native_training/device_utils.rs`
+    - added `test_get_visible_gpus_negative_local_rank_matches_python_truncation`
+      to confirm signed integer division truncates toward zero (Python parity).
+  - `crates/monolith-training/src/native_training/gen_seq_mask.rs`
+    - added `test_gen_seq_mask_negative_deltas_are_clamped_to_zero` for i32/i64
+      paths to confirm negative row-length deltas clamp to zero.
+  - `crates/monolith-training/tests/native_training_parity.rs`
+    - added integration parity tests:
+      - `native_training_device_utils_negative_rank_matches_python_truncation`
+      - `native_training_gen_seq_mask_negative_delta_clamping`
+- Coverage validates:
+  - unit + integration layers preserve these edge-case semantics under the new
+    explicit-Result helper APIs.
+- Result:
+  - helper hardening now includes explicit parity locks for negative-index and
+    negative-delta behavior, reducing regression risk in TF-free runtime flows.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12286,6 +12305,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1517. `rg "native_training_(device_utils_visible_gpu_contracts|gen_seq_mask_empty_input_contracts|ragged_value_rowids_error_contracts)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified new integration parity helper-contract regressions are present)
 1518. `cargo test -p monolith-training --doc -- --nocapture` ✅ (validated new native-training helper doc examples compile and execute, including explicit error-contract examples)
 1519. `rg "Err\\(DeviceUtilsError::InvalidProcessesPerGpu|Err\\(GenSeqMaskError::EmptyRowSplits\\)|Err\\(RaggedUtilsError::EmptyRowSplits\\)" crates/monolith-training/src/native_training` ✅ (verified helper docs now include explicit error-contract examples for device utils, seq mask, and ragged utils)
+1520. `cargo test -p monolith-training test_get_visible_gpus_negative_local_rank_matches_python_truncation -- --nocapture && cargo test -p monolith-training test_gen_seq_mask_negative_deltas_are_clamped_to_zero -- --nocapture && cargo test -p monolith-training --test native_training_parity native_training_device_utils_negative_rank_matches_python_truncation -- --nocapture && cargo test -p monolith-training --test native_training_parity native_training_gen_seq_mask_negative_delta_clamping -- --nocapture` ✅ (validated negative-rank truncation and negative-delta clamp semantics across unit and integration parity coverage)
+1521. `rg "test_get_visible_gpus_negative_local_rank_matches_python_truncation|test_gen_seq_mask_negative_deltas_are_clamped_to_zero|native_training_device_utils_negative_rank_matches_python_truncation|native_training_gen_seq_mask_negative_delta_clamping" crates/monolith-training` ✅ (verified new helper edge-semantics parity regressions are present in unit and integration suites)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

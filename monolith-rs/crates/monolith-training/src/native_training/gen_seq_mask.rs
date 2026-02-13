@@ -140,5 +140,26 @@ mod tests {
             "expected EmptyRowSplits for i64 path, got {err_i64:?}"
         );
     }
+
+    #[test]
+    fn test_gen_seq_mask_negative_deltas_are_clamped_to_zero() {
+        let split_i32 = [0i32, -2, 1];
+        let mask_i32 =
+            gen_seq_mask_i32(&split_i32, 4).expect("non-empty row_splits should succeed");
+        assert_eq!(
+            mask_i32,
+            vec![vec![0, 0, 0, 0], vec![1, 1, 1, 0]],
+            "negative row-length deltas should clamp to zero for i32 path"
+        );
+
+        let split_i64 = [0i64, -2, 1];
+        let mask_i64 =
+            gen_seq_mask_i64(&split_i64, 4).expect("non-empty row_splits should succeed");
+        assert_eq!(
+            mask_i64,
+            vec![vec![0, 0, 0, 0], vec![1, 1, 1, 0]],
+            "negative row-length deltas should clamp to zero for i64 path"
+        );
+    }
 }
 

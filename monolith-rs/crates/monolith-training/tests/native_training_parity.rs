@@ -127,6 +127,22 @@ fn native_training_device_utils_visible_gpu_contracts() {
 }
 
 #[test]
+fn native_training_device_utils_negative_rank_matches_python_truncation() {
+    use monolith_training::native_training::device_utils::get_visible_gpus;
+
+    assert_eq!(
+        get_visible_gpus(-1, 2).expect("processes_per_gpu=2 should succeed"),
+        "0",
+        "Python int(-1 / 2) truncates toward zero"
+    );
+    assert_eq!(
+        get_visible_gpus(-3, 2).expect("processes_per_gpu=2 should succeed"),
+        "-1",
+        "Python int(-3 / 2) truncates toward zero"
+    );
+}
+
+#[test]
 fn native_training_gen_seq_mask_empty_input_contracts() {
     use monolith_training::native_training::gen_seq_mask::{
         gen_seq_mask_i32, gen_seq_mask_i64, GenSeqMaskError,
@@ -145,6 +161,21 @@ fn native_training_gen_seq_mask_empty_input_contracts() {
         matches!(err_i64, GenSeqMaskError::EmptyRowSplits),
         "expected EmptyRowSplits for i64 path, got {err_i64:?}"
     );
+}
+
+#[test]
+fn native_training_gen_seq_mask_negative_delta_clamping() {
+    use monolith_training::native_training::gen_seq_mask::{gen_seq_mask_i32, gen_seq_mask_i64};
+
+    let split_i32 = [0i32, -2, 1];
+    let mask_i32 = gen_seq_mask_i32(&split_i32, 4)
+        .expect("non-empty i32 row_splits should return clamped mask");
+    assert_eq!(mask_i32, vec![vec![0, 0, 0, 0], vec![1, 1, 1, 0]]);
+
+    let split_i64 = [0i64, -2, 1];
+    let mask_i64 = gen_seq_mask_i64(&split_i64, 4)
+        .expect("non-empty i64 row_splits should return clamped mask");
+    assert_eq!(mask_i64, vec![vec![0, 0, 0, 0], vec![1, 1, 1, 0]]);
 }
 
 #[test]
