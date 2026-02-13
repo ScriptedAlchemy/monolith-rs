@@ -4926,6 +4926,70 @@ async fn distributed_runner_from_run_config_rejects_zero_cleanup_timeout() {
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_rejects_zero_retry_backoff_for_worker_role_when_retries_enabled(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 1,
+        retry_backoff_ms: 0,
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should reject zero retry_backoff_ms for worker retries")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires retry_backoff_ms > 0 when connect_retries > 0"),
+        "worker run-config with retry loop enabled should reject zero retry backoff: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_allows_zero_retry_backoff_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 7,
+        retry_backoff_ms: 0,
+        ..RunConfig::default()
+    };
+
+    let task = tokio::spawn({
+        let discovery = Arc::clone(&discovery);
+        async move {
+            run_distributed_from_run_config(discovery, &run, None, Role::Ps, test_bind_addr()).await
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    assert!(
+        !task.is_finished(),
+        "ps role should continue serving; zero retry_backoff_ms must not fail run-config validation"
+    );
+    task.abort();
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_zero_barrier_timeout() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -4954,6 +5018,36 @@ async fn distributed_runner_from_run_config_rejects_zero_barrier_timeout() {
         err.contains("distributed config requires barrier_timeout_ms > 0"),
         "zero run-config barrier timeout should be rejected by distributed config validation: {err}"
     );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_allows_zero_barrier_timeout_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        barrier_timeout_ms: 0,
+        ..RunConfig::default()
+    };
+
+    let task = tokio::spawn({
+        let discovery = Arc::clone(&discovery);
+        async move {
+            run_distributed_from_run_config(discovery, &run, None, Role::Ps, test_bind_addr()).await
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    assert!(
+        !task.is_finished(),
+        "ps role should continue serving; zero barrier_timeout_ms must not fail run-config validation"
+    );
+    task.abort();
 }
 
 #[tokio::test]
@@ -20403,6 +20497,71 @@ async fn distributed_runner_from_runner_config_rejects_zero_cleanup_timeout() {
 }
 
 #[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_zero_retry_backoff_for_worker_role_when_retries_enabled(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 1,
+        retry_backoff_ms: 0,
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Worker,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should reject zero retry_backoff_ms for worker retries")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires retry_backoff_ms > 0 when connect_retries > 0"),
+        "worker runner-config with retry loop enabled should reject zero retry backoff: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_allows_zero_retry_backoff_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 7,
+        retry_backoff_ms: 0,
+        ..RunnerConfig::default()
+    };
+
+    let task = tokio::spawn({
+        let discovery = Arc::clone(&discovery);
+        async move {
+            run_distributed_from_runner_config(discovery, &runner, Role::Ps, test_bind_addr())
+                .await
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    assert!(
+        !task.is_finished(),
+        "ps role should continue serving; zero retry_backoff_ms must not fail runner-config validation"
+    );
+    task.abort();
+}
+
+#[tokio::test]
 async fn distributed_runner_from_runner_config_rejects_zero_barrier_timeout() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_runner_config, Role};
@@ -20431,6 +20590,37 @@ async fn distributed_runner_from_runner_config_rejects_zero_barrier_timeout() {
         err.contains("distributed config requires barrier_timeout_ms > 0"),
         "zero runner-config barrier timeout should be rejected by distributed config validation: {err}"
     );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_allows_zero_barrier_timeout_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        barrier_timeout_ms: 0,
+        ..RunnerConfig::default()
+    };
+
+    let task = tokio::spawn({
+        let discovery = Arc::clone(&discovery);
+        async move {
+            run_distributed_from_runner_config(discovery, &runner, Role::Ps, test_bind_addr())
+                .await
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    assert!(
+        !task.is_finished(),
+        "ps role should continue serving; zero barrier_timeout_ms must not fail runner-config validation"
+    );
+    task.abort();
 }
 
 #[tokio::test]

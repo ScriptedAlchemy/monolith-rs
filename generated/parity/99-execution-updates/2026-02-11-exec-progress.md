@@ -11056,6 +11056,25 @@
   - role-scoped contract semantics are now explicitly locked at both top-level
     config entry surfaces, not only direct distributed-runner unit tests.
 
+### 740) Run/runner-config retry-backoff and barrier role-matrix parity closure
+- Added integration regressions in
+  `crates/monolith-training/tests/native_training_parity.rs`:
+  - run-config:
+    - `distributed_runner_from_run_config_rejects_zero_retry_backoff_for_worker_role_when_retries_enabled`
+    - `distributed_runner_from_run_config_allows_zero_retry_backoff_for_ps_role`
+    - `distributed_runner_from_run_config_allows_zero_barrier_timeout_for_ps_role`
+  - runner-config:
+    - `distributed_runner_from_runner_config_rejects_zero_retry_backoff_for_worker_role_when_retries_enabled`
+    - `distributed_runner_from_runner_config_allows_zero_retry_backoff_for_ps_role`
+    - `distributed_runner_from_runner_config_allows_zero_barrier_timeout_for_ps_role`
+- Coverage validates full role matrix across both high-level entrypoints:
+  - worker role rejects zero retry-backoff when retry loop is enabled,
+  - PS role remains permissive for worker-only retry-backoff constraints,
+  - PS role remains permissive for worker-only barrier-timeout constraints.
+- Result:
+  - run-config and runner-config parity now explicitly mirrors direct
+    distributed-runner role-scoped retry/barrier contracts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12619,6 +12638,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1553. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_empty_worker_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_invalid_parameter_sync_target_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_empty_worker_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_invalid_parameter_sync_target_for_worker_role -- --nocapture` ✅ (validated run/runner config role-scoped permissiveness contracts for ps worker-service-type and worker parameter-sync bypass paths)
 1554. `rg "distributed_runner_from_(run_config|runner_config)_allows_(empty_worker_service_type_for_ps_role|invalid_parameter_sync_target_for_worker_role)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified new run/runner config role-scoped permissiveness integration regressions are present)
 1555. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_empty_worker_service_type -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_empty_worker_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_empty_worker_service_type -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_empty_worker_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_invalid_parameter_sync_target_endpoint -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_invalid_parameter_sync_target_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_invalid_parameter_sync_target_endpoint -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_invalid_parameter_sync_target_for_worker_role -- --nocapture` ✅ (validated mixed reject/allow matrix for role-scoped worker-service-type and parameter-sync contracts across both run-config and runner-config entrypaths)
+1556. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_zero_retry_backoff_for_worker_role_when_retries_enabled -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_zero_retry_backoff_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_zero_barrier_timeout_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_zero_retry_backoff_for_worker_role_when_retries_enabled -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_zero_retry_backoff_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_zero_barrier_timeout_for_ps_role -- --nocapture` ✅ (validated run/runner config retry-backoff and barrier role-scoped contracts across worker-reject and ps-allow paths)
+1557. `rg "distributed_runner_from_(run_config|runner_config)_(rejects_zero_retry_backoff_for_worker_role_when_retries_enabled|allows_zero_retry_backoff_for_ps_role|allows_zero_barrier_timeout_for_ps_role|rejects_zero_barrier_timeout)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified run/runner config retry-backoff and barrier role-matrix integration regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
