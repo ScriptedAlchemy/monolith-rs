@@ -7334,6 +7334,24 @@
   - invalid-port watch lifecycle now has full dead/live watcher symmetry
     coverage for both ZooKeeper and Consul backends.
 
+### 545) Discovery watch dead/live watcher symmetry expansion across remaining config-shapes
+- Expanded watch-level dead/live watcher symmetry coverage in
+  `crates/monolith-training/src/discovery.rs` for remaining config-shape
+  variants:
+  - ZooKeeper malformed-host-entry (`[::1`) watch paths now cover:
+    - dead watcher compaction,
+    - live watcher preservation.
+  - Consul out-of-range-port (`:70000`) watch paths now cover:
+    - dead watcher compaction,
+    - live watcher preservation.
+  - Consul invalid-IPv6-suffix (`http://[::1]x:8500`) watch paths now cover:
+    - dead watcher compaction,
+    - live watcher preservation.
+- Result:
+  - watch lifecycle parity now has broader dead/live watcher symmetry across
+    malformed-host, invalid-port, and invalid-authority config failures for
+    both ZooKeeper and Consul discovery backends.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8481,6 +8499,8 @@
 1144. `rg "test_zk_watch_async_invalid_port_(compacts_dead_watch_sender|preserves_live_watch_sender)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper invalid-port watch dead/live watcher tests are present)
 1145. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_invalid_port_compacts_dead_watch_sender -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_invalid_port_preserves_live_watch_sender -- --nocapture` ✅ (validated Consul invalid-port watch dead/live watcher symmetry regressions)
 1146. `rg "test_consul_watch_async_invalid_port_(compacts_dead_watch_sender|preserves_live_watch_sender)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul invalid-port watch dead/live watcher tests are present)
+1147. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_malformed_ipv6_host_entry_compacts_dead_watch_sender -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_malformed_ipv6_host_entry_preserves_live_watch_sender -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_out_of_range_port_compacts_dead_watch_sender -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_out_of_range_port_preserves_live_watch_sender -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_invalid_ipv6_suffix_compacts_dead_watch_sender -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_invalid_ipv6_suffix_preserves_live_watch_sender -- --nocapture` ✅ (validated expanded watch dead/live watcher symmetry regressions across ZooKeeper malformed-host and Consul out-of-range/invalid-IPv6-suffix config shapes)
+1148. `rg "test_(zk_watch_async_malformed_ipv6_host_entry_(compacts_dead_watch_sender|preserves_live_watch_sender)|consul_watch_async_(out_of_range_port|invalid_ipv6_suffix)_(compacts_dead_watch_sender|preserves_live_watch_sender))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added watch symmetry regressions are present for targeted ZooKeeper/Consul config shapes)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

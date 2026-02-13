@@ -3427,6 +3427,59 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_watch_async_malformed_ipv6_host_entry_compacts_dead_watch_sender() {
+        let zk = ZkDiscovery::new("[::1", "/services");
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("malformed host entry should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid host entry")),
+            "expected ConfigError containing watch_service malformed-host-entry context, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "malformed-host-entry watch_async should compact dead watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_watch_async_malformed_ipv6_host_entry_preserves_live_watch_sender() {
+        let zk = ZkDiscovery::new("[::1", "/services");
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("malformed host entry should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid host entry")),
+            "expected ConfigError containing watch_service malformed-host-entry context, got {err:?}"
+        );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "malformed-host-entry watch_async should preserve live watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_watch_async_invalid_hosts_compacts_dead_watch_sender() {
         let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
         let rx = zk.watch("ps").expect("watch should succeed");
@@ -4962,6 +5015,59 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_watch_async_out_of_range_port_compacts_dead_watch_sender() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:70000");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("out-of-range authority port should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing watch_service out-of-range-port context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "out-of-range-port watch_async should compact dead watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_out_of_range_port_preserves_live_watch_sender() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:70000");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("out-of-range authority port should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing watch_service out-of-range-port context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "out-of-range-port watch_async should preserve live watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_watch_async_invalid_ipv6_suffix_rejects_without_state_changes() {
         let consul = ConsulDiscovery::new("http://[::1]x:8500");
 
@@ -4982,6 +5088,59 @@ mod tests {
         assert!(
             !consul_has_watch_poll_generation(&consul, "worker"),
             "invalid-IPv6-suffix watch_async should not seed poll-generation bookkeeping"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_invalid_ipv6_suffix_compacts_dead_watch_sender() {
+        let consul = ConsulDiscovery::new("http://[::1]x:8500");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("invalid IPv6 suffix authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("invalid authority")),
+            "expected ConfigError containing watch_service invalid-IPv6-suffix context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "invalid-IPv6-suffix watch_async should compact dead watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_invalid_ipv6_suffix_preserves_live_watch_sender() {
+        let consul = ConsulDiscovery::new("http://[::1]x:8500");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("invalid IPv6 suffix authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("invalid authority")),
+            "expected ConfigError containing watch_service invalid-IPv6-suffix context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "invalid-IPv6-suffix watch_async should preserve live watcher sender entries"
         );
     }
 
