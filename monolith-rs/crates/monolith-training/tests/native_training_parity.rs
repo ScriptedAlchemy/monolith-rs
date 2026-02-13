@@ -7011,6 +7011,50 @@ async fn distributed_runner_from_run_config_allows_parameter_sync_names_with_int
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_allows_parameter_sync_names_with_leading_trailing_whitespace_for_worker_role(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+        parameter_sync_interval_ms: 1,
+        parameter_sync_model_name: " model".to_string(),
+        parameter_sync_signature_name: "signature ".to_string(),
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("worker role should bypass trim-whitespace parameter-sync name validation in run-config path")
+    .to_string();
+    assert!(
+        err.contains("Timed out waiting for PS discovery"),
+        "worker role should fail due to discovery timeout, not parameter-sync trim-name validation: {err}"
+    );
+    assert!(
+        !err.contains("parameter_sync_model_name") && !err.contains("parameter_sync_signature_name"),
+        "worker role should not fail on trim-whitespace parameter-sync name contracts: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_allows_zero_parameter_sync_interval_without_targets_for_worker_role(
 ) {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -23770,6 +23814,49 @@ async fn distributed_runner_from_runner_config_allows_parameter_sync_names_with_
     assert!(
         !err.contains("parameter_sync_model_name") && !err.contains("parameter_sync_signature_name"),
         "worker role should not fail on internal-whitespace parameter-sync name contracts: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_allows_parameter_sync_names_with_leading_trailing_whitespace_for_worker_role(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+        parameter_sync_interval_ms: 1,
+        parameter_sync_model_name: " model".to_string(),
+        parameter_sync_signature_name: "signature ".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Worker,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("worker role should bypass trim-whitespace parameter-sync name validation in runner-config path")
+    .to_string();
+    assert!(
+        err.contains("Timed out waiting for PS discovery"),
+        "worker role should fail due to discovery timeout, not parameter-sync trim-name validation: {err}"
+    );
+    assert!(
+        !err.contains("parameter_sync_model_name") && !err.contains("parameter_sync_signature_name"),
+        "worker role should not fail on trim-whitespace parameter-sync name contracts: {err}"
     );
 }
 
