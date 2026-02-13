@@ -11250,6 +11250,30 @@
   - run-config and runner-config timeout validation parity now explicitly covers
     both roles, preventing role-scoping drift for global timeout contracts.
 
+### 750) Global config-shape PS-role rejection parity closure
+- Added integration regressions in
+  `crates/monolith-training/tests/native_training_parity.rs`:
+  - run-config PS-role reject paths:
+    - `distributed_runner_from_run_config_rejects_zero_num_ps_for_ps_role`
+    - `distributed_runner_from_run_config_rejects_zero_num_workers_for_ps_role`
+    - `distributed_runner_from_run_config_rejects_zero_dim_for_ps_role`
+    - `distributed_runner_from_run_config_rejects_empty_ps_service_type_for_ps_role`
+    - `distributed_runner_from_run_config_rejects_empty_table_name_for_ps_role`
+  - runner-config PS-role reject paths:
+    - `distributed_runner_from_runner_config_rejects_zero_num_ps_for_ps_role`
+    - `distributed_runner_from_runner_config_rejects_zero_num_workers_for_ps_role`
+    - `distributed_runner_from_runner_config_rejects_zero_dim_for_ps_role`
+    - `distributed_runner_from_runner_config_rejects_empty_ps_service_type_for_ps_role`
+    - `distributed_runner_from_runner_config_rejects_empty_table_name_for_ps_role`
+- Re-ran existing worker-role reject counterparts for the same contracts.
+- Coverage validates:
+  - global config-shape contracts (`num_ps`, `num_workers`, `dim`,
+    `discovery_service_type_ps`, `table_name`) are enforced for PS role as well
+    as worker role across both run-config and runner-config entrypaths.
+- Result:
+  - global validation matrices now explicitly lock worker/ps role symmetry for
+    core config-shape rejection contracts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12833,6 +12857,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1573. `rg "test_distributed_config_validate_(rejects_negative_barrier_timeout_for_worker_role|allows_negative_barrier_timeout_for_ps_role)|test_run_distributed_(rejects_negative_barrier_timeout_for_worker_role|allows_negative_barrier_timeout_for_ps_role)|test_run_worker_role_rejects_negative_barrier_timeout_without_wrapper|test_run_ps_role_allows_negative_barrier_timeout_without_wrapper" crates/monolith-training/src/runner.rs` ✅ (verified runner-level negative barrier-timeout role-matrix regressions are present)
 1574. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_zero_operation_timeout -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_zero_operation_timeout_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_zero_cleanup_timeout -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_zero_cleanup_timeout_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_zero_operation_timeout -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_zero_operation_timeout_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_zero_cleanup_timeout -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_zero_cleanup_timeout_for_ps_role -- --nocapture` ✅ (validated discovery operation/cleanup timeout global-contract rejection for both worker and ps roles across run-config and runner-config entrypaths)
 1575. `rg "distributed_runner_from_(run_config|runner_config)_rejects_zero_(operation_timeout|cleanup_timeout)(_for_ps_role)?" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified role-symmetric discovery-timeout rejection integration regressions are present in both config-entry matrices)
+1576. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_zero_num_ps -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_zero_num_ps_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_zero_num_workers -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_zero_num_workers_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_zero_dim -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_zero_dim_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_empty_ps_service_type -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_empty_ps_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_empty_table_name -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_empty_table_name_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_zero_num_ps -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_zero_num_ps_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_zero_num_workers -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_zero_num_workers_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_zero_dim -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_zero_dim_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_empty_ps_service_type -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_empty_ps_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_empty_table_name -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_empty_table_name_for_ps_role -- --nocapture` ✅ (validated global config-shape rejection contracts are role-symmetric for worker and ps across run-config and runner-config entrypaths)
+1577. `rg "rejects_zero_num_ps_for_ps_role|rejects_zero_num_workers_for_ps_role|rejects_zero_dim_for_ps_role|rejects_empty_ps_service_type_for_ps_role|rejects_empty_table_name_for_ps_role" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified new ps-role global config-shape rejection integration regressions are present in both run-config and runner-config matrices)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

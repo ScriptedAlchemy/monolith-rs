@@ -5246,6 +5246,37 @@ async fn distributed_runner_from_run_config_rejects_zero_num_ps() {
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_rejects_zero_num_ps_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 0,
+        num_workers: 1,
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires num_ps > 0"),
+        "zero run-config num_ps should be rejected for ps role too because this contract is global: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_zero_num_workers() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -5272,6 +5303,37 @@ async fn distributed_runner_from_run_config_rejects_zero_num_workers() {
     assert!(
         err.contains("distributed config requires num_workers > 0"),
         "zero run-config num_workers should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_rejects_zero_num_workers_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 0,
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires num_workers > 0"),
+        "zero run-config num_workers should be rejected for ps role too because this contract is global: {err}"
     );
 }
 
@@ -5303,6 +5365,38 @@ async fn distributed_runner_from_run_config_rejects_zero_dim() {
     assert!(
         err.contains("distributed config requires dim > 0"),
         "zero run-config dim should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_rejects_zero_dim_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        dim: 0,
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires dim > 0"),
+        "zero run-config dim should be rejected for ps role too because this contract is global: {err}"
     );
 }
 
@@ -5396,6 +5490,38 @@ async fn distributed_runner_from_run_config_rejects_empty_ps_service_type() {
     assert!(
         err.contains("distributed config requires non-empty discovery_service_type_ps"),
         "empty run-config ps service type should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_rejects_empty_ps_service_type_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_service_type_ps: "   ".to_string(),
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires non-empty discovery_service_type_ps"),
+        "empty run-config ps service type should be rejected for ps role too because this contract is global: {err}"
     );
 }
 
@@ -5846,6 +5972,38 @@ async fn distributed_runner_from_run_config_rejects_empty_table_name() {
     assert!(
         err.contains("distributed config requires non-empty table_name"),
         "empty run-config table name should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_rejects_empty_table_name_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        table_name: " ".to_string(),
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires non-empty table_name"),
+        "empty run-config table name should be rejected for ps role too because this contract is global: {err}"
     );
 }
 
@@ -21157,6 +21315,36 @@ async fn distributed_runner_from_runner_config_rejects_zero_num_ps() {
 }
 
 #[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_zero_num_ps_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 0,
+        num_workers: 1,
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires num_ps > 0"),
+        "zero runner-config num_ps should be rejected for ps role too because this contract is global: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_runner_config_rejects_zero_num_workers() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_runner_config, Role};
@@ -21183,6 +21371,36 @@ async fn distributed_runner_from_runner_config_rejects_zero_num_workers() {
     assert!(
         err.contains("distributed config requires num_workers > 0"),
         "zero runner-config num_workers should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_zero_num_workers_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 0,
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires num_workers > 0"),
+        "zero runner-config num_workers should be rejected for ps role too because this contract is global: {err}"
     );
 }
 
@@ -21214,6 +21432,37 @@ async fn distributed_runner_from_runner_config_rejects_zero_dim() {
     assert!(
         err.contains("distributed config requires dim > 0"),
         "zero runner-config dim should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_zero_dim_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        dim: 0,
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires dim > 0"),
+        "zero runner-config dim should be rejected for ps role too because this contract is global: {err}"
     );
 }
 
@@ -21305,6 +21554,37 @@ async fn distributed_runner_from_runner_config_rejects_empty_ps_service_type() {
     assert!(
         err.contains("distributed config requires non-empty discovery_service_type_ps"),
         "empty runner-config ps service type should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_empty_ps_service_type_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_service_type_ps: "  ".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires non-empty discovery_service_type_ps"),
+        "empty runner-config ps service type should be rejected for ps role too because this contract is global: {err}"
     );
 }
 
@@ -21725,6 +22005,37 @@ async fn distributed_runner_from_runner_config_rejects_empty_table_name() {
     assert!(
         err.contains("distributed config requires non-empty table_name"),
         "empty runner-config table name should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_empty_table_name_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        table_name: "  ".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires non-empty table_name"),
+        "empty runner-config table name should be rejected for ps role too because this contract is global: {err}"
     );
 }
 
