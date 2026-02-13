@@ -4990,6 +4990,45 @@ async fn distributed_runner_from_run_config_allows_zero_retry_backoff_for_ps_rol
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_allows_zero_retry_backoff_when_retries_disabled_for_worker_role(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 0,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("worker run-config with retries disabled should proceed past retry-backoff validation")
+    .to_string();
+    assert!(
+        err.contains("Timed out waiting for PS discovery"),
+        "worker run-config should fail due to discovery timeout, not retry-backoff validation: {err}"
+    );
+    assert!(
+        !err.contains("retry_backoff_ms > 0"),
+        "worker run-config with retries disabled should allow zero retry_backoff_ms: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_zero_barrier_timeout() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -5493,6 +5532,45 @@ async fn distributed_runner_from_run_config_rejects_identical_ps_and_worker_serv
         ),
         "identical run-config discovery service types should be rejected by distributed config validation: {err}"
     );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_allows_identical_ps_and_worker_service_types_for_ps_role(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_service_type_ps: "service".to_string(),
+        discovery_service_type_worker: "service".to_string(),
+        ..RunConfig::default()
+    };
+
+    let task = tokio::spawn({
+        let discovery = Arc::clone(&discovery);
+        async move {
+            run_distributed_from_run_config(
+                discovery,
+                &run,
+                None,
+                Role::Ps,
+                test_bind_addr(),
+            )
+            .await
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    assert!(
+        !task.is_finished(),
+        "ps role should continue serving; identical ps/worker discovery service types must not fail run-config validation"
+    );
+    task.abort();
 }
 
 #[tokio::test]
@@ -20562,6 +20640,46 @@ async fn distributed_runner_from_runner_config_allows_zero_retry_backoff_for_ps_
 }
 
 #[tokio::test]
+async fn distributed_runner_from_runner_config_allows_zero_retry_backoff_when_retries_disabled_for_worker_role(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 0,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Worker,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err(
+        "worker runner-config with retries disabled should proceed past retry-backoff validation",
+    )
+    .to_string();
+    assert!(
+        err.contains("Timed out waiting for PS discovery"),
+        "worker runner-config should fail due to discovery timeout, not retry-backoff validation: {err}"
+    );
+    assert!(
+        !err.contains("retry_backoff_ms > 0"),
+        "worker runner-config with retries disabled should allow zero retry_backoff_ms: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_runner_config_rejects_zero_barrier_timeout() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_runner_config, Role};
@@ -21058,6 +21176,39 @@ async fn distributed_runner_from_runner_config_rejects_identical_ps_and_worker_s
         ),
         "identical runner-config discovery service types should be rejected by distributed config validation: {err}"
     );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_allows_identical_ps_and_worker_service_types_for_ps_role(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_service_type_ps: "service".to_string(),
+        discovery_service_type_worker: "service".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let task = tokio::spawn({
+        let discovery = Arc::clone(&discovery);
+        async move {
+            run_distributed_from_runner_config(discovery, &runner, Role::Ps, test_bind_addr())
+                .await
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    assert!(
+        !task.is_finished(),
+        "ps role should continue serving; identical ps/worker discovery service types must not fail runner-config validation"
+    );
+    task.abort();
 }
 
 #[tokio::test]
