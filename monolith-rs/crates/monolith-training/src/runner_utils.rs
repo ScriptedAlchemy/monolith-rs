@@ -491,7 +491,9 @@ pub fn copy_checkpoint_from_restore_dir(
                 .iter()
                 .find(|p| Path::new(p).file_name().and_then(|s| s.to_str()) == Some(base))
                 .cloned()
-                .expect("matching restore checkpoint path should exist after basename match");
+                .ok_or_else(|| RunnerUtilsError::RestoreCkptNotFound {
+                    restore_ckpt: base.to_string(),
+                })?;
             found
         } else {
             return Err(RunnerUtilsError::RestoreCkptNotFound {

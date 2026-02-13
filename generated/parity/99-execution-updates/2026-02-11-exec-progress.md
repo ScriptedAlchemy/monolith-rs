@@ -10539,6 +10539,16 @@
   - Multi-queue dequeue merge now enforces explicit failure-shape contracts for
     inconsistent split bookkeeping states.
 
+### 711) Runner-utils restore basename panic-path hardening
+- Hardened `copy_checkpoint_from_restore_dir` in
+  `crates/monolith-training/src/runner_utils.rs` by replacing a residual
+  basename-match `expect(...)` path with explicit
+  `RunnerUtilsError::RestoreCkptNotFound` propagation.
+- Coverage validates checkpoint copy and basename-override paths remain green.
+- Result:
+  - Restore checkpoint basename resolution now uses explicit error contracts
+    without panic-based fallback.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12039,6 +12049,9 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1490. `cargo test -p monolith-training multi_fifo_queue_dequeue_ -- --nocapture && cargo test -p monolith-training --test prefetch_queue_parity -- --nocapture` ✅ (validated prefetch multi-queue dequeue panic-path hardening regressions and confirmed parity integration behavior remains green)
 1491. `rg "multi_fifo_queue_dequeue_(missing_gpu_parts_returns_error|out_of_bounds_cpu_split_index_returns_error)" crates/monolith-training/src/prefetch_queue.rs` ✅ (verified prefetch dequeue malformed-split error-path regressions are present)
 1492. `rg "gpu queue parts should exist for gpu split index" crates/monolith-training/src/prefetch_queue.rs` ✅ (verified legacy panic-path expect string is removed from multi-queue dequeue runtime code)
+1493. `cargo test -p monolith-training test_copy_checkpoint_from_restore_dir -- --nocapture && cargo test -p monolith-training test_get_checkpoint_state_with_restore_override_matches_basename_to_full_path -- --nocapture` ✅ (validated runner-utils checkpoint copy and basename-override paths remain stable after panic-path removal)
+1494. `rg "matching restore checkpoint path should exist after basename match" crates/monolith-training/src/runner_utils.rs` ✅ (verified runner-utils basename-resolution panic-path expect string is removed)
+1495. `rg "test_(copy_checkpoint_from_restore_dir|get_checkpoint_state_with_restore_override_matches_basename_to_full_path)" crates/monolith-training/src/runner_utils.rs` ✅ (verified runner-utils checkpoint-copy and basename-override regression coverage remains present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
