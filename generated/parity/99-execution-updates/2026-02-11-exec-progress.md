@@ -10794,6 +10794,19 @@
   - heartbeat lifecycle config contracts now explicitly prevent zero-period
     scheduling edge cases and enforce safer runtime startup behavior.
 
+### 725) Native-training sequence-mask docs aligned with expect-free examples
+- Refined helper API documentation in
+  `crates/monolith-training/src/native_training/gen_seq_mask.rs`:
+  - replaced success-path `.expect(...)` in `gen_seq_mask_i32/i64` examples
+    with hidden `Result` wrappers and `?` propagation.
+- Coverage validates:
+  - doctests remain green,
+  - non-test `expect(...)` usage in monolith-training source remains at zero
+    (including newly updated helper docs).
+- Result:
+  - helper docs now fully align with the explicit error-handling guidance used
+    across runtime and parity hardening workstreams.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12325,6 +12338,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1521. `rg "test_get_visible_gpus_negative_local_rank_matches_python_truncation|test_gen_seq_mask_negative_deltas_are_clamped_to_zero|native_training_device_utils_negative_rank_matches_python_truncation|native_training_gen_seq_mask_negative_delta_clamping" crates/monolith-training` ✅ (verified new helper edge-semantics parity regressions are present in unit and integration suites)
 1522. `cargo test -p monolith-training test_distributed_config_validate_rejects_zero_heartbeat_interval_when_configured -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_heartbeat_interval_runtime_config -- --nocapture` ✅ (validated distributed runtime config now rejects zero heartbeat intervals at validation and top-level runtime entrypoint)
 1523. `rg "heartbeat_interval > 0 when configured" crates/monolith-training/src/runner.rs` ✅ (verified explicit heartbeat-interval zero-value validation contract and regression assertions are present)
+1524. `cargo test -p monolith-training --doc -- --nocapture` ✅ (validated helper docs continue compiling/executing after removing success-path expect usage in seq-mask examples)
+1525. `python3 - <<'PY' ... non-test training-source expect scan ... PY` ✅ (verified no non-test `expect(...)` occurrences remain in `crates/monolith-training/src`)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

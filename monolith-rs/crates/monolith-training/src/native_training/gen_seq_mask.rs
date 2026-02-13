@@ -26,15 +26,17 @@ impl std::error::Error for GenSeqMaskError {}
 ///
 /// ```
 /// use monolith_training::native_training::gen_seq_mask::{gen_seq_mask_i64, GenSeqMaskError};
+/// # fn main() -> Result<(), GenSeqMaskError> {
 ///
-/// let mask = gen_seq_mask_i64(&[0, 2, 3], 3)
-///     .expect("non-empty row_splits should generate sequence mask");
+/// let mask = gen_seq_mask_i64(&[0, 2, 3], 3)?;
 /// assert_eq!(mask, vec![vec![1, 1, 0], vec![1, 0, 0]]);
 ///
 /// assert!(matches!(
 ///     gen_seq_mask_i64(&[], 3),
 ///     Err(GenSeqMaskError::EmptyRowSplits)
 /// ));
+/// # Ok(())
+/// # }
 /// ```
 pub fn gen_seq_mask_i64(
     row_splits: &[i64],
@@ -61,15 +63,17 @@ pub fn gen_seq_mask_i64(
 ///
 /// ```
 /// use monolith_training::native_training::gen_seq_mask::{gen_seq_mask_i32, GenSeqMaskError};
+/// # fn main() -> Result<(), GenSeqMaskError> {
 ///
-/// let mask = gen_seq_mask_i32(&[0, 1, 3], 3)
-///     .expect("non-empty row_splits should generate sequence mask");
+/// let mask = gen_seq_mask_i32(&[0, 1, 3], 3)?;
 /// assert_eq!(mask, vec![vec![1, 0, 0], vec![1, 1, 0]]);
 ///
 /// assert!(matches!(
 ///     gen_seq_mask_i32(&[], 3),
 ///     Err(GenSeqMaskError::EmptyRowSplits)
 /// ));
+/// # Ok(())
+/// # }
 /// ```
 pub fn gen_seq_mask_i32(
     row_splits: &[i32],
