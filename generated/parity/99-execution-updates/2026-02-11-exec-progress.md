@@ -10379,6 +10379,24 @@
   - Train-step execution now avoids panic-based worker resolution, preserving
     fully explicit runtime error semantics.
 
+### 703) In-memory discovery lock-poison panic-path hardening
+- Hardened `InMemoryDiscovery` in
+  `crates/monolith-training/src/discovery.rs` by replacing lock-poison
+  `expect(...)` paths with explicit error propagation for Result-returning
+  APIs:
+  - added `read_services`, `write_services`, and `lock_watchers` helpers that
+    map poison errors to deterministic `DiscoveryError::Internal(...)`,
+  - updated `register`, `discover`, `watch`, `deregister`, and `update_health`
+    to return explicit internal errors instead of panicking on poisoned locks,
+  - updated in-memory watcher notification helpers to be fallible and
+    consistently error-aware.
+- Added regressions:
+  - `test_in_memory_register_poisoned_services_lock_returns_internal_error`
+  - `test_in_memory_watch_poisoned_watchers_lock_returns_internal_error`
+- Result:
+  - In-memory discovery now provides explicit failure-shape contracts for lock
+    poisoning instead of panic-based termination.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11848,6 +11866,9 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1459. `rg "test_local_cluster_wait_for_barrier_partial_cluster_error_cleans_existing_waiter" crates/monolith-training/src/distributed.rs` ✅ (verified partial-state wait_for_barrier waiter-cleanup regression is present)
 1460. `cargo test -p monolith-training test_local_cluster_train_step_ -- --nocapture && cargo test -p monolith-training test_local_cluster_bad_worker_index -- --nocapture` ✅ (validated panic-free train_step worker resolution preserves train-step and invalid-worker-index contracts)
 1461. `rg "worker index was validated before applying gradients" crates/monolith-training/src/distributed.rs` ✅ (verified prior panic-path expect string is removed from train_step runtime code)
+1462. `cargo test -p monolith-training test_in_memory_ -- --nocapture` ✅ (validated in-memory discovery lock-poison error-path hardening plus existing in-memory discovery lifecycle/watch regressions)
+1463. `rg "test_in_memory_(register_poisoned_services_lock_returns_internal_error|watch_poisoned_watchers_lock_returns_internal_error)" crates/monolith-training/src/discovery.rs` ✅ (verified in-memory lock-poison error-path regressions are present)
+1464. `rg "in-memory discovery services write lock should not be poisoned|in-memory discovery watchers mutex should not be poisoned" crates/monolith-training/src/discovery.rs` ✅ (verified legacy in-memory lock-poison panic-path expect strings are removed)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

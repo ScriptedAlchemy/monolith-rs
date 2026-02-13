@@ -43,7 +43,7 @@ use std::collections::HashMap;
 use std::future::Future;
 #[cfg(any(feature = "zookeeper", feature = "consul"))]
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use thiserror::Error;
 use tokio::sync::broadcast::{self, Receiver, Sender};
 
@@ -408,43 +408,80 @@ impl InMemoryDiscovery {
         }
     }
 
+    fn read_services(&self) -> Result<RwLockReadGuard<'_, HashMap<String, ServiceInfo>>> {
+        self.services.read().map_err(|_| {
+            DiscoveryError::Internal("in-memory discovery services read lock poisoned".to_string())
+        })
+    }
+
+    fn write_services(&self) -> Result<RwLockWriteGuard<'_, HashMap<String, ServiceInfo>>> {
+        self.services.write().map_err(|_| {
+            DiscoveryError::Internal("in-memory discovery services write lock poisoned".to_string())
+        })
+    }
+
+    fn lock_watchers(&self) -> Result<MutexGuard<'_, HashMap<String, Sender<DiscoveryEvent>>>> {
+        self.watchers.lock().map_err(|_| {
+            DiscoveryError::Internal("in-memory discovery watchers mutex poisoned".to_string())
+        })
+    }
+
     /// Returns the number of registered services.
     pub fn len(&self) -> usize {
-        self.services
-            .read()
-            .expect("in-memory discovery services read lock should not be poisoned")
-            .len()
+        match self.services.read() {
+            Ok(services) => services.len(),
+            Err(poisoned) => {
+                tracing::warn!(
+                    "in-memory discovery services read lock was poisoned in len(); continuing with recovered state"
+                );
+                poisoned.into_inner().len()
+            }
+        }
     }
 
     /// Returns true if no services are registered.
     pub fn is_empty(&self) -> bool {
-        self.services
-            .read()
-            .expect("in-memory discovery services read lock should not be poisoned")
-            .is_empty()
+        match self.services.read() {
+            Ok(services) => services.is_empty(),
+            Err(poisoned) => {
+                tracing::warn!(
+                    "in-memory discovery services read lock was poisoned in is_empty(); continuing with recovered state"
+                );
+                poisoned.into_inner().is_empty()
+            }
+        }
     }
 
     /// Clears all registered services.
     pub fn clear(&self) {
-        let mut services = self
-            .services
-            .write()
-            .expect("in-memory discovery services write lock should not be poisoned");
+        let mut services = match self.services.write() {
+            Ok(services) => services,
+            Err(poisoned) => {
+                tracing::warn!(
+                    "in-memory discovery services write lock was poisoned in clear(); continuing with recovered state"
+                );
+                poisoned.into_inner()
+            }
+        };
         let service_ids: Vec<String> = services.keys().cloned().collect();
 
         for id in service_ids {
             if let Some(service) = services.remove(&id) {
-                self.notify_watchers(&service.service_type, DiscoveryEvent::ServiceRemoved(id));
+                if let Err(err) =
+                    self.notify_watchers(&service.service_type, DiscoveryEvent::ServiceRemoved(id))
+                {
+                    tracing::warn!(
+                        error = %err,
+                        "in-memory discovery failed to notify watchers during clear"
+                    );
+                }
             }
         }
     }
 
     /// Updates the health status of a service.
     pub fn update_health(&self, service_id: &str, health: HealthStatus) -> Result<()> {
-        let mut services = self
-            .services
-            .write()
-            .expect("in-memory discovery services write lock should not be poisoned");
+        let mut services = self.write_services()?;
         let service = services
             .get_mut(service_id)
             .ok_or_else(|| DiscoveryError::NotFound(service_id.to_string()))?;
@@ -457,34 +494,29 @@ impl InMemoryDiscovery {
         self.notify_watchers(
             &service_type,
             DiscoveryEvent::ServiceUpdated(updated_service),
-        );
+        )?;
         Ok(())
     }
 
     /// Notifies watchers of an event.
-    fn notify_watchers(&self, service_type: &str, event: DiscoveryEvent) {
-        let mut watchers = self
-            .watchers
-            .lock()
-            .expect("in-memory discovery watchers mutex should not be poisoned");
+    fn notify_watchers(&self, service_type: &str, event: DiscoveryEvent) -> Result<()> {
+        let mut watchers = self.lock_watchers()?;
         if let Some(sender) = watchers.get(service_type) {
             if sender.receiver_count() == 0 || sender.send(event).is_err() {
                 // No active subscribers for this service type anymore.
                 watchers.remove(service_type);
             }
         }
+        Ok(())
     }
 
     /// Gets or creates a sender for a service type.
-    fn get_or_create_sender(&self, service_type: &str) -> Sender<DiscoveryEvent> {
-        let mut watchers = self
-            .watchers
-            .lock()
-            .expect("in-memory discovery watchers mutex should not be poisoned");
-        watchers
+    fn get_or_create_sender(&self, service_type: &str) -> Result<Sender<DiscoveryEvent>> {
+        let mut watchers = self.lock_watchers()?;
+        Ok(watchers
             .entry(service_type.to_string())
             .or_insert_with(|| broadcast::channel(100).0)
-            .clone()
+            .clone())
     }
 }
 
@@ -496,10 +528,7 @@ impl Default for InMemoryDiscovery {
 
 impl ServiceDiscovery for InMemoryDiscovery {
     fn register(&self, service: ServiceInfo) -> Result<()> {
-        let mut services = self
-            .services
-            .write()
-            .expect("in-memory discovery services write lock should not be poisoned");
+        let mut services = self.write_services()?;
 
         let is_update = services.contains_key(&service.id);
         // Default behavior: duplicate registration is an error. We only allow updates
@@ -529,18 +558,15 @@ impl ServiceDiscovery for InMemoryDiscovery {
         );
 
         if is_update {
-            self.notify_watchers(&service_type, DiscoveryEvent::ServiceUpdated(service_clone));
+            self.notify_watchers(&service_type, DiscoveryEvent::ServiceUpdated(service_clone))?;
         } else {
-            self.notify_watchers(&service_type, DiscoveryEvent::ServiceAdded(service_clone));
+            self.notify_watchers(&service_type, DiscoveryEvent::ServiceAdded(service_clone))?;
         }
         Ok(())
     }
 
     fn discover(&self, service_type: &str) -> Result<Vec<ServiceInfo>> {
-        let services = self
-            .services
-            .read()
-            .expect("in-memory discovery services read lock should not be poisoned");
+        let services = self.read_services()?;
         let matching: Vec<ServiceInfo> = services
             .values()
             .filter(|s| s.service_type == service_type)
@@ -557,15 +583,12 @@ impl ServiceDiscovery for InMemoryDiscovery {
     }
 
     fn watch(&self, service_type: &str) -> Result<Receiver<DiscoveryEvent>> {
-        let sender = self.get_or_create_sender(service_type);
+        let sender = self.get_or_create_sender(service_type)?;
         Ok(sender.subscribe())
     }
 
     fn deregister(&self, service_id: &str) -> Result<()> {
-        let mut services = self
-            .services
-            .write()
-            .expect("in-memory discovery services write lock should not be poisoned");
+        let mut services = self.write_services()?;
 
         let service = services
             .remove(service_id)
@@ -583,7 +606,7 @@ impl ServiceDiscovery for InMemoryDiscovery {
         self.notify_watchers(
             &service_type,
             DiscoveryEvent::ServiceRemoved(service_id.to_string()),
-        );
+        )?;
         Ok(())
     }
 }
@@ -3251,6 +3274,60 @@ mod tests {
                 .expect("in-memory watchers mutex should not be poisoned")
                 .contains_key("ps"),
             "dead watcher sender should be removed after notification"
+        );
+    }
+
+    #[test]
+    fn test_in_memory_register_poisoned_services_lock_returns_internal_error() {
+        let discovery = std::sync::Arc::new(InMemoryDiscovery::new());
+        let poison_target = std::sync::Arc::clone(&discovery);
+        let join_result = std::thread::spawn(move || {
+            let _guard = poison_target
+                .services
+                .write()
+                .expect("services lock acquisition should succeed before poisoning");
+            panic!("poisoning in-memory services lock for register error-path regression");
+        })
+        .join();
+        assert!(
+            join_result.is_err(),
+            "poisoning thread should panic to poison in-memory services lock"
+        );
+
+        let err = discovery
+            .register(ServiceInfo::new("poisoned-ps", "Poisoned PS", "ps", "localhost", 5000))
+            .expect_err("register should return Internal when services lock is poisoned");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("in-memory discovery services write lock poisoned")),
+            "expected Internal containing services-lock poisoning details, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_in_memory_watch_poisoned_watchers_lock_returns_internal_error() {
+        let discovery = std::sync::Arc::new(InMemoryDiscovery::new());
+        let poison_target = std::sync::Arc::clone(&discovery);
+        let join_result = std::thread::spawn(move || {
+            let _guard = poison_target
+                .watchers
+                .lock()
+                .expect("watchers mutex acquisition should succeed before poisoning");
+            panic!("poisoning in-memory watchers mutex for watch error-path regression");
+        })
+        .join();
+        assert!(
+            join_result.is_err(),
+            "poisoning thread should panic to poison in-memory watchers mutex"
+        );
+
+        let err = discovery
+            .watch("ps")
+            .expect_err("watch should return Internal when watchers mutex is poisoned");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("in-memory discovery watchers mutex poisoned")),
+            "expected Internal containing watchers-mutex poisoning details, got {err:?}"
         );
     }
 
