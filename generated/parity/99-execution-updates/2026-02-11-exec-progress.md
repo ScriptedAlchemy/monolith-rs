@@ -10188,6 +10188,23 @@
     IPv6 host-only no-root/root-slash lanes across
     normalize/connect/watch/register/discover/deregister operations.
 
+### 690) Distributed local-cluster train-step failure atomicity hardening
+- Hardened `LocalCluster::train_step` in
+  `crates/monolith-training/src/distributed.rs` to preserve worker-step
+  atomicity:
+  - validates worker index + running state up front,
+  - applies routed gradients first,
+  - advances worker step only after all gradient applications succeed.
+- Added regression coverage:
+  - `test_local_cluster_train_step_unknown_parameter_does_not_advance_worker_step`
+  - `test_local_cluster_train_step_gradient_mismatch_does_not_advance_worker_step`
+- Coverage validates failed train steps no longer consume worker steps, which
+  preserves deterministic barrier epoch semantics and retry behavior under
+  parameter/gradient validation failures.
+- Result:
+  - Local-cluster worker-step progression now remains success-gated for
+    train-step updates, avoiding step drift on failed gradient application.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11631,6 +11648,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1433. `rg "test_(normalize_consul_address_for_operation_accepts_explicit_http_scheme_with_ipv6_without_port_no_root_slash|consul_(watch_async_http_ipv6_without_port_no_root_slash_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_http_ipv6_without_port_no_root_slash_(initializes_client_handle|disconnect_and_reconnect)|async_register_http_ipv6_without_port_no_root_slash_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_http_ipv6_without_port_no_root_slash_(uses_operation_context|preserves_local_cache)|async_deregister_http_ipv6_without_port_no_root_slash_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified explicit-HTTP IPv6 host-only no-root-slash lifecycle regression tests are present)
 1434. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_normalize_consul_address_for_operation_accepts_explicit_http_scheme_with_ipv6_without_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" http_ipv6_without_port_and_root_slash -- --nocapture` ✅ (validated explicit-HTTP IPv6 host-only root-slash lifecycle regressions plus no-root normalization contract across normalization/connect/watch/register/discover/deregister)
 1435. `rg "test_(normalize_consul_address_for_operation_accepts_explicit_http_scheme_with_ipv6_without_port(_no_root_slash)?|consul_(watch_async_http_ipv6_without_port(_no_root_slash|_and_root_slash)?_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_http_ipv6_without_port(_no_root_slash|_and_root_slash)?_(initializes_client_handle|disconnect_and_reconnect)|async_register_http_ipv6_without_port(_no_root_slash|_and_root_slash)?_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_http_ipv6_without_port(_no_root_slash|_and_root_slash)?_(uses_operation_context|preserves_local_cache)|async_deregister_http_ipv6_without_port(_no_root_slash|_and_root_slash)?_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified explicit-HTTP IPv6 host-only no-root/root-slash lifecycle regression tests are present)
+1436. `cargo test -p monolith-training test_local_cluster_train_step_unknown_parameter_does_not_advance_worker_step -- --nocapture && cargo test -p monolith-training test_local_cluster_train_step_gradient_mismatch_does_not_advance_worker_step -- --nocapture` ✅ (validated local-cluster train-step failures no longer advance worker step on unknown-parameter and gradient-size mismatch errors)
+1437. `rg "test_local_cluster_train_step_(unknown_parameter|gradient_mismatch)_does_not_advance_worker_step" crates/monolith-training/src/distributed.rs` ✅ (verified distributed train-step failure atomicity regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

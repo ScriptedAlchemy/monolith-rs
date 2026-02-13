@@ -576,13 +576,17 @@ impl LocalCluster {
         gradients: &HashMap<String, Vec<f32>>,
     ) -> DistributedResult<HashMap<String, Vec<f32>>> {
         self.ensure_cluster_running()?;
-        let worker = self.workers.get_mut(worker_index).ok_or_else(|| {
+        let worker = self.workers.get(worker_index).ok_or_else(|| {
             DistributedError::InvalidConfiguration(format!(
                 "Worker index {} out of range",
                 worker_index
             ))
         })?;
-        worker.step()?;
+        if !worker.is_running() {
+            return Err(DistributedError::CommunicationError(
+                "Worker is not running".to_string(),
+            ));
+        }
 
         let mut updated = HashMap::new();
         for (param_name, grad) in gradients {
@@ -593,6 +597,11 @@ impl LocalCluster {
             let next = ps.apply_gradients(param_name, grad, self.learning_rate)?;
             updated.insert(param_name.clone(), next);
         }
+
+        self.workers
+            .get_mut(worker_index)
+            .expect("worker index was validated before applying gradients")
+            .step()?;
 
         Ok(updated)
     }
@@ -1325,6 +1334,67 @@ mod tests {
             .sync_barrier(0)
             .expect("worker 0 barrier call should trigger prune pass"); // triggers prune pass
         assert!(!cluster.released_barriers.contains_key(&0));
+    }
+
+    #[test]
+    fn test_local_cluster_train_step_unknown_parameter_does_not_advance_worker_step() {
+        let cfg = ClusterConfig::new(vec![make_addr(5000)], vec![make_addr(6000)], 0, false);
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for unknown-parameter step test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for unknown-parameter step test");
+        cluster
+            .register_parameter("known", vec![1.0, 2.0])
+            .expect("register_parameter should seed known parameter before failure case");
+
+        let mut grads = HashMap::new();
+        grads.insert("unknown".to_string(), vec![0.5, 0.5]);
+        let err = cluster
+            .train_step(0, &grads)
+            .expect_err("train_step should fail when gradient references unknown parameter");
+        assert!(
+            matches!(err, DistributedError::ParameterNotFound(ref name) if name == "unknown"),
+            "expected ParameterNotFound(unknown), got {err:?}"
+        );
+        assert_eq!(
+            cluster
+                .worker_step(0)
+                .expect("worker_step(0) should remain readable after failed train_step"),
+            0,
+            "failed train_step should not advance worker step for unknown-parameter errors"
+        );
+    }
+
+    #[test]
+    fn test_local_cluster_train_step_gradient_mismatch_does_not_advance_worker_step() {
+        let cfg = ClusterConfig::new(vec![make_addr(5000)], vec![make_addr(6000)], 0, false);
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for gradient-mismatch step test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for gradient-mismatch step test");
+        cluster
+            .register_parameter("known", vec![1.0, 2.0])
+            .expect("register_parameter should seed known parameter before mismatch case");
+
+        let mut grads = HashMap::new();
+        grads.insert("known".to_string(), vec![0.5]);
+        let err = cluster
+            .train_step(0, &grads)
+            .expect_err("train_step should fail on gradient-size mismatch");
+        assert!(
+            matches!(err, DistributedError::CommunicationError(ref msg)
+                if msg.contains("Gradient size mismatch")),
+            "expected CommunicationError mentioning gradient-size mismatch, got {err:?}"
+        );
+        assert_eq!(
+            cluster
+                .worker_step(0)
+                .expect("worker_step(0) should remain readable after failed train_step"),
+            0,
+            "failed train_step should not advance worker step for gradient-size mismatch errors"
+        );
     }
 
     #[test]
