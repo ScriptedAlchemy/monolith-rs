@@ -7542,6 +7542,38 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_deregister_out_of_range_port_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:70000");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result =
+            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id)
+                .await;
+        let err = result.expect_err("out-of-range authority port should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid port")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing out-of-range-port deregister context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watch sender should be compacted on out-of-range-port deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_deregister_invalid_ipv6_suffix_still_notifies_and_returns_error() {
         let consul = ConsulDiscovery::new("http://[::1]x:8500");
         let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
@@ -7581,6 +7613,38 @@ mod tests {
         assert!(
             consul_has_watcher(&consul, "worker"),
             "live watcher sender should be preserved after invalid-IPv6-suffix deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_invalid_ipv6_suffix_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://[::1]x:8500");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result =
+            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id)
+                .await;
+        let err = result.expect_err("invalid IPv6 suffix authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid authority")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing invalid-IPv6-suffix deregister context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watch sender should be compacted on invalid-IPv6-suffix deregister notification"
         );
     }
 
@@ -7628,6 +7692,38 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_deregister_userinfo_authority_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://user@127.0.0.1:8500");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result =
+            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id)
+                .await;
+        let err = result.expect_err("userinfo authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("userinfo in authority")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing userinfo-authority deregister context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watch sender should be compacted on userinfo-authority deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_deregister_whitespace_authority_still_notifies_and_returns_error() {
         let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
         let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
@@ -7665,6 +7761,38 @@ mod tests {
         assert!(
             consul_has_watcher(&consul, "worker"),
             "live watcher sender should be preserved after whitespace-authority deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_whitespace_authority_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result =
+            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id)
+                .await;
+        let err = result.expect_err("whitespace authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("whitespace in authority")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing whitespace-authority deregister context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watch sender should be compacted on whitespace-authority deregister notification"
         );
     }
 
@@ -7714,6 +7842,38 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_deregister_leading_trailing_whitespace_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new(" http://127.0.0.1:8500 ");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result =
+            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id)
+                .await;
+        let err = result.expect_err("leading/trailing whitespace should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("leading/trailing whitespace")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing leading/trailing-whitespace deregister context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watch sender should be compacted on leading/trailing-whitespace deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_deregister_empty_host_still_notifies_and_returns_error() {
         let consul = ConsulDiscovery::new("http://:8500");
         let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
@@ -7753,6 +7913,38 @@ mod tests {
         assert!(
             consul_has_watcher(&consul, "worker"),
             "live watcher sender should be preserved after empty-host deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_empty_host_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://:8500");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result =
+            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id)
+                .await;
+        let err = result.expect_err("empty-host authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("empty host")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing empty-host deregister context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watch sender should be compacted on empty-host deregister notification"
         );
     }
 
@@ -7880,6 +8072,38 @@ mod tests {
         assert!(
             consul_has_watcher(&consul, "worker"),
             "live watcher sender should be preserved after address-fragment deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_address_fragment_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:8500#consul");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result =
+            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id)
+                .await;
+        let err = result.expect_err("address fragment should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("fragment is not allowed")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing address-fragment deregister context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watch sender should be compacted on address-fragment deregister notification"
         );
     }
 

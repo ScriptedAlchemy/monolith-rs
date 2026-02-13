@@ -7620,6 +7620,21 @@
   - Consul discovery test module now compiles cleanly under `--features consul`
     after deduplicating the test name.
 
+### 565) Discovery Consul malformed-address deregister dead-watcher compaction expansion
+- Expanded Consul malformed-address `deregister_async` dead-watcher compaction
+  coverage in `crates/monolith-training/src/discovery.rs` with new regressions:
+  - `test_consul_async_deregister_out_of_range_port_compacts_dead_watchers`
+  - `test_consul_async_deregister_invalid_ipv6_suffix_compacts_dead_watchers`
+  - `test_consul_async_deregister_userinfo_authority_compacts_dead_watchers`
+  - `test_consul_async_deregister_whitespace_authority_compacts_dead_watchers`
+  - `test_consul_async_deregister_leading_trailing_whitespace_compacts_dead_watchers`
+  - `test_consul_async_deregister_empty_host_compacts_dead_watchers`
+  - `test_consul_async_deregister_address_fragment_compacts_dead_watchers`
+- Result:
+  - Consul malformed-address deregister lifecycle coverage now has broader
+    dead-watcher compaction symmetry across scheme/authority/port/path/query/
+    fragment/whitespace/host validation failure shapes.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8807,6 +8822,8 @@
 1184. `rg "test_zk_async_deregister_(malformed_ipv6_host_entry|out_of_range_port)_compacts_dead_watchers" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper malformed-host/out-of-range deregister compaction tests are present)
 1185. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_invalid_scheme_compacts_dead_watchers -- --nocapture` ✅ (validated duplicate-name fix by recompiling Consul discovery tests and running invalid-scheme deregister compaction regression)
 1186. `rg "test_zk_async_deregister_(malformed_ipv6_host_entry|out_of_range_port)_compacts_dead_watchers|test_consul_async_deregister_invalid_scheme_compacts_dead_watchers" crates/monolith-training/src/discovery.rs` ✅ (verified new ZooKeeper compaction regressions and single retained Consul invalid-scheme compaction test definition)
+1187. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_out_of_range_port_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_invalid_ipv6_suffix_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_userinfo_authority_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_whitespace_authority_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_leading_trailing_whitespace_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_empty_host_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_address_fragment_compacts_dead_watchers -- --nocapture` ✅ (validated expanded Consul malformed-address deregister dead-watcher compaction regressions)
+1188. `rg "test_consul_async_deregister_(out_of_range_port|invalid_ipv6_suffix|userinfo_authority|whitespace_authority|leading_trailing_whitespace|empty_host|address_fragment)_compacts_dead_watchers" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul malformed-address deregister dead-watcher compaction tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
