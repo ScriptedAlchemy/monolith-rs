@@ -8145,6 +8145,20 @@
   - Mixed-family parity now aligns with single-endpoint and same-family
     multi-host retention guarantees across async lifecycle operations.
 
+### 604) Discovery ZooKeeper host-only multi-host failure-shape parity
+- Added host-only multi-host regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_zk_connect_valid_host_only_multi_hosts_returns_connection_failed_when_unreachable`
+  - `test_zk_discover_async_valid_host_only_multi_hosts_connection_failure_is_connection_failed`
+  - `test_zk_discover_async_valid_host_only_multi_hosts_connection_failure_preserves_local_cache`
+- Coverage validates syntactically valid host-only ZooKeeper host lists
+  (`host,host`) are treated as valid-but-unreachable (`ConnectionFailed`), and
+  discover async failures preserve local cache entries.
+- Result:
+  - ZooKeeper host-list parity now includes host-only multi-host inputs in the
+    same failure-shape and cache-retention contracts as explicit port-based
+    host lists.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9409,6 +9423,8 @@
 1261. `rg "test_zk_watch_async_valid_mixed_ipv4_ipv6_hosts_disconnect_clears_poll_generation_with_live_receiver" crates/monolith-training/src/discovery.rs` ✅ (verified new ZooKeeper mixed-family watch/disconnect live-receiver cleanup regression is present)
 1262. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_valid_mixed_ipv4_ipv6_hosts_failure_does_not_cache_service -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_valid_mixed_ipv4_ipv6_hosts_failure_cleans_registered_path -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_valid_mixed_ipv4_ipv6_hosts_failure_keeps_live_watchers -- --nocapture` ✅ (validated ZooKeeper mixed-family async cache-retention, registered-path cleanup, and live-watcher preservation regressions)
 1263. `rg "test_zk_(async_register_valid_mixed_ipv4_ipv6_hosts_failure_does_not_cache_service|async_deregister_valid_mixed_ipv4_ipv6_hosts_failure_(cleans_registered_path|keeps_live_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper mixed-family async retention regression tests are present)
+1264. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_valid_host_only_multi_hosts_returns_connection_failed_when_unreachable -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_valid_host_only_multi_hosts_connection_failure_is_connection_failed -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_valid_host_only_multi_hosts_connection_failure_preserves_local_cache -- --nocapture` ✅ (validated ZooKeeper host-only multi-host connect/discover failure-shape and cache-retention regressions)
+1265. `rg "test_zk_(connect_valid_host_only_multi_hosts_returns_connection_failed_when_unreachable|discover_async_valid_host_only_multi_hosts_connection_failure_(is_connection_failed|preserves_local_cache))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper host-only multi-host regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
