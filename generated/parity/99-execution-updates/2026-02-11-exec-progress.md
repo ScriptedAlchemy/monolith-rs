@@ -7852,6 +7852,16 @@
     and cache-retention guarantees across async discover/register/deregister
     operations.
 
+### 583) Discovery Consul host-port deregister dead-watcher compaction parity
+- Added `test_consul_async_deregister_host_port_without_scheme_compacts_dead_watchers`
+  in `crates/monolith-training/src/discovery.rs`.
+- Coverage validates that normalized host:port async deregister failure lanes
+  compact dead watcher sender entries while preserving existing error-shape
+  operation context (`deregister_entity` + `8501`).
+- Result:
+  - Host-port deregister coverage now has explicit dead-watcher compaction
+    symmetry alongside the existing live-watcher preservation regression.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9074,6 +9084,8 @@
 1219. `rg "test_consul_(connect_host_port_without_scheme_initializes_client_handle|async_register_host_port_without_scheme_uses_operation_context|async_deregister_host_port_without_scheme_uses_operation_context|discover_async_host_port_without_scheme_preserves_local_cache)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul host:port-without-scheme regressions are present)
 1220. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_host_port_without_scheme_uses_operation_context -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_case_insensitive_scheme_and_root_slash_uses_operation_context -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_host_port_without_scheme_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_host_port_without_scheme_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_case_insensitive_scheme_and_root_slash_preserves_local_cache -- --nocapture` ✅ (validated expanded host-port/root-slash watcher and cache symmetry regressions)
 1221. `rg "test_consul_(async_deregister_host_port_without_scheme_uses_operation_context|async_deregister_case_insensitive_scheme_and_root_slash_uses_operation_context|async_register_host_port_without_scheme_compacts_dead_watchers|async_register_host_port_without_scheme_keeps_live_watchers|discover_async_case_insensitive_scheme_and_root_slash_preserves_local_cache)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added/updated Consul host-port/root-slash watcher-cache symmetry regressions are present)
+1222. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_host_port_without_scheme_compacts_dead_watchers -- --nocapture` ✅ (validated Consul host-port async deregister dead-watcher compaction regression)
+1223. `rg "test_consul_async_deregister_host_port_without_scheme_compacts_dead_watchers" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul host-port async deregister dead-watcher compaction regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
