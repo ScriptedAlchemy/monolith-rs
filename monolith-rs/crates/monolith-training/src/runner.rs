@@ -3110,6 +3110,20 @@ mod tests {
     }
 
     #[test]
+    fn test_distributed_config_validate_rejects_zero_num_ps_for_ps_role() {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            num_ps: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
+        assert!(
+            err.contains("distributed config requires num_ps > 0"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_distributed_config_validate_rejects_negative_barrier_timeout_for_worker_role() {
         let cfg = DistributedRunConfig {
             role: Role::Worker,
@@ -3132,6 +3146,47 @@ mod tests {
         let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
         assert!(
             err.contains("distributed config requires num_workers > 0"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_zero_num_workers_for_ps_role() {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            num_workers: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
+        assert!(
+            err.contains("distributed config requires num_workers > 0"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_zero_dim() {
+        let cfg = DistributedRunConfig {
+            dim: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
+        assert!(
+            err.contains("distributed config requires dim > 0"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_zero_dim_for_ps_role() {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            dim: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
+        assert!(
+            err.contains("distributed config requires dim > 0"),
             "unexpected validation error: {err}"
         );
     }
@@ -3243,6 +3298,20 @@ mod tests {
     #[test]
     fn test_distributed_config_validate_rejects_empty_ps_service_type() {
         let cfg = DistributedRunConfig {
+            discovery_service_type_ps: "   ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
+        assert!(
+            err.contains("distributed config requires non-empty discovery_service_type_ps"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_empty_ps_service_type_for_ps_role() {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
             discovery_service_type_ps: "   ".to_string(),
             ..DistributedRunConfig::default()
         };
@@ -3387,6 +3456,20 @@ mod tests {
     #[test]
     fn test_distributed_config_validate_rejects_empty_table_name() {
         let cfg = DistributedRunConfig {
+            table_name: "  ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
+        assert!(
+            err.contains("distributed config requires non-empty table_name"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_empty_table_name_for_ps_role() {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
             table_name: "  ".to_string(),
             ..DistributedRunConfig::default()
         };
@@ -4420,6 +4503,48 @@ mod tests {
             .await
             .expect_err("run_distributed should reject invalid runtime config");
         assert!(err.to_string().contains("num_ps > 0"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_invalid_runtime_config_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            num_ps: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject invalid runtime config for ps role");
+        assert!(err.to_string().contains("num_ps > 0"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_zero_dim_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            dim: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject runtime config with zero dim");
+        assert!(err.to_string().contains("dim > 0"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_zero_dim_runtime_config_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            dim: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject runtime config with zero dim for ps role");
+        assert!(err.to_string().contains("dim > 0"));
     }
 
     #[tokio::test]
