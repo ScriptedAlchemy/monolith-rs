@@ -5656,6 +5656,76 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_worker_role_allows_duplicate_parameter_sync_targets_after_case_insensitive_host_normalization_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: vec![
+                "http://LOCALHOST:8500".to_string(),
+                "http://localhost:8500".to_string(),
+            ],
+            parameter_sync_interval: Duration::from_millis(0),
+            parameter_sync_model_name: " ".to_string(),
+            parameter_sync_signature_name: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg).await.expect_err(
+            "worker role should proceed past case-insensitive host duplicate parameter-sync target validation because replication is ps-only",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker role should fail due to discovery timeout, not case-insensitive host duplicate parameter-sync validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_targets"),
+            "worker role should ignore case-insensitive host duplicate parameter-sync target validation errors: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_allows_duplicate_parameter_sync_targets_after_trailing_slash_normalization_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: vec![
+                "http://127.0.0.1:8500".to_string(),
+                "http://127.0.0.1:8500/".to_string(),
+            ],
+            parameter_sync_interval: Duration::from_millis(0),
+            parameter_sync_model_name: " ".to_string(),
+            parameter_sync_signature_name: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg).await.expect_err(
+            "worker role should proceed past trailing-slash duplicate parameter-sync target validation because replication is ps-only",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker role should fail due to discovery timeout, not trailing-slash duplicate parameter-sync validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_targets"),
+            "worker role should ignore trailing-slash duplicate parameter-sync target validation errors: {msg}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_worker_role_allows_duplicate_parameter_sync_targets_and_empty_names_without_wrapper(
     ) {
         let discovery = Arc::new(InMemoryDiscovery::new());
@@ -7193,6 +7263,76 @@ mod tests {
         assert!(
             !msg.contains("parameter_sync_targets"),
             "runtime should ignore canonicalized duplicate parameter-sync target validation errors for worker role: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_duplicate_parameter_sync_targets_after_case_insensitive_host_normalization_for_worker_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: vec![
+                "http://LOCALHOST:8500".to_string(),
+                "http://localhost:8500".to_string(),
+            ],
+            parameter_sync_interval: Duration::from_millis(0),
+            parameter_sync_model_name: " ".to_string(),
+            parameter_sync_signature_name: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, cfg).await.expect_err(
+            "run_distributed should proceed past case-insensitive host duplicate parameter-sync target validation for worker role",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "runtime should fail due to missing PS discovery, not case-insensitive host duplicate parameter-sync validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_targets"),
+            "runtime should ignore case-insensitive host duplicate parameter-sync target validation errors for worker role: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_duplicate_parameter_sync_targets_after_trailing_slash_normalization_for_worker_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: vec![
+                "http://127.0.0.1:8500".to_string(),
+                "http://127.0.0.1:8500/".to_string(),
+            ],
+            parameter_sync_interval: Duration::from_millis(0),
+            parameter_sync_model_name: " ".to_string(),
+            parameter_sync_signature_name: " ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, cfg).await.expect_err(
+            "run_distributed should proceed past trailing-slash duplicate parameter-sync target validation for worker role",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "runtime should fail due to missing PS discovery, not trailing-slash duplicate parameter-sync validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_targets"),
+            "runtime should ignore trailing-slash duplicate parameter-sync target validation errors for worker role: {msg}"
         );
     }
 
