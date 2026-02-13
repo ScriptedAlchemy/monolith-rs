@@ -3338,8 +3338,40 @@ mod tests {
     }
 
     #[test]
+    fn test_distributed_config_validate_rejects_whitespace_padded_ps_service_type_for_ps_role() {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            discovery_service_type_ps: " ps ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
+        assert!(
+            err.contains(
+                "distributed config requires discovery_service_type_ps without leading/trailing whitespace"
+            ),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_distributed_config_validate_rejects_internal_whitespace_ps_service_type() {
         let cfg = DistributedRunConfig {
+            discovery_service_type_ps: "ps cluster".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
+        assert!(
+            err.contains(
+                "distributed config requires discovery_service_type_ps without whitespace characters"
+            ),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_internal_whitespace_ps_service_type_for_ps_role() {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
             discovery_service_type_ps: "ps cluster".to_string(),
             ..DistributedRunConfig::default()
         };
@@ -3494,8 +3526,36 @@ mod tests {
     }
 
     #[test]
+    fn test_distributed_config_validate_rejects_whitespace_padded_table_name_for_ps_role() {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            table_name: " emb ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
+        assert!(
+            err.contains("distributed config requires table_name without leading/trailing whitespace"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_distributed_config_validate_rejects_internal_whitespace_table_name() {
         let cfg = DistributedRunConfig {
+            table_name: "my table".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
+        assert!(
+            err.contains("distributed config requires table_name without whitespace characters"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_distributed_config_validate_rejects_internal_whitespace_table_name_for_ps_role() {
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
             table_name: "my table".to_string(),
             ..DistributedRunConfig::default()
         };
@@ -4545,6 +4605,76 @@ mod tests {
             .await
             .expect_err("run_distributed should reject runtime config with zero dim for ps role");
         assert!(err.to_string().contains("dim > 0"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_whitespace_padded_ps_service_type_runtime_config_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            discovery_service_type_ps: " ps ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject whitespace-padded ps service type for ps role");
+        assert!(err
+            .to_string()
+            .contains("discovery_service_type_ps without leading/trailing whitespace"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_internal_whitespace_ps_service_type_runtime_config_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            discovery_service_type_ps: "ps cluster".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject internal-whitespace ps service type for ps role");
+        assert!(err
+            .to_string()
+            .contains("discovery_service_type_ps without whitespace characters"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_whitespace_padded_table_name_runtime_config_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            table_name: " emb ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject whitespace-padded table name for ps role");
+        assert!(
+            err.to_string()
+                .contains("table_name without leading/trailing whitespace")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_internal_whitespace_table_name_runtime_config_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            table_name: "my table".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject internal-whitespace table name for ps role");
+        assert!(
+            err.to_string()
+                .contains("table_name without whitespace characters")
+        );
     }
 
     #[tokio::test]
