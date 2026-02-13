@@ -11694,6 +11694,23 @@
     permissiveness alongside existing invalid/path-query/duplicate/name bypass
     contracts.
 
+### 774) Worker canonicalized-duplicate parameter-sync bypass closure
+- Added regressions in:
+  - `crates/monolith-training/src/runner.rs`:
+    - `test_run_worker_role_allows_duplicate_parameter_sync_targets_after_http_default_port_normalization_without_wrapper`
+    - `test_run_distributed_allows_duplicate_parameter_sync_targets_after_http_default_port_normalization_for_worker_role`
+  - `crates/monolith-training/tests/native_training_parity.rs`:
+    - `distributed_runner_from_run_config_allows_duplicate_parameter_sync_targets_after_http_default_port_normalization_for_worker_role`
+    - `distributed_runner_from_runner_config_allows_duplicate_parameter_sync_targets_after_http_default_port_normalization_for_worker_role`
+- Coverage validates:
+  - worker role bypass of PS-only canonicalized duplicate-target validation
+    (HTTP default-port normalization collisions) is explicitly preserved across
+    helper/runtime and run/runner integration entrypaths.
+- Result:
+  - worker bypass role matrix now includes normalized duplicate target
+    permissiveness in addition to raw duplicate and malformed-target bypass
+    assertions.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -13325,6 +13342,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1621. `rg "test_run_(worker_role_allows_parameter_sync_target_with_path_or_query_without_wrapper|distributed_allows_parameter_sync_target_with_path_or_query_for_worker_role)" crates/monolith-training/src/runner.rs && rg "distributed_runner_from_(run_config|runner_config)_allows_parameter_sync_target_with_path_or_query_for_worker_role" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified worker path/query bypass regressions are present across runner and integration suites)
 1622. `cargo test -p monolith-training test_run_worker_role_allows_parameter_sync_target_with_userinfo_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_parameter_sync_target_with_userinfo_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_parameter_sync_target_with_userinfo_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_parameter_sync_target_with_userinfo_for_worker_role -- --nocapture` ✅ (validated worker userinfo parameter-sync target bypass semantics across direct helper, runtime, and run/runner integration entrypaths)
 1623. `rg "test_run_(worker_role_allows_parameter_sync_target_with_userinfo_without_wrapper|distributed_allows_parameter_sync_target_with_userinfo_for_worker_role)" crates/monolith-training/src/runner.rs && rg "distributed_runner_from_(run_config|runner_config)_allows_parameter_sync_target_with_userinfo_for_worker_role" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified worker userinfo bypass regressions are present across runner and integration suites)
+1624. `cargo test -p monolith-training test_run_worker_role_allows_duplicate_parameter_sync_targets_after_http_default_port_normalization_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_duplicate_parameter_sync_targets_after_http_default_port_normalization_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_duplicate_parameter_sync_targets_after_http_default_port_normalization_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_duplicate_parameter_sync_targets_after_http_default_port_normalization_for_worker_role -- --nocapture` ✅ (validated worker canonicalized-duplicate parameter-sync bypass semantics across helper/runtime and run/runner integration entrypaths)
+1625. `rg "duplicate_parameter_sync_targets_after_http_default_port_normalization" crates/monolith-training/src/runner.rs && rg "distributed_runner_from_(run_config|runner_config)_allows_duplicate_parameter_sync_targets_after_http_default_port_normalization_for_worker_role" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified worker canonicalized-duplicate bypass regressions are present across runner and integration suites)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
