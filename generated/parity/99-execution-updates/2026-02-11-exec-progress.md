@@ -8346,6 +8346,19 @@
   - IPv6 multi-host parity now includes full deregister retention and
     watch/disconnect cleanup guarantees aligned with other address lanes.
 
+### 617) Discovery ZooKeeper single-IPv6-host failure-shape parity
+- Added single-IPv6-host regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_zk_connect_valid_single_ipv6_host_returns_connection_failed_when_unreachable`
+  - `test_zk_discover_async_valid_single_ipv6_host_connection_failure_is_connection_failed`
+  - `test_zk_discover_async_valid_single_ipv6_host_connection_failure_preserves_local_cache`
+- Coverage validates a syntactically valid single IPv6 endpoint (`[::1]:1`) is
+  treated as valid-but-unreachable (`ConnectionFailed`) and that discover async
+  failures preserve local cache entries.
+- Result:
+  - ZooKeeper parity now explicitly covers single-endpoint IPv6 failure-shape
+    and discover cache-retention behavior alongside multi-host address lanes.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9636,6 +9649,8 @@
 1287. `rg "test_zk_(async_register_valid_ipv6_multi_hosts_failure_(compacts_dead_watchers|keeps_live_watchers|does_not_cache_service)|async_deregister_valid_ipv6_multi_hosts_failure_(still_removes_local_cache_and_notifies_watchers|compacts_dead_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper IPv6 multi-host async lifecycle regression tests are present)
 1288. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_valid_ipv6_multi_hosts_failure_cleans_registered_path -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_valid_ipv6_multi_hosts_failure_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_valid_ipv6_multi_hosts_disconnect_clears_poll_generation_with_live_receiver -- --nocapture` ✅ (validated ZooKeeper IPv6 multi-host deregister retention and watch/disconnect cleanup regressions)
 1289. `rg "test_zk_(watch_async_valid_ipv6_multi_hosts_disconnect_clears_poll_generation_with_live_receiver|async_deregister_valid_ipv6_multi_hosts_failure_(cleans_registered_path|keeps_live_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper IPv6 multi-host retention/cleanup regression tests are present)
+1290. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_valid_single_ipv6_host_returns_connection_failed_when_unreachable -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_valid_single_ipv6_host_connection_failure_is_connection_failed -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_valid_single_ipv6_host_connection_failure_preserves_local_cache -- --nocapture` ✅ (validated ZooKeeper single-IPv6-host connect/discover failure-shape and cache-retention regressions)
+1291. `rg "test_zk_(connect_valid_single_ipv6_host_returns_connection_failed_when_unreachable|discover_async_valid_single_ipv6_host_connection_failure_(is_connection_failed|preserves_local_cache))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper single-IPv6-host regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
