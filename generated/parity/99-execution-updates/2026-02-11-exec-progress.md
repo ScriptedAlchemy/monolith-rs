@@ -7499,6 +7499,21 @@
     and broader cleanup-notification coverage for leading/trailing-whitespace
     and empty-host address forms.
 
+### 556) Discovery ZooKeeper discover config-shape cache-preservation expansion
+- Expanded ZooKeeper `discover_async` config-error lifecycle coverage in
+  `crates/monolith-training/src/discovery.rs` with additional malformed-host
+  shape regressions:
+  - `test_zk_discover_async_invalid_port_preserves_local_cache`
+  - `test_zk_discover_async_out_of_range_port_preserves_local_cache`
+  - `test_zk_discover_async_malformed_ipv6_host_entry_preserves_local_cache`
+- These complement existing invalid-hosts/invalid-base-path discover regressions
+  by confirming local cache preservation across invalid-port and malformed-host
+  validation failures.
+- Result:
+  - ZooKeeper discover config-error cache-preservation coverage now spans
+    invalid-hosts (whitespace), invalid-port, out-of-range-port,
+    malformed-host-entry, and invalid-base-path shapes.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8668,6 +8683,8 @@
 1166. `rg "test_consul_(connect_address_(query|fragment)_is_classified_as_config_error|async_register_address_query_(compacts_dead_watchers|keeps_live_watchers)|async_deregister_address_(query|fragment)_still_notifies_and_returns_error)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul query/fragment lifecycle tests are present)
 1167. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_address_fragment_is_classified_as_config_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_leading_trailing_whitespace_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_empty_host_still_notifies_and_returns_error -- --nocapture` ✅ (validated Consul fragment discover classification and additional deregister cleanup-notification regressions)
 1168. `rg "test_consul_(discover_async_address_fragment_is_classified_as_config_error|async_deregister_(leading_trailing_whitespace|empty_host)_still_notifies_and_returns_error)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul fragment-discover and deregister edge-shape tests are present)
+1169. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_invalid_port_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_out_of_range_port_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_malformed_ipv6_host_entry_preserves_local_cache -- --nocapture` ✅ (validated ZooKeeper discover config-error local-cache preservation regressions for invalid-port/out-of-range/malformed-host shapes)
+1170. `rg "test_zk_discover_async_(invalid_port|out_of_range_port|malformed_ipv6_host_entry)_preserves_local_cache" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper discover config-shape cache-preservation tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

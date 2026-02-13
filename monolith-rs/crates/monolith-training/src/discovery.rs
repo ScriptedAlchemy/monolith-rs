@@ -4178,6 +4178,75 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_discover_async_invalid_port_preserves_local_cache() {
+        let zk = ZkDiscovery::new("127.0.0.1:notaport", "/services");
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::discover_async(&zk, "ps").await;
+        let err = result.expect_err("invalid-port hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing invalid-port discover context, got {err:?}"
+        );
+        assert_eq!(
+            zk.discover("ps").expect("discover should succeed after config failure").len(),
+            1,
+            "invalid-port async discover config error should preserve local cache entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_discover_async_out_of_range_port_preserves_local_cache() {
+        let zk = ZkDiscovery::new("127.0.0.1:70000", "/services");
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::discover_async(&zk, "ps").await;
+        let err = result.expect_err("out-of-range hosts port should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing out-of-range-port discover context, got {err:?}"
+        );
+        assert_eq!(
+            zk.discover("ps").expect("discover should succeed after config failure").len(),
+            1,
+            "out-of-range-port async discover config error should preserve local cache entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_discover_async_malformed_ipv6_host_entry_preserves_local_cache() {
+        let zk = ZkDiscovery::new("[::1", "/services");
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::discover_async(&zk, "ps").await;
+        let err = result.expect_err("malformed IPv6 host entry should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid host entry")),
+            "expected ConfigError containing malformed-host-entry discover context, got {err:?}"
+        );
+        assert_eq!(
+            zk.discover("ps").expect("discover should succeed after config failure").len(),
+            1,
+            "malformed-host-entry async discover config error should preserve local cache entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_connect_invalid_base_path_is_config_error() {
         let zk = ZkDiscovery::new("127.0.0.1:2181", "services");
         let result = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
