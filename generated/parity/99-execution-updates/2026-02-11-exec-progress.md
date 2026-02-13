@@ -8037,6 +8037,26 @@
   - Connect-path parity now explicitly distinguishes valid-but-unreachable
     multi-host inputs from malformed host-list configuration failures.
 
+### 597) Discovery ZooKeeper valid multi-host async lifecycle parity expansion
+- Added valid multi-host async regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_zk_async_register_valid_multi_hosts_failure_compacts_dead_watchers`
+  - `test_zk_async_register_valid_multi_hosts_failure_keeps_live_watchers`
+  - `test_zk_async_deregister_valid_multi_hosts_failure_still_removes_local_cache_and_notifies_watchers`
+  - `test_zk_async_deregister_valid_multi_hosts_failure_compacts_dead_watchers`
+  - `test_zk_discover_async_valid_multi_hosts_connection_failure_is_connection_failed`
+  - `test_zk_discover_async_valid_multi_hosts_connection_failure_preserves_local_cache`
+- Coverage validates valid-but-unreachable multi-host failure-shape contracts
+  and lifecycle symmetry across register/deregister/discover:
+  - register/deregister return `ConnectionFailed` (not `ConfigError`),
+  - deregister still emits `ServiceRemoved` and preserves local removal
+    semantics,
+  - dead watchers are compacted and live watchers preserved where expected,
+  - discover failures preserve local cache entries.
+- Result:
+  - ZooKeeper multi-host parity now extends beyond connect-path validation to
+    explicit async operation lifecycle guarantees.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9287,6 +9307,8 @@
 1247. `rg "test_zk_(connect_whitespace_in_hosts_is_config_error|watch_async_whitespace_in_hosts_(rejects_without_state_changes|compacts_dead_watch_sender|preserves_live_watch_sender)|async_register_whitespace_in_hosts_(compacts_dead_watchers|keeps_live_watchers)|discover_async_whitespace_in_hosts_preserves_local_cache|async_deregister_whitespace_in_hosts_(still_notifies_and_returns_error|compacts_dead_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper whitespace-in-hosts regression tests are present)
 1248. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_valid_multi_hosts_returns_connection_failed_when_unreachable -- --nocapture` ✅ (validated valid multi-host ZooKeeper connect path reports ConnectionFailed when endpoints are unreachable)
 1249. `rg "test_zk_connect_valid_multi_hosts_returns_connection_failed_when_unreachable" crates/monolith-training/src/discovery.rs` ✅ (verified new ZooKeeper valid multi-host connect failure-shape regression is present)
+1250. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_valid_multi_hosts_failure_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_valid_multi_hosts_failure_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_valid_multi_hosts_failure_still_removes_local_cache_and_notifies_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_valid_multi_hosts_failure_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_valid_multi_hosts_connection_failure_is_connection_failed -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_valid_multi_hosts_connection_failure_preserves_local_cache -- --nocapture` ✅ (validated ZooKeeper valid multi-host async register/deregister/discover failure-shape and watcher/cache lifecycle regressions)
+1251. `rg "test_zk_(async_register_valid_multi_hosts_failure_(compacts_dead_watchers|keeps_live_watchers)|async_deregister_valid_multi_hosts_failure_(still_removes_local_cache_and_notifies_watchers|compacts_dead_watchers)|discover_async_valid_multi_hosts_connection_failure_(is_connection_failed|preserves_local_cache))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper valid multi-host async lifecycle regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
