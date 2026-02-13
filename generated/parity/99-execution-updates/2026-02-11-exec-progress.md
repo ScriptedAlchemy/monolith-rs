@@ -10967,6 +10967,22 @@
   - direct-entry role helper contracts now explicitly mirror top-level
     run-distributed barrier-timeout semantics.
 
+### 735) Direct role-entry retry-backoff contracts locked
+- Expanded direct role-entry regression coverage in
+  `crates/monolith-training/src/runner.rs`:
+  - `test_run_worker_role_allows_zero_retry_backoff_when_retries_disabled_without_wrapper`
+    validates worker helper proceeds past config validation and fails only on
+    expected discovery timeout when retry loop is disabled.
+  - `test_run_ps_role_allows_zero_retry_backoff_without_wrapper` validates PS
+    helper remains permissive for worker-only retry-backoff settings.
+- Coverage validates:
+  - worker helper still rejects zero retry-backoff when retries are enabled,
+  - worker helper accepts zero retry-backoff when retries are disabled,
+  - ps helper is unaffected by worker-only retry-loop constraints.
+- Result:
+  - direct helper retry-backoff contracts now fully mirror scoped validation
+    semantics across worker and ps paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12518,6 +12534,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1541. `rg "test_distributed_config_validate_rejects_non_positive_barrier_timeout_for_worker_role|test_distributed_config_validate_allows_non_positive_barrier_timeout_for_ps_role|test_run_distributed_rejects_non_positive_barrier_timeout_for_worker_role|test_run_distributed_allows_non_positive_barrier_timeout_for_ps_role|barrier_timeout_ms > 0" crates/monolith-training/src/runner.rs` ✅ (verified worker-scoped barrier-timeout contract and associated role-specific regressions are present)
 1542. `cargo test -p monolith-training test_run_worker_role_rejects_non_positive_barrier_timeout_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_allows_non_positive_barrier_timeout_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper -- --nocapture` ✅ (validated direct role-entry helpers enforce worker barrier-timeout constraints while preserving ps-role permissiveness and existing ps heartbeat guard behavior)
 1543. `rg "test_run_worker_role_rejects_non_positive_barrier_timeout_without_wrapper|test_run_ps_role_allows_non_positive_barrier_timeout_without_wrapper|cfg.validate\\(\\)\\?;" crates/monolith-training/src/runner.rs` ✅ (verified direct role-entry barrier-timeout regressions and role-level validation guard wiring are present)
+1544. `cargo test -p monolith-training test_run_worker_role_allows_zero_retry_backoff_when_retries_disabled_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_allows_zero_retry_backoff_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_zero_retry_backoff_without_wrapper -- --nocapture` ✅ (validated direct role-entry retry-backoff behavior across worker enabled/disabled modes and ps-role permissiveness)
+1545. `rg "test_run_worker_role_allows_zero_retry_backoff_when_retries_disabled_without_wrapper|test_run_ps_role_allows_zero_retry_backoff_without_wrapper|test_run_worker_role_rejects_zero_retry_backoff_without_wrapper" crates/monolith-training/src/runner.rs` ✅ (verified direct role-entry retry-backoff contract regressions for worker/ps helper paths are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

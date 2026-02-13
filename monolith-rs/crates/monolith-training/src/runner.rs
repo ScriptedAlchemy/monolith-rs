@@ -4387,6 +4387,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_worker_role_allows_zero_retry_backoff_when_retries_disabled_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 0,
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg)
+            .await
+            .expect_err("worker role should proceed past validation when retries are disabled");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker role should fail due to discovery timeout, not retry-backoff validation: {msg}"
+        );
+        assert!(
+            !msg.contains("retry_backoff_ms > 0"),
+            "worker role should allow zero retry_backoff_ms when connect_retries is disabled: {msg}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -4444,6 +4471,35 @@ mod tests {
         assert!(
             !task.is_finished(),
             "run_ps_role should keep serving; worker-only barrier timeout must not fail ps role validation"
+        );
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_allows_zero_retry_backoff_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            connect_retries: 7,
+            retry_backoff_ms: 0,
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_ps_role(
+            Arc::clone(&discovery),
+            "ps-0",
+            "ps".to_string(),
+            cfg,
+        ));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !task.is_finished(),
+            "run_ps_role should keep serving; worker-only retry-backoff must not fail ps role validation"
         );
         task.abort();
     }
