@@ -3374,6 +3374,59 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_watch_async_out_of_range_port_compacts_dead_watch_sender() {
+        let zk = ZkDiscovery::new("127.0.0.1:70000", "/services");
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("out-of-range host port should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing watch_service out-of-range-port context, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "out-of-range-port watch_async should compact dead watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_watch_async_out_of_range_port_preserves_live_watch_sender() {
+        let zk = ZkDiscovery::new("127.0.0.1:70000", "/services");
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("out-of-range host port should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing watch_service out-of-range-port context, got {err:?}"
+        );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "out-of-range-port watch_async should preserve live watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_watch_async_invalid_port_compacts_dead_watch_sender() {
         let zk = ZkDiscovery::new("127.0.0.1:notaport", "/services");
         let rx = zk.watch("ps").expect("watch should succeed");
@@ -4370,6 +4423,46 @@ mod tests {
         assert!(
             !zk.registered_paths.lock().await.contains_key("ps-0"),
             "registered-path bookkeeping should remain removed even on invalid-port config failure"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_async_deregister_out_of_range_port_still_notifies_and_returns_error() {
+        let zk = ZkDiscovery::new("127.0.0.1:70000", "/services");
+        zk.register(ServiceInfo::new("ps-0", "ps-0", "ps", "127.0.0.1", 5000))
+            .expect("sync register should seed local cache");
+        zk.registered_paths
+            .lock()
+            .await
+            .insert("ps-0".to_string(), "/services/ps/ps-0".to_string());
+        let mut rx = zk.watch("ps").expect("watch should succeed");
+
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::deregister_async(&zk, "ps-0").await;
+        let err = result.expect_err("out-of-range host port should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing out-of-range-port connect context, got {err:?}"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "ps-0"),
+            "expected ServiceRemoved(ps-0), got {event:?}"
+        );
+        assert!(
+            zk.discover("ps").expect("discover should succeed").is_empty(),
+            "local cache entry should remain removed even when async deregister fails on out-of-range host ports"
+        );
+        assert!(
+            !zk.registered_paths.lock().await.contains_key("ps-0"),
+            "registered-path bookkeeping should remain removed even on out-of-range-port config failure"
         );
     }
 
