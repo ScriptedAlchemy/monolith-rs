@@ -10322,6 +10322,23 @@
   - Local-cluster construction now enforces explicit numeric safety contracts
     for training-rate configuration inputs.
 
+### 699) Distributed barrier-timeout millis conversion saturation hardening
+- Hardened timeout conversion in `crates/monolith-training/src/distributed.rs`:
+  - introduced `duration_to_timeout_ms` helper with saturating conversion
+    (`u64::MAX`) for extremely large durations,
+  - updated `wait_for_barrier` timeout errors to use saturation-safe
+    millisecond conversion.
+- Added regression:
+  - `test_duration_to_timeout_ms_saturates_for_large_durations`
+- Coverage validates:
+  - normal durations preserve millisecond precision,
+  - very large durations no longer risk truncation semantics in timeout
+    diagnostics,
+  - wait-for-barrier timeout flows remain behaviorally stable.
+- Result:
+  - Barrier-timeout diagnostics now use deterministic saturating conversion for
+    large timeout values.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11783,6 +11800,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1451. `rg "test_local_cluster_wait_for_barrier_zero_poll_interval_is_invalid_configuration" crates/monolith-training/src/distributed.rs` ✅ (verified wait_for_barrier non-zero poll-interval regression is present)
 1452. `cargo test -p monolith-training test_local_cluster_new_rejects_ -- --nocapture && cargo test -p monolith-training test_local_cluster_train_step_ -- --nocapture` ✅ (validated constructor learning-rate guardrails for negative/non-finite inputs and confirmed train-step regressions remain green)
 1453. `rg "test_local_cluster_new_rejects_(negative_learning_rate|non_finite_learning_rate)" crates/monolith-training/src/distributed.rs` ✅ (verified LocalCluster constructor learning-rate validation regressions are present)
+1454. `cargo test -p monolith-training test_duration_to_timeout_ms_saturates_for_large_durations -- --nocapture && cargo test -p monolith-training test_local_cluster_wait_for_barrier_timeout -- --nocapture` ✅ (validated saturating timeout-millis conversion helper and verified barrier-timeout behavior remains stable)
+1455. `rg "test_duration_to_timeout_ms_saturates_for_large_durations" crates/monolith-training/src/distributed.rs` ✅ (verified timeout-millis saturation regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

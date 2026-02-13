@@ -36,6 +36,10 @@ pub enum DistributedError {
 /// Result type for distributed operations.
 pub type DistributedResult<T> = Result<T, DistributedError>;
 
+fn duration_to_timeout_ms(timeout: std::time::Duration) -> u64 {
+    u64::try_from(timeout.as_millis()).unwrap_or(u64::MAX)
+}
+
 /// Outcome of a local-cluster barrier synchronization call.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BarrierStatus {
@@ -746,7 +750,7 @@ impl LocalCluster {
                         self.remove_barrier_waiter(epoch, worker_index);
                         return Err(DistributedError::BarrierTimeout {
                             epoch,
-                            timeout_ms: timeout.as_millis() as u64,
+                            timeout_ms: duration_to_timeout_ms(timeout),
                         });
                     }
                 }
@@ -1271,6 +1275,20 @@ mod tests {
         assert!(
             matches!(err, DistributedError::BarrierTimeout { epoch: 0, timeout_ms: 10 }),
             "expected BarrierTimeout {{ epoch: 0, timeout_ms: 10 }}, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_duration_to_timeout_ms_saturates_for_large_durations() {
+        assert_eq!(
+            duration_to_timeout_ms(std::time::Duration::from_millis(1234)),
+            1234,
+            "regular durations should preserve millisecond precision in timeout conversion"
+        );
+        assert_eq!(
+            duration_to_timeout_ms(std::time::Duration::new(u64::MAX, 0)),
+            u64::MAX,
+            "extremely large durations should saturate timeout conversion at u64::MAX milliseconds"
         );
     }
 
