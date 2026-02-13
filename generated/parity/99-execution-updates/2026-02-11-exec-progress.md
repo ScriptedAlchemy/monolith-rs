@@ -10824,6 +10824,23 @@
   - distributed runtime now has explicit regression guards for both heartbeat
     enablement and heartbeat-disablement contracts.
 
+### 727) Parameter-sync interval zero-value semantics explicitly scoped
+- Expanded distributed runner config/regression coverage in
+  `crates/monolith-training/src/runner.rs`:
+  - added `test_distributed_config_validate_allows_zero_parameter_sync_interval_without_targets`
+    to lock that `parameter_sync_interval = 0` is allowed only when
+    parameter-sync targets are disabled.
+  - added `test_run_distributed_allows_zero_parameter_sync_interval_without_targets`
+    to verify runtime proceeds past config validation in this disabled
+    parameter-sync mode.
+- Coverage validates:
+  - zero interval remains explicitly rejected when targets are configured
+    (existing contract),
+  - zero interval remains explicitly accepted when parameter-sync is disabled.
+- Result:
+  - parameter-sync interval semantics are now fully explicit across both
+    enabled and disabled parameter-sync runtime modes.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12359,6 +12376,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1525. `python3 - <<'PY' ... non-test training-source expect scan ... PY` ✅ (verified no non-test `expect(...)` occurrences remain in `crates/monolith-training/src`)
 1526. `cargo test -p monolith-training test_distributed_config_validate_allows_disabled_heartbeat_interval -- --nocapture && cargo test -p monolith-training test_worker_heartbeat_task_disabled_when_interval_none -- --nocapture && cargo test -p monolith-training test_ps_heartbeat_task_disabled_when_interval_none -- --nocapture` ✅ (validated heartbeat-disabled config acceptance and zero-heartbeat behavior for worker and PS roles)
 1527. `rg "test_distributed_config_validate_allows_disabled_heartbeat_interval|test_worker_heartbeat_task_disabled_when_interval_none|test_ps_heartbeat_task_disabled_when_interval_none" crates/monolith-training/src/runner.rs` ✅ (verified heartbeat-disable contract regressions are present)
+1528. `cargo test -p monolith-training test_distributed_config_validate_allows_zero_parameter_sync_interval_without_targets -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_zero_parameter_sync_interval_without_targets -- --nocapture` ✅ (validated zero parameter_sync_interval is accepted when parameter-sync targets are disabled, both at config-validation and runtime entrypoint levels)
+1529. `rg "test_distributed_config_validate_allows_zero_parameter_sync_interval_without_targets|test_run_distributed_allows_zero_parameter_sync_interval_without_targets" crates/monolith-training/src/runner.rs` ✅ (verified zero-interval parameter-sync disabled-mode regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

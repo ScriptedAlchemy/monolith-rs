@@ -3336,6 +3336,18 @@ mod tests {
     }
 
     #[test]
+    fn test_distributed_config_validate_allows_zero_parameter_sync_interval_without_targets() {
+        let cfg = DistributedRunConfig {
+            parameter_sync_targets: Vec::new(),
+            parameter_sync_interval: Duration::from_millis(0),
+            ..DistributedRunConfig::default()
+        };
+        cfg.validate().expect(
+            "zero parameter_sync_interval should be accepted when no parameter_sync_targets are configured",
+        );
+    }
+
+    #[test]
     fn test_distributed_config_validate_rejects_empty_parameter_sync_target_entry() {
         let cfg = DistributedRunConfig {
             parameter_sync_targets: vec!["".to_string()],
@@ -4228,6 +4240,35 @@ mod tests {
             err.to_string()
                 .contains("heartbeat_interval > 0 when configured"),
             "unexpected runtime config validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_zero_parameter_sync_interval_without_targets() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: Vec::new(),
+            parameter_sync_interval: Duration::from_millis(0),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, cfg).await.expect_err(
+            "run_distributed should proceed past validation when parameter sync is disabled",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "runtime should fail due to missing PS discovery, not parameter-sync validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_interval > 0"),
+            "runtime should not reject zero parameter_sync_interval when parameter-sync targets are empty: {msg}"
         );
     }
 
