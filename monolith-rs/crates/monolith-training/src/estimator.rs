@@ -673,9 +673,7 @@ mod tests {
     use crate::hooks::{EarlyStoppingHook, LoggingHook};
 
     fn test_bind_addr() -> std::net::SocketAddr {
-        "127.0.0.1:0"
-            .parse()
-            .expect("loopback ephemeral bind address parsing should succeed")
+        std::net::SocketAddr::from(([127, 0, 0, 1], 0))
     }
 
     #[test]

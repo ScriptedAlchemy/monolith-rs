@@ -11,9 +11,7 @@ use std::sync::Mutex;
 use tempfile::tempdir;
 
 fn test_bind_addr() -> SocketAddr {
-    "127.0.0.1:0"
-        .parse()
-        .expect("loopback ephemeral bind address parsing should succeed")
+    SocketAddr::from(([127, 0, 0, 1], 0))
 }
 
 #[test]

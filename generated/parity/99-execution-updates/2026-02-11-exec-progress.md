@@ -10703,6 +10703,23 @@
   - native-training TF-free helper APIs now avoid runtime `assert!` panics in
     production paths and expose explicit error semantics.
 
+### 720) Loopback bind helper panic-path cleanup in estimator + parity tests
+- Hardened loopback bind-address helpers that previously parsed fixed literals
+  via `expect(...)`:
+  - `crates/monolith-training/src/estimator.rs` test helper
+    `test_bind_addr()`,
+  - `crates/monolith-training/tests/native_training_parity.rs` test helper
+    `test_bind_addr()`.
+- Both now construct addresses directly using
+  `SocketAddr::from(([127, 0, 0, 1], 0))`.
+- Coverage validates:
+  - estimator distributed-runtime smoke test remains green,
+  - integration parity distributed-runner smoke path remains green.
+- Result:
+  - fixed-loopback bind helper paths no longer rely on parse+expect panic
+    assumptions, aligning with explicit helper construction style used
+    elsewhere.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12224,6 +12241,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1511. `cargo test -p monolith-training test_get_visible_gpus_ -- --nocapture && cargo test -p monolith-training test_gen_seq_mask_ -- --nocapture && cargo test -p monolith-training native_training::ragged_utils::tests::test_basic -- --nocapture && cargo test -p monolith-training test_empty_row_splits_returns_explicit_error -- --nocapture && cargo test -p monolith-training test_non_monotonic_row_splits_returns_explicit_error -- --nocapture` ✅ (validated device-utils, seq-mask, and ragged-utils helper regressions and new explicit error-path tests after runtime assert removal)
 1512. `python3 - <<'PY' ... TOTAL=0 ... PY` ✅ (verified no non-test `expect/unwrap/panic` hotspots remain in `crates/monolith-training/src` after helper hardening)
 1513. `python3 - <<'PY' ... non-test assert scan ... PY` ✅ (verified runtime `assert!` usage has been eliminated from non-test monolith-training source, aside from doc examples)
+1514. `cargo test -p monolith-training test_estimator_run_distributed_runtime_smoke -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_in_memory_ps_and_worker -- --nocapture` ✅ (validated estimator and integration parity distributed-runner smoke paths remain stable after loopback bind-helper cleanup)
+1515. `rg "loopback ephemeral bind address parsing should succeed" crates/monolith-training` ✅ (verified legacy parse+expect loopback helper panic-path string is removed from monolith-training crate)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
