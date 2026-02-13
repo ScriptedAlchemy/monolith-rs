@@ -4895,6 +4895,38 @@ async fn distributed_runner_from_run_config_rejects_zero_operation_timeout() {
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_rejects_zero_operation_timeout_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 0,
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires discovery_operation_timeout > 0"),
+        "zero run-config operation timeout should be rejected for ps role too because timeout validation is global: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_zero_cleanup_timeout() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -4922,6 +4954,38 @@ async fn distributed_runner_from_run_config_rejects_zero_cleanup_timeout() {
     assert!(
         err.contains("distributed config requires discovery_cleanup_timeout > 0"),
         "zero run-config cleanup timeout should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_rejects_zero_cleanup_timeout_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_cleanup_timeout_ms: 0,
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires discovery_cleanup_timeout > 0"),
+        "zero run-config cleanup timeout should be rejected for ps role too because timeout validation is global: {err}"
     );
 }
 
@@ -20741,6 +20805,37 @@ async fn distributed_runner_from_runner_config_rejects_zero_operation_timeout() 
 }
 
 #[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_zero_operation_timeout_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_operation_timeout_ms: 0,
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires discovery_operation_timeout > 0"),
+        "zero runner-config operation timeout should be rejected for ps role too because timeout validation is global: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_runner_config_rejects_zero_cleanup_timeout() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_runner_config, Role};
@@ -20768,6 +20863,37 @@ async fn distributed_runner_from_runner_config_rejects_zero_cleanup_timeout() {
     assert!(
         err.contains("distributed config requires discovery_cleanup_timeout > 0"),
         "zero runner-config cleanup timeout should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_zero_cleanup_timeout_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_cleanup_timeout_ms: 0,
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires discovery_cleanup_timeout > 0"),
+        "zero runner-config cleanup timeout should be rejected for ps role too because timeout validation is global: {err}"
     );
 }
 
