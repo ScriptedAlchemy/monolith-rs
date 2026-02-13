@@ -8577,6 +8577,30 @@
     watch/register lifecycle symmetry with deterministic watcher cleanup
     guarantees.
 
+### 629) Discovery Consul explicit-HTTPS lifecycle parity
+- Added explicit-HTTPS regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_normalize_consul_address_for_operation_accepts_explicit_https_scheme`
+  - `test_consul_connect_https_scheme_initializes_client_handle`
+  - `test_consul_connect_https_scheme_disconnect_and_reconnect`
+  - `test_consul_watch_async_https_scheme_disconnect_clears_poll_generation_with_live_receiver`
+  - `test_consul_async_register_https_scheme_uses_operation_context`
+  - `test_consul_async_register_https_scheme_compacts_dead_watchers`
+  - `test_consul_async_register_https_scheme_keeps_live_watchers`
+  - `test_consul_discover_async_https_scheme_uses_operation_context`
+  - `test_consul_discover_async_https_scheme_preserves_local_cache`
+  - `test_consul_async_deregister_https_scheme_uses_operation_context`
+  - `test_consul_async_deregister_https_scheme_compacts_dead_watchers`
+- Coverage validates valid `https://` endpoints are accepted by normalization
+  and preserve expected runtime failure shape/cleanup behavior:
+  - connect/disconnect lifecycle remains healthy,
+  - discover/register/deregister keep explicit `Internal` operation context,
+  - watch disconnect continues deterministic poll-generation cleanup and watcher
+    retention semantics.
+- Result:
+  - Consul lifecycle parity now explicitly includes `https://` authority lanes
+    across connect/watch/register/discover/deregister.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9898,6 +9922,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1311. `rg "test_(normalize_consul_address_for_operation_accepts_case_insensitive_scheme_with_ipv6|consul_(connect_case_insensitive_scheme_and_root_slash_ipv6_(succeeds|disconnect_and_reconnect)|watch_async_case_insensitive_scheme_ipv6_disconnect_clears_poll_generation_with_live_receiver|async_register_case_insensitive_scheme_and_root_slash_ipv6_uses_operation_context|discover_async_case_insensitive_scheme_and_root_slash_ipv6_(uses_operation_context|preserves_local_cache)|async_deregister_case_insensitive_scheme_and_root_slash_ipv6_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified case-insensitive IPv6 root-slash Consul lifecycle regression tests are present)
 1312. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_case_insensitive_scheme_ipv6_seeds_poll_generation_entry -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_case_insensitive_scheme_and_root_slash_ipv6_compacts_dead_watchers -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_case_insensitive_scheme_and_root_slash_ipv6_keeps_live_watchers -- --nocapture` ✅ (validated case-insensitive IPv6 root-slash watch/register symmetry regressions for poll-generation seeding and dead/live watcher handling)
 1313. `rg "test_consul_(watch_async_case_insensitive_scheme_ipv6_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|async_register_case_insensitive_scheme_and_root_slash_ipv6_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified case-insensitive IPv6 root-slash watch/register symmetry regression tests are present)
+1314. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_normalize_consul_address_for_operation_accepts_explicit_https_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_https_scheme_initializes_client_handle -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_https_scheme_disconnect_and_reconnect -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_https_scheme_disconnect_clears_poll_generation_with_live_receiver -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_https_scheme_uses_operation_context -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_https_scheme_compacts_dead_watchers -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_https_scheme_keeps_live_watchers -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_https_scheme_uses_operation_context -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_https_scheme_preserves_local_cache -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_https_scheme_uses_operation_context -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_https_scheme_compacts_dead_watchers -- --nocapture` ✅ (validated explicit-HTTPS Consul lifecycle regressions across normalization/connect/watch/register/discover/deregister)
+1315. `rg "test_(normalize_consul_address_for_operation_accepts_explicit_https_scheme|consul_(connect_https_scheme_(initializes_client_handle|disconnect_and_reconnect)|watch_async_https_scheme_disconnect_clears_poll_generation_with_live_receiver|async_register_https_scheme_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_https_scheme_(uses_operation_context|preserves_local_cache)|async_deregister_https_scheme_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified explicit-HTTPS Consul lifecycle regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
