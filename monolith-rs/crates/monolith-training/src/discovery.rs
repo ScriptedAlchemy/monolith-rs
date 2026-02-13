@@ -3349,6 +3349,59 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_watch_async_invalid_port_compacts_dead_watch_sender() {
+        let zk = ZkDiscovery::new("127.0.0.1:notaport", "/services");
+        let rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("invalid-port hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing watch_service invalid-port context, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "invalid-port watch_async should compact dead watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_watch_async_invalid_port_preserves_live_watch_sender() {
+        let zk = ZkDiscovery::new("127.0.0.1:notaport", "/services");
+        let _rx = zk.watch("ps").expect("watch should succeed");
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "watch sender should exist after subscribing"
+        );
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("invalid-port hosts should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing watch_service invalid-port context, got {err:?}"
+        );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "invalid-port watch_async should preserve live watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_watch_async_malformed_ipv6_host_entry_rejects_without_state_changes() {
         let zk = ZkDiscovery::new("[::1", "/services");
 
