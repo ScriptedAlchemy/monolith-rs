@@ -8007,6 +8007,25 @@
   - ZooKeeper host-list validation parity now includes explicit operation-level
     semantics for malformed comma-separated host lists with empty entries.
 
+### 595) Discovery ZooKeeper whitespace-in-hosts operation/lifecycle parity expansion
+- Added whitespace-in-hosts regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_zk_connect_whitespace_in_hosts_is_config_error`
+  - `test_zk_watch_async_whitespace_in_hosts_rejects_without_state_changes`
+  - `test_zk_watch_async_whitespace_in_hosts_compacts_dead_watch_sender`
+  - `test_zk_watch_async_whitespace_in_hosts_preserves_live_watch_sender`
+  - `test_zk_async_register_whitespace_in_hosts_compacts_dead_watchers`
+  - `test_zk_async_register_whitespace_in_hosts_keeps_live_watchers`
+  - `test_zk_discover_async_whitespace_in_hosts_preserves_local_cache`
+  - `test_zk_async_deregister_whitespace_in_hosts_still_notifies_and_returns_error`
+  - `test_zk_async_deregister_whitespace_in_hosts_compacts_dead_watchers`
+- Coverage validates deterministic `whitespace in hosts` `ConfigError`
+  classification across connect/watch/register/discover/deregister, plus
+  dead/live watcher symmetry and deregister cache-removal semantics.
+- Result:
+  - ZooKeeper host-list validation parity now includes operation-level handling
+    for comma-separated host strings containing internal whitespace.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9253,6 +9272,8 @@
 1243. `rg "test_zk_(watch_async_empty_hosts_(rejects_without_state_changes|compacts_dead_watch_sender|preserves_live_watch_sender)|discover_async_empty_hosts_preserves_local_cache)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper empty-host watch/discover regression tests are present)
 1244. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_empty_host_entry_is_config_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_empty_host_entry_rejects_without_state_changes -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_empty_host_entry_compacts_dead_watch_sender -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_empty_host_entry_preserves_live_watch_sender -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_empty_host_entry_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_empty_host_entry_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_empty_host_entry_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_empty_host_entry_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_empty_host_entry_compacts_dead_watchers -- --nocapture` ✅ (validated ZooKeeper empty-host-entry operation-level failure-shape and watcher/cache lifecycle regressions)
 1245. `rg "test_zk_(connect_empty_host_entry_is_config_error|watch_async_empty_host_entry_(rejects_without_state_changes|compacts_dead_watch_sender|preserves_live_watch_sender)|async_register_empty_host_entry_(compacts_dead_watchers|keeps_live_watchers)|discover_async_empty_host_entry_preserves_local_cache|async_deregister_empty_host_entry_(still_notifies_and_returns_error|compacts_dead_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper empty-host-entry regression tests are present)
+1246. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_whitespace_in_hosts_is_config_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_whitespace_in_hosts_rejects_without_state_changes -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_whitespace_in_hosts_compacts_dead_watch_sender -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_whitespace_in_hosts_preserves_live_watch_sender -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_whitespace_in_hosts_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_whitespace_in_hosts_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_whitespace_in_hosts_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_whitespace_in_hosts_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_whitespace_in_hosts_compacts_dead_watchers -- --nocapture` ✅ (validated ZooKeeper whitespace-in-hosts operation-level failure-shape and watcher/cache lifecycle regressions)
+1247. `rg "test_zk_(connect_whitespace_in_hosts_is_config_error|watch_async_whitespace_in_hosts_(rejects_without_state_changes|compacts_dead_watch_sender|preserves_live_watch_sender)|async_register_whitespace_in_hosts_(compacts_dead_watchers|keeps_live_watchers)|discover_async_whitespace_in_hosts_preserves_local_cache|async_deregister_whitespace_in_hosts_(still_notifies_and_returns_error|compacts_dead_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper whitespace-in-hosts regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
