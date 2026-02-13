@@ -6571,6 +6571,40 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_deregister_case_insensitive_scheme_and_root_slash_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("HTTP://127.0.0.1:8500/");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("sync register should seed local cache");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
+            .await;
+        let err = result.expect_err("case-insensitive scheme + root slash should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("deregister_entity") && msg.contains("8500")),
+            "expected Internal containing normalized-root-slash deregister context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watcher sender should be compacted on normalized-root-slash async deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_deregister_empty_address_compacts_dead_watchers() {
         let consul = ConsulDiscovery::new("");
         consul
@@ -6835,6 +6869,61 @@ mod tests {
                 .expect("discover should succeed")
                 .is_empty(),
             "normalized-root-slash async register should not populate local service cache"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_case_insensitive_scheme_and_root_slash_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("HTTP://127.0.0.1:8500/");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("case-insensitive scheme + root slash should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("register_entity") && msg.contains("8500")),
+            "expected Internal containing normalized-root-slash register context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watcher sender should be compacted on normalized-root-slash async register failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_case_insensitive_scheme_and_root_slash_keeps_live_watchers() {
+        let consul = ConsulDiscovery::new("HTTP://127.0.0.1:8500/");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("case-insensitive scheme + root slash should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("register_entity") && msg.contains("8500")),
+            "expected Internal containing normalized-root-slash register context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on normalized-root-slash async register failure"
         );
     }
 

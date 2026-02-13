@@ -7807,6 +7807,18 @@
   - Creation-path regression now emits concrete diagnostics on builder/state
     mismatches instead of a non-informative always-true assertion.
 
+### 580) Discovery Consul normalized root-slash watcher-symmetry expansion
+- Added Consul case-insensitive-scheme + root-slash watcher-symmetry
+  regressions in `crates/monolith-training/src/discovery.rs`:
+  - `test_consul_async_deregister_case_insensitive_scheme_and_root_slash_compacts_dead_watchers`
+  - `test_consul_async_register_case_insensitive_scheme_and_root_slash_compacts_dead_watchers`
+  - `test_consul_async_register_case_insensitive_scheme_and_root_slash_keeps_live_watchers`
+- Coverage validates dead/live watcher lifecycle semantics remain intact for the
+  normalized root-slash address lane in async register/deregister failure paths.
+- Result:
+  - Root-slash/case-insensitive operation coverage now includes explicit
+    watcher compaction/preservation symmetry guarantees.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9023,6 +9035,8 @@
 1213. `rg "test_consul_(discover_async_case_insensitive_scheme_and_root_slash_uses_operation_context|async_register_case_insensitive_scheme_and_root_slash_uses_operation_context|async_deregister_case_insensitive_scheme_and_root_slash_uses_operation_context)" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul normalized-root-slash operation-context regressions are present)
 1214. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discovery_creation -- --nocapture` ✅ (validated tightened Consul creation-path builder/state assertions)
 1215. `rg "fn test_consul_discovery_creation\\(" crates/monolith-training/src/discovery.rs` ✅ (verified hardened Consul discovery creation regression location)
+1216. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_case_insensitive_scheme_and_root_slash_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_case_insensitive_scheme_and_root_slash_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_case_insensitive_scheme_and_root_slash_keeps_live_watchers -- --nocapture` ✅ (validated Consul normalized-root-slash watcher dead/live symmetry regressions for async register/deregister)
+1217. `rg "test_consul_async_(deregister_case_insensitive_scheme_and_root_slash_compacts_dead_watchers|register_case_insensitive_scheme_and_root_slash_compacts_dead_watchers|register_case_insensitive_scheme_and_root_slash_keeps_live_watchers)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul normalized-root-slash watcher-symmetry tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
