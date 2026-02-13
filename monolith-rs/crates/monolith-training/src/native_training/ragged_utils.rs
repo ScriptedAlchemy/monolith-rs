@@ -31,6 +31,28 @@ impl std::error::Error for RaggedUtilsError {}
 ///
 /// `row_splits` has length `batch + 1`. For each row `i`, the values at indices
 /// `[row_splits[i], row_splits[i+1])` belong to row `i`.
+///
+/// # Examples
+///
+/// ```
+/// use monolith_training::native_training::ragged_utils::{
+///     fused_value_rowids, RaggedUtilsError,
+/// };
+///
+/// assert_eq!(fused_value_rowids(&[0, 0, 1, 3]), Ok(vec![1, 2, 2]));
+/// assert!(matches!(
+///     fused_value_rowids(&[]),
+///     Err(RaggedUtilsError::EmptyRowSplits)
+/// ));
+/// assert!(matches!(
+///     fused_value_rowids(&[0, 3, 2]),
+///     Err(RaggedUtilsError::NonMonotonicRowSplits {
+///         index: 1,
+///         start: 3,
+///         end: 2
+///     })
+/// ));
+/// ```
 pub fn fused_value_rowids(row_splits: &[usize]) -> Result<Vec<usize>, RaggedUtilsError> {
     if row_splits.is_empty() {
         return Err(RaggedUtilsError::EmptyRowSplits);

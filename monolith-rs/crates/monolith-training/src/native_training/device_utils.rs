@@ -43,6 +43,22 @@ pub fn is_gpu_training() -> bool {
 ///
 /// Mirrors Python:
 /// `str(int(local_rank / processes_per_gpu))`
+///
+/// # Examples
+///
+/// ```
+/// use monolith_training::native_training::device_utils::{
+///     get_visible_gpus, DeviceUtilsError,
+/// };
+///
+/// assert_eq!(get_visible_gpus(3, 2), Ok("1".to_string()));
+/// assert!(matches!(
+///     get_visible_gpus(3, 0),
+///     Err(DeviceUtilsError::InvalidProcessesPerGpu {
+///         processes_per_gpu: 0
+///     })
+/// ));
+/// ```
 pub fn get_visible_gpus(local_rank: i32, processes_per_gpu: i32) -> Result<String, DeviceUtilsError> {
     if processes_per_gpu < 1 {
         return Err(DeviceUtilsError::InvalidProcessesPerGpu { processes_per_gpu });

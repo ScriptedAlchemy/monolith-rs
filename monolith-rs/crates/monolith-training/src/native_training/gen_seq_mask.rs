@@ -21,6 +21,21 @@ impl std::error::Error for GenSeqMaskError {}
 /// - `split` is a 1-D tensor of length `batch + 1`, starting with 0.
 /// - Each row `i` has length `split[i + 1] - split[i]`.
 /// - Output contains 1s for `j < row_len` and 0s otherwise.
+///
+/// # Examples
+///
+/// ```
+/// use monolith_training::native_training::gen_seq_mask::{gen_seq_mask_i64, GenSeqMaskError};
+///
+/// let mask = gen_seq_mask_i64(&[0, 2, 3], 3)
+///     .expect("non-empty row_splits should generate sequence mask");
+/// assert_eq!(mask, vec![vec![1, 1, 0], vec![1, 0, 0]]);
+///
+/// assert!(matches!(
+///     gen_seq_mask_i64(&[], 3),
+///     Err(GenSeqMaskError::EmptyRowSplits)
+/// ));
+/// ```
 pub fn gen_seq_mask_i64(
     row_splits: &[i64],
     max_len: usize,
@@ -41,6 +56,21 @@ pub fn gen_seq_mask_i64(
 }
 
 /// Same as [`gen_seq_mask_i64`] but returns `i32` values (for Python's int32 path).
+///
+/// # Examples
+///
+/// ```
+/// use monolith_training::native_training::gen_seq_mask::{gen_seq_mask_i32, GenSeqMaskError};
+///
+/// let mask = gen_seq_mask_i32(&[0, 1, 3], 3)
+///     .expect("non-empty row_splits should generate sequence mask");
+/// assert_eq!(mask, vec![vec![1, 0, 0], vec![1, 1, 0]]);
+///
+/// assert!(matches!(
+///     gen_seq_mask_i32(&[], 3),
+///     Err(GenSeqMaskError::EmptyRowSplits)
+/// ));
+/// ```
 pub fn gen_seq_mask_i32(
     row_splits: &[i32],
     max_len: usize,

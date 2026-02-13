@@ -10741,6 +10741,24 @@
   - helper panic-path eliminations now have cross-layer parity locking at the
     integration test level.
 
+### 722) Native-training helper docs now encode explicit error contracts
+- Expanded API docs for recently hardened helper functions:
+  - `crates/monolith-training/src/native_training/device_utils.rs`
+    - added `get_visible_gpus` examples covering success and
+      `InvalidProcessesPerGpu` failure contract.
+  - `crates/monolith-training/src/native_training/gen_seq_mask.rs`
+    - added `gen_seq_mask_i64` and `gen_seq_mask_i32` examples covering success
+      and `EmptyRowSplits` failure contract.
+  - `crates/monolith-training/src/native_training/ragged_utils.rs`
+    - added `fused_value_rowids` examples covering success, empty input, and
+      non-monotonic split failure contracts.
+- Coverage validates:
+  - all new examples compile/run under doctest execution,
+  - explicit error-shape expectations are now documented alongside code.
+- Result:
+  - helper hardening is now reflected in user-facing API examples, reinforcing
+    deterministic error semantics at both runtime and documentation layers.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12266,6 +12284,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1515. `rg "loopback ephemeral bind address parsing should succeed" crates/monolith-training` ✅ (verified legacy parse+expect loopback helper panic-path string is removed from monolith-training crate)
 1516. `cargo test -p monolith-training --test native_training_parity native_training_device_utils_visible_gpu_contracts -- --nocapture && cargo test -p monolith-training --test native_training_parity native_training_gen_seq_mask_empty_input_contracts -- --nocapture && cargo test -p monolith-training --test native_training_parity native_training_ragged_value_rowids_error_contracts -- --nocapture` ✅ (validated integration parity coverage for newly explicit helper error contracts in device_utils, gen_seq_mask, and ragged_utils)
 1517. `rg "native_training_(device_utils_visible_gpu_contracts|gen_seq_mask_empty_input_contracts|ragged_value_rowids_error_contracts)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified new integration parity helper-contract regressions are present)
+1518. `cargo test -p monolith-training --doc -- --nocapture` ✅ (validated new native-training helper doc examples compile and execute, including explicit error-contract examples)
+1519. `rg "Err\\(DeviceUtilsError::InvalidProcessesPerGpu|Err\\(GenSeqMaskError::EmptyRowSplits\\)|Err\\(RaggedUtilsError::EmptyRowSplits\\)" crates/monolith-training/src/native_training` ✅ (verified helper docs now include explicit error-contract examples for device utils, seq mask, and ragged utils)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
