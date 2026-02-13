@@ -225,7 +225,7 @@ mod tests {
             learning_rate: 0.01,
         };
         let result = Adadelta::new(config);
-        assert!(result.is_err());
+        result.expect_err("Adadelta constructor should fail when config variant is not Adadelta");
     }
 
     #[test]

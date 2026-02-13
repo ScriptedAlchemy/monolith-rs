@@ -423,8 +423,10 @@ mod tests {
         };
         let loader = ModelLoader::new(config);
 
-        let result = loader.load(&model_path).await;
-        assert!(result.is_ok());
+        loader
+            .load(&model_path)
+            .await
+            .expect("loading model from temporary directory should succeed");
         assert!(loader.is_ready());
 
         let model = loader.current_model().unwrap();
@@ -437,9 +439,11 @@ mod tests {
         let config = ModelLoaderConfig::default();
         let loader = ModelLoader::new(config);
 
-        let result = loader.load("/nonexistent/path/to/model").await;
-        assert!(result.is_err());
-        assert!(matches!(result, Err(ServingError::ModelLoadError(_))));
+        let err = loader
+            .load("/nonexistent/path/to/model")
+            .await
+            .expect_err("loading from a missing model path should fail");
+        assert!(matches!(err, ServingError::ModelLoadError(_)));
     }
 
     #[tokio::test]

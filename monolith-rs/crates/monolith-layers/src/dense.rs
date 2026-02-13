@@ -641,7 +641,7 @@ mod tests {
         let input = Tensor::ones(&[3, 20]); // wrong input dimension
 
         let result = layer.forward(&input);
-        assert!(result.is_err());
+        result.expect_err("dense forward should fail for mismatched input dimension");
     }
 
     #[test]
@@ -692,6 +692,6 @@ mod tests {
         let bias = Tensor::zeros(&[10]); // wrong size
 
         let result = Dense::from_weights(weights, bias);
-        assert!(result.is_err());
+        result.expect_err("dense from_weights should fail for mismatched bias shape");
     }
 }

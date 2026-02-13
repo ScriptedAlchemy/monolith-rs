@@ -307,11 +307,11 @@ mod tests {
         let _guard = REGISTRY_TEST_MUTEX.lock().unwrap();
         reg::clear_registry_for_test();
         // Tests run in parallel; use a unique key to avoid cross-test registry collisions.
-        register_single_task_model!("dummy_eval_writes_events_file", Dummy).unwrap();
+        register_single_task_model!("dummy.eval_writes_events_file", Dummy).unwrap();
 
         let tmp = tempdir().unwrap();
         let args = GpuRunnerArgs {
-            task: "dummy_eval_writes_events_file".to_string(),
+            task: "dummy.eval_writes_events_file".to_string(),
             model_dir: tmp.path().join("model"),
             save_checkpoints_steps: None,
             mode: RunnerMode::Eval,
@@ -328,7 +328,7 @@ mod tests {
         let _guard = REGISTRY_TEST_MUTEX.lock().unwrap();
         reg::clear_registry_for_test();
         // Tests run in parallel; use a unique key to avoid cross-test registry collisions.
-        register_single_task_model!("dummy_tpu_overwrite_end_date", Dummy).unwrap();
+        register_single_task_model!("dummy.tpu_overwrite_end_date", Dummy).unwrap();
 
         let tmp = tempdir().unwrap();
         let args = TpuRunnerArgs {
@@ -336,7 +336,7 @@ mod tests {
             tpu: None,
             gcp_project: None,
             tpu_zone: None,
-            task: "dummy_tpu_overwrite_end_date".to_string(),
+            task: "dummy.tpu_overwrite_end_date".to_string(),
             model_dir: tmp.path().join("model"),
             mode: RunnerMode::Train,
             save_checkpoints_steps: None,

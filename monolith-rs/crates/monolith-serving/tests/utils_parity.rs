@@ -25,12 +25,15 @@ fn test_gen_model_spec() {
     let signature_name = "predict";
     let model_spec = gen_model_spec(name, Some(version), Some(signature_name));
     assert_eq!(model_spec.name, name);
-    match model_spec.version_choice {
-        Some(monolith_proto::tensorflow_serving::apis::model_spec::VersionChoice::Version(v)) => {
-            assert_eq!(v, version);
-        }
-        other => panic!("unexpected version_choice: {other:?}"),
-    }
+    assert!(
+        matches!(
+            model_spec.version_choice,
+            Some(monolith_proto::tensorflow_serving::apis::model_spec::VersionChoice::Version(v))
+                if v == version
+        ),
+        "model spec should include explicit version choice {}",
+        version
+    );
     assert_eq!(model_spec.signature_name, signature_name);
 }
 
@@ -48,12 +51,15 @@ fn test_gen_model_config_latest() {
     assert_eq!(model_config.base_path, base_path);
 
     let policy = model_config.model_version_policy.unwrap();
-    match policy.policy_choice.unwrap() {
-        monolith_proto::tensorflow_serving::apis::file_system_storage_path_source_config::servable_version_policy::PolicyChoice::Latest(latest) => {
-            assert_eq!(latest.num_versions, num_versions as u32);
-        }
-        other => panic!("unexpected policy: {other:?}"),
-    }
+    assert!(
+        matches!(
+            policy.policy_choice.unwrap(),
+            monolith_proto::tensorflow_serving::apis::file_system_storage_path_source_config::servable_version_policy::PolicyChoice::Latest(latest)
+                if latest.num_versions == num_versions as u32
+        ),
+        "model config should use Latest policy with num_versions={}",
+        num_versions
+    );
 }
 
 #[test]

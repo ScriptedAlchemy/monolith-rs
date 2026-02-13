@@ -419,10 +419,12 @@ mod tests {
 
     #[test]
     fn test_check_key_error_messages() {
-        let err = NestedMap::check_key("1bad").unwrap_err();
+        let err = NestedMap::check_key("1bad")
+            .expect_err("invalid key format should be rejected");
         assert_eq!(err.to_string(), "Invalid NestedMap key '1bad'");
 
-        let err = NestedMap::check_key("get").unwrap_err();
+        let err = NestedMap::check_key("get")
+            .expect_err("reserved key should be rejected");
         assert_eq!(err.to_string(), "get is a reserved key");
     }
 
@@ -434,7 +436,7 @@ mod tests {
 
         let err = m
             .set("a.b", NestedValue::Value(std::sync::Arc::new(TestObj(2))))
-            .unwrap_err();
+            .expect_err("setting through non-map intermediate key should fail");
         assert_eq!(
             err.to_string(),
             "Error while setting key a.b. Sub key \"a\" is of type object but must be a dict or NestedMap."

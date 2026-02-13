@@ -47,6 +47,7 @@ use bytes::{Buf, Bytes};
 use glob::glob;
 use monolith_proto::Example;
 use prost::Message;
+use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -164,26 +165,60 @@ impl TFRecordDataset {
     ///
     /// * `pattern` - A glob pattern to match files
     ///
-    /// # Note
-    ///
-    /// This is a placeholder implementation. In a real implementation,
-    /// this would use the `glob` crate.
-    pub fn from_pattern(_pattern: &str) -> Result<Self> {
-        let mut paths = Vec::new();
-        for entry in glob(_pattern).map_err(|e| TFRecordError::InvalidFormat(e.to_string()))? {
-            let path = entry.map_err(|e| TFRecordError::InvalidFormat(e.to_string()))?;
-            if !path.exists() {
-                continue;
-            }
-            paths.push(path);
+    /// Supported inputs:
+    /// - Single glob: `"data/train-*.tfrecord"`
+    /// - Comma-separated globs/paths: `"a/*.tfrecord,b/*.tfrecord,/tmp/file.tfrecord"`
+    /// - File list prefixed by `@`: `"@/tmp/tfrecord_files.txt"` where each line is a path/glob.
+    pub fn from_pattern(pattern: &str) -> Result<Self> {
+        fn is_glob_pattern(s: &str) -> bool {
+            s.contains('*') || s.contains('?') || s.contains('[') || s.contains('{')
         }
-        if paths.is_empty() {
+
+        fn expand_specs(spec: &str) -> Result<Vec<String>> {
+            if let Some(list_path) = spec.strip_prefix('@') {
+                let raw = std::fs::read_to_string(list_path).map_err(TFRecordError::Io)?;
+                let specs = raw
+                    .lines()
+                    .map(|l| l.trim())
+                    .filter(|l| !l.is_empty() && !l.starts_with('#'))
+                    .map(|l| l.to_string())
+                    .collect::<Vec<_>>();
+                return Ok(specs);
+            }
+            Ok(spec
+                .split(',')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .collect())
+        }
+
+        let specs = expand_specs(pattern)?;
+        let mut unique = BTreeSet::new();
+
+        for spec in specs {
+            if is_glob_pattern(&spec) {
+                for entry in glob(&spec).map_err(|e| TFRecordError::InvalidFormat(e.to_string()))? {
+                    let path = entry.map_err(|e| TFRecordError::InvalidFormat(e.to_string()))?;
+                    if path.exists() {
+                        unique.insert(path);
+                    }
+                }
+            } else {
+                let path = PathBuf::from(&spec);
+                if path.exists() {
+                    unique.insert(path);
+                }
+            }
+        }
+
+        if unique.is_empty() {
             return Err(TFRecordError::Io(io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("No files matched pattern: {}", _pattern),
+                format!("No files matched pattern: {}", pattern),
             )));
         }
-        paths.sort();
+        let paths = unique.into_iter().collect::<Vec<_>>();
         Ok(Self {
             paths,
             verify_crc: true,
@@ -569,6 +604,7 @@ mod tests {
     use super::*;
     use crate::example::{add_feature, create_example};
     use std::io::Cursor;
+    use tempfile::tempdir;
 
     #[test]
     fn test_crc32c() {
@@ -854,5 +890,51 @@ mod tests {
         let mut out_buffer = Vec::new();
         let writer: TFRecordWriter<&mut Vec<u8>> = TFRecordWriter::new(&mut out_buffer);
         assert_eq!(writer.compression(), CompressionType::None);
+    }
+
+    #[test]
+    fn test_dataset_from_pattern_glob_and_csv() {
+        let tmp = tempdir().unwrap();
+        let p1 = tmp.path().join("a.tfrecord");
+        let p2 = tmp.path().join("b.tfrecord");
+        std::fs::write(&p1, b"").unwrap();
+        std::fs::write(&p2, b"").unwrap();
+
+        let pattern = format!("{}/{}.tfrecord,{}", tmp.path().display(), "*", p1.display());
+        let ds = TFRecordDataset::from_pattern(&pattern).unwrap();
+        assert_eq!(ds.file_count(), 2);
+        assert!(ds.paths().contains(&p1));
+        assert!(ds.paths().contains(&p2));
+    }
+
+    #[test]
+    fn test_dataset_from_pattern_at_filelist() {
+        let tmp = tempdir().unwrap();
+        let p1 = tmp.path().join("x.tfrecord");
+        let p2 = tmp.path().join("y.tfrecord");
+        std::fs::write(&p1, b"").unwrap();
+        std::fs::write(&p2, b"").unwrap();
+
+        let filelist = tmp.path().join("files.txt");
+        let content = format!(
+            "{}\n{}\n",
+            p1.display(),
+            tmp.path().join("*.tfrecord").display()
+        );
+        std::fs::write(&filelist, content).unwrap();
+
+        let spec = format!("@{}", filelist.display());
+        let ds = TFRecordDataset::from_pattern(&spec).unwrap();
+        assert_eq!(ds.file_count(), 2);
+        assert!(ds.paths().contains(&p1));
+        assert!(ds.paths().contains(&p2));
+    }
+
+    #[test]
+    fn test_dataset_from_pattern_not_found() {
+        let tmp = tempdir().unwrap();
+        let spec = format!("{}/no-match-*.tfrecord", tmp.path().display());
+        let result = TFRecordDataset::from_pattern(&spec);
+        assert!(matches!(result, Err(TFRecordError::Io(_))));
     }
 }

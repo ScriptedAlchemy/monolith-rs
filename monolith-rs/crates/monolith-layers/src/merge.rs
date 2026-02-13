@@ -1,5 +1,6 @@
 //! Helpers for merging lists of tensors (stack/concat/unstack) to mirror Python utils.
 
+use crate::LayerError;
 use crate::tensor::Tensor;
 use serde::{Deserialize, Serialize};
 
@@ -25,9 +26,9 @@ pub fn merge_tensor_list(
     num_feature: Option<usize>,
     axis: usize,
     keep_list: bool,
-) -> MergeOutput {
+) -> Result<MergeOutput, LayerError> {
     if tensor_list.is_empty() {
-        return MergeOutput::List(Vec::new());
+        return Ok(MergeOutput::List(Vec::new()));
     }
 
     if tensor_list.len() == 1 {
@@ -42,7 +43,7 @@ pub fn merge_tensor_list(
                     } else {
                         MergeOutput::Tensor(t.clone())
                     };
-                    return output;
+                    return Ok(output);
                 }
                 MergeType::Concat => {
                     tensor_list[0] = t.reshape(&[batch_size, num_feat * emb_size]);
@@ -51,11 +52,11 @@ pub fn merge_tensor_list(
                     } else {
                         MergeOutput::Tensor(tensor_list[0].clone())
                     };
-                    return output;
+                    return Ok(output);
                 }
                 MergeType::None => {
                     let unstacked = t.unstack(axis);
-                    return MergeOutput::List(unstacked);
+                    return Ok(MergeOutput::List(unstacked));
                 }
             }
         } else if shape.len() == 2 {
@@ -71,7 +72,7 @@ pub fn merge_tensor_list(
                             } else {
                                 MergeOutput::Tensor(tensor_list[0].clone())
                             };
-                            return output;
+                            return Ok(output);
                         }
                         MergeType::Concat => {
                             let output = if keep_list {
@@ -79,12 +80,12 @@ pub fn merge_tensor_list(
                             } else {
                                 MergeOutput::Tensor(t.clone())
                             };
-                            return output;
+                            return Ok(output);
                         }
                         MergeType::None => {
                             let reshaped = t.reshape(&[batch_size, num_feature, per]);
                             let unstacked = reshaped.unstack(axis);
-                            return MergeOutput::List(unstacked);
+                            return Ok(MergeOutput::List(unstacked));
                         }
                     }
                 }
@@ -95,13 +96,16 @@ pub fn merge_tensor_list(
             } else {
                 MergeOutput::Tensor(t.clone())
             };
-            return output;
+            return Ok(output);
         } else {
-            panic!("shape error: {:?}", shape);
+            return Err(LayerError::ShapeMismatch {
+                expected: vec![2, 3],
+                actual: shape.to_vec(),
+            });
         }
     }
 
-    match merge_type {
+    Ok(match merge_type {
         MergeType::Stack => {
             let stacked = Tensor::stack(&tensor_list, axis);
             if keep_list {
@@ -119,7 +123,7 @@ pub fn merge_tensor_list(
             }
         }
         MergeType::None => MergeOutput::List(tensor_list),
-    }
+    })
 }
 
 /// Convenience helper that always returns a tensor (keep_list must be false).
@@ -128,14 +132,19 @@ pub fn merge_tensor_list_tensor(
     merge_type: MergeType,
     num_feature: Option<usize>,
     axis: usize,
-) -> Tensor {
-    match merge_tensor_list(tensor_list, merge_type, num_feature, axis, false) {
-        MergeOutput::Tensor(t) => t,
+) -> Result<Tensor, LayerError> {
+    match merge_tensor_list(tensor_list, merge_type, num_feature, axis, false)? {
+        MergeOutput::Tensor(t) => Ok(t),
         MergeOutput::List(mut list) => {
             if list.len() == 1 {
-                list.remove(0)
+                Ok(list.remove(0))
             } else {
-                panic!("merge_tensor_list_tensor produced a list");
+                Err(LayerError::ForwardError {
+                    message: format!(
+                        "merge_tensor_list_tensor expected a single tensor, got list of len {}",
+                        list.len()
+                    ),
+                })
             }
         }
     }

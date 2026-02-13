@@ -737,16 +737,24 @@ mod tests {
         for neg in &negatives {
             // Check that negatives have item_id feature
             let item_feature = get_feature(neg, "item_id").unwrap();
-            match &item_feature.r#type {
-                Some(feature::Type::FidV2List(l)) => assert!(!l.value.is_empty()),
-                other => panic!("Expected FidV2List, got {:?}", other),
-            }
+            assert!(
+                matches!(
+                    &item_feature.r#type,
+                    Some(feature::Type::FidV2List(l)) if !l.value.is_empty()
+                ),
+                "negative sample item_id should be non-empty FidV2List, got: {:?}",
+                item_feature.r#type
+            );
             // Check that negatives have label 0
             let label_feature = get_feature(neg, "label").unwrap();
-            match &label_feature.r#type {
-                Some(feature::Type::FidV2List(l)) => assert_eq!(l.value.get(0).copied(), Some(0)),
-                other => panic!("Expected FidV2List for label, got {:?}", other),
-            }
+            assert!(
+                matches!(
+                    &label_feature.r#type,
+                    Some(feature::Type::FidV2List(l)) if l.value.get(0).copied() == Some(0)
+                ),
+                "negative sample label should be FidV2List with zero label, got: {:?}",
+                label_feature.r#type
+            );
         }
     }
 
@@ -814,10 +822,14 @@ mod tests {
         assert_eq!(negatives.len(), 10);
         for neg in &negatives {
             let label = get_feature(neg, "label").unwrap();
-            match &label.r#type {
-                Some(feature::Type::FidV2List(l)) => assert_eq!(l.value.get(0).copied(), Some(0)),
-                other => panic!("Expected FidV2List for label, got {:?}", other),
-            }
+            assert!(
+                matches!(
+                    &label.r#type,
+                    Some(feature::Type::FidV2List(l)) if l.value.get(0).copied() == Some(0)
+                ),
+                "frequency sampler label should be FidV2List with zero label, got: {:?}",
+                label.r#type
+            );
         }
     }
 
@@ -1011,10 +1023,14 @@ mod tests {
         for neg in &negatives {
             // Should have product_id, not item_id
             let product_feature = get_feature(neg, "product_id").unwrap();
-            match &product_feature.r#type {
-                Some(feature::Type::FidV2List(l)) => assert!(!l.value.is_empty()),
-                other => panic!("Expected FidV2List, got {:?}", other),
-            }
+            assert!(
+                matches!(
+                    &product_feature.r#type,
+                    Some(feature::Type::FidV2List(l)) if !l.value.is_empty()
+                ),
+                "custom product_id feature should be non-empty FidV2List, got: {:?}",
+                product_feature.r#type
+            );
         }
     }
 }

@@ -306,7 +306,7 @@ mod tests {
             learning_rate: 0.01,
         };
         let result = Amsgrad::new(config);
-        assert!(result.is_err());
+        result.expect_err("Amsgrad constructor should fail when config variant is not Amsgrad");
     }
 
     #[test]

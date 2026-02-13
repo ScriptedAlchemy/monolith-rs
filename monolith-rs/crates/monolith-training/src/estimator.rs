@@ -7,6 +7,7 @@ use crate::hooks::{Hook, HookAction, HookList};
 use crate::metrics::{Metrics, MetricsRecorder};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::Arc;
 use thiserror::Error;
 
 /// Errors that can occur during estimator operations.
@@ -39,6 +40,25 @@ pub enum EstimatorError {
     /// A prediction error occurred.
     #[error("Prediction error: {0}")]
     Prediction(String),
+
+    /// EstimatorSpec update attempted to change mode.
+    #[error("Cannot change EstimatorSpec mode from {current:?} to {requested:?}")]
+    SpecModeChange {
+        current: EstimatorMode,
+        requested: EstimatorMode,
+    },
+
+    /// Run config merge/build error.
+    #[error("Run config error: {0}")]
+    RunConfig(#[from] crate::run_config::RunConfigError),
+
+    /// Distributed runtime error.
+    #[error("Distributed runtime error: {0}")]
+    Distributed(String),
+
+    /// Runner initialization/runtime helper error.
+    #[error("Runner utils error: {0}")]
+    RunnerUtils(#[from] crate::runner_utils::RunnerUtilsError),
 }
 
 /// Result type for estimator operations.
@@ -141,6 +161,73 @@ pub enum EstimatorMode {
     Predict,
 }
 
+/// Python-style estimator output spec.
+///
+/// Mirrors `EstimatorSpec` defaults from Python:
+/// - `head_name=None`
+/// - `loss=None`
+/// - `optimizer=None`
+/// - `classification=True`
+#[derive(Debug, Clone, PartialEq)]
+pub struct EstimatorSpec {
+    pub mode: EstimatorMode,
+    pub label: Option<String>,
+    pub pred: Vec<f32>,
+    pub head_name: Option<String>,
+    pub loss: Option<f64>,
+    pub optimizer: Option<String>,
+    pub classification: bool,
+}
+
+impl EstimatorSpec {
+    pub fn new(mode: EstimatorMode, label: Option<String>, pred: Vec<f32>) -> Self {
+        Self {
+            mode,
+            label,
+            pred,
+            head_name: None,
+            loss: None,
+            optimizer: None,
+            classification: true,
+        }
+    }
+
+    /// Parity helper mirroring Python `namedtuple._replace(...)`.
+    ///
+    /// Mode can only be supplied when it equals the current mode.
+    pub fn replace(&self, update: EstimatorSpecUpdate) -> EstimatorResult<Self> {
+        if let Some(mode) = update.mode {
+            if mode != self.mode {
+                return Err(EstimatorError::SpecModeChange {
+                    current: self.mode,
+                    requested: mode,
+                });
+            }
+        }
+        Ok(Self {
+            mode: self.mode,
+            label: update.label.unwrap_or_else(|| self.label.clone()),
+            pred: update.pred.unwrap_or_else(|| self.pred.clone()),
+            head_name: update.head_name.unwrap_or_else(|| self.head_name.clone()),
+            loss: update.loss.unwrap_or(self.loss),
+            optimizer: update.optimizer.unwrap_or_else(|| self.optimizer.clone()),
+            classification: update.classification.unwrap_or(self.classification),
+        })
+    }
+}
+
+/// Update payload for [`EstimatorSpec::replace`].
+#[derive(Debug, Clone, Default)]
+pub struct EstimatorSpecUpdate {
+    pub mode: Option<EstimatorMode>,
+    pub label: Option<Option<String>>,
+    pub pred: Option<Vec<f32>>,
+    pub head_name: Option<Option<String>>,
+    pub loss: Option<Option<f64>>,
+    pub optimizer: Option<Option<String>>,
+    pub classification: Option<bool>,
+}
+
 /// Result of a training run.
 #[derive(Debug, Clone)]
 pub struct TrainResult {
@@ -187,6 +274,14 @@ pub trait ModelFn: Send + Sync {
     ///
     /// The loss value for training/eval, or predictions for predict mode.
     fn call(&self, mode: EstimatorMode) -> EstimatorResult<f64>;
+
+    /// Produces predictions for a single input example.
+    ///
+    /// Default implementation keeps backward compatibility with legacy `call(Predict)`
+    /// behavior by returning a single scalar prediction.
+    fn predict(&self, _features: &[f32]) -> EstimatorResult<Vec<f32>> {
+        Ok(vec![self.call(EstimatorMode::Predict)? as f32])
+    }
 }
 
 /// A simple model function that returns a constant loss (for testing).
@@ -226,7 +321,8 @@ impl ModelFn for ConstantModelFn {
 /// let mut estimator = Estimator::new(config, model_fn);
 ///
 /// // Training would be called like this:
-/// // let result = estimator.train().unwrap();
+/// // let result = estimator.train();
+/// // // Handle `result` according to your application's error strategy.
 /// ```
 pub struct Estimator<M: ModelFn> {
     /// Estimator configuration.
@@ -258,6 +354,60 @@ impl<M: ModelFn> Estimator<M> {
         }
     }
 
+    /// Creates an estimator from execution-time runner configuration.
+    pub fn from_runner_config(runner_conf: &crate::run_config::RunnerConfig, model_fn: M) -> Self {
+        crate::run_config::RunConfig::apply_runtime_env_exports(runner_conf);
+        Self::new(runner_conf.to_estimator_config(), model_fn)
+    }
+
+    /// Builds estimator from runner config and applies runtime initialization.
+    pub fn from_runner_config_initialized(
+        runner_conf: &crate::run_config::RunnerConfig,
+        model_fn: M,
+    ) -> EstimatorResult<(Self, Option<crate::runner_utils::CheckpointState>)> {
+        let init_state = Self::initialize_runtime_from_runner_config(runner_conf)?;
+        let est = Self::from_runner_config(runner_conf, model_fn);
+        Ok((est, init_state))
+    }
+
+    /// Creates an estimator from user-facing run config (plus optional runner base overrides).
+    pub fn from_run_config(
+        run_conf: &crate::run_config::RunConfig,
+        base: Option<crate::run_config::RunnerConfig>,
+        model_fn: M,
+    ) -> EstimatorResult<Self> {
+        let runner = run_conf.to_runner_config(base)?;
+        Ok(Self::from_runner_config(&runner, model_fn))
+    }
+
+    /// Builds estimator from run config and applies runtime initialization in one call.
+    pub fn from_run_config_initialized(
+        run_conf: &crate::run_config::RunConfig,
+        base: Option<crate::run_config::RunnerConfig>,
+        model_fn: M,
+    ) -> EstimatorResult<(Self, Option<crate::runner_utils::CheckpointState>)> {
+        let init_state = Self::initialize_runtime_from_run_config(run_conf, base.clone())?;
+        let est = Self::from_run_config(run_conf, base, model_fn)?;
+        Ok((est, init_state))
+    }
+
+    /// Applies runner post-init runtime behavior (env exports + restore sync).
+    pub fn initialize_runtime_from_runner_config(
+        runner_conf: &crate::run_config::RunnerConfig,
+    ) -> EstimatorResult<Option<crate::runner_utils::CheckpointState>> {
+        crate::runner_utils::initialize_restore_checkpoint_from_runner_defaults(runner_conf)
+            .map_err(EstimatorError::from)
+    }
+
+    /// Applies run-config post-init runtime behavior (merge + env exports + restore sync).
+    pub fn initialize_runtime_from_run_config(
+        run_conf: &crate::run_config::RunConfig,
+        base: Option<crate::run_config::RunnerConfig>,
+    ) -> EstimatorResult<Option<crate::runner_utils::CheckpointState>> {
+        crate::runner_utils::initialize_restore_checkpoint_from_run_config_defaults(run_conf, base)
+            .map_err(EstimatorError::from)
+    }
+
     /// Returns a reference to the configuration.
     pub fn config(&self) -> &EstimatorConfig {
         &self.config
@@ -277,6 +427,16 @@ impl<M: ModelFn> Estimator<M> {
         self.hooks.add(hook);
     }
 
+    fn resolve_train_target(&self, steps: Option<u64>, max_steps: Option<u64>) -> u64 {
+        let from_steps = steps.map(|s| self.global_step.saturating_add(s));
+        match (from_steps, max_steps) {
+            (Some(a), Some(b)) => a.min(b),
+            (Some(a), None) => a,
+            (None, Some(b)) => b,
+            (None, None) => self.config.train_steps.unwrap_or(u64::MAX),
+        }
+    }
+
     /// Runs training.
     ///
     /// # Returns
@@ -287,7 +447,20 @@ impl<M: ModelFn> Estimator<M> {
     ///
     /// Returns an error if training fails or a hook returns an error.
     pub fn train(&mut self) -> EstimatorResult<TrainResult> {
-        let max_steps = self.config.train_steps.unwrap_or(u64::MAX);
+        self.train_with_limits(None, None)
+    }
+
+    /// Runs training with Python-style `steps`/`max_steps` semantics.
+    ///
+    /// - `steps`: relative number of additional steps from current global step.
+    /// - `max_steps`: absolute global-step cap.
+    /// - if both are provided, training stops at `min(global_step + steps, max_steps)`.
+    pub fn train_with_limits(
+        &mut self,
+        steps: Option<u64>,
+        max_steps: Option<u64>,
+    ) -> EstimatorResult<TrainResult> {
+        let max_steps = self.resolve_train_target(steps, max_steps);
         let mut stopped_early = false;
         let mut last_metrics: Option<Metrics> = None;
 
@@ -345,7 +518,12 @@ impl<M: ModelFn> Estimator<M> {
     ///
     /// Returns an error if evaluation fails.
     pub fn evaluate(&mut self) -> EstimatorResult<EvalResult> {
-        let eval_steps = self.config.eval_steps.unwrap_or(1);
+        self.evaluate_with_steps(None)
+    }
+
+    /// Runs evaluation with an optional step override.
+    pub fn evaluate_with_steps(&mut self, steps: Option<u64>) -> EstimatorResult<EvalResult> {
+        let eval_steps = steps.or(self.config.eval_steps).unwrap_or(1);
         let mut recorder = MetricsRecorder::new();
 
         tracing::info!("Starting evaluation for {} steps", eval_steps);
@@ -367,10 +545,10 @@ impl<M: ModelFn> Estimator<M> {
         })
     }
 
-    /// Runs prediction.
+    /// Runs prediction for a fixed number of examples.
     ///
-    /// This is a stub implementation that would be extended with actual
-    /// input data handling.
+    /// This method preserves compatibility with existing callsites by producing
+    /// predictions from empty feature vectors.
     ///
     /// # Arguments
     ///
@@ -384,19 +562,30 @@ impl<M: ModelFn> Estimator<M> {
     ///
     /// Returns an error if prediction fails.
     pub fn predict(&mut self, num_examples: usize) -> EstimatorResult<PredictResult> {
-        tracing::info!("Running prediction for {} examples", num_examples);
+        let empty_inputs = vec![Vec::<f32>::new(); num_examples];
+        self.predict_with_inputs(&empty_inputs)
+    }
 
-        let mut predictions = Vec::with_capacity(num_examples);
+    /// Runs prediction using explicit input features.
+    ///
+    /// # Arguments
+    ///
+    /// * `inputs` - Per-example feature vectors.
+    ///
+    /// # Returns
+    ///
+    /// A `PredictResult` containing one output vector per input example.
+    pub fn predict_with_inputs(&mut self, inputs: &[Vec<f32>]) -> EstimatorResult<PredictResult> {
+        tracing::info!("Running prediction for {} examples", inputs.len());
+        let mut predictions = Vec::with_capacity(inputs.len());
 
-        for _ in 0..num_examples {
-            // In a real implementation, this would return actual predictions
-            let output = self.model_fn.call(EstimatorMode::Predict)?;
-            predictions.push(vec![output as f32]);
+        for features in inputs {
+            predictions.push(self.model_fn.predict(features)?);
         }
 
         Ok(PredictResult {
             predictions,
-            num_examples,
+            num_examples: inputs.len(),
         })
     }
 
@@ -416,15 +605,12 @@ impl<M: ModelFn> Estimator<M> {
         num_evals: u64,
     ) -> EstimatorResult<(TrainResult, EvalResult)> {
         let mut last_eval: Option<EvalResult> = None;
-        let original_train_steps = self.config.train_steps;
+        let mut last_train: Option<TrainResult> = None;
 
         for eval_num in 0..num_evals {
-            // Set train steps for this round
-            let target_step = (eval_num + 1) * train_steps_per_eval;
-            self.config.train_steps = Some(target_step);
-
-            // Train
-            let train_result = self.train()?;
+            // Train one relative slice per round.
+            let train_result = self.train_with_limits(Some(train_steps_per_eval), None)?;
+            last_train = Some(train_result.clone());
 
             // Evaluate
             let eval_result = self.evaluate()?;
@@ -441,19 +627,43 @@ impl<M: ModelFn> Estimator<M> {
             }
         }
 
-        // Restore original config
-        self.config.train_steps = original_train_steps;
-
-        let final_train = TrainResult {
+        let final_train = last_train.unwrap_or(TrainResult {
             global_step: self.global_step,
             final_metrics: self.metrics_recorder.aggregate(self.global_step).into(),
             stopped_early: false,
-        };
+        });
 
         let final_eval = last_eval
             .ok_or_else(|| EstimatorError::Evaluation("No evaluation was performed".to_string()))?;
 
         Ok((final_train, final_eval))
+    }
+
+    /// Runs distributed runtime orchestration from runner config.
+    pub async fn run_distributed_runtime<D: crate::discovery::ServiceDiscoveryAsync + 'static + ?Sized>(
+        discovery: Arc<D>,
+        runner_conf: &crate::run_config::RunnerConfig,
+        role: crate::runner::Role,
+        bind_addr: std::net::SocketAddr,
+    ) -> EstimatorResult<()> {
+        crate::runner::run_distributed_from_runner_config(discovery, runner_conf, role, bind_addr)
+            .await
+            .map_err(|e| EstimatorError::Distributed(e.to_string()))
+    }
+
+    /// Runs distributed runtime orchestration directly from RunConfig.
+    pub async fn run_distributed_runtime_from_run_config<
+        D: crate::discovery::ServiceDiscoveryAsync + 'static + ?Sized,
+    >(
+        discovery: Arc<D>,
+        run_conf: &crate::run_config::RunConfig,
+        base: Option<crate::run_config::RunnerConfig>,
+        role: crate::runner::Role,
+        bind_addr: std::net::SocketAddr,
+    ) -> EstimatorResult<()> {
+        crate::runner::run_distributed_from_run_config(discovery, run_conf, base, role, bind_addr)
+            .await
+            .map_err(|e| EstimatorError::Distributed(e.to_string()))
     }
 }
 
@@ -461,6 +671,10 @@ impl<M: ModelFn> Estimator<M> {
 mod tests {
     use super::*;
     use crate::hooks::{EarlyStoppingHook, LoggingHook};
+
+    fn test_bind_addr() -> std::net::SocketAddr {
+        std::net::SocketAddr::from(([127, 0, 0, 1], 0))
+    }
 
     #[test]
     fn test_estimator_config() {
@@ -483,10 +697,303 @@ mod tests {
         let model_fn = ConstantModelFn::new(0.5);
         let mut estimator = Estimator::new(config, model_fn);
 
-        let result = estimator.train().unwrap();
+        let result = estimator
+            .train()
+            .expect("estimator training with logging hook should succeed");
         assert_eq!(result.global_step, 10);
         assert!(!result.stopped_early);
         assert!(result.final_metrics.is_some());
+    }
+
+    #[test]
+    fn test_estimator_from_runner_config() {
+        static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = ENV_MUTEX
+            .lock()
+            .expect("estimator runner-config env mutex should not be poisoned");
+        std::env::remove_var("TF_GRPC_WORKER_CACHE_THREADS");
+        std::env::remove_var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER");
+
+        let runner = crate::run_config::RunnerConfig {
+            model_dir: PathBuf::from("/tmp/model_from_runner"),
+            log_step_count_steps: 7,
+            restore_ckpt: Some("model.ckpt-88".to_string()),
+            tf_grpc_worker_cache_threads: Some(11),
+            monolith_grpc_worker_service_handler_multiplier: Some(9),
+            ..crate::run_config::RunnerConfig::default()
+        };
+        let model_fn = ConstantModelFn::new(0.5);
+        let estimator = Estimator::from_runner_config(&runner, model_fn);
+        assert_eq!(estimator.config().model_dir, PathBuf::from("/tmp/model_from_runner"));
+        assert_eq!(estimator.config().log_step_count_steps, 7);
+        assert_eq!(
+            estimator.config().warm_start_from,
+            Some(PathBuf::from("model.ckpt-88"))
+        );
+        assert_eq!(
+            std::env::var("TF_GRPC_WORKER_CACHE_THREADS")
+                .expect("TF_GRPC_WORKER_CACHE_THREADS should be set by runner config"),
+            "11"
+        );
+        assert_eq!(
+            std::env::var("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER")
+                .expect("MONOLITH_GRPC_WORKER_SERVICE_HANDLER_MULTIPLIER should be set by runner config"),
+            "9"
+        );
+    }
+
+    #[test]
+    fn test_estimator_from_runner_config_initialized() {
+        let tmp = tempfile::tempdir().expect("tempdir creation should succeed");
+        let restore_dir = tmp.path().join("restore");
+        let model_dir = tmp.path().join("model");
+        std::fs::create_dir_all(&restore_dir).expect("restore dir creation should succeed");
+        std::fs::create_dir_all(&model_dir).expect("model dir creation should succeed");
+        std::fs::write(
+            restore_dir.join("checkpoint"),
+            r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-30"
+"#,
+        )
+        .expect("checkpoint file write should succeed");
+
+        let runner = crate::run_config::RunnerConfig {
+            is_local: true,
+            model_dir: model_dir.clone(),
+            restore_dir: Some(restore_dir),
+            restore_ckpt: Some("model.ckpt-30".to_string()),
+            ..crate::run_config::RunnerConfig::default()
+        };
+        let (estimator, st) =
+            Estimator::from_runner_config_initialized(&runner, ConstantModelFn::new(0.3))
+                .expect("estimator initialization from runner config should succeed");
+        let st = st.expect("restore state");
+        assert_eq!(
+            std::path::Path::new(&st.model_checkpoint_path)
+                .file_name()
+                .expect("restore checkpoint path should have file name"),
+            "model.ckpt-30"
+        );
+        assert_eq!(estimator.config().model_dir, model_dir);
+        assert!(model_dir.join("restore_ckpt").exists());
+    }
+
+    #[test]
+    fn test_estimator_from_run_config() {
+        let run = crate::run_config::RunConfig {
+            model_dir: PathBuf::from("/tmp/model_from_run"),
+            log_step_count_steps: 13,
+            restore_ckpt: Some("model.ckpt-100".to_string()),
+            ..crate::run_config::RunConfig::default()
+        };
+        let model_fn = ConstantModelFn::new(0.1);
+        let estimator = Estimator::from_run_config(&run, None, model_fn)
+            .expect("estimator construction from run config should succeed");
+        assert_eq!(estimator.config().model_dir, PathBuf::from("/tmp/model_from_run"));
+        assert_eq!(estimator.config().log_step_count_steps, 13);
+        assert_eq!(
+            estimator.config().warm_start_from,
+            Some(PathBuf::from("model.ckpt-100"))
+        );
+    }
+
+    #[test]
+    fn test_initialize_runtime_from_runner_config_restore() {
+        let tmp = tempfile::tempdir().expect("tempdir creation should succeed");
+        let restore_dir = tmp.path().join("restore");
+        let model_dir = tmp.path().join("model");
+        std::fs::create_dir_all(&restore_dir).expect("restore dir creation should succeed");
+        std::fs::create_dir_all(&model_dir).expect("model dir creation should succeed");
+        std::fs::write(
+            restore_dir.join("checkpoint"),
+            r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-30"
+"#,
+        )
+        .expect("checkpoint file write should succeed");
+
+        let runner = crate::run_config::RunnerConfig {
+            is_local: true,
+            model_dir: model_dir.clone(),
+            restore_dir: Some(restore_dir),
+            restore_ckpt: Some("model.ckpt-30".to_string()),
+            ..crate::run_config::RunnerConfig::default()
+        };
+
+        let st = Estimator::<ConstantModelFn>::initialize_runtime_from_runner_config(&runner)
+            .expect("runtime initialization from runner config should succeed")
+            .expect("restore runtime state should be present");
+        assert_eq!(
+            std::path::Path::new(&st.model_checkpoint_path)
+                .file_name()
+                .expect("restore checkpoint path should have file name"),
+            "model.ckpt-30"
+        );
+        assert!(model_dir.join("restore_ckpt").exists());
+        assert!(model_dir.join("monolith_checkpoint").exists());
+    }
+
+    #[test]
+    fn test_estimator_from_run_config_initialized() {
+        let tmp = tempfile::tempdir().expect("tempdir creation should succeed");
+        let restore_dir = tmp.path().join("restore");
+        let model_dir = tmp.path().join("model");
+        std::fs::create_dir_all(&restore_dir).expect("restore dir creation should succeed");
+        std::fs::create_dir_all(&model_dir).expect("model dir creation should succeed");
+        std::fs::write(
+            restore_dir.join("checkpoint"),
+            r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-30"
+"#,
+        )
+        .expect("checkpoint file write should succeed");
+
+        let run = crate::run_config::RunConfig {
+            is_local: true,
+            model_dir: model_dir.clone(),
+            restore_dir: Some(restore_dir),
+            restore_ckpt: Some("model.ckpt-30".to_string()),
+            ..crate::run_config::RunConfig::default()
+        };
+        let (estimator, st) =
+            Estimator::from_run_config_initialized(&run, None, ConstantModelFn::new(0.3))
+                .expect("estimator initialization from run config should succeed");
+        let st = st.expect("restore state");
+        assert_eq!(
+            std::path::Path::new(&st.model_checkpoint_path)
+                .file_name()
+                .expect("restore checkpoint path should have file name"),
+            "model.ckpt-30"
+        );
+        assert_eq!(estimator.config().model_dir, model_dir);
+    }
+
+    #[test]
+    fn test_initialize_runtime_from_run_config_restore() {
+        let tmp = tempfile::tempdir().expect("tempdir creation should succeed");
+        let restore_dir = tmp.path().join("restore");
+        let model_dir = tmp.path().join("model");
+        std::fs::create_dir_all(&restore_dir).expect("restore dir creation should succeed");
+        std::fs::create_dir_all(&model_dir).expect("model dir creation should succeed");
+        std::fs::write(
+            restore_dir.join("checkpoint"),
+            r#"
+model_checkpoint_path: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-61"
+all_model_checkpoint_paths: "model.ckpt-30"
+"#,
+        )
+        .expect("checkpoint file write should succeed");
+
+        let run = crate::run_config::RunConfig {
+            is_local: true,
+            model_dir: model_dir.clone(),
+            restore_dir: Some(restore_dir),
+            restore_ckpt: Some("model.ckpt-30".to_string()),
+            ..crate::run_config::RunConfig::default()
+        };
+        let st =
+            Estimator::<ConstantModelFn>::initialize_runtime_from_run_config(&run, None)
+                .expect("runtime initialization from run config should succeed")
+                .expect("restore runtime state should be present");
+        assert_eq!(
+            std::path::Path::new(&st.model_checkpoint_path)
+                .file_name()
+                .expect("restore checkpoint path should have file name"),
+            "model.ckpt-30"
+        );
+        assert!(model_dir.join("restore_ckpt").exists());
+        assert!(model_dir.join("monolith_checkpoint").exists());
+    }
+
+    #[tokio::test]
+    async fn test_estimator_run_distributed_runtime_smoke() {
+        use crate::discovery::InMemoryDiscovery;
+        use crate::run_config::RunnerConfig;
+        use crate::runner::Role;
+
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let ps_runner = RunnerConfig {
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            ..RunnerConfig::default()
+        };
+        let worker_runner = RunnerConfig {
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            ..RunnerConfig::default()
+        };
+
+        let discovery_bg = Arc::clone(&discovery);
+        let ps_runner_bg = ps_runner.clone();
+        let ps_task = tokio::spawn(async move {
+            Estimator::<ConstantModelFn>::run_distributed_runtime(
+                discovery_bg,
+                &ps_runner_bg,
+                Role::Ps,
+                test_bind_addr(),
+            )
+            .await
+        });
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        Estimator::<ConstantModelFn>::run_distributed_runtime(
+            Arc::clone(&discovery),
+            &worker_runner,
+            Role::Worker,
+            test_bind_addr(),
+        )
+        .await
+        .expect("worker should succeed when PS runtime is active");
+        ps_task.abort();
+    }
+
+    #[tokio::test]
+    async fn test_estimator_run_distributed_runtime_from_run_config_smoke() {
+        use crate::discovery::InMemoryDiscovery;
+        use crate::run_config::RunConfig;
+        use crate::runner::Role;
+
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let run = RunConfig {
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            ..RunConfig::default()
+        };
+
+        let discovery_bg = Arc::clone(&discovery);
+        let run_bg = run.clone();
+        let ps_task = tokio::spawn(async move {
+            Estimator::<ConstantModelFn>::run_distributed_runtime_from_run_config(
+                discovery_bg,
+                &run_bg,
+                None,
+                Role::Ps,
+                test_bind_addr(),
+            )
+            .await
+        });
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        Estimator::<ConstantModelFn>::run_distributed_runtime_from_run_config(
+            Arc::clone(&discovery),
+            &run,
+            None,
+            Role::Worker,
+            test_bind_addr(),
+        )
+        .await
+        .expect("worker should succeed when PS runtime from run-config is active");
+        ps_task.abort();
     }
 
     #[test]
@@ -498,7 +1005,9 @@ mod tests {
 
         estimator.add_hook(LoggingHook::new(10));
 
-        let result = estimator.train().unwrap();
+        let result = estimator
+            .train()
+            .expect("estimator training with early stopping hook should succeed");
         assert_eq!(result.global_step, 100);
     }
 
@@ -512,7 +1021,9 @@ mod tests {
         // Will stop after 5 steps with no improvement
         estimator.add_hook(EarlyStoppingHook::new("loss", 5, 0.001));
 
-        let result = estimator.train().unwrap();
+        let result = estimator
+            .train()
+            .expect("estimator training with early stopping should succeed");
         assert!(result.stopped_early);
         assert!(result.global_step < 1000);
     }
@@ -524,8 +1035,69 @@ mod tests {
         let model_fn = ConstantModelFn::new(0.5);
         let mut estimator = Estimator::new(config, model_fn);
 
-        let result = estimator.evaluate().unwrap();
+        let result = estimator
+            .evaluate()
+            .expect("estimator evaluation should succeed");
         assert_eq!(result.eval_steps, 10);
+        assert!((result.metrics.loss - 0.5).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_estimator_train_with_limits_relative_steps() {
+        let config = EstimatorConfig::new(PathBuf::from("/tmp/model"));
+        let model_fn = ConstantModelFn::new(0.5);
+        let mut estimator = Estimator::new(config, model_fn);
+
+        let r1 = estimator
+            .train_with_limits(Some(3), None)
+            .expect("relative-limits training step 1 should succeed");
+        assert_eq!(r1.global_step, 3);
+        let r2 = estimator
+            .train_with_limits(Some(2), None)
+            .expect("relative-limits training step 2 should succeed");
+        assert_eq!(r2.global_step, 5);
+    }
+
+    #[test]
+    fn test_estimator_train_with_limits_max_steps_absolute() {
+        let config = EstimatorConfig::new(PathBuf::from("/tmp/model"));
+        let model_fn = ConstantModelFn::new(0.5);
+        let mut estimator = Estimator::new(config, model_fn);
+
+        estimator
+            .train_with_limits(Some(5), None)
+            .expect("warmup training before max-steps cap should succeed");
+        let r = estimator
+            .train_with_limits(None, Some(7))
+            .expect("max-steps absolute training cap should succeed");
+        assert_eq!(r.global_step, 7);
+    }
+
+    #[test]
+    fn test_estimator_train_with_limits_steps_and_max_steps() {
+        let config = EstimatorConfig::new(PathBuf::from("/tmp/model"));
+        let model_fn = ConstantModelFn::new(0.5);
+        let mut estimator = Estimator::new(config, model_fn);
+
+        estimator
+            .train_with_limits(Some(5), None)
+            .expect("warmup training before combined limits should succeed");
+        let r = estimator
+            .train_with_limits(Some(10), Some(12))
+            .expect("combined steps/max-steps training should succeed");
+        assert_eq!(r.global_step, 12);
+    }
+
+    #[test]
+    fn test_estimator_evaluate_with_steps_override() {
+        let config = EstimatorConfig::new(PathBuf::from("/tmp/model")).with_eval_steps(10);
+        let model_fn = ConstantModelFn::new(0.5);
+        let mut estimator = Estimator::new(config, model_fn);
+
+        let result = estimator
+            .evaluate_with_steps(Some(3))
+            .expect("evaluation with explicit step override should succeed");
+        assert_eq!(result.eval_steps, 3);
         assert!((result.metrics.loss - 0.5).abs() < 1e-10);
     }
 
@@ -535,8 +1107,82 @@ mod tests {
         let model_fn = ConstantModelFn::new(0.5);
         let mut estimator = Estimator::new(config, model_fn);
 
-        let result = estimator.predict(5).unwrap();
+        let result = estimator
+            .predict(5)
+            .expect("prediction with explicit example count should succeed");
         assert_eq!(result.num_examples, 5);
         assert_eq!(result.predictions.len(), 5);
+    }
+
+    #[test]
+    fn test_estimator_spec_defaults() {
+        let spec = EstimatorSpec::new(EstimatorMode::Predict, None, vec![1.0, 2.0]);
+        assert_eq!(spec.head_name, None);
+        assert_eq!(spec.loss, None);
+        assert_eq!(spec.optimizer, None);
+        assert!(spec.classification);
+    }
+
+    #[test]
+    fn test_estimator_spec_replace_same_mode_allowed() {
+        let spec = EstimatorSpec::new(EstimatorMode::Train, Some("l".to_string()), vec![1.0]);
+        let next = spec
+            .replace(EstimatorSpecUpdate {
+                mode: Some(EstimatorMode::Train),
+                loss: Some(Some(0.5)),
+                classification: Some(false),
+                ..EstimatorSpecUpdate::default()
+            })
+            .expect("estimator spec replace with same mode should succeed");
+        assert_eq!(next.loss, Some(0.5));
+        assert!(!next.classification);
+    }
+
+    #[test]
+    fn test_estimator_spec_replace_mode_change_rejected() {
+        let spec = EstimatorSpec::new(EstimatorMode::Train, None, vec![]);
+        let err = spec
+            .replace(EstimatorSpecUpdate {
+                mode: Some(EstimatorMode::Eval),
+                ..EstimatorSpecUpdate::default()
+            })
+            .expect_err("changing estimator spec mode should be rejected");
+        assert!(matches!(
+            err,
+            EstimatorError::SpecModeChange {
+                current: EstimatorMode::Train,
+                requested: EstimatorMode::Eval
+            }
+        ));
+    }
+
+    struct InputAwareModelFn;
+
+    impl ModelFn for InputAwareModelFn {
+        fn call(&self, mode: EstimatorMode) -> EstimatorResult<f64> {
+            match mode {
+                EstimatorMode::Train | EstimatorMode::Eval => Ok(0.1),
+                EstimatorMode::Predict => Ok(0.0),
+            }
+        }
+
+        fn predict(&self, features: &[f32]) -> EstimatorResult<Vec<f32>> {
+            let sum = features.iter().copied().sum::<f32>();
+            Ok(vec![sum, features.len() as f32])
+        }
+    }
+
+    #[test]
+    fn test_estimator_predict_with_inputs() {
+        let config = EstimatorConfig::new(PathBuf::from("/tmp/model"));
+        let model_fn = InputAwareModelFn;
+        let mut estimator = Estimator::new(config, model_fn);
+
+        let inputs = vec![vec![1.0, 2.0, 3.0], vec![4.0]];
+        let result = estimator
+            .predict_with_inputs(&inputs)
+            .expect("prediction with explicit input batches should succeed");
+        assert_eq!(result.num_examples, 2);
+        assert_eq!(result.predictions, vec![vec![6.0, 3.0], vec![4.0, 1.0]]);
     }
 }

@@ -208,7 +208,7 @@ mod tests {
             learning_rate: 0.01,
         };
         let result = Adagrad::new(config);
-        assert!(result.is_err());
+        result.expect_err("Adagrad constructor should fail when config variant is not Adagrad");
     }
 
     #[test]

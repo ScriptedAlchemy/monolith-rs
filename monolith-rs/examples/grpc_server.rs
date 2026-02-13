@@ -509,10 +509,7 @@ mod tests {
 
     #[test]
     fn test_create_demo_model() {
-        let result = create_demo_model();
-        assert!(result.is_ok());
-
-        let path = result.unwrap();
+        let path = create_demo_model().expect("demo model creation should succeed");
         assert!(path.exists());
         assert!(path.join("metadata.json").exists());
         assert!(path.join("slot_config.json").exists());
@@ -627,8 +624,10 @@ mod tests {
         // Load model
         let config = ModelLoaderConfig::default();
         let loader = ModelLoader::new(config);
-        let result = loader.load(&model_path).await;
-        assert!(result.is_ok());
+        loader
+            .load(&model_path)
+            .await
+            .expect("model loader should load generated demo model");
         assert!(loader.is_ready());
 
         // Cleanup

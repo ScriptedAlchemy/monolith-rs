@@ -571,7 +571,7 @@ impl SENetLayer {
         let merged = if used_3d {
             match self.out_type {
                 MergeType::Concat => {
-                    merge_tensor_list_tensor(vec![output], MergeType::Concat, None, 1)
+                    merge_tensor_list_tensor(vec![output], MergeType::Concat, None, 1)?
                 }
                 MergeType::Stack => output,
                 MergeType::None => {
@@ -680,7 +680,7 @@ impl SENetLayer {
             Some(inputs.len()),
             1,
             self.keep_list,
-        ))
+        )?)
     }
 
     /// Backward pass for list inputs (expects gradients for each output).
@@ -833,7 +833,7 @@ impl Layer for SENetLayer {
                     MergeType::Concat,
                     None,
                     1,
-                )),
+                )?),
                 MergeType::Stack => Ok(output),
                 MergeType::None => Err(LayerError::ForwardError {
                     message: "SENet forward cannot return list when out_type is None".to_string(),
@@ -1024,14 +1024,16 @@ mod tests {
             reduction_ratio: 0,
             ..SENetConfig::new(64)
         };
-        assert!(SENetLayer::from_config(config).is_err());
+        SENetLayer::from_config(config)
+            .expect_err("SENet config with zero reduction ratio should fail");
 
         // Test bottleneck dimension becoming 0
         let config = SENetConfig {
             reduction_ratio: 8,
             ..SENetConfig::new(4)
         };
-        assert!(SENetLayer::from_config(config).is_err());
+        SENetLayer::from_config(config)
+            .expect_err("SENet config producing zero bottleneck dimension should fail");
     }
 
     #[test]
@@ -1061,7 +1063,7 @@ mod tests {
         let input = Tensor::rand(&[8, 32]); // Wrong input dimension
 
         let result = senet.forward(&input);
-        assert!(result.is_err());
+        result.expect_err("SENet forward should fail for mismatched input dimension");
     }
 
     #[test]
@@ -1070,7 +1072,7 @@ mod tests {
         let input = Tensor::rand(&[8, 4, 64]); // 3D instead of 2D
 
         let result = senet.forward(&input);
-        assert!(result.is_err());
+        result.expect_err("SENet forward should fail for non-2D inputs");
     }
 
     #[test]
@@ -1136,7 +1138,7 @@ mod tests {
         let grad = Tensor::ones(&[4, 32]);
 
         let result = senet.backward(&grad);
-        assert!(result.is_err());
+        result.expect_err("SENet backward should fail when no forward cache exists");
     }
 
     #[test]

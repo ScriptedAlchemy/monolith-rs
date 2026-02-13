@@ -4,6 +4,8 @@
 //! such as logging, checkpointing, and early stopping.
 
 use crate::metrics::Metrics;
+use serde_json::json;
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
 use thiserror::Error;
@@ -197,6 +199,8 @@ pub struct CheckpointHook {
     save_every_n_steps: u64,
     /// Maximum number of checkpoints to keep.
     max_to_keep: usize,
+    /// Ordered list of saved checkpoint paths (oldest -> newest).
+    saved_paths: VecDeque<PathBuf>,
     /// Checkpoint function (stub for now).
     checkpoint_fn: Option<Arc<dyn Fn(&PathBuf, u64) -> HookResult<()> + Send + Sync>>,
 }
@@ -224,6 +228,7 @@ impl CheckpointHook {
             model_dir,
             save_every_n_steps: save_every_n_steps.max(1),
             max_to_keep: 5,
+            saved_paths: VecDeque::new(),
             checkpoint_fn: None,
         }
     }
@@ -244,19 +249,44 @@ impl CheckpointHook {
     }
 
     fn save_checkpoint(&self, step: u64) -> HookResult<()> {
-        let checkpoint_path = self.model_dir.join(format!("checkpoint-{}", step));
+        let checkpoint_path = self.model_dir.join(format!("checkpoint-{}.json", step));
 
         if let Some(ref f) = self.checkpoint_fn {
             f(&checkpoint_path, step)?;
         } else {
-            // Stub implementation: just log that we would save
+            std::fs::create_dir_all(&self.model_dir)?;
+            let payload = json!({
+                "step": step,
+                "format": "monolith_training::hooks::CheckpointHook",
+            });
+            std::fs::write(&checkpoint_path, payload.to_string())?;
             debug!(
-                "Would save checkpoint to {:?} at step {}",
+                "Saved default checkpoint payload to {:?} at step {}",
                 checkpoint_path, step
             );
         }
 
         info!("Saved checkpoint at step {} to {:?}", step, checkpoint_path);
+        Ok(())
+    }
+
+    fn prune_old_checkpoints(&mut self) -> HookResult<()> {
+        // `max_to_keep = 0` means "keep all checkpoints".
+        if self.max_to_keep == 0 {
+            return Ok(());
+        }
+
+        while self.saved_paths.len() > self.max_to_keep {
+            if let Some(path) = self.saved_paths.pop_front() {
+                match std::fs::remove_file(&path) {
+                    Ok(()) => {
+                        info!("Removed old checkpoint {:?}", path);
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => return Err(HookError::Io(e)),
+                }
+            }
+        }
         Ok(())
     }
 }
@@ -269,13 +299,19 @@ impl Hook for CheckpointHook {
     fn after_step(&mut self, step: u64, _metrics: &Metrics) -> HookResult<HookAction> {
         if step > 0 && step % self.save_every_n_steps == 0 {
             self.save_checkpoint(step)?;
+            self.saved_paths
+                .push_back(self.model_dir.join(format!("checkpoint-{}.json", step)));
+            self.prune_old_checkpoints()?;
         }
         Ok(HookAction::Continue)
     }
 
     fn end(&mut self, step: u64, _metrics: Option<&Metrics>) -> HookResult<()> {
         // Always save a final checkpoint
-        self.save_checkpoint(step)
+        self.save_checkpoint(step)?;
+        self.saved_paths
+            .push_back(self.model_dir.join(format!("checkpoint-{}.json", step)));
+        self.prune_old_checkpoints()
     }
 }
 
@@ -455,31 +491,53 @@ impl HookList {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::tempdir;
 
     #[test]
     fn test_logging_hook() {
         let mut hook = LoggingHook::new(10);
         let metrics = Metrics::new(0.5, 0);
 
-        assert!(hook.before_step(0).is_ok());
-        assert_eq!(hook.after_step(0, &metrics).unwrap(), HookAction::Continue);
-        assert_eq!(hook.after_step(5, &metrics).unwrap(), HookAction::Continue);
-        assert_eq!(hook.after_step(10, &metrics).unwrap(), HookAction::Continue);
+        hook.before_step(0)
+            .expect("logging hook before_step should succeed");
+        assert_eq!(
+            hook.after_step(0, &metrics)
+                .expect("logging hook after_step at step 0 should succeed"),
+            HookAction::Continue
+        );
+        assert_eq!(
+            hook.after_step(5, &metrics)
+                .expect("logging hook after_step at step 5 should succeed"),
+            HookAction::Continue
+        );
+        assert_eq!(
+            hook.after_step(10, &metrics)
+                .expect("logging hook after_step at step 10 should succeed"),
+            HookAction::Continue
+        );
     }
 
     #[test]
     fn test_checkpoint_hook() {
-        let mut hook = CheckpointHook::new(PathBuf::from("/tmp/test"), 100);
+        let dir = tempdir().expect("tempdir creation should succeed");
+        let mut hook = CheckpointHook::new(dir.path().to_path_buf(), 100);
         let metrics = Metrics::new(0.5, 0);
 
         // Should not checkpoint at step 50
-        assert_eq!(hook.after_step(50, &metrics).unwrap(), HookAction::Continue);
+        assert_eq!(
+            hook.after_step(50, &metrics)
+                .expect("checkpoint hook after_step at step 50 should succeed"),
+            HookAction::Continue
+        );
+        assert!(!dir.path().join("checkpoint-50.json").exists());
 
         // Should checkpoint at step 100
         assert_eq!(
-            hook.after_step(100, &metrics).unwrap(),
+            hook.after_step(100, &metrics)
+                .expect("checkpoint hook after_step at step 100 should succeed"),
             HookAction::Continue
         );
+        assert!(dir.path().join("checkpoint-100.json").exists());
     }
 
     #[test]
@@ -488,12 +546,20 @@ mod tests {
 
         // First step establishes baseline
         let metrics = Metrics::new(1.0, 0);
-        assert_eq!(hook.after_step(0, &metrics).unwrap(), HookAction::Continue);
+        assert_eq!(
+            hook.after_step(0, &metrics)
+                .expect("early stopping hook baseline update should succeed"),
+            HookAction::Continue
+        );
         assert_eq!(hook.best_value, Some(1.0));
 
         // Improvement
         let metrics = Metrics::new(0.5, 1);
-        assert_eq!(hook.after_step(1, &metrics).unwrap(), HookAction::Continue);
+        assert_eq!(
+            hook.after_step(1, &metrics)
+                .expect("early stopping hook improvement update should succeed"),
+            HookAction::Continue
+        );
         assert_eq!(hook.best_value, Some(0.5));
         assert_eq!(hook.steps_without_improvement, 0);
     }
@@ -503,32 +569,65 @@ mod tests {
         let mut hook = EarlyStoppingHook::new("loss", 3, 0.01);
 
         // Establish baseline
-        hook.after_step(0, &Metrics::new(0.5, 0)).unwrap();
+        hook.after_step(0, &Metrics::new(0.5, 0))
+            .expect("early stopping hook baseline update should succeed");
 
         // No improvement for 3 steps
         assert_eq!(
-            hook.after_step(1, &Metrics::new(0.5, 1)).unwrap(),
+            hook.after_step(1, &Metrics::new(0.5, 1))
+                .expect("early stopping hook step 1 update should succeed"),
             HookAction::Continue
         );
         assert_eq!(
-            hook.after_step(2, &Metrics::new(0.5, 2)).unwrap(),
+            hook.after_step(2, &Metrics::new(0.5, 2))
+                .expect("early stopping hook step 2 update should succeed"),
             HookAction::Continue
         );
         assert_eq!(
-            hook.after_step(3, &Metrics::new(0.5, 3)).unwrap(),
+            hook.after_step(3, &Metrics::new(0.5, 3))
+                .expect("early stopping hook step 3 update should succeed"),
             HookAction::Stop
         );
     }
 
     #[test]
     fn test_hook_list() {
+        let dir = tempdir().expect("tempdir creation should succeed");
         let mut hooks = HookList::new();
         hooks.add(LoggingHook::new(10));
-        hooks.add(CheckpointHook::new(PathBuf::from("/tmp"), 100));
+        hooks.add(CheckpointHook::new(dir.path().to_path_buf(), 100));
 
         let metrics = Metrics::new(0.5, 0);
-        assert!(hooks.before_step(0).is_ok());
-        assert_eq!(hooks.after_step(0, &metrics).unwrap(), HookAction::Continue);
-        assert!(hooks.end(100, Some(&metrics)).is_ok());
+        hooks
+            .before_step(0)
+            .expect("hook list before_step should succeed");
+        assert_eq!(
+            hooks
+                .after_step(0, &metrics)
+                .expect("hook list after_step should succeed"),
+            HookAction::Continue
+        );
+        hooks
+            .end(100, Some(&metrics))
+            .expect("hook list end should succeed");
+        assert!(dir.path().join("checkpoint-100.json").exists());
+    }
+
+    #[test]
+    fn test_checkpoint_hook_max_to_keep() {
+        let dir = tempdir().expect("tempdir creation should succeed");
+        let mut hook = CheckpointHook::new(dir.path().to_path_buf(), 1).with_max_to_keep(2);
+        let metrics = Metrics::new(0.5, 0);
+
+        hook.after_step(1, &metrics)
+            .expect("checkpoint hook step 1 should succeed");
+        hook.after_step(2, &metrics)
+            .expect("checkpoint hook step 2 should succeed");
+        hook.after_step(3, &metrics)
+            .expect("checkpoint hook step 3 should succeed");
+
+        assert!(!dir.path().join("checkpoint-1.json").exists());
+        assert!(dir.path().join("checkpoint-2.json").exists());
+        assert!(dir.path().join("checkpoint-3.json").exists());
     }
 }

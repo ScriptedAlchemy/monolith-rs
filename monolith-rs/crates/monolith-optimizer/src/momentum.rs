@@ -274,7 +274,7 @@ mod tests {
             learning_rate: 0.01,
         };
         let result = Momentum::new(config);
-        assert!(result.is_err());
+        result.expect_err("Momentum constructor should fail when config variant is not Momentum");
     }
 
     #[test]

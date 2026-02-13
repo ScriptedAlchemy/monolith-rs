@@ -392,8 +392,12 @@ mod tests {
     fn test_multi_get_shard() {
         let table = MultiHashTable::new(4, 256, 2);
 
-        assert!(table.get_shard(0).is_ok());
-        assert!(table.get_shard(3).is_ok());
+        table
+            .get_shard(0)
+            .expect("shard index 0 should be valid");
+        table
+            .get_shard(3)
+            .expect("shard index 3 should be valid");
         assert!(matches!(
             table.get_shard(4),
             Err(HashTableError::InvalidShardIndex {

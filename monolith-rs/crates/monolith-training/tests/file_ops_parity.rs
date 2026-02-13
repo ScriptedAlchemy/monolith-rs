@@ -1,0 +1,80 @@
+use monolith_data::TFRecordReader;
+use monolith_proto::monolith::hash_table::EntryDump;
+use monolith_training::WritableFile;
+use prost::Message;
+use std::fs::File;
+use std::io::{BufReader, ErrorKind};
+
+#[test]
+fn test_writable_file_append_entry_dump_tfrecord_roundtrip() {
+    let tmp = tempfile::tempdir().expect("tempdir creation should succeed");
+    let path = tmp.path().join("entry_dump.tfrecord");
+
+    let f = WritableFile::new(&path).expect("WritableFile::new should succeed");
+    f.append_entry_dump(
+        &[101, 202],
+        &[0.1, 0.2],
+        &[
+            1.0, 2.0, 3.0, // first embedding
+            4.0, 5.0, 6.0, // second embedding
+        ],
+    )
+    .expect("append_entry_dump should succeed");
+    f.close().expect("WritableFile close should succeed");
+
+    let mut reader = TFRecordReader::new(
+        BufReader::new(File::open(&path).expect("opening tfrecord should succeed")),
+        true,
+    );
+    let r1 = reader
+        .read_record()
+        .expect("reading first tfrecord should succeed")
+        .expect("first record");
+    let r2 = reader
+        .read_record()
+        .expect("reading second tfrecord should succeed")
+        .expect("second record");
+    assert!(
+        reader
+            .read_record()
+            .expect("reading end-of-file tfrecord should succeed")
+            .is_none()
+    );
+
+    let d1 = EntryDump::decode(r1.as_ref()).expect("first EntryDump decode should succeed");
+    let d2 = EntryDump::decode(r2.as_ref()).expect("second EntryDump decode should succeed");
+
+    assert_eq!(d1.id, Some(101));
+    assert_eq!(d1.num, vec![0.1, 1.0, 2.0, 3.0]);
+    assert_eq!(d2.id, Some(202));
+    assert_eq!(d2.num, vec![0.2, 4.0, 5.0, 6.0]);
+}
+
+#[test]
+fn test_writable_file_append_entry_dump_validates_shapes() {
+    let tmp = tempfile::tempdir().expect("tempdir creation should succeed");
+    let path = tmp.path().join("invalid_shape.tfrecord");
+    let f = WritableFile::new(&path).expect("WritableFile::new should succeed");
+
+    let err = f
+        .append_entry_dump(&[1, 2], &[0.1], &[1.0, 2.0])
+        .expect_err("append_entry_dump should reject ids/freqs length mismatches");
+    assert_eq!(err.kind(), ErrorKind::InvalidInput);
+
+    let err = f
+        .append_entry_dump(&[1, 2], &[0.1, 0.2], &[1.0, 2.0, 3.0])
+        .expect_err("append_entry_dump should reject invalid embedding shape");
+    assert_eq!(err.kind(), ErrorKind::InvalidInput);
+}
+
+#[test]
+fn test_writable_file_append_after_close_fails() {
+    let tmp = tempfile::tempdir().expect("tempdir creation should succeed");
+    let path = tmp.path().join("closed.txt");
+    let f = WritableFile::new(&path).expect("WritableFile::new should succeed");
+    f.close().expect("WritableFile close should succeed");
+    let err = f
+        .append("x")
+        .expect_err("append should fail after writable file has been closed");
+    assert_eq!(err.kind(), ErrorKind::BrokenPipe);
+}

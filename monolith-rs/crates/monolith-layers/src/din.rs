@@ -906,19 +906,27 @@ mod tests {
     fn test_din_config_validation() {
         // Valid config
         let config = DINConfig::new(32);
-        assert!(config.validate().is_ok());
+        config
+            .validate()
+            .expect("default DIN config should pass validation");
 
         // Invalid: zero embedding dim
         let config = DINConfig::new(0);
-        assert!(config.validate().is_err());
+        config
+            .validate()
+            .expect_err("DIN config with zero embedding dimension should fail validation");
 
         // Invalid: empty hidden units
         let config = DINConfig::new(32).with_attention_hidden_units(vec![]);
-        assert!(config.validate().is_err());
+        config
+            .validate()
+            .expect_err("DIN config with empty hidden units should fail validation");
 
         // Invalid: zero hidden layer
         let config = DINConfig::new(32).with_attention_hidden_units(vec![64, 0]);
-        assert!(config.validate().is_err());
+        config
+            .validate()
+            .expect_err("DIN config with zero hidden layer width should fail validation");
     }
 
     #[test]
@@ -1055,7 +1063,7 @@ mod tests {
         let keys = Tensor::rand(&[2, 5, 8]);
 
         let result = din.forward_attention(&query, &keys, &keys, None);
-        assert!(result.is_err());
+        result.expect_err("DIN attention should fail when query is not rank-2");
     }
 
     #[test]
@@ -1066,7 +1074,7 @@ mod tests {
         let keys = Tensor::rand(&[2, 8]); // 2D instead of 3D
 
         let result = din.forward_attention(&query, &keys, &keys, None);
-        assert!(result.is_err());
+        result.expect_err("DIN attention should fail when keys are not rank-3");
     }
 
     #[test]
@@ -1077,7 +1085,7 @@ mod tests {
         let keys = Tensor::rand(&[2, 5, 8]);
 
         let result = din.forward_attention(&query, &keys, &keys, None);
-        assert!(result.is_err());
+        result.expect_err("DIN attention should fail when query embedding dim mismatches");
     }
 
     #[test]
@@ -1088,7 +1096,7 @@ mod tests {
         let keys = Tensor::rand(&[3, 5, 8]); // Different batch size
 
         let result = din.forward_attention(&query, &keys, &keys, None);
-        assert!(result.is_err());
+        result.expect_err("DIN attention should fail when batch sizes differ");
     }
 
     #[test]
@@ -1100,7 +1108,7 @@ mod tests {
         let mask = Tensor::ones(&[2, 3]); // Wrong seq_len
 
         let result = din.forward_attention(&query, &keys, &keys, Some(&mask));
-        assert!(result.is_err());
+        result.expect_err("DIN attention should fail when mask shape mismatches sequence");
     }
 
     #[test]
@@ -1151,7 +1159,7 @@ mod tests {
 
         let grad = Tensor::ones(&[2, 8]);
         let result = din.backward(&grad);
-        assert!(result.is_err());
+        result.expect_err("DIN backward should fail when no forward cache exists");
     }
 
     #[test]

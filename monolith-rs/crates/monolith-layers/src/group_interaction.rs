@@ -823,7 +823,7 @@ mod tests {
 
         let input = Tensor::rand(&[2, 20]); // Wrong dimension
         let result = layer.forward(&input);
-        assert!(result.is_err());
+        result.expect_err("group interaction forward should fail for invalid input width");
     }
 
     #[test]
@@ -911,7 +911,7 @@ mod tests {
         // After clearing, backward should fail
         let grad = Tensor::ones(&[2, layer.output_dim()]);
         let result = layer.backward(&grad);
-        assert!(result.is_err());
+        result.expect_err("group interaction backward should fail after cache clear");
     }
 
     #[test]

@@ -31,14 +31,15 @@
 //! client.apply_gradients("user_embeddings", &[1, 2, 1], &gradients, 32, 0.01).await?;
 //! ```
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use futures::future::{join_all, try_join_all};
 use parking_lot::RwLock;
 use thiserror::Error;
-use tokio::sync::Barrier as TokioBarrier;
+use tokio::sync::{Mutex as TokioMutex, Notify};
 use tonic::{Request, Response, Status};
 
 use crate::parameter_sync_replicator::DirtyTracker;
@@ -46,6 +47,7 @@ use monolith_hash_table::{CuckooEmbeddingHashTable, EmbeddingHashTable, ZerosIni
 
 // Import generated proto types
 use monolith_proto::monolith::ps_training::{
+    BatchApplyGradientsRequest, BatchApplyGradientsResponse, BatchLookupRequest, BatchLookupResponse,
     parameter_server_training_client::ParameterServerTrainingClient,
     parameter_server_training_server::{ParameterServerTraining, ParameterServerTrainingServer},
     ApplyGradientsRequest, ApplyGradientsResponse, BarrierRequest, BarrierResponse,
@@ -160,10 +162,17 @@ impl EmbeddingTable {
                 for (i, &fid) in fids.iter().enumerate() {
                     if table.contains(fid) {
                         let mut tmp = vec![0.0f32; self.dim_size];
-                        if table.lookup(&[fid], &mut tmp).is_ok() {
-                            let start = i * self.dim_size;
-                            out[start..start + self.dim_size].copy_from_slice(&tmp);
-                            found[i] = true;
+                        match table.lookup(&[fid], &mut tmp) {
+                            Ok(()) => {
+                                let start = i * self.dim_size;
+                                out[start..start + self.dim_size].copy_from_slice(&tmp);
+                                found[i] = true;
+                            }
+                            Err(e) => {
+                                tracing::error!(
+                                    "lookup failed for fid {fid} during partial-found fallback: {e}"
+                                );
+                            }
                         }
                     }
                 }
@@ -195,8 +204,15 @@ impl EmbeddingTable {
                 let start = i * self.dim_size;
                 let end = start + self.dim_size;
                 let grad = &gradients[start..end];
-                if table.apply_gradients(&[fid], grad).is_ok() {
-                    num_updated += 1;
+                match table.apply_gradients(&[fid], grad) {
+                    Ok(()) => {
+                        num_updated += 1;
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "apply_gradients failed for fid {fid} during per-id fallback: {e}"
+                        );
+                    }
                 }
             } else {
                 num_not_found += 1;
@@ -220,9 +236,14 @@ impl EmbeddingTable {
         for &fid in fids {
             if table.contains(fid) {
                 let mut tmp = vec![0.0f32; self.dim_size];
-                if table.lookup(&[fid], &mut tmp).is_ok() {
-                    found_fids.push(fid);
-                    flat.extend_from_slice(&tmp);
+                match table.lookup(&[fid], &mut tmp) {
+                    Ok(()) => {
+                        found_fids.push(fid);
+                        flat.extend_from_slice(&tmp);
+                    }
+                    Err(e) => {
+                        tracing::error!("lookup failed for fid {fid} during export_embeddings: {e}");
+                    }
                 }
             }
         }
@@ -274,6 +295,9 @@ pub struct PsServer {
     /// Request counters.
     lookup_count: AtomicI64,
     apply_count: AtomicI64,
+    /// Aggregate request latencies in microseconds.
+    lookup_latency_us_total: AtomicI64,
+    apply_latency_us_total: AtomicI64,
     /// Barrier state for synchronization.
     barriers: RwLock<HashMap<String, Arc<BarrierState>>>,
     /// Optional dirty tracker for ParameterSync replication.
@@ -309,7 +333,13 @@ pub async fn serve_ps(
 struct BarrierState {
     num_workers: i32,
     arrived: AtomicI64,
-    barrier: TokioBarrier,
+    state: TokioMutex<BarrierRoundState>,
+    notify: Notify,
+}
+
+struct BarrierRoundState {
+    generation: u64,
+    arrived_workers: HashSet<i32>,
 }
 
 impl PsServer {
@@ -322,6 +352,8 @@ impl PsServer {
             start_time: Instant::now(),
             lookup_count: AtomicI64::new(0),
             apply_count: AtomicI64::new(0),
+            lookup_latency_us_total: AtomicI64::new(0),
+            apply_latency_us_total: AtomicI64::new(0),
             barriers: RwLock::new(HashMap::new()),
             dirty_tracker: RwLock::new(None),
         })
@@ -371,6 +403,7 @@ impl ParameterServerTraining for PsServerHandle {
         &self,
         request: Request<LookupRequest>,
     ) -> Result<Response<LookupResponse>, Status> {
+        let started = Instant::now();
         let req = request.into_inner();
         let dim_size = if req.dim_size > 0 {
             req.dim_size as usize
@@ -401,6 +434,9 @@ impl ParameterServerTraining for PsServerHandle {
         let num_initialized = found.iter().filter(|&&f| !f).count() as i32;
 
         self.lookup_count.fetch_add(1, Ordering::Relaxed);
+        let elapsed_us = started.elapsed().as_micros().max(1) as i64;
+        self.lookup_latency_us_total
+            .fetch_add(elapsed_us, Ordering::Relaxed);
 
         Ok(Response::new(LookupResponse {
             status_code: 0,
@@ -416,6 +452,7 @@ impl ParameterServerTraining for PsServerHandle {
         &self,
         request: Request<ApplyGradientsRequest>,
     ) -> Result<Response<ApplyGradientsResponse>, Status> {
+        let started = Instant::now();
         let req = request.into_inner();
         let dim_size = if req.dim_size > 0 {
             req.dim_size as usize
@@ -426,6 +463,10 @@ impl ParameterServerTraining for PsServerHandle {
         // Validate gradient size
         let expected_size = req.fids.len() * dim_size;
         if req.gradients.len() != expected_size {
+            self.apply_count.fetch_add(1, Ordering::Relaxed);
+            let elapsed_us = started.elapsed().as_micros().max(1) as i64;
+            self.apply_latency_us_total
+                .fetch_add(elapsed_us, Ordering::Relaxed);
             return Ok(Response::new(ApplyGradientsResponse {
                 status_code: 1,
                 error_message: format!(
@@ -452,6 +493,9 @@ impl ParameterServerTraining for PsServerHandle {
         }
 
         self.apply_count.fetch_add(1, Ordering::Relaxed);
+        let elapsed_us = started.elapsed().as_micros().max(1) as i64;
+        self.apply_latency_us_total
+            .fetch_add(elapsed_us, Ordering::Relaxed);
 
         Ok(Response::new(ApplyGradientsResponse {
             status_code: 0,
@@ -466,6 +510,23 @@ impl ParameterServerTraining for PsServerHandle {
         request: Request<BarrierRequest>,
     ) -> Result<Response<BarrierResponse>, Status> {
         let req = request.into_inner();
+        if req.num_workers <= 0 {
+            return Ok(Response::new(BarrierResponse {
+                status_code: 1,
+                error_message: "num_workers must be > 0".to_string(),
+                num_arrived: 0,
+            }));
+        }
+        if req.worker_id < 0 || req.worker_id >= req.num_workers {
+            return Ok(Response::new(BarrierResponse {
+                status_code: 1,
+                error_message: format!(
+                    "worker_id {} out of range for num_workers={}",
+                    req.worker_id, req.num_workers
+                ),
+                num_arrived: 0,
+            }));
+        }
 
         // Get or create barrier state
         let barrier_state = {
@@ -476,27 +537,97 @@ impl ParameterServerTraining for PsServerHandle {
                     Arc::new(BarrierState {
                         num_workers: req.num_workers,
                         arrived: AtomicI64::new(0),
-                        barrier: TokioBarrier::new(req.num_workers as usize),
+                        state: TokioMutex::new(BarrierRoundState {
+                            generation: 0,
+                            arrived_workers: HashSet::new(),
+                        }),
+                        notify: Notify::new(),
                     })
                 })
                 .clone()
         };
 
-        barrier_state.arrived.fetch_add(1, Ordering::SeqCst);
+        if req.num_workers != barrier_state.num_workers {
+            return Ok(Response::new(BarrierResponse {
+                status_code: 1,
+                error_message: format!(
+                    "Barrier {} expects num_workers={}, got {}",
+                    req.barrier_id, barrier_state.num_workers, req.num_workers
+                ),
+                num_arrived: barrier_state.arrived.load(Ordering::SeqCst) as i32,
+            }));
+        }
 
-        // Wait at barrier with timeout
+        let generation = {
+            let mut state = barrier_state.state.lock().await;
+            if !state.arrived_workers.insert(req.worker_id) {
+                return Ok(Response::new(BarrierResponse {
+                    status_code: 1,
+                    error_message: format!(
+                        "Worker {} already arrived for barrier {}",
+                        req.worker_id, req.barrier_id
+                    ),
+                    num_arrived: state.arrived_workers.len() as i32,
+                }));
+            }
+            barrier_state
+                .arrived
+                .store(state.arrived_workers.len() as i64, Ordering::SeqCst);
+
+            if state.arrived_workers.len() == barrier_state.num_workers as usize {
+                state.generation += 1;
+                state.arrived_workers.clear();
+                barrier_state.arrived.store(0, Ordering::SeqCst);
+                drop(state);
+                barrier_state.notify.notify_waiters();
+                return Ok(Response::new(BarrierResponse {
+                    status_code: 0,
+                    error_message: String::new(),
+                    num_arrived: barrier_state.num_workers,
+                }));
+            }
+            state.generation
+        };
+
+        // Wait until this barrier generation releases or timeout.
         let timeout = Duration::from_millis(req.timeout_ms as u64);
-        match tokio::time::timeout(timeout, barrier_state.barrier.wait()).await {
-            Ok(_) => Ok(Response::new(BarrierResponse {
+        let wait_result = tokio::time::timeout(timeout, async {
+            loop {
+                {
+                    let state = barrier_state.state.lock().await;
+                    if state.generation > generation {
+                        return;
+                    }
+                }
+                barrier_state.notify.notified().await;
+            }
+        })
+        .await;
+
+        match wait_result {
+            Ok(()) => Ok(Response::new(BarrierResponse {
                 status_code: 0,
                 error_message: String::new(),
-                num_arrived: barrier_state.arrived.load(Ordering::SeqCst) as i32,
+                num_arrived: barrier_state.num_workers,
             })),
-            Err(_) => Ok(Response::new(BarrierResponse {
-                status_code: 1,
-                error_message: "Barrier timeout".to_string(),
-                num_arrived: barrier_state.arrived.load(Ordering::SeqCst) as i32,
-            })),
+            Err(_) => {
+                let mut state = barrier_state.state.lock().await;
+                if state.generation > generation {
+                    return Ok(Response::new(BarrierResponse {
+                        status_code: 0,
+                        error_message: String::new(),
+                        num_arrived: barrier_state.num_workers,
+                    }));
+                }
+                state.arrived_workers.remove(&req.worker_id);
+                let remaining = state.arrived_workers.len() as i32;
+                barrier_state.arrived.store(remaining as i64, Ordering::SeqCst);
+                Ok(Response::new(BarrierResponse {
+                    status_code: 1,
+                    error_message: "Barrier timeout".to_string(),
+                    num_arrived: remaining,
+                }))
+            }
         }
     }
 
@@ -533,15 +664,30 @@ impl ParameterServerTraining for PsServerHandle {
             }
         }
 
+        let lookup_count = self.lookup_count.load(Ordering::Relaxed);
+        let apply_count = self.apply_count.load(Ordering::Relaxed);
+        let lookup_latency_total = self.lookup_latency_us_total.load(Ordering::Relaxed);
+        let apply_latency_total = self.apply_latency_us_total.load(Ordering::Relaxed);
+        let avg_lookup_latency_us = if lookup_count > 0 {
+            lookup_latency_total / lookup_count
+        } else {
+            0
+        };
+        let avg_apply_latency_us = if apply_count > 0 {
+            apply_latency_total / apply_count
+        } else {
+            0
+        };
+
         Ok(Response::new(GetStatsResponse {
             shard_id: self.shard_id,
             total_embeddings,
             memory_bytes,
             table_stats,
-            lookup_count: self.lookup_count.load(Ordering::Relaxed),
-            apply_gradients_count: self.apply_count.load(Ordering::Relaxed),
-            avg_lookup_latency_us: 0, // TODO: track latency
-            avg_apply_latency_us: 0,
+            lookup_count,
+            apply_gradients_count: apply_count,
+            avg_lookup_latency_us,
+            avg_apply_latency_us,
         }))
     }
 }
@@ -558,6 +704,7 @@ impl ParameterServerTraining for PsServerHandle {
 /// - Parallel fanout to multiple shards
 /// - Remapping results to original order
 /// - Gradient aggregation for duplicate IDs
+#[derive(Clone)]
 pub struct PsClient {
     /// gRPC clients for each PS shard.
     clients: Vec<ParameterServerTrainingClient<tonic::transport::Channel>>,
@@ -568,6 +715,11 @@ pub struct PsClient {
 impl PsClient {
     /// Connects to multiple PS instances.
     pub async fn connect(addrs: &[&str]) -> PsResult<Self> {
+        if addrs.is_empty() {
+            return Err(PsError::InvalidConfig(
+                "at least one PS address is required".to_string(),
+            ));
+        }
         let mut clients = Vec::with_capacity(addrs.len());
 
         for addr in addrs {
@@ -588,14 +740,103 @@ impl PsClient {
     ///
     /// Handles deduplication, shard routing, and remapping automatically.
     pub async fn lookup(
-        &mut self,
+        &self,
         table_name: &str,
         fids: &[i64],
         dim_size: usize,
         create_if_missing: bool,
     ) -> PsResult<Vec<f32>> {
+        let response = self
+            .lookup_detailed(table_name, fids, dim_size, create_if_missing)
+            .await?;
+        Ok(response.embeddings)
+    }
+
+    /// Looks up embeddings and returns full response metadata.
+    ///
+    /// This variant exposes found/initialized counters and per-FID found flags
+    /// alongside embedding vectors.
+    pub async fn lookup_detailed(
+        &self,
+        table_name: &str,
+        fids: &[i64],
+        dim_size: usize,
+        create_if_missing: bool,
+    ) -> PsResult<LookupResponse> {
+        self.lookup_response(table_name, fids, dim_size, create_if_missing)
+            .await
+    }
+
+    /// Applies gradients for the given FIDs.
+    ///
+    /// Handles gradient aggregation for duplicate IDs automatically.
+    pub async fn apply_gradients(
+        &self,
+        table_name: &str,
+        fids: &[i64],
+        gradients: &[f32],
+        dim_size: usize,
+        learning_rate: f32,
+        global_step: i64,
+    ) -> PsResult<(i32, i32)> {
+        let response = self
+            .apply_gradients_detailed(
+                table_name,
+                fids,
+                gradients,
+                dim_size,
+                learning_rate,
+                global_step,
+            )
+            .await?;
+        Ok((response.num_updated, response.num_not_found))
+    }
+
+    /// Applies gradients and returns full response metadata.
+    pub async fn apply_gradients_detailed(
+        &self,
+        table_name: &str,
+        fids: &[i64],
+        gradients: &[f32],
+        dim_size: usize,
+        learning_rate: f32,
+        global_step: i64,
+    ) -> PsResult<ApplyGradientsResponse> {
+        self.apply_gradients_response(
+            table_name,
+            fids,
+            gradients,
+            dim_size,
+            learning_rate,
+            global_step,
+        )
+        .await
+    }
+
+    async fn lookup_response(
+        &self,
+        table_name: &str,
+        fids: &[i64],
+        dim_size: usize,
+        create_if_missing: bool,
+    ) -> PsResult<LookupResponse> {
+        if dim_size == 0 {
+            return Err(PsError::InvalidConfig(
+                "dim_size must be greater than zero".to_string(),
+            ));
+        }
+        if self.clients.is_empty() {
+            return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
+        }
         if fids.is_empty() {
-            return Ok(Vec::new());
+            return Ok(LookupResponse {
+                status_code: 0,
+                error_message: String::new(),
+                embeddings: Vec::new(),
+                found: Vec::new(),
+                num_found: 0,
+                num_initialized: 0,
+            });
         }
 
         // Step 1: Deduplicate and record original positions
@@ -605,19 +846,22 @@ impl PsClient {
         let shard_batches = route_to_shards(&unique_fids, self.num_shards);
 
         // Step 3: Parallel lookup from all shards
-        let mut shard_results: HashMap<usize, Vec<f32>> = HashMap::new();
-        let mut shard_fid_to_idx: HashMap<i64, usize> = HashMap::new();
-
+        let mut shard_results: HashMap<usize, (Vec<f32>, Vec<bool>)> = HashMap::new();
+        // Track exact (shard_id, local_idx) to avoid ad-hoc integer encoding collisions
+        // for large per-shard batches.
+        let mut shard_fid_to_idx: HashMap<i64, (usize, usize)> = HashMap::new();
+        let mut lookup_futures = Vec::new();
         for (shard_id, shard_fids) in shard_batches.iter().enumerate() {
             if shard_fids.is_empty() {
                 continue;
             }
 
-            // Track position in this shard's results
+            // Track position in this shard's results.
             for (local_idx, &fid) in shard_fids.iter().enumerate() {
-                shard_fid_to_idx.insert(fid, shard_id * 1_000_000 + local_idx);
+                shard_fid_to_idx.insert(fid, (shard_id, local_idx));
             }
 
+            let mut client = self.clients[shard_id].clone();
             let request = LookupRequest {
                 table_name: table_name.to_string(),
                 fids: shard_fids.clone(),
@@ -625,61 +869,88 @@ impl PsClient {
                 create_if_missing,
                 timeout_ms: 5000,
             };
-
-            let response = self.clients[shard_id]
-                .lookup(Request::new(request))
-                .await?
-                .into_inner();
-
-            if response.status_code != 0 {
-                return Err(PsError::RpcError(Status::internal(response.error_message)));
-            }
-
-            shard_results.insert(shard_id, response.embeddings);
+            lookup_futures.push(async move {
+                let response = client.lookup(Request::new(request)).await?.into_inner();
+                if response.status_code != 0 {
+                    return Err(PsError::RpcError(Status::internal(response.error_message)));
+                }
+                Ok::<(usize, Vec<f32>, Vec<bool>), PsError>((shard_id, response.embeddings, response.found))
+            });
+        }
+        let lookup_outputs = try_join_all(lookup_futures).await?;
+        for (shard_id, embeddings, found) in lookup_outputs {
+            shard_results.insert(shard_id, (embeddings, found));
         }
 
-        // Step 4: Reconstruct unique embeddings in order
+        // Step 4: Reconstruct unique embeddings/found in order
         let mut unique_embeddings = vec![0.0f32; unique_fids.len() * dim_size];
+        let mut unique_found = vec![false; unique_fids.len()];
         for (unique_idx, &fid) in unique_fids.iter().enumerate() {
-            if let Some(&encoded) = shard_fid_to_idx.get(&fid) {
-                let shard_id = encoded / 1_000_000;
-                let local_idx = encoded % 1_000_000;
-
-                if let Some(shard_emb) = shard_results.get(&shard_id) {
+            if let Some(&(shard_id, local_idx)) = shard_fid_to_idx.get(&fid) {
+                if let Some((shard_emb, shard_found)) = shard_results.get(&shard_id) {
                     let src_start = local_idx * dim_size;
                     let dst_start = unique_idx * dim_size;
                     unique_embeddings[dst_start..dst_start + dim_size]
                         .copy_from_slice(&shard_emb[src_start..src_start + dim_size]);
+                    unique_found[unique_idx] = *shard_found.get(local_idx).unwrap_or(&false);
                 }
             }
         }
 
         // Step 5: Remap to original order (with duplicates)
-        let mut result = vec![0.0f32; fids.len() * dim_size];
+        let mut embeddings = vec![0.0f32; fids.len() * dim_size];
+        let mut found = vec![false; fids.len()];
         for (orig_idx, &unique_idx) in original_to_unique.iter().enumerate() {
             let src_start = unique_idx * dim_size;
             let dst_start = orig_idx * dim_size;
-            result[dst_start..dst_start + dim_size]
+            embeddings[dst_start..dst_start + dim_size]
                 .copy_from_slice(&unique_embeddings[src_start..src_start + dim_size]);
+            found[orig_idx] = unique_found[unique_idx];
         }
 
-        Ok(result)
+        let num_found = found.iter().filter(|&&v| v).count() as i32;
+        let num_initialized = found.len() as i32 - num_found;
+        Ok(LookupResponse {
+            status_code: 0,
+            error_message: String::new(),
+            embeddings,
+            found,
+            num_found,
+            num_initialized,
+        })
     }
 
-    /// Applies gradients for the given FIDs.
-    ///
-    /// Handles gradient aggregation for duplicate IDs automatically.
-    pub async fn apply_gradients(
-        &mut self,
+    async fn apply_gradients_response(
+        &self,
         table_name: &str,
         fids: &[i64],
         gradients: &[f32],
         dim_size: usize,
         learning_rate: f32,
         global_step: i64,
-    ) -> PsResult<(i32, i32)> {
+    ) -> PsResult<ApplyGradientsResponse> {
+        if dim_size == 0 {
+            return Err(PsError::InvalidConfig(
+                "dim_size must be greater than zero".to_string(),
+            ));
+        }
         if fids.is_empty() {
-            return Ok((0, 0));
+            return Ok(ApplyGradientsResponse {
+                status_code: 0,
+                error_message: String::new(),
+                num_updated: 0,
+                num_not_found: 0,
+            });
+        }
+        let expected = fids.len() * dim_size;
+        if gradients.len() != expected {
+            return Err(PsError::DimensionMismatch {
+                expected,
+                actual: gradients.len(),
+            });
+        }
+        if self.clients.is_empty() {
+            return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
         }
 
         // Step 1: Aggregate gradients for duplicate IDs
@@ -708,14 +979,13 @@ impl PsClient {
         }
 
         // Step 3: Parallel apply to all shards
-        let mut total_updated = 0i32;
-        let mut total_not_found = 0i32;
-
+        let mut apply_futures = Vec::new();
         for (shard_id, shard_fids) in shard_batches.into_iter().enumerate() {
             if shard_fids.is_empty() {
                 continue;
             }
 
+            let mut client = self.clients[shard_id].clone();
             let request = ApplyGradientsRequest {
                 table_name: table_name.to_string(),
                 fids: shard_fids,
@@ -725,32 +995,162 @@ impl PsClient {
                 global_step,
                 timeout_ms: 5000,
             };
-
-            let response = self.clients[shard_id]
-                .apply_gradients(Request::new(request))
-                .await?
-                .into_inner();
-
-            if response.status_code != 0 {
-                return Err(PsError::RpcError(Status::internal(response.error_message)));
-            }
-
-            total_updated += response.num_updated;
-            total_not_found += response.num_not_found;
+            apply_futures.push(async move {
+                let response = client.apply_gradients(Request::new(request)).await?.into_inner();
+                if response.status_code != 0 {
+                    return Err(PsError::RpcError(Status::internal(response.error_message)));
+                }
+                Ok::<(i32, i32), PsError>((response.num_updated, response.num_not_found))
+            });
+        }
+        let apply_outputs = try_join_all(apply_futures).await?;
+        let (mut total_updated, mut total_not_found) = (0i32, 0i32);
+        for (updated, not_found) in apply_outputs {
+            total_updated += updated;
+            total_not_found += not_found;
         }
 
-        Ok((total_updated, total_not_found))
+        Ok(ApplyGradientsResponse {
+            status_code: 0,
+            error_message: String::new(),
+            num_updated: total_updated,
+            num_not_found: total_not_found,
+        })
+    }
+
+    /// Batched multi-table lookup helper.
+    ///
+    /// Each request entry is processed with the same semantics as [`Self::lookup`],
+    /// and failures are encoded in per-entry response status codes.
+    pub async fn batch_lookup(&self, request: BatchLookupRequest) -> PsResult<BatchLookupResponse> {
+        let futures = request.requests.into_iter().map(|req| async move {
+            if req.dim_size <= 0 {
+                return LookupResponse {
+                    status_code: 1,
+                    error_message: PsError::InvalidConfig(
+                        "dim_size must be greater than zero".to_string(),
+                    )
+                    .to_string(),
+                    embeddings: Vec::new(),
+                    found: Vec::new(),
+                    num_found: 0,
+                    num_initialized: 0,
+                };
+            }
+            match self
+                .lookup_response(
+                    &req.table_name,
+                    &req.fids,
+                    req.dim_size as usize,
+                    req.create_if_missing,
+                )
+                .await
+            {
+                Ok(resp) => resp,
+                Err(e) => LookupResponse {
+                    status_code: 1,
+                    error_message: e.to_string(),
+                    embeddings: Vec::new(),
+                    found: Vec::new(),
+                    num_found: 0,
+                    num_initialized: 0,
+                },
+            }
+        });
+        let responses = join_all(futures).await;
+        Ok(BatchLookupResponse { responses })
+    }
+
+    /// Batched multi-table apply helper.
+    ///
+    /// Each request entry is processed with the same semantics as [`Self::apply_gradients`],
+    /// and failures are encoded in per-entry response status codes.
+    pub async fn batch_apply_gradients(
+        &self,
+        request: BatchApplyGradientsRequest,
+    ) -> PsResult<BatchApplyGradientsResponse> {
+        let futures = request.requests.into_iter().map(|req| async move {
+            if req.dim_size <= 0 {
+                return ApplyGradientsResponse {
+                    status_code: 1,
+                    error_message: PsError::InvalidConfig(
+                        "dim_size must be greater than zero".to_string(),
+                    )
+                    .to_string(),
+                    num_updated: 0,
+                    num_not_found: 0,
+                };
+            }
+            match self
+                .apply_gradients_response(
+                    &req.table_name,
+                    &req.fids,
+                    &req.gradients,
+                    req.dim_size as usize,
+                    req.learning_rate,
+                    req.global_step,
+                )
+                .await
+            {
+                Ok(resp) => resp,
+                Err(e) => ApplyGradientsResponse {
+                    status_code: 1,
+                    error_message: e.to_string(),
+                    num_updated: 0,
+                    num_not_found: 0,
+                },
+            }
+        });
+        let responses = join_all(futures).await;
+        Ok(BatchApplyGradientsResponse { responses })
     }
 
     /// Waits at a barrier for all workers.
     pub async fn barrier(
-        &mut self,
+        &self,
         barrier_id: &str,
         worker_id: i32,
         num_workers: i32,
         timeout_ms: i64,
     ) -> PsResult<()> {
-        // Use first PS for barrier coordination
+        self.barrier_on_shard(0, barrier_id, worker_id, num_workers, timeout_ms)
+            .await
+    }
+
+    /// Waits at a barrier using a specific PS shard as coordinator.
+    pub async fn barrier_on_shard(
+        &self,
+        shard_id: usize,
+        barrier_id: &str,
+        worker_id: i32,
+        num_workers: i32,
+        timeout_ms: i64,
+    ) -> PsResult<()> {
+        if timeout_ms <= 0 {
+            return Err(PsError::InvalidConfig(
+                "timeout_ms must be greater than zero".to_string(),
+            ));
+        }
+        if num_workers <= 0 {
+            return Err(PsError::InvalidConfig(
+                "num_workers must be greater than zero".to_string(),
+            ));
+        }
+        if worker_id < 0 || worker_id >= num_workers {
+            return Err(PsError::InvalidConfig(format!(
+                "worker_id {} out of range for num_workers={}",
+                worker_id, num_workers
+            )));
+        }
+        if self.clients.is_empty() {
+            return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
+        }
+        let mut client = self
+            .clients
+            .get(shard_id)
+            .cloned()
+            .ok_or_else(|| PsError::InvalidConfig(format!("invalid shard index: {}", shard_id)))?;
+
         let request = BarrierRequest {
             barrier_id: barrier_id.to_string(),
             worker_id,
@@ -758,23 +1158,123 @@ impl PsClient {
             timeout_ms,
         };
 
-        let response = self.clients[0]
+        let response = client
             .barrier(Request::new(request))
             .await?
             .into_inner();
 
-        if response.status_code != 0 {
-            Err(PsError::RpcError(Status::deadline_exceeded(
-                response.error_message,
-            )))
-        } else {
-            Ok(())
+        match response.status_code {
+            0 => Ok(()),
+            1 => {
+                if response.error_message.to_lowercase().contains("timeout") {
+                    Err(PsError::Timeout(Duration::from_millis(timeout_ms as u64)))
+                } else {
+                    Err(PsError::InvalidConfig(response.error_message))
+                }
+            }
+            2 => Err(PsError::RpcError(Status::cancelled(response.error_message))),
+            _ => Err(PsError::RpcError(Status::internal(response.error_message))),
         }
     }
 
     /// Returns the number of PS shards.
     pub fn num_shards(&self) -> usize {
         self.num_shards
+    }
+
+    /// Performs health check against default coordinator shard (index 0).
+    pub async fn health_check(&self, component: impl Into<String>) -> PsResult<HealthCheckResponse> {
+        self.health_check_shard(0, component).await
+    }
+
+    /// Performs health check against one PS shard.
+    pub async fn health_check_shard(
+        &self,
+        shard_id: usize,
+        component: impl Into<String>,
+    ) -> PsResult<HealthCheckResponse> {
+        if self.clients.is_empty() {
+            return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
+        }
+        let mut client = self
+            .clients
+            .get(shard_id)
+            .cloned()
+            .ok_or_else(|| PsError::InvalidConfig(format!("invalid shard index: {}", shard_id)))?;
+        let response = client
+            .health_check(Request::new(HealthCheckRequest {
+                component: component.into(),
+            }))
+            .await?
+            .into_inner();
+        Ok(response)
+    }
+
+    /// Performs health checks against all shards in parallel.
+    pub async fn health_check_all(
+        &self,
+        component: impl Into<String>,
+    ) -> PsResult<Vec<HealthCheckResponse>> {
+        if self.clients.is_empty() {
+            return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
+        }
+        let component = component.into();
+        let mut checks = Vec::with_capacity(self.clients.len());
+        for mut client in self.clients.iter().cloned() {
+            let component = component.clone();
+            checks.push(async move {
+                let response = client
+                    .health_check(Request::new(HealthCheckRequest { component }))
+                    .await?
+                    .into_inner();
+                Ok::<HealthCheckResponse, PsError>(response)
+            });
+        }
+        try_join_all(checks).await
+    }
+
+    /// Gets stats from one PS shard.
+    pub async fn get_stats_shard(
+        &self,
+        shard_id: usize,
+        include_table_stats: bool,
+    ) -> PsResult<GetStatsResponse> {
+        if self.clients.is_empty() {
+            return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
+        }
+        let mut client = self
+            .clients
+            .get(shard_id)
+            .cloned()
+            .ok_or_else(|| PsError::InvalidConfig(format!("invalid shard index: {}", shard_id)))?;
+        let response = client
+            .get_stats(Request::new(GetStatsRequest { include_table_stats }))
+            .await?
+            .into_inner();
+        Ok(response)
+    }
+
+    /// Gets stats from default coordinator shard (index 0).
+    pub async fn get_stats(&self, include_table_stats: bool) -> PsResult<GetStatsResponse> {
+        self.get_stats_shard(0, include_table_stats).await
+    }
+
+    /// Gets stats from all PS shards in parallel.
+    pub async fn get_stats_all(&self, include_table_stats: bool) -> PsResult<Vec<GetStatsResponse>> {
+        if self.clients.is_empty() {
+            return Err(PsError::InvalidConfig("no PS clients configured".to_string()));
+        }
+        let mut stats_calls = Vec::with_capacity(self.clients.len());
+        for mut client in self.clients.iter().cloned() {
+            stats_calls.push(async move {
+                let response = client
+                    .get_stats(Request::new(GetStatsRequest { include_table_stats }))
+                    .await?
+                    .into_inner();
+                Ok::<GetStatsResponse, PsError>(response)
+            });
+        }
+        try_join_all(stats_calls).await
     }
 }
 
@@ -854,6 +1354,11 @@ pub fn get_shard_for_id(fid: i64, num_shards: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::TcpListener;
+    use monolith_proto::monolith::ps_training::{
+        ApplyGradientsRequest, GetStatsRequest, LookupRequest,
+    };
+    use tonic::Request;
 
     #[test]
     fn test_dedup_ids() {
@@ -944,5 +1449,963 @@ mod tests {
         assert_eq!(get_shard_for_id(3, 3), 0);
         assert_eq!(get_shard_for_id(-1, 3), 2); // floormod(-1, 3) = 2
         assert_eq!(get_shard_for_id(100, 0), 0); // edge case
+    }
+
+    fn test_bind_addr() -> std::net::SocketAddr {
+        TcpListener::bind("127.0.0.1:0")
+            .expect("ephemeral listener bind should succeed")
+            .local_addr()
+            .expect("ephemeral listener local_addr lookup should succeed")
+    }
+
+    #[tokio::test]
+    async fn test_ps_server_stats_tracks_average_latency() {
+        let ps = PsServer::new(0, 2);
+        let handle = PsServerHandle(ps.clone());
+
+        let _ = handle
+            .lookup(Request::new(LookupRequest {
+                table_name: "latency_table".to_string(),
+                fids: vec![1, 2],
+                dim_size: 2,
+                create_if_missing: true,
+                timeout_ms: 1000,
+            }))
+            .await
+            .expect("lookup RPC should succeed for latency stats test");
+
+        let _ = handle
+            .apply_gradients(Request::new(ApplyGradientsRequest {
+                table_name: "latency_table".to_string(),
+                fids: vec![1],
+                gradients: vec![0.1, 0.2],
+                dim_size: 2,
+                learning_rate: 0.5,
+                global_step: 1,
+                timeout_ms: 1000,
+            }))
+            .await
+            .expect("apply_gradients RPC should succeed for latency stats test");
+
+        let stats = handle
+            .get_stats(Request::new(GetStatsRequest {
+                include_table_stats: true,
+            }))
+            .await
+            .expect("get_stats RPC should succeed for latency stats test")
+            .into_inner();
+
+        assert_eq!(stats.lookup_count, 1);
+        assert_eq!(stats.apply_gradients_count, 1);
+        assert!(stats.avg_lookup_latency_us >= 1);
+        assert!(stats.avg_apply_latency_us >= 1);
+        assert!(stats.total_embeddings >= 2);
+    }
+
+    #[tokio::test]
+    async fn test_ps_server_stats_counts_failed_apply_requests() {
+        let ps = PsServer::new(0, 2);
+        let handle = PsServerHandle(ps);
+
+        let bad = handle
+            .apply_gradients(Request::new(ApplyGradientsRequest {
+                table_name: "latency_table".to_string(),
+                fids: vec![1],
+                gradients: vec![0.1], // wrong dim (expected 2)
+                dim_size: 2,
+                learning_rate: 0.5,
+                global_step: 1,
+                timeout_ms: 1000,
+            }))
+            .await
+            .expect("apply_gradients RPC should succeed for failed-apply stats test")
+            .into_inner();
+        assert_eq!(bad.status_code, 1);
+
+        let stats = handle
+            .get_stats(Request::new(GetStatsRequest {
+                include_table_stats: false,
+            }))
+            .await
+            .expect("get_stats RPC should succeed for failed-apply stats test")
+            .into_inner();
+        assert_eq!(stats.apply_gradients_count, 1);
+        assert!(stats.avg_apply_latency_us >= 1);
+    }
+
+    #[tokio::test]
+    async fn test_ps_server_barrier_success_and_reset() {
+        let ps = PsServer::new(0, 2);
+        let handle = PsServerHandle(ps);
+
+        let req0 = BarrierRequest {
+            barrier_id: "b0".to_string(),
+            worker_id: 0,
+            num_workers: 2,
+            timeout_ms: 200,
+        };
+        let req1 = BarrierRequest {
+            worker_id: 1,
+            ..req0.clone()
+        };
+        let (r1, r2) = tokio::join!(
+            handle.barrier(Request::new(req0.clone())),
+            handle.barrier(Request::new(req1.clone()))
+        );
+        let r1 = r1
+            .expect("first barrier RPC should succeed")
+            .into_inner();
+        let r2 = r2
+            .expect("second barrier RPC should succeed")
+            .into_inner();
+        assert_eq!(r1.status_code, 0);
+        assert_eq!(r2.status_code, 0);
+        assert_eq!(r1.num_arrived, 2);
+        assert_eq!(r2.num_arrived, 2);
+
+        // Reuse same barrier id for next round; should still work.
+        let (r3, r4) = tokio::join!(
+            handle.barrier(Request::new(req0)),
+            handle.barrier(Request::new(req1))
+        );
+        assert_eq!(
+            r3.expect("third barrier RPC should succeed")
+                .into_inner()
+                .status_code,
+            0
+        );
+        assert_eq!(
+            r4.expect("fourth barrier RPC should succeed")
+                .into_inner()
+                .status_code,
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn test_ps_server_barrier_num_workers_mismatch() {
+        let ps = PsServer::new(0, 2);
+        let handle = PsServerHandle(ps);
+
+        // Initialize barrier id with num_workers=1 (immediate success).
+        let ok = handle
+            .barrier(Request::new(BarrierRequest {
+                barrier_id: "bmismatch".to_string(),
+                worker_id: 0,
+                num_workers: 1,
+                timeout_ms: 50,
+            }))
+            .await
+            .expect("barrier RPC should succeed for initial cardinality setup")
+            .into_inner();
+        assert_eq!(ok.status_code, 0);
+
+        // Mismatched participant count should return explicit error.
+        let bad = handle
+            .barrier(Request::new(BarrierRequest {
+                barrier_id: "bmismatch".to_string(),
+                worker_id: 1,
+                num_workers: 2,
+                timeout_ms: 50,
+            }))
+            .await
+            .expect("barrier RPC should succeed for mismatch response path")
+            .into_inner();
+        assert_eq!(bad.status_code, 1);
+        assert!(bad.error_message.contains("expects num_workers=1"));
+    }
+
+    #[tokio::test]
+    async fn test_ps_server_barrier_worker_id_range_validation() {
+        let ps = PsServer::new(0, 2);
+        let handle = PsServerHandle(ps);
+
+        let bad = handle
+            .barrier(Request::new(BarrierRequest {
+                barrier_id: "bwid".to_string(),
+                worker_id: 2, // out of [0,2)
+                num_workers: 2,
+                timeout_ms: 50,
+            }))
+            .await
+            .expect("barrier RPC should succeed for worker-id range validation response path")
+            .into_inner();
+        assert_eq!(bad.status_code, 1);
+        assert!(bad.error_message.contains("out of range"));
+    }
+
+    #[tokio::test]
+    async fn test_ps_server_barrier_duplicate_worker_rejected() {
+        let ps = PsServer::new(0, 2);
+        let handle = PsServerHandle(ps);
+
+        let req = BarrierRequest {
+            barrier_id: "bdup".to_string(),
+            worker_id: 0,
+            num_workers: 2,
+            timeout_ms: 300,
+        };
+        let first = {
+            let handle_bg = handle.clone();
+            let req_bg = req.clone();
+            tokio::spawn(async move { handle_bg.barrier(Request::new(req_bg)).await })
+        };
+        tokio::time::sleep(Duration::from_millis(30)).await;
+
+        let dup = handle
+            .barrier(Request::new(req))
+            .await
+            .expect("duplicate-arrival barrier RPC should return response")
+            .into_inner();
+        assert_eq!(dup.status_code, 1);
+        assert!(dup.error_message.contains("already arrived"));
+
+        let peer = handle
+            .barrier(Request::new(BarrierRequest {
+                barrier_id: "bdup".to_string(),
+                worker_id: 1,
+                num_workers: 2,
+                timeout_ms: 300,
+            }))
+            .await
+            .expect("peer-arrival barrier RPC should return response")
+            .into_inner();
+        assert_eq!(peer.status_code, 0);
+
+        let first = first
+            .await
+            .expect("spawned first-arrival barrier task should join successfully")
+            .expect("first-arrival barrier RPC should succeed")
+            .into_inner();
+        assert_eq!(first.status_code, 0);
+    }
+
+    #[tokio::test]
+    async fn test_ps_server_barrier_timeout_cleanup_allows_retry() {
+        let ps = PsServer::new(0, 2);
+        let handle = PsServerHandle(ps);
+
+        let timeout = handle
+            .barrier(Request::new(BarrierRequest {
+                barrier_id: "btimeout".to_string(),
+                worker_id: 0,
+                num_workers: 2,
+                timeout_ms: 20,
+            }))
+            .await
+            .expect("timeout barrier RPC should return timeout response")
+            .into_inner();
+        assert_eq!(timeout.status_code, 1);
+        assert_eq!(timeout.num_arrived, 0);
+
+        let req0 = BarrierRequest {
+            barrier_id: "btimeout".to_string(),
+            worker_id: 0,
+            num_workers: 2,
+            timeout_ms: 200,
+        };
+        let req1 = BarrierRequest {
+            worker_id: 1,
+            ..req0.clone()
+        };
+        let (r1, r2) = tokio::join!(
+            handle.barrier(Request::new(req0)),
+            handle.barrier(Request::new(req1))
+        );
+        assert_eq!(
+            r1.expect("retry barrier RPC (worker 0) should succeed")
+                .into_inner()
+                .status_code,
+            0
+        );
+        assert_eq!(
+            r2.expect("retry barrier RPC (worker 1) should succeed")
+                .into_inner()
+                .status_code,
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_lookup_and_apply_across_shards() {
+        let bind0 = test_bind_addr();
+        let bind1 = test_bind_addr();
+
+        let ps0 = PsServer::new(0, 2);
+        let ps1 = PsServer::new(1, 2);
+        let h0 = tokio::spawn(async move {
+            let _ = serve_ps(ps0, bind0).await;
+        });
+        let h1 = tokio::spawn(async move {
+            let _ = serve_ps(ps1, bind1).await;
+        });
+
+        tokio::time::sleep(Duration::from_millis(80)).await;
+
+        let addr0 = bind0.to_string();
+        let addr1 = bind1.to_string();
+        let client = PsClient::connect(&[&addr0, &addr1])
+            .await
+            .expect("ps client connect should succeed for sharded apply/lookup test");
+
+        let initial = client
+            .lookup("emb", &[0, 1, 2, 3], 2, true)
+            .await
+            .expect("initial lookup should succeed");
+        assert_eq!(initial, vec![0.0; 8]);
+
+        let (updated, not_found) = client
+            .apply_gradients(
+                "emb",
+                &[0, 1, 0, 3],
+                &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+                2,
+                0.5,
+                1,
+            )
+            .await
+            .expect("apply_gradients should succeed");
+        assert_eq!(updated, 3);
+        assert_eq!(not_found, 0);
+
+        let after = client
+            .lookup("emb", &[0, 1, 3], 2, false)
+            .await
+            .expect("post-update lookup should succeed");
+        assert_eq!(after, vec![-3.0, -4.0, -1.5, -2.0, -3.5, -4.0]);
+
+        h0.abort();
+        h1.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_detailed_lookup_and_apply_metadata() {
+        let bind = test_bind_addr();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
+
+        let first_lookup = client
+            .lookup_detailed("meta", &[7, 7, 9], 2, true)
+            .await
+            .expect("first detailed lookup should succeed");
+        assert_eq!(first_lookup.status_code, 0);
+        assert_eq!(first_lookup.found, vec![false, false, false]);
+        assert_eq!(first_lookup.num_found, 0);
+        assert_eq!(first_lookup.num_initialized, 3);
+
+        let second_lookup = client
+            .lookup_detailed("meta", &[7, 9], 2, false)
+            .await
+            .expect("second detailed lookup should succeed");
+        assert_eq!(second_lookup.status_code, 0);
+        assert_eq!(second_lookup.found, vec![true, true]);
+        assert_eq!(second_lookup.num_found, 2);
+        assert_eq!(second_lookup.num_initialized, 0);
+
+        let apply_resp = client
+            .apply_gradients_detailed("meta", &[7, 9], &[1.0, 2.0, 3.0, 4.0], 2, 0.1, 1)
+            .await
+            .expect("detailed apply_gradients should succeed");
+        assert_eq!(apply_resp.status_code, 0);
+        assert_eq!(apply_resp.num_updated, 2);
+        assert_eq!(apply_resp.num_not_found, 0);
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_connect_requires_addresses() {
+        let res = PsClient::connect(&[]).await;
+        assert!(matches!(res, Err(PsError::InvalidConfig(_))));
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_supports_parallel_immutable_lookups() {
+        let bind = test_bind_addr();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
+        client
+            .lookup("immut", &[1, 2], 2, true)
+            .await
+            .expect("initial immutable lookup should succeed");
+
+        let (left, right) = tokio::join!(
+            client.lookup("immut", &[1], 2, false),
+            client.lookup("immut", &[2], 2, false)
+        );
+        assert_eq!(
+            left.expect("left immutable lookup should succeed"),
+            vec![0.0, 0.0]
+        );
+        assert_eq!(
+            right.expect("right immutable lookup should succeed"),
+            vec![0.0, 0.0]
+        );
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_lookup_errors_without_clients() {
+        let client = PsClient {
+            clients: Vec::new(),
+            num_shards: 0,
+        };
+        let err = client
+            .lookup("emb", &[1], 2, true)
+            .await
+            .expect_err("lookup should fail when client has no shards configured");
+        assert!(matches!(err, PsError::InvalidConfig(_)));
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_lookup_rejects_zero_dim() {
+        let client = PsClient {
+            clients: Vec::new(),
+            num_shards: 1,
+        };
+        let err = client
+            .lookup("emb", &[1], 0, true)
+            .await
+            .expect_err("lookup should reject non-positive embedding dimensions");
+        assert!(matches!(err, PsError::InvalidConfig(_)));
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_apply_rejects_gradient_size_mismatch() {
+        let client = PsClient {
+            clients: Vec::new(),
+            num_shards: 1,
+        };
+        let err = client
+            .apply_gradients("emb", &[1, 2], &[0.1, 0.2, 0.3], 2, 0.1, 1)
+            .await
+            .expect_err("apply_gradients should reject gradient-size mismatch");
+        assert!(matches!(
+            err,
+            PsError::DimensionMismatch {
+                expected: 4,
+                actual: 3
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_barrier_rejects_invalid_worker_range() {
+        let client = PsClient {
+            clients: Vec::new(),
+            num_shards: 1,
+        };
+        let err = client
+            .barrier("b", 2, 2, 100)
+            .await
+            .expect_err("barrier should reject worker ids outside [0, num_workers)");
+        assert!(matches!(err, PsError::InvalidConfig(_)));
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_barrier_rejects_non_positive_timeout() {
+        let client = PsClient {
+            clients: Vec::new(),
+            num_shards: 0,
+        };
+        let err = client
+            .barrier("b", 0, 1, 0)
+            .await
+            .expect_err("barrier should reject non-positive timeout values");
+        assert!(matches!(err, PsError::InvalidConfig(_)));
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_barrier_on_shard_rejects_invalid_index() {
+        let bind = test_bind_addr();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
+        let err = client
+            .barrier_on_shard(1, "bshard", 0, 1, 100)
+            .await
+            .expect_err("barrier_on_shard should reject shard indices beyond configured client shards");
+        assert!(matches!(err, PsError::InvalidConfig(_)));
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_barrier_on_shard_routes_to_selected_coordinator() {
+        let bind0 = test_bind_addr();
+        let bind1 = test_bind_addr();
+
+        let ps0 = PsServer::new(0, 2);
+        let ps1 = PsServer::new(1, 2);
+        let h0 = tokio::spawn(async move {
+            let _ = serve_ps(ps0, bind0).await;
+        });
+        let h1 = tokio::spawn(async move {
+            let _ = serve_ps(ps1, bind1).await;
+        });
+        tokio::time::sleep(Duration::from_millis(80)).await;
+
+        let addr0 = bind0.to_string();
+        let addr1 = bind1.to_string();
+        let client = PsClient::connect(&[&addr0, &addr1])
+            .await
+            .expect("ps client connect should succeed for barrier shard-routing test");
+
+        // Use shard 1 as explicit barrier coordinator.
+        client
+            .barrier_on_shard(1, "explicit_shard", 0, 1, 200)
+            .await
+            .expect("barrier_on_shard should succeed on explicit coordinator");
+        // Default barrier should still use shard 0 and succeed independently.
+        client
+            .barrier("default_shard0", 0, 1, 200)
+            .await
+            .expect("default barrier should succeed independently");
+
+        h0.abort();
+        h1.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_barrier_maps_timeout_error() {
+        let bind = test_bind_addr();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
+        let err = client
+            .barrier("bt", 0, 2, 20)
+            .await
+            .expect_err("barrier should map coordinator timeout to PsError::Timeout");
+        assert!(matches!(err, PsError::Timeout(_)));
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_barrier_maps_mismatch_to_invalid_config() {
+        let bind = test_bind_addr();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
+        // Initializes barrier "bm" with num_workers=1.
+        client
+            .barrier("bm", 0, 1, 200)
+            .await
+            .expect("initial barrier should succeed");
+        // Reusing same barrier id with incompatible num_workers should become InvalidConfig.
+        let err = client
+            .barrier("bm", 0, 2, 200)
+            .await
+            .expect_err("barrier should reject mismatched worker cardinality for reused barrier id");
+        assert!(matches!(err, PsError::InvalidConfig(_)));
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_health_and_stats_shard_methods() {
+        let bind = test_bind_addr();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
+
+        let health = client
+            .health_check_shard(0, "ps")
+            .await
+            .expect("health_check_shard should succeed");
+        assert_eq!(
+            health.status,
+            monolith_proto::monolith::ps_training::health_check_response::Status::Healthy as i32
+        );
+
+        let _ = client
+            .lookup("emb", &[1, 2], 2, true)
+            .await
+            .expect("lookup should succeed before stats request");
+        let stats = client
+            .get_stats_shard(0, true)
+            .await
+            .expect("get_stats_shard should succeed");
+        assert_eq!(stats.shard_id, 0);
+        assert!(stats.lookup_count >= 1);
+        assert!(stats.total_embeddings >= 2);
+        assert!(!stats.table_stats.is_empty());
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_default_health_and_stats_methods() {
+        let bind = test_bind_addr();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
+        let health = client
+            .health_check("ps")
+            .await
+            .expect("default health_check should succeed");
+        assert_eq!(
+            health.status,
+            monolith_proto::monolith::ps_training::health_check_response::Status::Healthy as i32
+        );
+
+        let _ = client
+            .lookup("emb", &[1], 2, true)
+            .await
+            .expect("lookup should succeed before default stats request");
+        let stats = client
+            .get_stats(false)
+            .await
+            .expect("default get_stats should succeed");
+        assert_eq!(stats.shard_id, 0);
+        assert!(stats.lookup_count >= 1);
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_health_and_stats_all_methods() {
+        let bind0 = test_bind_addr();
+        let bind1 = test_bind_addr();
+
+        let ps0 = PsServer::new(0, 2);
+        let ps1 = PsServer::new(1, 2);
+        let h0 = tokio::spawn(async move {
+            let _ = serve_ps(ps0, bind0).await;
+        });
+        let h1 = tokio::spawn(async move {
+            let _ = serve_ps(ps1, bind1).await;
+        });
+        tokio::time::sleep(Duration::from_millis(80)).await;
+
+        let addr0 = bind0.to_string();
+        let addr1 = bind1.to_string();
+        let client = PsClient::connect(&[&addr0, &addr1])
+            .await
+            .expect("ps client connect should succeed for all-shards health/stats test");
+
+        let healths = client
+            .health_check_all("ps")
+            .await
+            .expect("health_check_all should succeed");
+        assert_eq!(healths.len(), 2);
+        assert!(healths.iter().all(|h| {
+            h.status
+                == monolith_proto::monolith::ps_training::health_check_response::Status::Healthy
+                    as i32
+        }));
+
+        let stats = client
+            .get_stats_all(false)
+            .await
+            .expect("get_stats_all should succeed");
+        assert_eq!(stats.len(), 2);
+        assert!(stats.iter().any(|s| s.shard_id == 0));
+        assert!(stats.iter().any(|s| s.shard_id == 1));
+        h0.abort();
+        h1.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_stats_shard_index_validation() {
+        let client = PsClient {
+            clients: Vec::new(),
+            num_shards: 0,
+        };
+        assert!(matches!(
+            client.get_stats_shard(0, false).await,
+            Err(PsError::InvalidConfig(_))
+        ));
+        assert!(matches!(
+            client.health_check_shard(0, "ps").await,
+            Err(PsError::InvalidConfig(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_batch_lookup_and_apply() {
+        let bind = test_bind_addr();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
+
+        let lookup_batch = BatchLookupRequest {
+            requests: vec![
+                LookupRequest {
+                    table_name: "t1".to_string(),
+                    fids: vec![1, 2],
+                    dim_size: 2,
+                    create_if_missing: true,
+                    timeout_ms: 1000,
+                },
+                LookupRequest {
+                    table_name: "t2".to_string(),
+                    fids: vec![3],
+                    dim_size: 2,
+                    create_if_missing: true,
+                    timeout_ms: 1000,
+                },
+            ],
+        };
+        let lookup_resp = client
+            .batch_lookup(lookup_batch)
+            .await
+            .expect("batch_lookup should succeed");
+        assert_eq!(lookup_resp.responses.len(), 2);
+        assert!(lookup_resp.responses.iter().all(|r| r.status_code == 0));
+        assert_eq!(lookup_resp.responses[0].embeddings.len(), 4);
+        assert_eq!(lookup_resp.responses[1].embeddings.len(), 2);
+
+        let apply_batch = BatchApplyGradientsRequest {
+            requests: vec![
+                ApplyGradientsRequest {
+                    table_name: "t1".to_string(),
+                    fids: vec![1, 2],
+                    gradients: vec![1.0, 2.0, 3.0, 4.0],
+                    dim_size: 2,
+                    learning_rate: 0.5,
+                    global_step: 1,
+                    timeout_ms: 1000,
+                },
+                // Intentionally malformed gradient shape.
+                ApplyGradientsRequest {
+                    table_name: "t2".to_string(),
+                    fids: vec![3],
+                    gradients: vec![1.0],
+                    dim_size: 2,
+                    learning_rate: 0.5,
+                    global_step: 1,
+                    timeout_ms: 1000,
+                },
+            ],
+        };
+        let apply_resp = client
+            .batch_apply_gradients(apply_batch)
+            .await
+            .expect("batch_apply_gradients should succeed");
+        assert_eq!(apply_resp.responses.len(), 2);
+        assert_eq!(apply_resp.responses[0].status_code, 0);
+        assert_eq!(apply_resp.responses[1].status_code, 1);
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_batch_lookup_preserves_duplicate_found_flags() {
+        let bind = test_bind_addr();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
+
+        // First lookup initializes missing IDs and should report all as newly initialized.
+        let first = client
+            .batch_lookup(BatchLookupRequest {
+                requests: vec![LookupRequest {
+                    table_name: "dup".to_string(),
+                    fids: vec![10, 10, 11],
+                    dim_size: 2,
+                    create_if_missing: true,
+                    timeout_ms: 1000,
+                }],
+            })
+            .await
+            .expect("first batch_lookup should succeed");
+        assert_eq!(first.responses.len(), 1);
+        let first_resp = &first.responses[0];
+        assert_eq!(first_resp.status_code, 0);
+        assert_eq!(first_resp.found, vec![false, false, false]);
+        assert_eq!(first_resp.num_found, 0);
+        assert_eq!(first_resp.num_initialized, 3);
+
+        // Second lookup should see all IDs (including duplicates) as found.
+        let second = client
+            .batch_lookup(BatchLookupRequest {
+                requests: vec![LookupRequest {
+                    table_name: "dup".to_string(),
+                    fids: vec![10, 10, 11],
+                    dim_size: 2,
+                    create_if_missing: false,
+                    timeout_ms: 1000,
+                }],
+            })
+            .await
+            .expect("second batch_lookup should succeed");
+        let second_resp = &second.responses[0];
+        assert_eq!(second_resp.status_code, 0);
+        assert_eq!(second_resp.found, vec![true, true, true]);
+        assert_eq!(second_resp.num_found, 3);
+        assert_eq!(second_resp.num_initialized, 0);
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_batch_lookup_validates_dim_size_per_entry() {
+        let bind = test_bind_addr();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
+
+        let resp = client
+            .batch_lookup(BatchLookupRequest {
+                requests: vec![
+                    LookupRequest {
+                        table_name: "dim".to_string(),
+                        fids: vec![1],
+                        dim_size: 0,
+                        create_if_missing: true,
+                        timeout_ms: 1000,
+                    },
+                    LookupRequest {
+                        table_name: "dim".to_string(),
+                        fids: vec![2],
+                        dim_size: 2,
+                        create_if_missing: true,
+                        timeout_ms: 1000,
+                    },
+                ],
+            })
+            .await
+            .expect("batch_lookup should succeed for per-entry dim validation test");
+
+        assert_eq!(resp.responses.len(), 2);
+        assert_eq!(resp.responses[0].status_code, 1);
+        assert!(
+            resp.responses[0]
+                .error_message
+                .contains("dim_size must be greater than zero")
+        );
+        assert_eq!(resp.responses[1].status_code, 0);
+        assert_eq!(resp.responses[1].embeddings.len(), 2);
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_ps_client_batch_apply_validates_dim_size_per_entry() {
+        let bind = test_bind_addr();
+        let ps = PsServer::new(0, 2);
+        let server = tokio::spawn(async move {
+            let _ = serve_ps(ps, bind).await;
+        });
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let addr = bind.to_string();
+        let client = PsClient::connect(&[&addr])
+            .await
+            .expect("ps client connect should succeed");
+
+        // Initialize valid table entry so the second apply request can update it.
+        client
+            .lookup("dim_apply", &[9], 2, true)
+            .await
+            .expect("lookup should succeed before per-entry apply validation test");
+
+        let resp = client
+            .batch_apply_gradients(BatchApplyGradientsRequest {
+                requests: vec![
+                    ApplyGradientsRequest {
+                        table_name: "dim_apply".to_string(),
+                        fids: vec![9],
+                        gradients: vec![1.0, 2.0],
+                        dim_size: -1,
+                        learning_rate: 0.1,
+                        global_step: 1,
+                        timeout_ms: 1000,
+                    },
+                    ApplyGradientsRequest {
+                        table_name: "dim_apply".to_string(),
+                        fids: vec![9],
+                        gradients: vec![1.0, 2.0],
+                        dim_size: 2,
+                        learning_rate: 0.1,
+                        global_step: 1,
+                        timeout_ms: 1000,
+                    },
+                ],
+            })
+            .await
+            .expect("batch_apply_gradients should succeed for per-entry dim validation test");
+
+        assert_eq!(resp.responses.len(), 2);
+        assert_eq!(resp.responses[0].status_code, 1);
+        assert!(
+            resp.responses[0]
+                .error_message
+                .contains("dim_size must be greater than zero")
+        );
+        assert_eq!(resp.responses[1].status_code, 0);
+        assert_eq!(resp.responses[1].num_updated, 1);
+
+        server.abort();
     }
 }

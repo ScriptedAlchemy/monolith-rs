@@ -219,7 +219,10 @@ impl MetricsRecorder {
     ///
     /// let avg = recorder.aggregate(2);
     /// assert!((avg.loss - 0.4).abs() < 1e-10);
-    /// assert!((avg.accuracy.unwrap() - 0.85).abs() < 1e-10);
+    /// assert!(matches!(
+    ///     avg.accuracy,
+    ///     Some(acc) if (acc - 0.85).abs() < 1e-10
+    /// ));
     /// ```
     pub fn aggregate(&self, global_step: u64) -> Metrics {
         let mut metrics = Metrics::new(self.average_loss(), global_step);
@@ -301,7 +304,14 @@ mod tests {
 
         assert_eq!(recorder.count(), 2);
         assert!((recorder.average_loss() - 0.4).abs() < 1e-10);
-        assert!((recorder.average_accuracy().unwrap() - 0.85).abs() < 1e-10);
+        assert!(
+            (recorder
+                .average_accuracy()
+                .expect("average accuracy should be present after accuracy-bearing records")
+                - 0.85)
+                .abs()
+                < 1e-10
+        );
     }
 
     #[test]
@@ -321,8 +331,21 @@ mod tests {
         let agg = recorder.aggregate(100);
         assert_eq!(agg.global_step, 100);
         assert!((agg.loss - 0.4).abs() < 1e-10);
-        assert!((agg.accuracy.unwrap() - 0.85).abs() < 1e-10);
-        assert!((agg.custom.get("f1").unwrap() - 0.8).abs() < 1e-10);
+        assert!(
+            (agg.accuracy
+                .expect("aggregated accuracy should be present after accuracy-bearing records")
+                - 0.85)
+                .abs()
+                < 1e-10
+        );
+        assert!(
+            (agg.custom
+                .get("f1")
+                .expect("aggregated custom f1 metric should be present")
+                - 0.8)
+                .abs()
+                < 1e-10
+        );
     }
 
     #[test]

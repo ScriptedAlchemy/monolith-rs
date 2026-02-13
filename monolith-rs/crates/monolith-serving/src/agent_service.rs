@@ -537,9 +537,11 @@ mod tests {
             context: None,
         };
 
-        let result = service.predict(request).await;
-        assert!(result.is_err());
-        assert!(matches!(result, Err(ServingError::ModelNotLoaded)));
+        let err = service
+            .predict(request)
+            .await
+            .expect_err("predict should fail when no model is loaded");
+        assert!(matches!(err, ServingError::ModelNotLoaded));
     }
 
     #[tokio::test]
@@ -558,10 +560,10 @@ mod tests {
             context: None,
         };
 
-        let result = service.predict(request).await;
-        assert!(result.is_ok());
-
-        let response = result.unwrap();
+        let response = service
+            .predict(request)
+            .await
+            .expect("predict should succeed with loaded test model");
         assert_eq!(response.request_id, "test-001");
         assert!(response.success);
         assert!(!response.scores.is_empty());
@@ -584,10 +586,10 @@ mod tests {
             context: None,
         };
 
-        let result = service.predict(request).await;
-        assert!(result.is_ok());
-
-        let response = result.unwrap();
+        let response = service
+            .predict(request)
+            .await
+            .expect("predict with embeddings should succeed with loaded test model");
         assert!(response.embeddings.is_some());
 
         let embeddings = response.embeddings.unwrap();

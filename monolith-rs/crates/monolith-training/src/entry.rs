@@ -920,7 +920,9 @@ mod tests {
     fn test_initializers_as_proto() {
         ZerosInitializer.as_proto();
         RandomUniformInitializer::new(Some(-0.5), Some(0.5)).as_proto();
-        BatchSoftmaxInitializer::new(1.0).unwrap().as_proto();
+        BatchSoftmaxInitializer::new(1.0)
+            .expect("batch-softmax initializer construction should succeed")
+            .as_proto();
     }
 
     #[test]

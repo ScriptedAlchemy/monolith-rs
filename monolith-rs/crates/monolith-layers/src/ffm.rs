@@ -718,7 +718,7 @@ mod tests {
         let field_values = Tensor::ones(&[1, 2]);
 
         let result = ffm.forward_with_fields(&field_indices, &field_values);
-        assert!(result.is_err());
+        result.expect_err("FFM forward should fail when field index is out of bounds");
     }
 
     #[test]
@@ -729,7 +729,7 @@ mod tests {
         let field_values = Tensor::ones(&[2, 2]); // Wrong shape
 
         let result = ffm.forward_with_fields(&field_indices, &field_values);
-        assert!(result.is_err());
+        result.expect_err("FFM forward should fail when indices and values shapes mismatch");
     }
 
     #[test]
@@ -816,7 +816,7 @@ mod tests {
         // After clearing, backward should fail
         let grad = Tensor::ones(&[1, 1]);
         let result = ffm.backward_ffm(&grad);
-        assert!(result.is_err());
+        result.expect_err("FFM backward should fail after cache is cleared");
     }
 
     #[test]

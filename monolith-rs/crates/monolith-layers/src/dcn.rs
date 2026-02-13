@@ -1128,7 +1128,7 @@ mod tests {
         let xl = Tensor::rand(&[4, 32]);
 
         let result = layer.forward_with_x0(&x0, &xl);
-        assert!(result.is_err());
+        result.expect_err("cross layer forward should fail for mismatched x0 dimension");
     }
 
     #[test]
@@ -1138,7 +1138,7 @@ mod tests {
         let xl = Tensor::rand(&[8, 32]); // different batch size
 
         let result = layer.forward_with_x0(&x0, &xl);
-        assert!(result.is_err());
+        result.expect_err("cross layer forward should fail for batch size mismatch");
     }
 
     #[test]
@@ -1153,7 +1153,7 @@ mod tests {
         // After clearing, backward should fail
         let grad = Tensor::ones(&[2, 8]);
         let result = network.backward(&grad);
-        assert!(result.is_err());
+        result.expect_err("cross network backward should fail after cache is cleared");
     }
 
     #[test]

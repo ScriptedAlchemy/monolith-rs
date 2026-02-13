@@ -51,7 +51,8 @@
 //! estimator.add_hook(CheckpointHook::new(config.model_dir.clone(), 1000));
 //!
 //! // Run training
-//! // let result = estimator.train().unwrap();
+//! // let result = estimator.train();
+//! // // Handle `result` according to your application's error strategy.
 //! ```
 
 pub mod barrier;
@@ -70,6 +71,7 @@ pub mod native_training;
 pub mod parameter_sync_replicator;
 pub mod prefetch_queue;
 pub mod py_discovery;
+pub mod run_config;
 pub mod runner;
 pub mod runner_utils;
 
@@ -107,7 +109,7 @@ pub use entry::{
 };
 pub use estimator::{
     ConstantModelFn, Estimator, EstimatorConfig, EstimatorError, EstimatorMode, EstimatorResult,
-    EvalResult, ModelFn, PredictResult, TrainResult,
+    EstimatorSpec, EstimatorSpecUpdate, EvalResult, ModelFn, PredictResult, TrainResult,
 };
 pub use file_ops::{FileCloseHook, WritableFile};
 pub use hooks::{
@@ -130,8 +132,22 @@ pub use prefetch_queue::{
 pub use py_discovery::{
     HostFileDiscovery, MlpServiceDiscovery, PyServiceDiscovery, TfConfigServiceDiscovery,
 };
-pub use runner::{run_distributed, DistributedRunConfig, Role};
-pub use runner_utils::{copy_checkpoint_from_restore_dir, CheckpointState, RunnerUtilsError};
+pub use run_config::{
+    Result as RunConfigResult, RunConfig, RunConfigError, RunnerConfig,
+};
+pub use runner::{
+    distributed_config_from_runner, run_distributed, run_distributed_from_runner_config,
+    run_distributed_from_run_config, DistributedRunConfig, Role,
+};
+pub use runner_utils::{
+    copy_checkpoint_from_restore_dir, get_checkpoint_state_with_restore_override, get_discovery,
+    get_discovery_from_run_config, initialize_restore_checkpoint_from_runner,
+    initialize_restore_checkpoint_from_run_config,
+    initialize_restore_checkpoint_from_run_config_defaults,
+    initialize_restore_checkpoint_from_runner_defaults, isabs, monolith_discovery,
+    monolith_discovery_from_run_config, prepare_restore_checkpoint, CheckpointState,
+    MonolithDiscoveryGuard, RunnerDiscovery, RunnerMode, RunnerUtilsError,
+};
 
 /// Training configuration combining estimator and distributed settings.
 ///
@@ -250,15 +266,21 @@ mod tests {
         estimator.add_hook(LoggingHook::new(10));
 
         // Train
-        let train_result = estimator.train().unwrap();
+        let train_result = estimator
+            .train()
+            .expect("training should succeed in full training flow smoke test");
         assert_eq!(train_result.global_step, 50);
 
         // Evaluate
-        let eval_result = estimator.evaluate().unwrap();
+        let eval_result = estimator
+            .evaluate()
+            .expect("evaluation should succeed in full training flow smoke test");
         assert!((eval_result.metrics.loss - 0.5).abs() < 1e-10);
 
         // Predict
-        let predict_result = estimator.predict(3).unwrap();
+        let predict_result = estimator
+            .predict(3)
+            .expect("prediction should succeed in full training flow smoke test");
         assert_eq!(predict_result.num_examples, 3);
     }
 }

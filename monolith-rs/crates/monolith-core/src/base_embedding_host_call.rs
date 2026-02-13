@@ -63,7 +63,8 @@ mod tests {
     fn test_compute_new_value_validates_lengths() {
         let base = vec![0_i32; 2];
         let delta = vec![1_i32, 2_i32, 3_i32];
-        let err = compute_new_value_i32(&base, &delta, 0).unwrap_err();
+        let err = compute_new_value_i32(&base, &delta, 0)
+            .expect_err("delta longer than base should fail length validation");
         assert!(err.to_string().contains("delta length"));
     }
 }

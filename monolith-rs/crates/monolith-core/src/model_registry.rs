@@ -93,6 +93,9 @@ mod tests {
     use super::*;
     use crate::base_model_params::SingleTaskModelParams;
     use crate::hyperparams::Params;
+    use std::sync::Mutex;
+
+    static REGISTRY_TEST_MUTEX: Mutex<()> = Mutex::new(());
 
     #[derive(Default)]
     struct DummyParams;
@@ -107,12 +110,14 @@ mod tests {
 
     #[test]
     fn test_register_duplicate_error_message() {
+        let _guard = REGISTRY_TEST_MUTEX.lock().unwrap();
         clear_registry_for_test();
 
         let key = "monolith.tasks.dummy.Dummy";
         register_single_task_model(key, || Box::new(DummyParams::default())).unwrap();
 
-        let err = register_single_task_model(key, || Box::new(DummyParams::default())).unwrap_err();
+        let err = register_single_task_model(key, || Box::new(DummyParams::default()))
+            .expect_err("registering duplicate model key should fail");
         assert_eq!(
             err.to_string(),
             "Duplicate model registered for key monolith.tasks.dummy.Dummy: <unknown>.<unknown>"
@@ -121,9 +126,11 @@ mod tests {
 
     #[test]
     fn test_get_class_not_found_error_message() {
+        let _guard = REGISTRY_TEST_MUTEX.lock().unwrap();
         clear_registry_for_test();
 
-        let err = get_class("does.not.Exist").unwrap_err();
+        let err = get_class("does.not.Exist")
+            .expect_err("requesting unknown model class should fail");
         assert_eq!(
             err.to_string(),
             "Model does.not.Exist not found from list of above known models."

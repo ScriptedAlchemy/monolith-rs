@@ -35,7 +35,9 @@ serde = { workspace = true }
 bincode = { workspace = true }
 
 [features]
-default = ["talib", "metal"]
+# Keep defaults cross-platform and lightweight for CI/dev shells.
+# Apple-only Metal support and TA-Lib C bindings remain opt-in.
+default = []
 training = ["dep:monolith-training"]
 metal = ["monolith-layers/metal"]
 cuda = ["monolith-layers/cuda"]

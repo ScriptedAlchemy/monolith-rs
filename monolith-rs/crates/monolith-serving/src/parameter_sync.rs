@@ -503,8 +503,10 @@ mod tests {
         let client = ParameterSyncClient::new(config);
 
         // Connect
-        let result = client.connect().await;
-        assert!(result.is_ok());
+        client
+            .connect()
+            .await
+            .expect("parameter sync client should connect in test setup");
         assert!(client.is_connected());
         assert_eq!(client.connection_health().len(), 2);
 
@@ -519,9 +521,11 @@ mod tests {
         let config = test_config();
         let client = ParameterSyncClient::new(config);
 
-        let result = client.pull(0, &[1, 2, 3]).await;
-        assert!(result.is_err());
-        assert!(matches!(result, Err(ServingError::NotConnected)));
+        let err = client
+            .pull(0, &[1, 2, 3])
+            .await
+            .expect_err("pull should fail when client is not connected");
+        assert!(matches!(err, ServingError::NotConnected));
     }
 
     #[tokio::test]
@@ -531,10 +535,10 @@ mod tests {
         client.connect().await.unwrap();
 
         let fids = vec![1, 2, 3, 4, 5];
-        let result = client.pull(0, &fids).await;
-
-        assert!(result.is_ok());
-        let embeddings = result.unwrap();
+        let embeddings = client
+            .pull(0, &fids)
+            .await
+            .expect("pull should succeed for connected client");
         assert_eq!(embeddings.len(), fids.len());
 
         for (i, emb) in embeddings.iter().enumerate() {
@@ -562,8 +566,10 @@ mod tests {
             },
         ];
 
-        let result = client.push(0, embeddings).await;
-        assert!(result.is_ok());
+        client
+            .push(0, embeddings)
+            .await
+            .expect("push should succeed for connected client");
     }
 
     #[tokio::test]

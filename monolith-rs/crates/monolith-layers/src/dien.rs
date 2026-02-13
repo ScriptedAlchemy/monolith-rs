@@ -1404,19 +1404,27 @@ mod tests {
     fn test_dien_config_validation() {
         // Valid config
         let config = DIENConfig::new(32, 32);
-        assert!(config.validate().is_ok());
+        config
+            .validate()
+            .expect("default DIEN config should pass validation");
 
         // Invalid: zero embedding dim
         let config = DIENConfig::new(0, 64);
-        assert!(config.validate().is_err());
+        config
+            .validate()
+            .expect_err("DIEN config with zero embedding dim should fail validation");
 
         // Invalid: zero hidden size
         let config = DIENConfig::new(32, 0);
-        assert!(config.validate().is_err());
+        config
+            .validate()
+            .expect_err("DIEN config with zero hidden size should fail validation");
 
         // Valid: embedding dim can differ from hidden size (extractor projects to hidden)
         let config = DIENConfig::new(32, 64);
-        assert!(config.validate().is_ok());
+        config
+            .validate()
+            .expect("DIEN config with projected hidden size should pass validation");
     }
 
     #[test]
@@ -1562,7 +1570,7 @@ mod tests {
         let target_item = Tensor::rand(&[2, 8]);
 
         let result = dien.forward_dien(&behavior_seq, &target_item, None);
-        assert!(result.is_err());
+        result.expect_err("DIEN forward should fail when behavior sequence is not rank-3");
     }
 
     #[test]
@@ -1573,7 +1581,7 @@ mod tests {
         let target_item = Tensor::rand(&[2, 5, 8]); // 3D instead of 2D
 
         let result = dien.forward_dien(&behavior_seq, &target_item, None);
-        assert!(result.is_err());
+        result.expect_err("DIEN forward should fail when target item is not rank-2");
     }
 
     #[test]
@@ -1584,7 +1592,7 @@ mod tests {
         let target_item = Tensor::rand(&[2, 8]);
 
         let result = dien.forward_dien(&behavior_seq, &target_item, None);
-        assert!(result.is_err());
+        result.expect_err("DIEN forward should fail for embedding dimension mismatch");
     }
 
     #[test]
@@ -1595,7 +1603,7 @@ mod tests {
         let target_item = Tensor::rand(&[3, 8]); // Different batch size
 
         let result = dien.forward_dien(&behavior_seq, &target_item, None);
-        assert!(result.is_err());
+        result.expect_err("DIEN forward should fail for batch size mismatch");
     }
 
     #[test]
@@ -1607,7 +1615,7 @@ mod tests {
         let mask = Tensor::ones(&[2, 3]); // Wrong seq_len
 
         let result = dien.forward_dien(&behavior_seq, &target_item, Some(&mask));
-        assert!(result.is_err());
+        result.expect_err("DIEN forward should fail when mask shape mismatches sequence");
     }
 
     #[test]
@@ -1642,7 +1650,7 @@ mod tests {
         let neg_samples = Tensor::rand(&[2, 3, 8]); // Wrong shape
 
         let result = dien.auxiliary_loss(&behavior_seq, &neg_samples);
-        assert!(result.is_err());
+        result.expect_err("DIEN auxiliary loss should fail for mismatched sample shapes");
     }
 
     #[test]
@@ -1698,7 +1706,7 @@ mod tests {
 
         let grad = Tensor::ones(&[2, 16]);
         let result = dien.backward(&grad);
-        assert!(result.is_err());
+        result.expect_err("DIEN backward should fail when no forward cache exists");
     }
 
     #[test]

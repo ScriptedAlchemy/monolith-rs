@@ -67,14 +67,15 @@ mod tests {
 
     #[test]
     fn test_import_params_invalid_name_message() {
-        let err = import_params("NoDots", DEFAULT_TASK_ROOT, &[], true).unwrap_err();
+        let err = import_params("NoDots", DEFAULT_TASK_ROOT, &[], true)
+            .expect_err("invalid model name should fail import_params");
         assert_eq!(err.to_string(), "Invalid model name NoDots");
     }
 
     #[test]
     fn test_import_params_require_success_message() {
-        let err =
-            import_params("a.b.C", DEFAULT_TASK_ROOT, &[], true).unwrap_err();
+        let err = import_params("a.b.C", DEFAULT_TASK_ROOT, &[], true)
+            .expect_err("require_success import should fail when no valid module paths exist");
         assert_eq!(
             err.to_string(),
             "Could not find any valid import paths for module a.b. Check the logs above to see if there were errors importing the module, and make sure the relevant params files are linked into the binary."
@@ -83,7 +84,8 @@ mod tests {
 
     #[test]
     fn test_import_all_params_require_success_message() {
-        let err = import_all_params(DEFAULT_TASK_ROOT, &[], true).unwrap_err();
+        let err = import_all_params(DEFAULT_TASK_ROOT, &[], true)
+            .expect_err("require_success import_all_params should fail when no task params import");
         assert_eq!(
             err.to_string(),
             "Could not import any task params. Make sure task params are linked into the binary."

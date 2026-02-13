@@ -601,66 +601,78 @@ mod tests {
     fn test_embedding_config_validate() {
         // Valid config
         let config = EmbeddingConfig::new(1, 64);
-        assert!(config.validate().is_ok());
+        config
+            .validate()
+            .expect("default embedding config should pass validation");
 
         // Invalid: zero dimension
         let mut config = EmbeddingConfig::new(1, 0);
         config.learning_rate = 0.001;
-        assert!(config.validate().is_err());
+        config
+            .validate()
+            .expect_err("embedding config with zero dimension should fail validation");
     }
 
     #[test]
     fn test_initializer_config() {
         let init = InitializerConfig::zeros();
         assert_eq!(init, InitializerConfig::Zeros);
-        assert!(init.validate().is_ok());
+        init.validate()
+            .expect("zero initializer should pass validation");
 
         let init = InitializerConfig::uniform(-1.0, 1.0);
-        assert!(init.validate().is_ok());
+        init.validate()
+            .expect("uniform initializer with ordered bounds should pass validation");
 
         let init = InitializerConfig::uniform(1.0, -1.0);
-        assert!(init.validate().is_err());
+        init.validate()
+            .expect_err("uniform initializer with inverted bounds should fail validation");
 
         let init = InitializerConfig::normal(0.0, 1.0);
-        assert!(init.validate().is_ok());
+        init.validate()
+            .expect("normal initializer with positive stddev should pass validation");
 
         let init = InitializerConfig::normal(0.0, -1.0);
-        assert!(init.validate().is_err());
+        init.validate()
+            .expect_err("normal initializer with negative stddev should fail validation");
     }
 
     #[test]
     fn test_initializer_config_default() {
         let init = InitializerConfig::default();
-        match init {
-            InitializerConfig::RandomUniform { min, max } => {
-                assert_eq!(min, -0.05);
-                assert_eq!(max, 0.05);
-            }
-            _ => panic!("Expected RandomUniform"),
-        }
+        assert!(
+            matches!(
+                init,
+                InitializerConfig::RandomUniform { min, max }
+                    if (min + 0.05).abs() < f32::EPSILON
+                        && (max - 0.05).abs() < f32::EPSILON
+            ),
+            "default initializer should be RandomUniform(-0.05, 0.05)"
+        );
     }
 
     #[test]
     fn test_optimizer_type() {
         let opt = OptimizerType::default();
-        match opt {
-            OptimizerType::Adam {
-                beta1,
-                beta2,
-                epsilon,
-            } => {
-                assert_eq!(beta1, 0.9);
-                assert_eq!(beta2, 0.999);
-                assert_eq!(epsilon, 1e-8);
-            }
-            _ => panic!("Expected Adam"),
-        }
+        assert!(
+            matches!(
+                opt,
+                OptimizerType::Adam {
+                    beta1,
+                    beta2,
+                    epsilon,
+                } if (beta1 - 0.9).abs() < f32::EPSILON
+                    && (beta2 - 0.999).abs() < f32::EPSILON
+                    && (epsilon - 1e-8).abs() < f32::EPSILON
+            ),
+            "default optimizer should be Adam with expected hyperparameters"
+        );
 
         let opt = OptimizerType::Sgd { momentum: 0.9 };
-        match opt {
-            OptimizerType::Sgd { momentum } => assert_eq!(momentum, 0.9),
-            _ => panic!("Expected Sgd"),
-        }
+        assert!(
+            matches!(opt, OptimizerType::Sgd { momentum } if (momentum - 0.9).abs() < f32::EPSILON),
+            "constructed optimizer should be SGD with configured momentum"
+        );
     }
 
     #[test]
@@ -676,19 +688,27 @@ mod tests {
     #[test]
     fn test_training_params_validate() {
         let params = TrainingParams::default();
-        assert!(params.validate().is_ok());
+        params
+            .validate()
+            .expect("default training params should pass validation");
 
         let mut params = TrainingParams::default();
         params.set_learning_rate(-0.001);
-        assert!(params.validate().is_err());
+        params
+            .validate()
+            .expect_err("negative learning rate should fail training params validation");
 
         let mut params = TrainingParams::default();
         params.set_batch_size(0);
-        assert!(params.validate().is_err());
+        params
+            .validate()
+            .expect_err("zero batch size should fail training params validation");
 
         let mut params = TrainingParams::default();
         params.set_num_epochs(0);
-        assert!(params.validate().is_err());
+        params
+            .validate()
+            .expect_err("zero num_epochs should fail training params validation");
     }
 
     #[test]

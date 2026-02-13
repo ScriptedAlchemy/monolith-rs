@@ -323,8 +323,27 @@ impl<T: DevicePlacement + Clone> MultiFifoQueue<T> {
         let mut out = Vec::with_capacity(self.split_indices.len());
         for (dev, idx) in &self.split_indices {
             match dev {
-                Device::Cpu => out.push(cpu_parts[*idx].clone()),
-                Device::Gpu => out.push(gpu_parts.as_ref().unwrap()[*idx].clone()),
+                Device::Cpu => {
+                    let item = cpu_parts.get(*idx).ok_or_else(|| {
+                        format!(
+                            "cpu split index {idx} out of bounds for dequeued cpu parts (len={})",
+                            cpu_parts.len()
+                        )
+                    })?;
+                    out.push(item.clone());
+                }
+                Device::Gpu => {
+                    let gpu = gpu_parts.as_ref().ok_or_else(|| {
+                        "gpu split index requested but gpu queue parts are unavailable".to_string()
+                    })?;
+                    let item = gpu.get(*idx).ok_or_else(|| {
+                        format!(
+                            "gpu split index {idx} out of bounds for dequeued gpu parts (len={})",
+                            gpu.len()
+                        )
+                    })?;
+                    out.push(item.clone());
+                }
             }
         }
         Ok(out)
@@ -510,10 +529,13 @@ mod tests {
     fn fifo_queue_capacity_roundtrip() {
         let q = FifoQueue::new(4);
         for _ in 0..4 {
-            q.enqueue(vec![Placed::cpu(2i64)]).unwrap();
+            q.enqueue(vec![Placed::cpu(2i64)])
+                .expect("enqueue should succeed within queue capacity");
         }
         for _ in 0..4 {
-            let v = q.dequeue().unwrap();
+            let v = q
+                .dequeue()
+                .expect("dequeue should succeed for previously enqueued items");
             assert_eq!(v[0].value, 2);
         }
     }
@@ -546,35 +568,64 @@ mod tests {
         let res = res.expect("queue exists");
 
         // Non-tensor values should be present in the token template immediately.
-        let Nested::Map(root) = &token_template else {
-            panic!("expected map");
+        let root = if let Nested::Map(root) = &token_template {
+            root
+        } else {
+            assert!(
+                false,
+                "expected map token template root, got {token_template:?}"
+            );
+            return;
         };
-        let Nested::Seq(items) = root.get("list").unwrap() else {
-            panic!("expected list");
+        let list_node = root.get("list").expect("list key should exist");
+        let items = if let Nested::Seq(items) = list_node {
+            items
+        } else {
+            assert!(false, "expected list at key 'list', got {list_node:?}");
+            return;
         };
-        let Nested::Map(item0) = &items[0] else {
-            panic!("expected map item");
+        let first = &items[0];
+        let item0 = if let Nested::Map(item0) = first {
+            item0
+        } else {
+            assert!(false, "expected map element inside list, got {first:?}");
+            return;
         };
         assert_eq!(
-            item0.get("b").unwrap(),
+            item0.get("b").expect("key 'b' should exist in template map"),
             &Nested::<Placed<i64>>::Str("abc".to_string())
         );
-        assert_eq!(item0.get("c").unwrap(), &Nested::<Placed<i64>>::Null);
+        assert_eq!(
+            item0.get("c").expect("key 'c' should exist in template map"),
+            &Nested::<Placed<i64>>::Null
+        );
 
         // Enqueue one element.
         let mut flat = Vec::new();
         Nested::Map(top).flatten_tensors(&mut flat);
-        res.queue.enqueue(&flat).unwrap();
+        res.queue
+            .enqueue(&flat)
+            .expect("queue enqueue should succeed for flattened payload");
 
         // Dequeue and rebuild.
-        let flat_out = res.queue.dequeue().unwrap();
+        let flat_out = res
+            .queue
+            .dequeue()
+            .expect("queue dequeue should succeed for previously enqueued payload");
         let rebuilt = res.token_template.fill_from_tokens(&flat_out);
 
-        let Nested::Map(root) = rebuilt else {
-            panic!("expected map");
+        let root = if let Nested::Map(root) = rebuilt {
+            root
+        } else {
+            assert!(false, "expected rebuilt map root, got {rebuilt:?}");
+            return;
         };
-        let Nested::Tensor(v) = root.get("v").unwrap() else {
-            panic!("expected tensor v");
+        let v_node = root.get("v").expect("v key should exist");
+        let v = if let Nested::Tensor(v) = v_node {
+            v
+        } else {
+            assert!(false, "expected tensor at key 'v', got {v_node:?}");
+            return;
         };
         assert_eq!(v.value, 5);
     }
@@ -589,12 +640,51 @@ mod tests {
         let q2 = q.clone();
         let enqueue = move || {
             v2.fetch_add(1, Ordering::SeqCst);
-            q2.enqueue(Placed::cpu(0i64)).unwrap();
+            q2.enqueue(Placed::cpu(0i64))
+                .expect("enqueue from side-effect closure should succeed");
         };
 
         enqueue();
         assert_eq!(v.load(Ordering::SeqCst), 1);
-        let _ = q.dequeue().unwrap();
+        let _ = q
+            .dequeue()
+            .expect("dequeue should succeed after side-effect enqueue");
+    }
+
+    #[test]
+    fn multi_fifo_queue_dequeue_missing_gpu_parts_returns_error() {
+        let q = MultiFifoQueue {
+            cpu: FifoQueue::new(1),
+            gpu: None,
+            split_indices: vec![(Device::Gpu, 0)],
+        };
+        q.cpu
+            .enqueue(Vec::<Placed<i64>>::new())
+            .expect("cpu queue enqueue should succeed for malformed queue regression setup");
+
+        let err = q
+            .dequeue()
+            .expect_err("dequeue should return an explicit error when gpu parts are unavailable");
+        assert!(
+            err.contains("gpu split index requested but gpu queue parts are unavailable"),
+            "expected missing-gpu-parts diagnostics, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn multi_fifo_queue_dequeue_out_of_bounds_cpu_split_index_returns_error() {
+        let mut q = MultiFifoQueue::new(&[Placed::cpu(1i64)], 1);
+        q.split_indices = vec![(Device::Cpu, 1)];
+        q.enqueue(&[Placed::cpu(3i64)])
+            .expect("enqueue should succeed for cpu split-index bounds regression setup");
+
+        let err = q.dequeue().expect_err(
+            "dequeue should return an explicit error when cpu split index exceeds dequeued parts",
+        );
+        assert!(
+            err.contains("cpu split index 1 out of bounds"),
+            "expected cpu split-index bounds diagnostics, got {err:?}"
+        );
     }
 
     #[test]
@@ -618,7 +708,8 @@ mod tests {
         enqueue();
         let mut hooks = mgr.hooks();
         for h in hooks.iter_mut() {
-            h.before_step(0).unwrap();
+            h.before_step(0)
+                .expect("hook before_step should succeed for async manager");
         }
         assert_eq!(x.load(Ordering::SeqCst), 1);
     }
@@ -655,7 +746,8 @@ mod tests {
         enqueue();
         let mut hooks = mgr.hooks();
         for h in hooks.iter_mut() {
-            h.before_step(0).unwrap();
+            h.before_step(0)
+                .expect("hook before_step should succeed for async manager");
         }
         assert_eq!(x.load(Ordering::SeqCst), 1);
     }

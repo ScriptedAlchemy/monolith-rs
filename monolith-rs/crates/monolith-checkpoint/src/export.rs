@@ -700,8 +700,9 @@ mod tests {
         let exporter = ModelExporter::new(config);
 
         let state = create_test_state();
-        let result = exporter.export(&state);
-        assert!(result.is_ok());
+        exporter
+            .export(&state)
+            .expect("json export should succeed for valid test state");
 
         // Check files exist
         assert!(dir.path().join("model.json").exists());
@@ -715,8 +716,9 @@ mod tests {
         let exporter = ModelExporter::new(config);
 
         let state = create_test_state();
-        let result = exporter.export(&state);
-        assert!(result.is_ok());
+        exporter
+            .export(&state)
+            .expect("binary export should succeed for valid test state");
 
         assert!(dir.path().join("model.bin").exists());
         assert!(dir.path().join("manifest.json").exists());
@@ -731,8 +733,9 @@ mod tests {
         let exporter = ModelExporter::new(config);
 
         let state = create_test_state();
-        let result = exporter.export(&state);
-        assert!(result.is_ok());
+        exporter
+            .export(&state)
+            .expect("saved-model export should succeed for valid test state");
 
         // Check directory structure
         assert!(dir.path().join("manifest.json").exists());
@@ -768,20 +771,21 @@ mod tests {
 
         let json = std::fs::read_to_string(spec_path).unwrap();
         let spec: ModelSpec = serde_json::from_str(&json).unwrap();
-        match spec {
-            ModelSpec::Mlp {
-                input_dim,
-                hidden_dims,
-                output_dim,
-                activation,
-            } => {
-                assert_eq!(input_dim, 4);
-                assert_eq!(hidden_dims, vec![3]);
-                assert_eq!(output_dim, 1);
-                assert_eq!(activation, "relu");
-            }
-            _ => panic!("expected mlp spec"),
-        }
+        assert!(
+            matches!(
+                spec,
+                ModelSpec::Mlp {
+                    input_dim,
+                    hidden_dims,
+                    output_dim,
+                    activation,
+                } if input_dim == 4
+                    && hidden_dims == vec![3]
+                    && output_dim == 1
+                    && activation == "relu"
+            ),
+            "saved-model export should emit expected mlp model spec"
+        );
     }
 
     #[test]

@@ -271,12 +271,13 @@ impl BaseEmbeddingTask {
 
     /// Creates vocab dict based on config.
     fn create_vocab_dict(config: &mut BaseEmbeddingTaskConfig) -> Result<HashMap<SlotId, usize>> {
-        if config.base.train.end_date.is_some()
-            && config.base.train.vocab_file_folder_prefix.is_some()
-        {
+        if let (Some(end_date), Some(vocab_folder_prefix)) = (
+            config.base.train.end_date.as_ref(),
+            config.base.train.vocab_file_folder_prefix.as_ref(),
+        ) {
             config.vocab_file_path = Self::download_vocab_size_file_from_hdfs(
-                config.base.train.vocab_file_folder_prefix.as_ref().unwrap(),
-                config.base.train.end_date.as_ref().unwrap(),
+                vocab_folder_prefix,
+                end_date,
             )
             .ok()
             .or_else(|| config.vocab_file_path.clone());
@@ -529,9 +530,10 @@ mod tests {
 
     #[test]
     fn test_create_vocab_dict_parity_fixed_and_custom_and_offset() {
-        let mut f = NamedTempFile::new().unwrap();
+        let mut f = NamedTempFile::new().expect("temporary vocab file creation should succeed");
         // Include a non-digit header line which should be ignored (Python behavior).
-        std::io::Write::write_all(&mut f, b"slot\tvocab\n1\t10\n2\t20\n").unwrap();
+        std::io::Write::write_all(&mut f, b"slot\tvocab\n1\t10\n2\t20\n")
+            .expect("writing vocab fixture should succeed");
 
         let mut cfg = BaseEmbeddingTaskConfig::default();
         cfg.vocab_file_path = Some(f.path().to_path_buf());
@@ -541,15 +543,17 @@ mod tests {
         cfg.custom_vocab_size_mapping = Some(custom);
         cfg.vocab_size_offset = Some(1);
 
-        let vocab = BaseEmbeddingTask::create_vocab_dict_for_test(&mut cfg).unwrap();
+        let vocab = BaseEmbeddingTask::create_vocab_dict_for_test(&mut cfg)
+            .expect("vocab parsing should succeed for valid fixture");
         assert_eq!(vocab.get(&1).copied(), Some(11));
         assert_eq!(vocab.get(&2).copied(), Some(100));
     }
 
     #[test]
     fn test_create_vocab_dict_fixed_vocab_size_per_slot() {
-        let mut f = NamedTempFile::new().unwrap();
-        std::io::Write::write_all(&mut f, b"1\t10\n2\t20\n").unwrap();
+        let mut f = NamedTempFile::new().expect("temporary vocab file creation should succeed");
+        std::io::Write::write_all(&mut f, b"1\t10\n2\t20\n")
+            .expect("writing vocab fixture should succeed");
 
         let mut cfg = BaseEmbeddingTaskConfig::default();
         cfg.vocab_file_path = Some(f.path().to_path_buf());
@@ -559,20 +563,23 @@ mod tests {
         custom.insert(2, 99usize);
         cfg.custom_vocab_size_mapping = Some(custom);
 
-        let vocab = BaseEmbeddingTask::create_vocab_dict_for_test(&mut cfg).unwrap();
+        let vocab = BaseEmbeddingTask::create_vocab_dict_for_test(&mut cfg)
+            .expect("vocab parsing should succeed for fixed-vocab fixture");
         assert_eq!(vocab.get(&1).copied(), Some(7));
         assert_eq!(vocab.get(&2).copied(), Some(7));
     }
 
     #[test]
     fn test_create_vocab_dict_invalid_line_errors() {
-        let mut f = NamedTempFile::new().unwrap();
-        std::io::Write::write_all(&mut f, b"1\t10\textra\n").unwrap();
+        let mut f = NamedTempFile::new().expect("temporary vocab file creation should succeed");
+        std::io::Write::write_all(&mut f, b"1\t10\textra\n")
+            .expect("writing invalid vocab fixture should succeed");
 
         let mut cfg = BaseEmbeddingTaskConfig::default();
         cfg.vocab_file_path = Some(f.path().to_path_buf());
 
-        let err = BaseEmbeddingTask::create_vocab_dict_for_test(&mut cfg).unwrap_err();
+        let err = BaseEmbeddingTask::create_vocab_dict_for_test(&mut cfg)
+            .expect_err("invalid vocab line with extra fields should fail parsing");
         assert!(err.to_string().contains("must have 2 fields"));
     }
 }
