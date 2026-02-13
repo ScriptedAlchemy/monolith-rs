@@ -11132,6 +11132,28 @@
   - whitespace hygiene contracts now have explicit reject-on-worker / allow-on-ps
     integration parity coverage in both config entry surfaces.
 
+### 744) Worker-role parameter-sync duplicate/name bypass parity closure
+- Added integration regressions in
+  `crates/monolith-training/tests/native_training_parity.rs`:
+  - `distributed_runner_from_run_config_allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role`
+  - `distributed_runner_from_runner_config_allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role`
+- Re-ran existing PS-role rejection regressions:
+  - `distributed_runner_from_run_config_rejects_duplicate_parameter_sync_target_entry`
+  - `distributed_runner_from_runner_config_rejects_duplicate_parameter_sync_target_entry`
+  - `distributed_runner_from_run_config_rejects_empty_parameter_sync_model_name_with_targets`
+  - `distributed_runner_from_runner_config_rejects_empty_parameter_sync_model_name_with_targets`
+  - `distributed_runner_from_run_config_rejects_empty_parameter_sync_signature_name_with_targets`
+  - `distributed_runner_from_runner_config_rejects_empty_parameter_sync_signature_name_with_targets`
+- Coverage validates:
+  - worker role bypasses PS-only parameter-sync duplicate/interval/name hygiene
+    checks and progresses to the expected PS-discovery timeout path,
+  - PS role continues strict rejection for duplicate targets and empty
+    model/signature names when parameter-sync targets are configured.
+- Result:
+  - run-config and runner-config parity now explicitly lock
+    reject-on-ps / allow-on-worker behavior for parameter-sync duplicate/name
+    contract surfaces.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12703,6 +12725,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1561. `rg "allows_case_insensitive_identical_ps_and_worker_service_types_for_ps_role|rejects_case_insensitive_identical_ps_and_worker_service_types" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified case-insensitive identical service-type reject/allow integration regressions are present for both run-config and runner-config paths)
 1562. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_whitespace_padded_worker_service_type -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_whitespace_padded_worker_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_internal_whitespace_worker_service_type -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_internal_whitespace_worker_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_whitespace_padded_worker_service_type -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_whitespace_padded_worker_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_internal_whitespace_worker_service_type -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_internal_whitespace_worker_service_type_for_ps_role -- --nocapture` ✅ (validated worker-service-type whitespace hygiene remains worker-reject while ps-role allow paths are preserved across run-config and runner-config entrypoints)
 1563. `rg "distributed_runner_from_(run_config|runner_config)_(allows_whitespace_padded_worker_service_type_for_ps_role|allows_internal_whitespace_worker_service_type_for_ps_role|rejects_whitespace_padded_worker_service_type|rejects_internal_whitespace_worker_service_type)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified worker-service-type whitespace reject/allow integration regressions are present in both run-config and runner-config matrices)
+1564. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_duplicate_parameter_sync_target_entry -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_duplicate_parameter_sync_target_entry -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_empty_parameter_sync_model_name_with_targets -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_empty_parameter_sync_model_name_with_targets -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_empty_parameter_sync_signature_name_with_targets -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_empty_parameter_sync_signature_name_with_targets -- --nocapture` ✅ (validated parameter-sync duplicate/name role matrix: worker bypass remains permissive while ps rejection contracts stay enforced across run-config and runner-config entrypoints)
+1565. `rg "distributed_runner_from_(run_config|runner_config)_(allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role|rejects_duplicate_parameter_sync_target_entry|rejects_empty_parameter_sync_model_name_with_targets|rejects_empty_parameter_sync_signature_name_with_targets)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified worker-bypass and ps-reject parameter-sync duplicate/name integration regressions are present in both config-entry matrices)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
