@@ -6554,6 +6554,93 @@ async fn distributed_runner_from_run_config_allows_duplicate_parameter_sync_targ
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_allows_zero_parameter_sync_interval_without_targets_for_worker_role(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        enable_parameter_sync: true,
+        parameter_sync_targets: Vec::new(),
+        parameter_sync_interval_ms: 0,
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("worker role should allow zero parameter-sync interval when targets are disabled")
+    .to_string();
+    assert!(
+        err.contains("Timed out waiting for PS discovery"),
+        "worker role should fail due to discovery timeout, not parameter-sync interval validation: {err}"
+    );
+    assert!(
+        !err.contains("parameter_sync_interval > 0"),
+        "worker role should not validate zero parameter-sync interval when targets are disabled: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_allows_empty_parameter_sync_names_without_targets_for_worker_role(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        enable_parameter_sync: true,
+        parameter_sync_targets: Vec::new(),
+        parameter_sync_model_name: "".to_string(),
+        parameter_sync_signature_name: " ".to_string(),
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err(
+        "worker role should allow empty parameter-sync names when targets are disabled",
+    )
+    .to_string();
+    assert!(
+        err.contains("Timed out waiting for PS discovery"),
+        "worker role should fail due to discovery timeout, not parameter-sync name validation: {err}"
+    );
+    assert!(
+        !err.contains("parameter_sync_model_name") && !err.contains("parameter_sync_signature_name"),
+        "worker role should not validate parameter-sync names when targets are disabled: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_parameter_sync_target_endpoint_with_path_or_query(
 ) {
     use monolith_training::discovery::InMemoryDiscovery;
@@ -22779,6 +22866,91 @@ async fn distributed_runner_from_runner_config_allows_duplicate_parameter_sync_t
             && !err.contains("parameter_sync_model_name")
             && !err.contains("parameter_sync_signature_name"),
         "worker role should ignore parameter-sync duplicate/name validation contracts: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_allows_zero_parameter_sync_interval_without_targets_for_worker_role(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        enable_parameter_sync: true,
+        parameter_sync_targets: Vec::new(),
+        parameter_sync_interval_ms: 0,
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Worker,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("worker role should allow zero parameter-sync interval when targets are disabled")
+    .to_string();
+    assert!(
+        err.contains("Timed out waiting for PS discovery"),
+        "worker role should fail due to discovery timeout, not parameter-sync interval validation: {err}"
+    );
+    assert!(
+        !err.contains("parameter_sync_interval > 0"),
+        "worker role should not validate zero parameter-sync interval when targets are disabled: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_allows_empty_parameter_sync_names_without_targets_for_worker_role(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        enable_parameter_sync: true,
+        parameter_sync_targets: Vec::new(),
+        parameter_sync_model_name: "".to_string(),
+        parameter_sync_signature_name: " ".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Worker,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err(
+        "worker role should allow empty parameter-sync names when targets are disabled",
+    )
+    .to_string();
+    assert!(
+        err.contains("Timed out waiting for PS discovery"),
+        "worker role should fail due to discovery timeout, not parameter-sync name validation: {err}"
+    );
+    assert!(
+        !err.contains("parameter_sync_model_name") && !err.contains("parameter_sync_signature_name"),
+        "worker role should not validate parameter-sync names when targets are disabled: {err}"
     );
 }
 
