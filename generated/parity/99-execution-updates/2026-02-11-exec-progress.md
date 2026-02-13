@@ -8087,6 +8087,19 @@
   - ZooKeeper valid multi-host watch/disconnect parity now explicitly matches
     live/dead watcher cleanup guarantees used in other normalized address lanes.
 
+### 600) Discovery ZooKeeper mixed-family host-list failure-shape parity
+- Added mixed IPv4/IPv6 host-list regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_zk_connect_valid_mixed_ipv4_ipv6_hosts_returns_connection_failed_when_unreachable`
+  - `test_zk_discover_async_valid_mixed_ipv4_ipv6_hosts_connection_failure_is_connection_failed`
+  - `test_zk_discover_async_valid_mixed_ipv4_ipv6_hosts_connection_failure_preserves_local_cache`
+- Coverage validates syntactically valid mixed-family host lists are classified
+  as `ConnectionFailed` (not `ConfigError`) when unreachable, and that
+  discover-path failures preserve local cache entries.
+- Result:
+  - ZooKeeper host-list parity now explicitly covers mixed IPv4/IPv6 validity
+    across connect/discover failure-shape and cache-retention contracts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9343,6 +9356,8 @@
 1253. `rg "test_zk_(async_register_valid_multi_hosts_failure_does_not_cache_service|async_deregister_valid_multi_hosts_failure_(cleans_registered_path|keeps_live_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper valid multi-host async retention regression tests are present)
 1254. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_valid_multi_hosts_disconnect_clears_poll_generation_with_live_receiver -- --nocapture` ✅ (validated ZooKeeper valid multi-host watch/disconnect live-receiver cleanup regression)
 1255. `rg "test_zk_watch_async_valid_multi_hosts_disconnect_clears_poll_generation_with_live_receiver" crates/monolith-training/src/discovery.rs` ✅ (verified new ZooKeeper valid multi-host watch/disconnect live-receiver cleanup regression is present)
+1256. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_valid_mixed_ipv4_ipv6_hosts_returns_connection_failed_when_unreachable -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_valid_mixed_ipv4_ipv6_hosts_connection_failure_is_connection_failed -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_valid_mixed_ipv4_ipv6_hosts_connection_failure_preserves_local_cache -- --nocapture` ✅ (validated ZooKeeper mixed-family host-list connect/discover failure-shape and cache-retention regressions)
+1257. `rg "test_zk_(connect_valid_mixed_ipv4_ipv6_hosts_returns_connection_failed_when_unreachable|discover_async_valid_mixed_ipv4_ipv6_hosts_connection_failure_(is_connection_failed|preserves_local_cache))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper mixed-family host-list regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
