@@ -10278,6 +10278,20 @@
   - Barrier bookkeeping cleanup is now explicitly verified for partial-state
     shutdown paths, preventing stale synchronization state across restarts.
 
+### 696) Distributed partially-running cluster guards for register/train-step operations
+- Added partial-running lifecycle guard regressions in
+  `crates/monolith-training/src/distributed.rs`:
+  - `test_local_cluster_register_parameter_rejects_partially_running_cluster`
+  - `test_local_cluster_train_step_rejects_partially_running_cluster_without_step_advance`
+- Coverage validates operation-level consistency under degraded role state:
+  - `register_parameter` rejects partially running clusters with explicit
+    `InvalidConfiguration` context,
+  - `train_step` rejects partially running clusters without advancing
+    worker-step bookkeeping.
+- Result:
+  - Local-cluster mutating operations now have explicit regression evidence for
+    fully-running role-state enforcement and step-stability under rejection.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11733,6 +11747,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1445. `rg "test_local_cluster_train_step_cross_shard_failure_keeps_all_parameters_unchanged" crates/monolith-training/src/distributed.rs` ✅ (verified cross-shard train-step atomicity regression is present)
 1446. `cargo test -p monolith-training test_local_cluster_stop_from_partial_state_clears_waiting_barrier_bookkeeping -- --nocapture && cargo test -p monolith-training test_local_cluster_stop_from_partial_state_clears_released_barrier_bookkeeping -- --nocapture` ✅ (validated partial-state shutdown clears waiting/released barrier bookkeeping deterministically)
 1447. `rg "test_local_cluster_stop_from_partial_state_clears_(waiting|released)_barrier_bookkeeping" crates/monolith-training/src/distributed.rs` ✅ (verified partial-state shutdown barrier-bookkeeping cleanup regressions are present)
+1448. `cargo test -p monolith-training test_local_cluster_register_parameter_rejects_partially_running_cluster -- --nocapture && cargo test -p monolith-training test_local_cluster_train_step_rejects_partially_running_cluster_without_step_advance -- --nocapture` ✅ (validated partially running cluster guards for register/train-step and non-advancing step semantics on rejection)
+1449. `rg "test_local_cluster_(register_parameter_rejects_partially_running_cluster|train_step_rejects_partially_running_cluster_without_step_advance)" crates/monolith-training/src/distributed.rs` ✅ (verified partially running cluster guard regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

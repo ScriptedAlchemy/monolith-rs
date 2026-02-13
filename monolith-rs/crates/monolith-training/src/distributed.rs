@@ -1829,4 +1829,67 @@ mod tests {
             "cluster stop should clear released barrier bookkeeping after partial-state shutdown"
         );
     }
+
+    #[test]
+    fn test_local_cluster_register_parameter_rejects_partially_running_cluster() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000)],
+            vec![make_addr(6000), make_addr(6001)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for partial-running register test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for partial-running register test");
+
+        cluster.workers[1]
+            .stop()
+            .expect("stopping one worker should succeed before partial-running register check");
+        let err = cluster
+            .register_parameter("w", vec![1.0, 2.0])
+            .expect_err("register_parameter should fail while cluster is partially running");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("local cluster is not fully running")),
+            "expected InvalidConfiguration mentioning not-fully-running cluster, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_local_cluster_train_step_rejects_partially_running_cluster_without_step_advance() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000), make_addr(5001)],
+            vec![make_addr(6000)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for partial-running train_step test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for partial-running train_step test");
+
+        cluster.parameter_servers[1]
+            .stop()
+            .expect("stopping one parameter server should succeed before partial-running train_step check");
+
+        let grads: HashMap<String, Vec<f32>> = HashMap::new();
+        let err = cluster
+            .train_step(0, &grads)
+            .expect_err("train_step should fail while cluster is partially running");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("local cluster is not fully running")),
+            "expected InvalidConfiguration mentioning not-fully-running cluster, got {err:?}"
+        );
+        assert_eq!(
+            cluster
+                .worker_step(0)
+                .expect("worker_step(0) should remain readable after rejected partial-running train_step"),
+            0,
+            "partial-running train_step rejection should not advance worker step"
+        );
+    }
 }
