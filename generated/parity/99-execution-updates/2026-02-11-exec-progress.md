@@ -7365,6 +7365,19 @@
   - Consul invalid-scheme watch paths now have full dead/live watcher symmetry
     coverage aligned with other config-error watch lanes.
 
+### 547) Discovery Consul userinfo-authority watch dead/live watcher symmetry
+- Expanded Consul `watch_async` userinfo-authority lifecycle coverage in
+  `crates/monolith-training/src/discovery.rs` with explicit dead/live watcher
+  parity tests:
+  - `test_consul_watch_async_userinfo_authority_compacts_dead_watch_sender`
+  - `test_consul_watch_async_userinfo_authority_preserves_live_watch_sender`
+- These complement the existing userinfo-authority no-state-creation check by
+  validating watcher compaction and preservation behavior when subscribers
+  already exist.
+- Result:
+  - Consul userinfo-authority watch paths now have full dead/live watcher
+    symmetry coverage aligned with other config-error watch lanes.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8516,6 +8529,8 @@
 1148. `rg "test_(zk_watch_async_malformed_ipv6_host_entry_(compacts_dead_watch_sender|preserves_live_watch_sender)|consul_watch_async_(out_of_range_port|invalid_ipv6_suffix)_(compacts_dead_watch_sender|preserves_live_watch_sender))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added watch symmetry regressions are present for targeted ZooKeeper/Consul config shapes)
 1149. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_invalid_scheme_compacts_dead_watch_sender -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_invalid_scheme_preserves_live_watch_sender -- --nocapture` ✅ (validated Consul invalid-scheme watch dead/live watcher symmetry regressions)
 1150. `rg "test_consul_watch_async_invalid_scheme_(compacts_dead_watch_sender|preserves_live_watch_sender)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul invalid-scheme watch dead/live watcher tests are present)
+1151. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_userinfo_authority_compacts_dead_watch_sender -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_userinfo_authority_preserves_live_watch_sender -- --nocapture` ✅ (validated Consul userinfo-authority watch dead/live watcher symmetry regressions)
+1152. `rg "test_consul_watch_async_userinfo_authority_(compacts_dead_watch_sender|preserves_live_watch_sender)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul userinfo-authority watch dead/live watcher tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
