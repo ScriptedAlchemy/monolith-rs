@@ -7228,6 +7228,19 @@
   - newly hardened host-entry validation branches now have direct lifecycle
     regression coverage for both watch and connect paths.
 
+### 537) Discovery Consul out-of-range register/deregister cleanup contracts
+- Expanded Consul async cleanup coverage for out-of-range authority ports
+  (`http://127.0.0.1:70000`) in
+  `crates/monolith-training/src/discovery.rs`:
+  - `register_async` regression verifies out-of-range config failures still
+    compact dead watcher senders.
+  - `deregister_async` regression verifies out-of-range config failures still:
+    - emit `ServiceRemoved` watch events,
+    - preserve local cache removal semantics.
+- Result:
+  - out-of-range port coverage now spans watch/connect/register/deregister
+    lifecycle paths with explicit cleanup/failure-shape guarantees.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8359,6 +8372,8 @@
 1128. `rg "test_consul_(watch_async_out_of_range_port_rejects_without_state_changes|connect_out_of_range_port_is_classified_as_config_error)|test_normalize_consul_address_for_operation_(rejects_out_of_range_port|accepts_ipv6_with_port)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul out-of-range port regression tests are present)
 1129. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_malformed_ipv6_host_entry_rejects_without_state_changes -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_malformed_ipv6_host_entry_is_config_error -- --nocapture` ✅ (validated ZooKeeper malformed-host-entry watch/connect failure-shape lifecycle regressions)
 1130. `rg "test_zk_(watch_async_malformed_ipv6_host_entry_rejects_without_state_changes|connect_malformed_ipv6_host_entry_is_config_error)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper malformed-host-entry lifecycle tests are present)
+1131. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_register_out_of_range_port_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_out_of_range_port_still_notifies_and_returns_error -- --nocapture` ✅ (validated Consul out-of-range register/deregister cleanup regressions)
+1132. `rg "test_consul_async_(register_out_of_range_port_compacts_dead_watchers|deregister_out_of_range_port_still_notifies_and_returns_error)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul out-of-range register/deregister tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

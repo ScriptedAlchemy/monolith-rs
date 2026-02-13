@@ -5802,6 +5802,46 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_deregister_out_of_range_port_still_notifies_and_returns_error() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:70000");
+        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
+        consul
+            .register(service.clone())
+            .expect("sync register should seed local cache");
+        let mut rx = consul.watch("worker").expect("watch should succeed");
+
+        let result =
+            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id)
+                .await;
+        let err = result.expect_err("out-of-range authority port should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid port")
+                    && msg.contains("deregister_entity")),
+            "expected ConfigError containing out-of-range-port deregister context, got {err:?}"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == &service.id),
+            "expected ServiceRemoved({}), got {event:?}",
+            service.id
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("sync discover should succeed after async deregister failure")
+                .is_empty(),
+            "local cache entry should remain removed even when async deregister fails due to out-of-range port"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_deregister_userinfo_authority_still_notifies_and_returns_error() {
         let consul = ConsulDiscovery::new("http://user@127.0.0.1:8500");
         let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
@@ -5989,6 +6029,36 @@ mod tests {
         assert!(
             !consul_has_watcher(&consul, "worker"),
             "dead watch sender should be compacted on invalid-port register validation failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_out_of_range_port_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:70000");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("out-of-range authority port should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid port")
+                    && msg.contains("register_entity")),
+            "expected ConfigError containing out-of-range-port register context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watch sender should be compacted on out-of-range-port register validation failure"
         );
     }
 
