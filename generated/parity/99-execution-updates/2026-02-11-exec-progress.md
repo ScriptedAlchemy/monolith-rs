@@ -7933,6 +7933,16 @@
     client-handle lifecycle guarantees alongside existing initialization
     coverage.
 
+### 590) Discovery ZooKeeper creation-path default-timeout assertion parity
+- Added `test_zk_discovery_creation_uses_default_session_timeout` in
+  `crates/monolith-training/src/discovery.rs`.
+- Coverage validates constructor default semantics by asserting ZooKeeper
+  discovery initializes with the expected default session timeout (`30000ms`)
+  when no builder override is provided.
+- Result:
+  - ZooKeeper creation-path parity now covers both builder override semantics
+    and default timeout initialization contracts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9169,6 +9179,8 @@
 1233. `rg "test_consul_discovery_creation_with_service_name_override" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul discovery builder service-name override regression is present)
 1234. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_connect_empty_address_disconnect_and_reconnect -- --nocapture` ✅ (validated Consul empty-address connect/disconnect/reconnect client-handle lifecycle regression)
 1235. `rg "test_consul_connect_empty_address_disconnect_and_reconnect" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul empty-address connect lifecycle reconnect regression is present)
+1236. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discovery_creation_uses_default_session_timeout -- --nocapture` ✅ (validated ZooKeeper discovery creation default-session-timeout regression)
+1237. `rg "test_zk_discovery_creation_uses_default_session_timeout" crates/monolith-training/src/discovery.rs` ✅ (verified new ZooKeeper creation default-timeout regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

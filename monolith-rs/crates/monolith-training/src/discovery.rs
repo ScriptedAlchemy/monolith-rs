@@ -3048,6 +3048,16 @@ mod tests {
     }
 
     #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_zk_discovery_creation_uses_default_session_timeout() {
+        let zk = ZkDiscovery::new("localhost:2181", "/services");
+        assert_eq!(
+            zk.session_timeout_ms, 30000,
+            "default ZooKeeper session timeout should match Python parity expectation"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
     #[tokio::test]
     async fn test_zk_disconnect_increments_watch_generation() {
         let zk = ZkDiscovery::new("localhost:2181", "/services");
