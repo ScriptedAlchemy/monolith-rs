@@ -11207,6 +11207,30 @@
     reject-on-worker / allow-on-ps symmetry for both zero and negative timeout
     permutations.
 
+### 748) Runner unit/runtime negative barrier role-matrix closure
+- Added regressions in `crates/monolith-training/src/runner.rs`:
+  - `test_distributed_config_validate_rejects_negative_barrier_timeout_for_worker_role`
+  - `test_distributed_config_validate_allows_negative_barrier_timeout_for_ps_role`
+  - `test_run_distributed_rejects_negative_barrier_timeout_for_worker_role`
+  - `test_run_worker_role_rejects_negative_barrier_timeout_without_wrapper`
+  - `test_run_ps_role_allows_negative_barrier_timeout_without_wrapper`
+  - `test_run_distributed_allows_negative_barrier_timeout_for_ps_role`
+- Re-ran existing zero-value counterparts:
+  - `test_distributed_config_validate_rejects_non_positive_barrier_timeout_for_worker_role`
+  - `test_distributed_config_validate_allows_non_positive_barrier_timeout_for_ps_role`
+  - `test_run_distributed_rejects_non_positive_barrier_timeout_for_worker_role`
+  - `test_run_worker_role_rejects_non_positive_barrier_timeout_without_wrapper`
+  - `test_run_ps_role_allows_non_positive_barrier_timeout_without_wrapper`
+  - `test_run_distributed_allows_non_positive_barrier_timeout_for_ps_role`
+- Coverage validates:
+  - worker role rejects both zero and negative barrier-timeout values at
+    validation/top-level/direct-helper surfaces,
+  - PS role accepts both zero and negative barrier-timeout values across the
+    same surfaces, preserving worker-only ownership of barrier-timeout checks.
+- Result:
+  - runner-level barrier contracts now have explicit role-matrix coverage for
+    both zero and negative permutations.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12786,6 +12810,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1569. `rg "test_run_distributed_rejects_zero_heartbeat_interval_runtime_config_for_ps_role|test_run_worker_role_rejects_zero_heartbeat_interval_without_wrapper|test_run_ps_role_rejects_zero_heartbeat_interval_without_wrapper" crates/monolith-training/src/runner.rs` ✅ (verified role-symmetric heartbeat zero-interval rejection regressions are present in runner unit/runtime coverage)
 1570. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_zero_barrier_timeout -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_zero_barrier_timeout_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_negative_barrier_timeout_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_negative_barrier_timeout -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_zero_barrier_timeout -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_zero_barrier_timeout_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_negative_barrier_timeout_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_negative_barrier_timeout -- --nocapture` ✅ (validated barrier-timeout role matrix includes ps allow paths for both zero and negative values while worker rejection paths remain enforced)
 1571. `rg "distributed_runner_from_(run_config|runner_config)_(allows_negative_barrier_timeout_for_ps_role|rejects_negative_barrier_timeout|allows_zero_barrier_timeout_for_ps_role|rejects_zero_barrier_timeout)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified barrier-timeout reject/allow integration regressions are present for both run-config and runner-config entrypaths)
+1572. `cargo test -p monolith-training test_distributed_config_validate_rejects_non_positive_barrier_timeout_for_worker_role -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_rejects_negative_barrier_timeout_for_worker_role -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_allows_non_positive_barrier_timeout_for_ps_role -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_allows_negative_barrier_timeout_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_non_positive_barrier_timeout_for_worker_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_negative_barrier_timeout_for_worker_role -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_non_positive_barrier_timeout_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_negative_barrier_timeout_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_allows_non_positive_barrier_timeout_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_allows_negative_barrier_timeout_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_non_positive_barrier_timeout_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_negative_barrier_timeout_for_ps_role -- --nocapture` ✅ (validated runner unit/runtime barrier role matrix for zero+negative values across validation, run_distributed, and direct role helper paths)
+1573. `rg "test_distributed_config_validate_(rejects_negative_barrier_timeout_for_worker_role|allows_negative_barrier_timeout_for_ps_role)|test_run_distributed_(rejects_negative_barrier_timeout_for_worker_role|allows_negative_barrier_timeout_for_ps_role)|test_run_worker_role_rejects_negative_barrier_timeout_without_wrapper|test_run_ps_role_allows_negative_barrier_timeout_without_wrapper" crates/monolith-training/src/runner.rs` ✅ (verified runner-level negative barrier-timeout role-matrix regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
