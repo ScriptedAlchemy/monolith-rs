@@ -11647,6 +11647,19 @@
   - runtime/helper parity now matches existing unit/integration canonicalized
     duplicate-target reject semantics for PS parameter-sync targets.
 
+### 771) PS trailing-slash duplicate parameter-sync runtime/helper closure
+- Added runner regressions in `crates/monolith-training/src/runner.rs`:
+  - `test_run_ps_role_rejects_duplicate_parameter_sync_target_entries_after_trailing_slash_normalization_without_wrapper`
+  - `test_run_distributed_rejects_duplicate_parameter_sync_target_entries_after_trailing_slash_normalization_for_ps_role`
+- Coverage validates:
+  - PS parameter-sync duplicate-target rejection explicitly covers canonical
+    trailing-slash normalization collisions at direct helper and top-level
+    runtime entrypaths.
+- Result:
+  - canonicalized duplicate-target runtime/helper coverage now includes
+    trailing-slash normalization alongside default-port and host-case
+    normalization.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -13272,6 +13285,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1615. `rg "distributed_runner_from_(run_config|runner_config)_allows_(zero_parameter_sync_interval_without_targets_for_worker_role|empty_parameter_sync_names_without_targets_for_worker_role)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified new integration worker-role disabled-parameter-sync allow-path regressions are present)
 1616. `cargo test -p monolith-training test_run_ps_role_rejects_duplicate_parameter_sync_target_entries_after_http_default_port_normalization_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_duplicate_parameter_sync_target_entries_after_case_insensitive_host_normalization_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_duplicate_parameter_sync_target_entries_after_http_default_port_normalization_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_duplicate_parameter_sync_target_entries_after_case_insensitive_host_normalization_for_ps_role -- --nocapture` ✅ (validated PS parameter-sync canonicalized duplicate-target rejection at direct helper and top-level runtime layers)
 1617. `rg "test_run_(ps_role_rejects_duplicate_parameter_sync_target_entries_after_(http_default_port|case_insensitive_host)_normalization_without_wrapper|distributed_rejects_duplicate_parameter_sync_target_entries_after_(http_default_port|case_insensitive_host)_normalization_for_ps_role)" crates/monolith-training/src/runner.rs` ✅ (verified normalized-duplicate parameter-sync runtime/helper regressions are present)
+1618. `cargo test -p monolith-training test_run_ps_role_rejects_duplicate_parameter_sync_target_entries_after_trailing_slash_normalization_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_duplicate_parameter_sync_target_entries_after_trailing_slash_normalization_for_ps_role -- --nocapture` ✅ (validated PS parameter-sync duplicate-target rejection after trailing-slash normalization at direct helper and runtime entrypaths)
+1619. `rg "test_run_(ps_role_rejects_duplicate_parameter_sync_target_entries_after_trailing_slash_normalization_without_wrapper|distributed_rejects_duplicate_parameter_sync_target_entries_after_trailing_slash_normalization_for_ps_role)" crates/monolith-training/src/runner.rs` ✅ (verified trailing-slash normalized duplicate parameter-sync runtime/helper regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
