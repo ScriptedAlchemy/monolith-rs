@@ -9880,6 +9880,45 @@
     case-insensitive explicit-HTTP host:port no-root/root-slash lanes across
     normalize/connect/watch/register/discover/deregister operations.
 
+### 679) Discovery Consul explicit-HTTP host:port (no-root/root-slash) lifecycle parity
+- Added explicit-HTTP host:port no-root/root-slash normalization + lifecycle
+  regressions in `crates/monolith-training/src/discovery.rs`:
+  - `test_normalize_consul_address_for_operation_accepts_explicit_http_scheme`
+  - `test_normalize_consul_address_for_operation_accepts_explicit_http_scheme_no_root_slash`
+  - `test_consul_watch_async_http_scheme_seeds_poll_generation_entry`
+  - `test_consul_watch_async_http_scheme_disconnect_clears_poll_generation_with_live_receiver`
+  - `test_consul_watch_async_http_scheme_and_root_slash_seeds_poll_generation_entry`
+  - `test_consul_watch_async_http_scheme_and_root_slash_disconnect_clears_poll_generation_with_live_receiver`
+  - `test_consul_connect_http_scheme_initializes_client_handle`
+  - `test_consul_connect_http_scheme_disconnect_and_reconnect`
+  - `test_consul_connect_http_scheme_and_root_slash_initializes_client_handle`
+  - `test_consul_connect_http_scheme_and_root_slash_disconnect_and_reconnect`
+  - `test_consul_async_register_http_scheme_uses_operation_context`
+  - `test_consul_async_register_http_scheme_compacts_dead_watchers`
+  - `test_consul_async_register_http_scheme_keeps_live_watchers`
+  - `test_consul_async_register_http_scheme_and_root_slash_uses_operation_context`
+  - `test_consul_async_register_http_scheme_and_root_slash_compacts_dead_watchers`
+  - `test_consul_async_register_http_scheme_and_root_slash_keeps_live_watchers`
+  - `test_consul_discover_async_http_scheme_uses_operation_context`
+  - `test_consul_discover_async_http_scheme_preserves_local_cache`
+  - `test_consul_discover_async_http_scheme_and_root_slash_uses_operation_context`
+  - `test_consul_discover_async_http_scheme_and_root_slash_preserves_local_cache`
+  - `test_consul_async_deregister_http_scheme_uses_operation_context`
+  - `test_consul_async_deregister_http_scheme_compacts_dead_watchers`
+  - `test_consul_async_deregister_http_scheme_and_root_slash_uses_operation_context`
+  - `test_consul_async_deregister_http_scheme_and_root_slash_compacts_dead_watchers`
+- Coverage validates `http://127.0.0.1:8500` and `http://127.0.0.1:8500/`
+  behavior remains parity-safe across full operation lifecycle:
+  - explicit HTTP scheme is preserved and root slash is canonically trimmed,
+  - connect/disconnect client-handle lifecycle remains deterministic,
+  - watch poll-generation tracking and watcher compaction remain symmetric,
+  - register/discover/deregister preserve explicit `Internal` operation context
+    and stable local-cache cleanup semantics.
+- Result:
+  - Consul lifecycle parity now explicitly includes explicit-HTTP
+    host:port no-root/root-slash lanes across
+    normalize/connect/watch/register/discover/deregister operations.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11301,6 +11340,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1411. `rg "test_(normalize_consul_address_for_operation_accepts_case_insensitive_https_scheme_with_host_with_port(_no_root_slash)?|consul_(watch_async_case_insensitive_https_scheme(_and_root_slash)?_host_with_port(_no_root_slash)?_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_case_insensitive_https_scheme(_and_root_slash)?_host_with_port(_no_root_slash)?_(succeeds|disconnect_and_reconnect)|async_register_case_insensitive_https_scheme(_and_root_slash)?_host_with_port(_no_root_slash)?_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_case_insensitive_https_scheme(_and_root_slash)?_host_with_port(_no_root_slash)?_(uses_operation_context|preserves_local_cache)|async_deregister_case_insensitive_https_scheme(_and_root_slash)?_host_with_port(_no_root_slash)?_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified case-insensitive explicit-HTTPS host:port no-root/root-slash lane naming regression tests are present)
 1412. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_normalize_consul_address_for_operation_accepts_case_insensitive_scheme_with_host_with_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_case_insensitive_scheme_host_with_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_case_insensitive_scheme_and_root_slash_host_with_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_case_insensitive_scheme_host_with_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_case_insensitive_scheme_and_root_slash_host_with_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_case_insensitive_scheme_host_with_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_case_insensitive_scheme_and_root_slash_host_with_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_case_insensitive_scheme_host_with_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_case_insensitive_scheme_and_root_slash_host_with_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_case_insensitive_scheme_host_with_port -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_case_insensitive_scheme_and_root_slash_host_with_port -- --nocapture` ✅ (validated case-insensitive explicit-HTTP host:port no-root/root-slash lane naming regressions across normalization/connect/watch/register/discover/deregister)
 1413. `rg "test_(normalize_consul_address_for_operation_accepts_case_insensitive_scheme_with_host_with_port(_no_root_slash)?|consul_(watch_async_case_insensitive_scheme(_and_root_slash)?_host_with_port(_no_root_slash)?_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_case_insensitive_scheme(_and_root_slash)?_host_with_port(_no_root_slash)?_(succeeds|disconnect_and_reconnect)|async_register_case_insensitive_scheme(_and_root_slash)?_host_with_port(_no_root_slash)?_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_case_insensitive_scheme(_and_root_slash)?_host_with_port(_no_root_slash)?_(uses_operation_context|preserves_local_cache)|async_deregister_case_insensitive_scheme(_and_root_slash)?_host_with_port(_no_root_slash)?_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified case-insensitive explicit-HTTP host:port no-root/root-slash lane naming regression tests are present)
+1414. `ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_normalize_consul_address_for_operation_accepts_explicit_http_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_watch_async_http_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_connect_http_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_register_http_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_discover_async_http_scheme -- --nocapture && ZK_AUTH="user:pass" cargo test -p monolith-training --features "consul zookeeper" discovery::tests::test_consul_async_deregister_http_scheme -- --nocapture` ✅ (validated explicit-HTTP host:port no-root/root-slash lifecycle regressions across normalization/connect/watch/register/discover/deregister)
+1415. `rg "test_(normalize_consul_address_for_operation_accepts_explicit_http_scheme(_no_root_slash)?|consul_(watch_async_http_scheme(_and_root_slash)?_(seeds_poll_generation_entry|disconnect_clears_poll_generation_with_live_receiver)|connect_http_scheme(_and_root_slash)?_(initializes_client_handle|disconnect_and_reconnect)|async_register_http_scheme(_and_root_slash)?_(uses_operation_context|compacts_dead_watchers|keeps_live_watchers)|discover_async_http_scheme(_and_root_slash)?_(uses_operation_context|preserves_local_cache)|async_deregister_http_scheme(_and_root_slash)?_(uses_operation_context|compacts_dead_watchers)))" crates/monolith-training/src/discovery.rs` ✅ (verified explicit-HTTP host:port no-root/root-slash lifecycle regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
