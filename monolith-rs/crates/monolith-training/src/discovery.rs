@@ -3349,6 +3349,31 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[tokio::test]
+    async fn test_zk_watch_async_malformed_ipv6_host_entry_rejects_without_state_changes() {
+        let zk = ZkDiscovery::new("[::1", "/services");
+
+        let err = <ZkDiscovery as ServiceDiscoveryAsync>::watch_async(&zk, "ps")
+            .await
+            .expect_err("malformed IPv6 host entry should be rejected before watch state is created");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid host entry")),
+            "expected ConfigError containing watch_service invalid-host-entry context, got {err:?}"
+        );
+        assert!(
+            !zk_has_watcher(&zk, "ps"),
+            "malformed-host-entry watch_async should not create watcher sender entries"
+        );
+        assert!(
+            !zk_has_watch_poll_generation(&zk, "ps"),
+            "malformed-host-entry watch_async should not seed poll-generation bookkeeping"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
     async fn test_zk_watch_async_invalid_hosts_compacts_dead_watch_sender() {
         let zk = ZkDiscovery::new(" 127.0.0.1:2181 ", "/services");
         let rx = zk.watch("ps").expect("watch should succeed");
@@ -3675,6 +3700,21 @@ mod tests {
                     && msg.contains("invalid hosts")
                     && msg.contains("invalid port")),
             "expected ConfigError containing invalid-port connect context, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[tokio::test]
+    async fn test_zk_connect_malformed_ipv6_host_entry_is_config_error() {
+        let zk = ZkDiscovery::new("[::1", "/services");
+        let result = <ZkDiscovery as ServiceDiscoveryAsync>::connect(&zk).await;
+        let err = result.expect_err("malformed IPv6 host entry should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid host entry")),
+            "expected ConfigError containing malformed-host-entry connect context, got {err:?}"
         );
     }
 
