@@ -7514,6 +7514,18 @@
     invalid-hosts (whitespace), invalid-port, out-of-range-port,
     malformed-host-entry, and invalid-base-path shapes.
 
+### 557) Discovery Consul discover classification expansion for out-of-range + padded addresses
+- Expanded Consul `discover_async` config-error classification coverage in
+  `crates/monolith-training/src/discovery.rs` with:
+  - `test_consul_discover_async_out_of_range_port_is_classified_as_config_error`
+  - `test_consul_discover_async_leading_trailing_whitespace_is_classified_as_config_error`
+- These complement existing invalid-port/query/fragment/whitespace-authority/
+  userinfo/empty-host discover checks by explicitly covering out-of-range
+  authority ports and leading/trailing-whitespace address forms.
+- Result:
+  - Consul discover classification now has broader malformed-address shape
+    coverage aligned with connect/watch/register/deregister validation lanes.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8685,6 +8697,8 @@
 1168. `rg "test_consul_(discover_async_address_fragment_is_classified_as_config_error|async_deregister_(leading_trailing_whitespace|empty_host)_still_notifies_and_returns_error)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul fragment-discover and deregister edge-shape tests are present)
 1169. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_invalid_port_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_out_of_range_port_preserves_local_cache -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_malformed_ipv6_host_entry_preserves_local_cache -- --nocapture` ✅ (validated ZooKeeper discover config-error local-cache preservation regressions for invalid-port/out-of-range/malformed-host shapes)
 1170. `rg "test_zk_discover_async_(invalid_port|out_of_range_port|malformed_ipv6_host_entry)_preserves_local_cache" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper discover config-shape cache-preservation tests are present)
+1171. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_out_of_range_port_is_classified_as_config_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discover_async_leading_trailing_whitespace_is_classified_as_config_error -- --nocapture` ✅ (validated Consul discover out-of-range-port and leading/trailing-whitespace classification regressions)
+1172. `rg "test_consul_discover_async_(out_of_range_port|leading_trailing_whitespace)_is_classified_as_config_error" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul discover out-of-range/whitespace tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

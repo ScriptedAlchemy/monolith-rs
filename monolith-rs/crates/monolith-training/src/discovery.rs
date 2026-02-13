@@ -6529,6 +6529,22 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_discover_async_out_of_range_port_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:70000");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result.expect_err("out-of-range authority port should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("invalid port")
+                    && msg.contains("get_service_nodes")),
+            "expected ConfigError containing out-of-range-port discover context, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_discover_async_host_port_without_scheme_keeps_port_context() {
         let consul = ConsulDiscovery::new("127.0.0.1:8501");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
@@ -6705,6 +6721,22 @@ mod tests {
                     && msg.contains("query is not allowed")
                     && msg.contains("get_service_nodes")),
             "expected ConfigError containing address-query discover context, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_leading_trailing_whitespace_is_classified_as_config_error() {
+        let consul = ConsulDiscovery::new(" http://127.0.0.1:8500 ");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result.expect_err("leading/trailing whitespace should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("invalid address")
+                    && msg.contains("leading/trailing whitespace")
+                    && msg.contains("get_service_nodes")),
+            "expected ConfigError containing leading/trailing-whitespace discover context, got {err:?}"
         );
     }
 
