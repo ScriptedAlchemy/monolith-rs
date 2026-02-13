@@ -10440,6 +10440,26 @@
   - File-ops write/close paths now preserve explicit failure-shape contracts on
     lock-poison edge cases.
 
+### 706) Native-training Consul client cache lock-poison hardening
+- Hardened `Client` in
+  `crates/monolith-training/src/native_training/consul.rs`:
+  - introduced `lock_cache()` helper mapping poisoned cache mutex acquisition
+    to deterministic `io::Error::other("consul client cache mutex poisoned")`,
+  - removed panic-prone cache lock `expect(...)` paths in `lookup` across:
+    - cache-hit checks,
+    - cache-refresh writes,
+    - cache-disabled writeback.
+- Added regressions:
+  - `test_lookup_cache_enabled_poisoned_cache_mutex_returns_io_error`
+  - `test_lookup_cache_disabled_poisoned_cache_mutex_returns_io_error`
+- Coverage validates:
+  - poisoned cache mutex now returns explicit IO errors (kind `Other`) for both
+    cache-enabled and cache-disabled lookup paths,
+  - existing register/deregister/lookup parity scenarios remain green.
+- Result:
+  - Native-training Consul cache handling now uses explicit lock-poison error
+    contracts instead of panic-based failure.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11921,6 +11941,10 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1471. `rg "writable_file_(append|close)_poisoned_mutex_returns_io_error" crates/monolith-training/src/file_ops.rs` ✅ (verified writable-file lock-poison error-path regressions are present)
 1472. `rg "writable file mutex should not be poisoned during (append|entry dump append|close)" crates/monolith-training/src/file_ops.rs` ✅ (verified legacy writable-file panic-path expect strings are removed)
 1473. `rg "writable file mutex poisoned" crates/monolith-training/src/file_ops.rs` ✅ (verified explicit writable-file poisoned-mutex diagnostics are present)
+1474. `cargo test -p monolith-training test_lookup_ -- --nocapture && cargo test -p monolith-training test_register_ok -- --nocapture && cargo test -p monolith-training test_deregister_ok -- --nocapture` ✅ (validated native-training consul cache lock-poison regressions while preserving register/deregister/lookup parity behavior)
+1475. `rg "test_lookup_cache_(enabled|disabled)_poisoned_cache_mutex_returns_io_error" crates/monolith-training/src/native_training/consul.rs` ✅ (verified native-training consul cache lock-poison regressions are present)
+1476. `rg "consul client cache mutex should not be poisoned" crates/monolith-training/src/native_training/consul.rs` ✅ (verified legacy native-training consul cache panic-path expect strings are removed)
+1477. `rg "consul client cache mutex poisoned" crates/monolith-training/src/native_training/consul.rs` ✅ (verified explicit native-training consul poisoned-cache diagnostics are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
