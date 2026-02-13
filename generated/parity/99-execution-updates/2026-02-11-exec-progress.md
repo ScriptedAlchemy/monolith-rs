@@ -7321,6 +7321,19 @@
   - invalid-port watch lifecycle now has full dead/live watcher symmetry
     coverage matching other zookeeper config-error watch paths.
 
+### 544) Discovery Consul invalid-port watch dead/live watcher symmetry
+- Expanded Consul `watch_async` invalid-port lifecycle coverage in
+  `crates/monolith-training/src/discovery.rs` with explicit dead/live watcher
+  parity tests:
+  - `test_consul_watch_async_invalid_port_compacts_dead_watch_sender`
+  - `test_consul_watch_async_invalid_port_preserves_live_watch_sender`
+- These complement the existing invalid-port no-state-creation check by
+  validating watcher compaction and preservation behavior when watch
+  subscribers already exist.
+- Result:
+  - invalid-port watch lifecycle now has full dead/live watcher symmetry
+    coverage for both ZooKeeper and Consul backends.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8466,6 +8479,8 @@
 1142. `rg "test_zk_async_register_(invalid_hosts_keeps_live_watchers|invalid_base_path_keeps_live_watchers)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper invalid-host/base-path live-watcher preservation tests are present)
 1143. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_invalid_port_compacts_dead_watch_sender -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_invalid_port_preserves_live_watch_sender -- --nocapture` ✅ (validated ZooKeeper invalid-port watch dead/live watcher symmetry regressions)
 1144. `rg "test_zk_watch_async_invalid_port_(compacts_dead_watch_sender|preserves_live_watch_sender)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper invalid-port watch dead/live watcher tests are present)
+1145. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_invalid_port_compacts_dead_watch_sender -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_watch_async_invalid_port_preserves_live_watch_sender -- --nocapture` ✅ (validated Consul invalid-port watch dead/live watcher symmetry regressions)
+1146. `rg "test_consul_watch_async_invalid_port_(compacts_dead_watch_sender|preserves_live_watch_sender)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul invalid-port watch dead/live watcher tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

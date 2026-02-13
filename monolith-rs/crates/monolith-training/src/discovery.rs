@@ -4884,6 +4884,59 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_watch_async_invalid_port_compacts_dead_watch_sender() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:notaport");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("invalid-port authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing watch_service invalid-port context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "invalid-port watch_async should compact dead watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_invalid_port_preserves_live_watch_sender() {
+        let consul = ConsulDiscovery::new("http://127.0.0.1:notaport");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let err = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect_err("invalid-port authority should return config error");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("watch_service")
+                    && msg.contains("invalid address")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing watch_service invalid-port context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "invalid-port watch_async should preserve live watcher sender entries"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_watch_async_out_of_range_port_rejects_without_state_changes() {
         let consul = ConsulDiscovery::new("http://127.0.0.1:70000");
 
