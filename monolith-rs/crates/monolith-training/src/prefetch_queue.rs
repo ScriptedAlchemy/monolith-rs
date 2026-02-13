@@ -323,14 +323,27 @@ impl<T: DevicePlacement + Clone> MultiFifoQueue<T> {
         let mut out = Vec::with_capacity(self.split_indices.len());
         for (dev, idx) in &self.split_indices {
             match dev {
-                Device::Cpu => out.push(cpu_parts[*idx].clone()),
-                Device::Gpu => out.push(
-                    gpu_parts
-                        .as_ref()
-                        .expect("gpu queue parts should exist for gpu split index")
-                        [*idx]
-                        .clone(),
-                ),
+                Device::Cpu => {
+                    let item = cpu_parts.get(*idx).ok_or_else(|| {
+                        format!(
+                            "cpu split index {idx} out of bounds for dequeued cpu parts (len={})",
+                            cpu_parts.len()
+                        )
+                    })?;
+                    out.push(item.clone());
+                }
+                Device::Gpu => {
+                    let gpu = gpu_parts.as_ref().ok_or_else(|| {
+                        "gpu split index requested but gpu queue parts are unavailable".to_string()
+                    })?;
+                    let item = gpu.get(*idx).ok_or_else(|| {
+                        format!(
+                            "gpu split index {idx} out of bounds for dequeued gpu parts (len={})",
+                            gpu.len()
+                        )
+                    })?;
+                    out.push(item.clone());
+                }
             }
         }
         Ok(out)
@@ -636,6 +649,42 @@ mod tests {
         let _ = q
             .dequeue()
             .expect("dequeue should succeed after side-effect enqueue");
+    }
+
+    #[test]
+    fn multi_fifo_queue_dequeue_missing_gpu_parts_returns_error() {
+        let q = MultiFifoQueue {
+            cpu: FifoQueue::new(1),
+            gpu: None,
+            split_indices: vec![(Device::Gpu, 0)],
+        };
+        q.cpu
+            .enqueue(Vec::<Placed<i64>>::new())
+            .expect("cpu queue enqueue should succeed for malformed queue regression setup");
+
+        let err = q
+            .dequeue()
+            .expect_err("dequeue should return an explicit error when gpu parts are unavailable");
+        assert!(
+            err.contains("gpu split index requested but gpu queue parts are unavailable"),
+            "expected missing-gpu-parts diagnostics, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn multi_fifo_queue_dequeue_out_of_bounds_cpu_split_index_returns_error() {
+        let mut q = MultiFifoQueue::new(&[Placed::cpu(1i64)], 1);
+        q.split_indices = vec![(Device::Cpu, 1)];
+        q.enqueue(&[Placed::cpu(3i64)])
+            .expect("enqueue should succeed for cpu split-index bounds regression setup");
+
+        let err = q.dequeue().expect_err(
+            "dequeue should return an explicit error when cpu split index exceeds dequeued parts",
+        );
+        assert!(
+            err.contains("cpu split index 1 out of bounds"),
+            "expected cpu split-index bounds diagnostics, got {err:?}"
+        );
     }
 
     #[test]

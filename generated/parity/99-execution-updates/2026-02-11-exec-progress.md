@@ -10521,6 +10521,24 @@
   - MLP discovery now enforces panic-free poisoned-mutex recovery for runtime
     filter bookkeeping operations.
 
+### 710) Prefetch multi-queue dequeue panic-path hardening
+- Hardened `MultiFifoQueue::dequeue` in
+  `crates/monolith-training/src/prefetch_queue.rs`:
+  - replaced panic-prone GPU split `expect(...)` path with explicit error
+    propagation,
+  - added explicit index-bounds diagnostics for both CPU/GPU split indices
+    during dequeue merge reconstruction.
+- Added regressions:
+  - `multi_fifo_queue_dequeue_missing_gpu_parts_returns_error`
+  - `multi_fifo_queue_dequeue_out_of_bounds_cpu_split_index_returns_error`
+- Coverage validates:
+  - malformed split/dequeue states now return deterministic `Err(String)`
+    messages instead of panicking,
+  - existing prefetch parity integration behavior remains stable.
+- Result:
+  - Multi-queue dequeue merge now enforces explicit failure-shape contracts for
+    inconsistent split bookkeeping states.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12018,6 +12036,9 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1487. `rg "test_mlp_(register_recovers_after_poisoned_filters_mutex|close_recovers_after_poisoned_filters_mutex)" crates/monolith-training/src/py_discovery.rs` ✅ (verified MLP poisoned-filter-mutex recovery regressions are present)
 1488. `rg "mlp discovery filters mutex should not be poisoned" crates/monolith-training/src/py_discovery.rs` ✅ (verified legacy MLP filters panic-path expect strings are removed)
 1489. `rg "mlp discovery filters mutex was poisoned; continuing with recovered state" crates/monolith-training/src/py_discovery.rs` ✅ (verified MLP lock-poison recovery warning diagnostics are present)
+1490. `cargo test -p monolith-training multi_fifo_queue_dequeue_ -- --nocapture && cargo test -p monolith-training --test prefetch_queue_parity -- --nocapture` ✅ (validated prefetch multi-queue dequeue panic-path hardening regressions and confirmed parity integration behavior remains green)
+1491. `rg "multi_fifo_queue_dequeue_(missing_gpu_parts_returns_error|out_of_bounds_cpu_split_index_returns_error)" crates/monolith-training/src/prefetch_queue.rs` ✅ (verified prefetch dequeue malformed-split error-path regressions are present)
+1492. `rg "gpu queue parts should exist for gpu split index" crates/monolith-training/src/prefetch_queue.rs` ✅ (verified legacy panic-path expect string is removed from multi-queue dequeue runtime code)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
