@@ -1991,6 +1991,18 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[test]
+    fn test_normalize_consul_address_for_operation_accepts_explicit_https_scheme_no_root_slash() {
+        let normalized =
+            normalize_consul_address_for_operation("connect", "https://127.0.0.1:8501")
+                .expect("explicit https scheme without root path should normalize");
+        assert_eq!(
+            normalized, "https://127.0.0.1:8501",
+            "normalization should preserve https scheme without requiring a root path suffix"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[test]
     fn test_normalize_consul_address_for_operation_accepts_explicit_https_scheme_with_hostname() {
         let normalized =
             normalize_consul_address_for_operation("connect", "https://localhost:8501/")
@@ -12625,6 +12637,79 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_watch_async_https_scheme_and_root_slash_disconnect_clears_poll_generation_with_live_receiver(
+    ) {
+        let consul = ConsulDiscovery::new("https://127.0.0.1:8501/");
+        let rx = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("watch_async should accept explicit https root-slash scheme");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch_async should create watcher sender entry for https root-slash address"
+        );
+        assert!(
+            consul_has_watch_poll_generation(&consul, "worker"),
+            "watch_async should seed poll-generation bookkeeping for https root-slash address"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "disconnect should preserve live watcher sender entries"
+        );
+        assert!(
+            !consul_has_watch_poll_generation(&consul, "worker"),
+            "disconnect should clear poll-generation bookkeeping even when receiver is live"
+        );
+
+        drop(rx);
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "disconnect should compact watcher sender after receiver is dropped"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_watch_async_https_scheme_and_root_slash_seeds_poll_generation_entry() {
+        let consul = ConsulDiscovery::new("https://127.0.0.1:8501/");
+
+        let rx = <ConsulDiscovery as ServiceDiscoveryAsync>::watch_async(&consul, "worker")
+            .await
+            .expect("watch_async should accept explicit https root-slash scheme");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch_async should create watcher sender entry for https root-slash address"
+        );
+        assert!(
+            consul_has_watch_poll_generation(&consul, "worker"),
+            "watch_async should seed poll-generation bookkeeping for https root-slash address"
+        );
+
+        drop(rx);
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                if !consul_has_watch_poll_generation(&consul, "worker") {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        })
+        .await
+        .expect("poll-generation entry should clear after https root-slash watcher receiver drops");
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "https root-slash watch_async should compact dead watcher sender after receiver drops"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_watch_async_https_hostname_with_port_disconnect_clears_poll_generation_with_live_receiver(
     ) {
         let consul = ConsulDiscovery::new("https://localhost:8501");
@@ -16021,6 +16106,85 @@ mod tests {
         assert!(
             !consul_has_watcher(&consul, "worker"),
             "dead watcher sender should be compacted on https async deregister notification"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_https_scheme_and_root_slash_uses_operation_context() {
+        let consul = ConsulDiscovery::new("https://127.0.0.1:8501/");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("sync register should seed local cache");
+        let mut rx = consul.watch("worker").expect("watch should succeed");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
+            .await;
+        let err = result.expect_err("https root-slash address should fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("deregister_entity") && msg.contains("8501")),
+            "expected Internal containing https root-slash deregister context, got {err:?}"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "worker-0"),
+            "expected ServiceRemoved(worker-0), got {event:?}"
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .is_empty(),
+            "https root-slash async deregister should remove service from local cache"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on https root-slash async deregister failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_deregister_https_scheme_and_root_slash_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("https://127.0.0.1:8501/");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("sync register should seed local cache");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
+            .await;
+        let err = result.expect_err("https root-slash address should fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("deregister_entity") && msg.contains("8501")),
+            "expected Internal containing https root-slash deregister context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watcher sender should be compacted on https root-slash async deregister notification"
         );
     }
 
@@ -20119,6 +20283,85 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_register_https_scheme_and_root_slash_uses_operation_context() {
+        let consul = ConsulDiscovery::new("https://127.0.0.1:8501/");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("https root-slash address should fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("register_entity") && msg.contains("8501")),
+            "expected Internal containing https root-slash register context, got {err:?}"
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .is_empty(),
+            "https root-slash async register should not populate local service cache"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_https_scheme_and_root_slash_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("https://127.0.0.1:8501/");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("https root-slash address should fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("register_entity") && msg.contains("8501")),
+            "expected Internal containing https root-slash register context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watcher sender should be compacted on https root-slash async register failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_https_scheme_and_root_slash_keeps_live_watchers() {
+        let consul = ConsulDiscovery::new("https://127.0.0.1:8501/");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("https root-slash address should fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("register_entity") && msg.contains("8501")),
+            "expected Internal containing https root-slash register context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on https root-slash async register failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_register_https_ipv6_with_port_uses_operation_context() {
         let consul = ConsulDiscovery::new("https://[::1]:8501");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
@@ -24188,6 +24431,50 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_discover_async_https_scheme_and_root_slash_uses_operation_context() {
+        let consul = ConsulDiscovery::new("https://127.0.0.1:8501/");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result.expect_err("unreachable https root-slash Consul address should fail");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("get_service_nodes") && msg.contains("8501")),
+            "expected Internal containing discover context for https root-slash address, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_https_scheme_and_root_slash_preserves_local_cache() {
+        let consul = ConsulDiscovery::new("https://127.0.0.1:8501/");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0", "worker-0", "worker", "127.0.0.1", 6000,
+            ))
+            .expect("sync register should seed local cache");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result.expect_err("https root-slash address should fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("get_service_nodes") && msg.contains("8501")),
+            "expected Internal containing discover context for https root-slash address, got {err:?}"
+        );
+
+        let cached = consul
+            .discover("worker")
+            .expect("discover should succeed after async https root-slash failure");
+        assert_eq!(
+            cached.len(),
+            1,
+            "https root-slash async discover failure should not evict local cache entries"
+        );
+        assert_eq!(cached[0].id, "worker-0");
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_discover_async_https_ipv6_with_port_uses_operation_context() {
         let consul = ConsulDiscovery::new("https://[::1]:8501");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
@@ -25228,6 +25515,48 @@ mod tests {
         assert!(
             consul.client.lock().await.is_some(),
             "reconnect should reinitialize client handle for https address"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_connect_https_scheme_and_root_slash_initializes_client_handle() {
+        let consul = ConsulDiscovery::new("https://127.0.0.1:8501/");
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("https root-slash address should initialize Consul client handle");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "https root-slash connect should initialize client handle"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_connect_https_scheme_and_root_slash_disconnect_and_reconnect() {
+        let consul = ConsulDiscovery::new("https://127.0.0.1:8501/");
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("https root-slash address should initialize Consul client handle");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "https root-slash connect should initialize client handle"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            consul.client.lock().await.is_none(),
+            "disconnect should clear https root-slash client handle"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("https root-slash reconnect should recreate client handle after disconnect");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "reconnect should reinitialize client handle for https root-slash address"
         );
     }
 
