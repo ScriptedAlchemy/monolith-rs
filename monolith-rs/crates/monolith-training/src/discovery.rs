@@ -2094,6 +2094,55 @@ mod tests {
 
     #[cfg(feature = "zookeeper")]
     #[test]
+    fn test_validate_zk_hosts_for_operation_rejects_invalid_port() {
+        let err = validate_zk_hosts_for_operation("connect", "127.0.0.1:notaport")
+            .expect_err("non-numeric host port should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing invalid-port host details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_validate_zk_hosts_for_operation_rejects_out_of_range_port() {
+        let err = validate_zk_hosts_for_operation("connect", "127.0.0.1:70000")
+            .expect_err("out-of-range host port should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid port")),
+            "expected ConfigError containing out-of-range port details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_validate_zk_hosts_for_operation_rejects_malformed_ipv6_authority() {
+        let err = validate_zk_hosts_for_operation("connect", "[::1")
+            .expect_err("malformed bracketed IPv6 authority should be rejected");
+        assert!(
+            matches!(err, DiscoveryError::ConfigError(ref msg)
+                if msg.contains("connect")
+                    && msg.contains("invalid hosts")
+                    && msg.contains("invalid host entry")),
+            "expected ConfigError containing invalid host-entry details, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
+    fn test_validate_zk_hosts_for_operation_accepts_ipv6_with_port() {
+        validate_zk_hosts_for_operation("connect", "[::1]:2181")
+            .expect("valid bracketed IPv6 host with numeric port should pass validation");
+    }
+
+    #[cfg(feature = "zookeeper")]
+    #[test]
     fn test_validate_zk_base_path_for_operation_accepts_absolute_path() {
         validate_zk_base_path_for_operation("connect", "/services/ps")
             .expect("absolute ZooKeeper base path should pass validation");

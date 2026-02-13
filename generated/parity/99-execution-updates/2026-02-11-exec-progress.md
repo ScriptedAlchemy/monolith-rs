@@ -7184,6 +7184,20 @@
     with deterministic cleanup semantics across watch/connect/register/deregister
     lifecycle paths.
 
+### 534) Discovery ZooKeeper host-validator edge-case contract coverage
+- Expanded direct validator coverage for
+  `validate_zk_hosts_for_operation(...)` in
+  `crates/monolith-training/src/discovery.rs`:
+  - added explicit invalid-port contract test (`notaport`),
+  - added out-of-range port contract test (`70000`),
+  - added malformed bracketed IPv6 authority contract test (`[::1`),
+  - added positive bracketed IPv6 authority-with-port acceptance test
+    (`[::1]:2181`).
+- Result:
+  - host validation failure-shape semantics are now directly regression-tested
+    for newly hardened host-entry parsing branches, reducing risk of silent
+    parser regressions.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8309,6 +8323,8 @@
 1122. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_watch_async_invalid_port_rejects_without_state_changes -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_invalid_port_is_config_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_invalid_port_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_invalid_port_still_notifies_and_returns_error -- --nocapture` ✅ (validated ZooKeeper invalid-port watch/connect/register/deregister failure-shape and cleanup regressions)
 1123. `rg "test_zk_.*invalid_port" crates/monolith-training/src/discovery.rs` ✅ (verified targeted invalid-port ZooKeeper lifecycle regression coverage is present in discovery test suite)
 1124. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_invalid_ -- --nocapture` ✅ (validated invalid-host/base-path/port connect classification matrix after ZooKeeper host-entry validation hardening)
+1125. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_validate_zk_hosts_for_operation_ -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_invalid_ -- --nocapture` ✅ (validated direct ZooKeeper host-validator edge-case coverage plus invalid connect classification matrix)
+1126. `rg "test_validate_zk_hosts_for_operation_(rejects_invalid_port|rejects_out_of_range_port|rejects_malformed_ipv6_authority|accepts_ipv6_with_port)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added host-validator edge-case regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
