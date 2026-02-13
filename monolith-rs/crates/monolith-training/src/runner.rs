@@ -3121,6 +3121,16 @@ mod tests {
     }
 
     #[test]
+    fn test_distributed_config_validate_allows_disabled_heartbeat_interval() {
+        let cfg = DistributedRunConfig {
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+        cfg.validate()
+            .expect("disabling heartbeat should remain a valid distributed runtime config");
+    }
+
+    #[test]
     fn test_distributed_config_validate_rejects_ps_index_out_of_range() {
         let cfg = DistributedRunConfig {
             role: Role::Ps,
@@ -4552,6 +4562,34 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn test_worker_heartbeat_task_disabled_when_interval_none() {
+        let discovery = Arc::new(CountingDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            connect_retries: 3,
+            retry_backoff_ms: 20,
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let res = run_worker_role(Arc::clone(&discovery), "worker-0", cfg).await;
+        let err = res.expect_err("worker should time out with no PS services");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker timeout should include PS-discovery timeout diagnostics when heartbeat disabled: {msg}"
+        );
+        assert_eq!(
+            discovery.heartbeat_count(),
+            0,
+            "worker heartbeat should stay disabled when heartbeat_interval=None"
+        );
+    }
+
     #[test]
     fn test_worker_heartbeat_task_stops_after_worker_ordering_issue_timeout() {
         test_worker_heartbeat_task_stops_after_worker_timeout();
@@ -4642,6 +4680,30 @@ mod tests {
             stable, after_abort,
             "heartbeat task should stop after PS task cancellation"
         );
+    }
+
+    #[tokio::test]
+    async fn test_ps_heartbeat_task_disabled_when_interval_none() {
+        let discovery = Arc::new(CountingDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_distributed(Arc::clone(&discovery), cfg));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert_eq!(
+            discovery.heartbeat_count(),
+            0,
+            "heartbeat should remain disabled for PS role when heartbeat_interval=None"
+        );
+
+        task.abort();
     }
 
     #[tokio::test]

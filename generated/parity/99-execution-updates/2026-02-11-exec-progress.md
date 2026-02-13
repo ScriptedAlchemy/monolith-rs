@@ -10807,6 +10807,23 @@
   - helper docs now fully align with the explicit error-handling guidance used
     across runtime and parity hardening workstreams.
 
+### 726) Runner heartbeat-disable semantics explicitly locked
+- Expanded distributed runner heartbeat contract coverage in
+  `crates/monolith-training/src/runner.rs`:
+  - added `test_distributed_config_validate_allows_disabled_heartbeat_interval`
+    to lock that `heartbeat_interval: None` remains a valid config.
+  - added `test_worker_heartbeat_task_disabled_when_interval_none` to verify no
+    heartbeat calls are issued while worker retries/timeouts run.
+  - added `test_ps_heartbeat_task_disabled_when_interval_none` to verify PS role
+    emits zero heartbeat calls when heartbeat is disabled.
+- Coverage validates:
+  - heartbeat-disabled configurations remain valid and explicit,
+  - disabled heartbeat mode does not accidentally schedule background heartbeat
+    tasks for either worker or PS roles.
+- Result:
+  - distributed runtime now has explicit regression guards for both heartbeat
+    enablement and heartbeat-disablement contracts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12340,6 +12357,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1523. `rg "heartbeat_interval > 0 when configured" crates/monolith-training/src/runner.rs` ✅ (verified explicit heartbeat-interval zero-value validation contract and regression assertions are present)
 1524. `cargo test -p monolith-training --doc -- --nocapture` ✅ (validated helper docs continue compiling/executing after removing success-path expect usage in seq-mask examples)
 1525. `python3 - <<'PY' ... non-test training-source expect scan ... PY` ✅ (verified no non-test `expect(...)` occurrences remain in `crates/monolith-training/src`)
+1526. `cargo test -p monolith-training test_distributed_config_validate_allows_disabled_heartbeat_interval -- --nocapture && cargo test -p monolith-training test_worker_heartbeat_task_disabled_when_interval_none -- --nocapture && cargo test -p monolith-training test_ps_heartbeat_task_disabled_when_interval_none -- --nocapture` ✅ (validated heartbeat-disabled config acceptance and zero-heartbeat behavior for worker and PS roles)
+1527. `rg "test_distributed_config_validate_allows_disabled_heartbeat_interval|test_worker_heartbeat_task_disabled_when_interval_none|test_ps_heartbeat_task_disabled_when_interval_none" crates/monolith-training/src/runner.rs` ✅ (verified heartbeat-disable contract regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
