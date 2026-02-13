@@ -11296,6 +11296,29 @@
   - runner unit/runtime contract coverage now matches run/runner integration
     role symmetry for global config-shape checks.
 
+### 752) PS-role whitespace-hygiene global-contract integration closure
+- Added integration regressions in
+  `crates/monolith-training/tests/native_training_parity.rs`:
+  - run-config PS-role reject paths:
+    - `distributed_runner_from_run_config_rejects_whitespace_padded_ps_service_type_for_ps_role`
+    - `distributed_runner_from_run_config_rejects_internal_whitespace_ps_service_type_for_ps_role`
+    - `distributed_runner_from_run_config_rejects_whitespace_padded_table_name_for_ps_role`
+    - `distributed_runner_from_run_config_rejects_internal_whitespace_table_name_for_ps_role`
+  - runner-config PS-role reject paths:
+    - `distributed_runner_from_runner_config_rejects_whitespace_padded_ps_service_type_for_ps_role`
+    - `distributed_runner_from_runner_config_rejects_internal_whitespace_ps_service_type_for_ps_role`
+    - `distributed_runner_from_runner_config_rejects_whitespace_padded_table_name_for_ps_role`
+    - `distributed_runner_from_runner_config_rejects_internal_whitespace_table_name_for_ps_role`
+- Re-ran existing worker-role reject counterparts for the same whitespace
+  hygiene contracts.
+- Coverage validates:
+  - `discovery_service_type_ps` and `table_name` whitespace hygiene remains a
+    global contract enforced for both roles across run-config and runner-config
+    entrypaths.
+- Result:
+  - integration role matrices now explicitly include ps-role reject coverage for
+    whitespace-padded/internal-whitespace global string-shape contracts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12883,6 +12906,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1577. `rg "rejects_zero_num_ps_for_ps_role|rejects_zero_num_workers_for_ps_role|rejects_zero_dim_for_ps_role|rejects_empty_ps_service_type_for_ps_role|rejects_empty_table_name_for_ps_role" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified new ps-role global config-shape rejection integration regressions are present in both run-config and runner-config matrices)
 1578. `cargo test -p monolith-training test_distributed_config_validate_rejects_zero_num_ps -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_rejects_zero_num_ps_for_ps_role -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_rejects_zero_num_workers -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_rejects_zero_num_workers_for_ps_role -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_rejects_zero_dim -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_rejects_zero_dim_for_ps_role -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_rejects_empty_ps_service_type -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_rejects_empty_ps_service_type_for_ps_role -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_rejects_empty_table_name -- --nocapture && cargo test -p monolith-training test_distributed_config_validate_rejects_empty_table_name_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_invalid_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_invalid_runtime_config_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_dim_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_dim_runtime_config_for_ps_role -- --nocapture` ✅ (validated runner unit/runtime global config-shape rejection contracts across worker and ps roles)
 1579. `rg "rejects_zero_num_ps_for_ps_role|rejects_zero_num_workers_for_ps_role|rejects_zero_dim_for_ps_role|rejects_empty_ps_service_type_for_ps_role|rejects_empty_table_name_for_ps_role|rejects_invalid_runtime_config_for_ps_role|rejects_zero_dim_runtime_config_for_ps_role" crates/monolith-training/src/runner.rs` ✅ (verified runner-level role-symmetric global config-shape regression tests are present)
+1580. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_whitespace_padded_ps_service_type -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_internal_whitespace_ps_service_type -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_whitespace_padded_table_name -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_internal_whitespace_table_name -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_whitespace_padded_ps_service_type -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_internal_whitespace_ps_service_type -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_whitespace_padded_table_name -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_internal_whitespace_table_name -- --nocapture` ✅ (validated ps+worker role symmetry for discovery_service_type_ps/table_name whitespace hygiene rejection in both run-config and runner-config integration entrypaths)
+1581. `rg "distributed_runner_from_(run_config|runner_config)_rejects_(whitespace_padded_ps_service_type|internal_whitespace_ps_service_type|whitespace_padded_table_name|internal_whitespace_table_name)(_for_ps_role)?" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified global string-hygiene reject regressions now include ps-role variants across both config-entry matrices)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

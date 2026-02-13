@@ -5559,6 +5559,41 @@ async fn distributed_runner_from_run_config_rejects_whitespace_padded_ps_service
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_rejects_whitespace_padded_ps_service_type_for_ps_role(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_service_type_ps: " ps ".to_string(),
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains(
+            "distributed config requires discovery_service_type_ps without leading/trailing whitespace"
+        ),
+        "whitespace-padded run-config ps service type should be rejected for ps role too because this contract is global: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_internal_whitespace_ps_service_type() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -5586,6 +5621,39 @@ async fn distributed_runner_from_run_config_rejects_internal_whitespace_ps_servi
     assert!(
         err.contains("distributed config requires discovery_service_type_ps without whitespace characters"),
         "internal-whitespace run-config ps service type should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_rejects_internal_whitespace_ps_service_type_for_ps_role(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_service_type_ps: "ps cluster".to_string(),
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires discovery_service_type_ps without whitespace characters"),
+        "internal-whitespace run-config ps service type should be rejected for ps role too because this contract is global: {err}"
     );
 }
 
@@ -6039,6 +6107,38 @@ async fn distributed_runner_from_run_config_rejects_whitespace_padded_table_name
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_rejects_whitespace_padded_table_name_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        table_name: " emb ".to_string(),
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires table_name without leading/trailing whitespace"),
+        "whitespace-padded run-config table name should be rejected for ps role too because this contract is global: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_internal_whitespace_table_name() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -6066,6 +6166,38 @@ async fn distributed_runner_from_run_config_rejects_internal_whitespace_table_na
     assert!(
         err.contains("distributed config requires table_name without whitespace characters"),
         "internal-whitespace run-config table name should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_run_config_rejects_internal_whitespace_table_name_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        table_name: "my table".to_string(),
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires table_name without whitespace characters"),
+        "internal-whitespace run-config table name should be rejected for ps role too because this contract is global: {err}"
     );
 }
 
@@ -21622,6 +21754,40 @@ async fn distributed_runner_from_runner_config_rejects_whitespace_padded_ps_serv
 }
 
 #[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_whitespace_padded_ps_service_type_for_ps_role(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_service_type_ps: " ps ".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains(
+            "distributed config requires discovery_service_type_ps without leading/trailing whitespace"
+        ),
+        "whitespace-padded runner-config ps service type should be rejected for ps role too because this contract is global: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_runner_config_rejects_internal_whitespace_ps_service_type() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_runner_config, Role};
@@ -21649,6 +21815,38 @@ async fn distributed_runner_from_runner_config_rejects_internal_whitespace_ps_se
     assert!(
         err.contains("distributed config requires discovery_service_type_ps without whitespace characters"),
         "internal-whitespace runner-config ps service type should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_internal_whitespace_ps_service_type_for_ps_role(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_service_type_ps: "ps cluster".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires discovery_service_type_ps without whitespace characters"),
+        "internal-whitespace runner-config ps service type should be rejected for ps role too because this contract is global: {err}"
     );
 }
 
@@ -22071,6 +22269,37 @@ async fn distributed_runner_from_runner_config_rejects_whitespace_padded_table_n
 }
 
 #[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_whitespace_padded_table_name_for_ps_role() {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        table_name: " emb ".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires table_name without leading/trailing whitespace"),
+        "whitespace-padded runner-config table name should be rejected for ps role too because this contract is global: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_runner_config_rejects_internal_whitespace_table_name() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_runner_config, Role};
@@ -22098,6 +22327,38 @@ async fn distributed_runner_from_runner_config_rejects_internal_whitespace_table
     assert!(
         err.contains("distributed config requires table_name without whitespace characters"),
         "internal-whitespace runner-config table name should be rejected by distributed config validation: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_rejects_internal_whitespace_table_name_for_ps_role(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        table_name: "my table".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Ps,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("distributed config validation lane should return an error for ps role")
+    .to_string();
+    assert!(
+        err.contains("distributed config requires table_name without whitespace characters"),
+        "internal-whitespace runner-config table name should be rejected for ps role too because this contract is global: {err}"
     );
 }
 
