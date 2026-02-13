@@ -6325,6 +6325,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_ps_role_rejects_malformed_parameter_sync_target_endpoint_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["http://".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
+            "run_ps_role should reject malformed parameter sync target endpoint",
+        );
+        assert!(
+            err.to_string().contains(
+                "distributed config has invalid parameter_sync_targets entry `http://`",
+            ),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_ps_role_rejects_whitespace_padded_parameter_sync_target_without_wrapper() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -7048,6 +7068,23 @@ mod tests {
         assert!(err
             .to_string()
             .contains("invalid parameter_sync_targets entry"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_malformed_parameter_sync_target_endpoint_for_ps_role() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec!["http://".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject malformed parameter sync target endpoint for ps role",
+        );
+        assert!(err.to_string().contains(
+            "distributed config has invalid parameter_sync_targets entry `http://`"
+        ));
     }
 
     #[tokio::test]

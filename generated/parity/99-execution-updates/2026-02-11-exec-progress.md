@@ -11890,6 +11890,19 @@
   - duplicate-normalization reject matrix is now symmetric across validation,
     runtime helper, runtime entrypoint, and integration conversion surfaces.
 
+### 785) PS runtime/helper malformed-endpoint reject closure
+- Added regressions in `crates/monolith-training/src/runner.rs`:
+  - `test_run_ps_role_rejects_malformed_parameter_sync_target_endpoint_without_wrapper`
+  - `test_run_distributed_rejects_malformed_parameter_sync_target_endpoint_for_ps_role`
+- Coverage validates:
+  - PS-only malformed endpoint parsing contracts (e.g. `http://` invalid
+    authority/URI parse) are now explicitly asserted at both helper and runtime
+    entrypoint layers, matching existing validation and integration reject
+    coverage.
+- Result:
+  - malformed-endpoint reject contracts are now closed across
+    validate/helper/runtime/integration surfaces for PS role.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -13543,6 +13556,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1643. `rg "allows_malformed_parameter_sync_target_endpoint" crates/monolith-training/src/runner.rs && rg "distributed_runner_from_(run_config|runner_config)_allows_malformed_parameter_sync_target_endpoint_for_worker_role" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified worker malformed-endpoint bypass regressions are present across runner and integration suites)
 1644. `cargo test -p monolith-training test_run_ps_role_rejects_duplicate_parameter_sync_target_entries_after_http_prefix_normalization_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_duplicate_parameter_sync_target_entries_after_https_default_port_normalization_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_duplicate_parameter_sync_target_entries_after_case_insensitive_http_prefix_and_host_normalization_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_duplicate_parameter_sync_target_entries_after_http_prefix_normalization_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_duplicate_parameter_sync_target_entries_after_https_default_port_normalization_for_ps_role -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_duplicate_parameter_sync_target_entries_after_case_insensitive_http_prefix_and_host_normalization_for_ps_role -- --nocapture` ✅ (validated PS runtime/helper duplicate-normalization reject semantics for implicit http-prefix, https default-port, and case-insensitive scheme+host lanes)
 1645. `rg "test_run_(ps_role_rejects_duplicate_parameter_sync_target_entries_after_(http_prefix|https_default_port|case_insensitive_http_prefix_and_host)_normalization_without_wrapper|distributed_rejects_duplicate_parameter_sync_target_entries_after_(http_prefix|https_default_port|case_insensitive_http_prefix_and_host)_normalization_for_ps_role)" crates/monolith-training/src/runner.rs` ✅ (verified PS runtime/helper duplicate-normalization reject regressions are present across helper and runtime entrypoint suites)
+1646. `cargo test -p monolith-training test_run_ps_role_rejects_malformed_parameter_sync_target_endpoint_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_malformed_parameter_sync_target_endpoint_for_ps_role -- --nocapture` ✅ (validated PS runtime/helper malformed-endpoint reject semantics for invalid `http://` parameter-sync target parsing)
+1647. `rg "test_run_(ps_role_rejects_malformed_parameter_sync_target_endpoint_without_wrapper|distributed_rejects_malformed_parameter_sync_target_endpoint_for_ps_role)" crates/monolith-training/src/runner.rs` ✅ (verified PS runtime/helper malformed-endpoint regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
