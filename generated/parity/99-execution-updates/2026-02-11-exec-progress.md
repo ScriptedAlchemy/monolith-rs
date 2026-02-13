@@ -10305,6 +10305,23 @@
   - `wait_for_barrier` now has deterministic non-zero poll-interval input
     requirements, preventing undefined busy-loop behavior.
 
+### 698) Distributed LocalCluster constructor learning-rate validation hardening
+- Hardened `LocalCluster::new` in
+  `crates/monolith-training/src/distributed.rs` to reject invalid
+  `learning_rate` inputs:
+  - non-finite values (`NaN`, `±∞`) now return deterministic
+    `InvalidConfiguration("learning_rate must be finite")`,
+  - negative values now return deterministic
+    `InvalidConfiguration("learning_rate must be non-negative, got ...")`.
+- Added regressions:
+  - `test_local_cluster_new_rejects_negative_learning_rate`
+  - `test_local_cluster_new_rejects_non_finite_learning_rate`
+- Coverage validates constructor contract hardening and confirms standard
+  train-step flows remain intact after validation guards.
+- Result:
+  - Local-cluster construction now enforces explicit numeric safety contracts
+    for training-rate configuration inputs.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11764,6 +11781,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1449. `rg "test_local_cluster_(register_parameter_rejects_partially_running_cluster|train_step_rejects_partially_running_cluster_without_step_advance)" crates/monolith-training/src/distributed.rs` ✅ (verified partially running cluster guard regressions are present)
 1450. `cargo test -p monolith-training test_local_cluster_wait_for_barrier_zero_poll_interval_is_invalid_configuration -- --nocapture && cargo test -p monolith-training test_local_cluster_wait_for_barrier_ -- --nocapture` ✅ (validated non-zero poll-interval guard plus full wait_for_barrier success/timeout/retry/partially-running regressions)
 1451. `rg "test_local_cluster_wait_for_barrier_zero_poll_interval_is_invalid_configuration" crates/monolith-training/src/distributed.rs` ✅ (verified wait_for_barrier non-zero poll-interval regression is present)
+1452. `cargo test -p monolith-training test_local_cluster_new_rejects_ -- --nocapture && cargo test -p monolith-training test_local_cluster_train_step_ -- --nocapture` ✅ (validated constructor learning-rate guardrails for negative/non-finite inputs and confirmed train-step regressions remain green)
+1453. `rg "test_local_cluster_new_rejects_(negative_learning_rate|non_finite_learning_rate)" crates/monolith-training/src/distributed.rs` ✅ (verified LocalCluster constructor learning-rate validation regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

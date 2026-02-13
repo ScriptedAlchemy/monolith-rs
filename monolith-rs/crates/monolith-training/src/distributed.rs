@@ -487,6 +487,16 @@ impl LocalCluster {
     /// Creates a new local cluster from a validated cluster config.
     pub fn new(config: ClusterConfig, learning_rate: f32) -> DistributedResult<Self> {
         config.validate()?;
+        if !learning_rate.is_finite() {
+            return Err(DistributedError::InvalidConfiguration(
+                "learning_rate must be finite".to_string(),
+            ));
+        }
+        if learning_rate < 0.0 {
+            return Err(DistributedError::InvalidConfiguration(format!(
+                "learning_rate must be non-negative, got {learning_rate}"
+            )));
+        }
         let parameter_servers = (0..config.num_ps()).map(ParameterServer::new).collect();
         let workers = (0..config.num_workers())
             .map(|idx| Worker::new(idx, config.num_workers()))
@@ -1104,6 +1114,39 @@ mod tests {
             matches!(err, DistributedError::InvalidConfiguration(ref msg)
                 if msg.contains("Worker index 5 out of range")),
             "expected InvalidConfiguration mentioning out-of-range worker index, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_local_cluster_new_rejects_negative_learning_rate() {
+        let cfg = ClusterConfig::new(vec![make_addr(5000)], vec![make_addr(6000)], 0, false);
+        let err = LocalCluster::new(cfg, -0.1)
+            .expect_err("local cluster construction should reject negative learning rates");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("learning_rate must be non-negative")),
+            "expected InvalidConfiguration mentioning non-negative learning_rate requirement, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_local_cluster_new_rejects_non_finite_learning_rate() {
+        let cfg = ClusterConfig::new(vec![make_addr(5000)], vec![make_addr(6000)], 0, false);
+        let err = LocalCluster::new(cfg, f32::NAN)
+            .expect_err("local cluster construction should reject NaN learning rate");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("learning_rate must be finite")),
+            "expected InvalidConfiguration mentioning finite learning_rate requirement, got {err:?}"
+        );
+
+        let cfg = ClusterConfig::new(vec![make_addr(5000)], vec![make_addr(6000)], 0, false);
+        let err = LocalCluster::new(cfg, f32::INFINITY)
+            .expect_err("local cluster construction should reject infinite learning rate");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("learning_rate must be finite")),
+            "expected InvalidConfiguration mentioning finite learning_rate requirement for infinity, got {err:?}"
         );
     }
 
