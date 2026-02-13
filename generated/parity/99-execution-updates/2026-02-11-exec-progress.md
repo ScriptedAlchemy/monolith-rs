@@ -8312,6 +8312,24 @@
   - ZooKeeper host-list parity now explicitly includes IPv6 multi-host
     failure-shape and discover cache-retention contracts.
 
+### 615) Discovery ZooKeeper IPv6 multi-host async lifecycle expansion
+- Added IPv6 multi-host async lifecycle regressions in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_zk_async_register_valid_ipv6_multi_hosts_failure_compacts_dead_watchers`
+  - `test_zk_async_register_valid_ipv6_multi_hosts_failure_keeps_live_watchers`
+  - `test_zk_async_register_valid_ipv6_multi_hosts_failure_does_not_cache_service`
+  - `test_zk_async_deregister_valid_ipv6_multi_hosts_failure_still_removes_local_cache_and_notifies_watchers`
+  - `test_zk_async_deregister_valid_ipv6_multi_hosts_failure_compacts_dead_watchers`
+- Coverage validates valid-but-unreachable IPv6 multi-host lists with explicit
+  ports preserve async lifecycle contracts:
+  - register failures compact dead watchers, preserve live watchers, and avoid
+    cache pollution,
+  - deregister failures still remove local cache entries, emit
+    `ServiceRemoved`, and compact dead watchers.
+- Result:
+  - IPv6 multi-host parity now extends from connect/discover contracts to async
+    register/deregister watcher symmetry and cache-retention behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9598,6 +9616,8 @@
 1283. `rg "test_zk_(async_deregister_valid_host_only_ipv6_multi_hosts_failure_(cleans_registered_path|keeps_live_watchers)|watch_async_valid_host_only_ipv6_multi_hosts_disconnect_clears_poll_generation_with_live_receiver)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper host-only IPv6 multi-host retention/cleanup regression tests are present)
 1284. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_connect_valid_ipv6_multi_hosts_returns_connection_failed_when_unreachable -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_valid_ipv6_multi_hosts_connection_failure_is_connection_failed -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_discover_async_valid_ipv6_multi_hosts_connection_failure_preserves_local_cache -- --nocapture` ✅ (validated ZooKeeper IPv6 multi-host connect/discover failure-shape and cache-retention regressions)
 1285. `rg "test_zk_(connect_valid_ipv6_multi_hosts_returns_connection_failed_when_unreachable|discover_async_valid_ipv6_multi_hosts_connection_failure_(is_connection_failed|preserves_local_cache))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper IPv6 multi-host regression tests are present)
+1286. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_valid_ipv6_multi_hosts_failure_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_valid_ipv6_multi_hosts_failure_keeps_live_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_register_valid_ipv6_multi_hosts_failure_does_not_cache_service -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_valid_ipv6_multi_hosts_failure_still_removes_local_cache_and_notifies_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_valid_ipv6_multi_hosts_failure_compacts_dead_watchers -- --nocapture` ✅ (validated ZooKeeper IPv6 multi-host async register/deregister watcher-symmetry and cache-retention regressions)
+1287. `rg "test_zk_(async_register_valid_ipv6_multi_hosts_failure_(compacts_dead_watchers|keeps_live_watchers|does_not_cache_service)|async_deregister_valid_ipv6_multi_hosts_failure_(still_removes_local_cache_and_notifies_watchers|compacts_dead_watchers))" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper IPv6 multi-host async lifecycle regression tests are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
