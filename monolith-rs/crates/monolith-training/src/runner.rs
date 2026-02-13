@@ -129,6 +129,12 @@ impl DistributedRunConfig {
         if self.discovery_cleanup_timeout.is_zero() {
             anyhow::bail!("distributed config requires discovery_cleanup_timeout > 0");
         }
+        if self
+            .heartbeat_interval
+            .is_some_and(|interval| interval.is_zero())
+        {
+            anyhow::bail!("distributed config requires heartbeat_interval > 0 when configured");
+        }
         if self.discovery_service_type_ps.trim().is_empty() {
             anyhow::bail!("distributed config requires non-empty discovery_service_type_ps");
         }
@@ -3102,6 +3108,19 @@ mod tests {
     }
 
     #[test]
+    fn test_distributed_config_validate_rejects_zero_heartbeat_interval_when_configured() {
+        let cfg = DistributedRunConfig {
+            heartbeat_interval: Some(Duration::from_millis(0)),
+            ..DistributedRunConfig::default()
+        };
+        let err = cfg.validate().expect_err("config validation should fail for this invalid test case").to_string();
+        assert!(
+            err.contains("distributed config requires heartbeat_interval > 0 when configured"),
+            "unexpected validation error: {err}"
+        );
+    }
+
+    #[test]
     fn test_distributed_config_validate_rejects_ps_index_out_of_range() {
         let cfg = DistributedRunConfig {
             role: Role::Ps,
@@ -4182,6 +4201,24 @@ mod tests {
             .await
             .expect_err("run_distributed should reject invalid runtime config");
         assert!(err.to_string().contains("num_ps > 0"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_zero_heartbeat_interval_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            heartbeat_interval: Some(Duration::from_millis(0)),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject runtime config with zero heartbeat interval",
+        );
+        assert!(
+            err.to_string()
+                .contains("heartbeat_interval > 0 when configured"),
+            "unexpected runtime config validation error: {err}"
+        );
     }
 
     #[tokio::test]

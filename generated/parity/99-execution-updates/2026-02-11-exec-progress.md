@@ -10778,6 +10778,22 @@
   - helper hardening now includes explicit parity locks for negative-index and
     negative-delta behavior, reducing regression risk in TF-free runtime flows.
 
+### 724) Runner heartbeat interval zero-value panic guard
+- Hardened `crates/monolith-training/src/runner.rs` runtime config validation:
+  - added explicit rejection of `heartbeat_interval = Some(0ms)` with
+    deterministic config error:
+    - `"distributed config requires heartbeat_interval > 0 when configured"`.
+- Added regressions:
+  - `test_distributed_config_validate_rejects_zero_heartbeat_interval_when_configured`
+  - `test_run_distributed_rejects_zero_heartbeat_interval_runtime_config`
+- Coverage validates:
+  - invalid zero heartbeat periods fail early during config validation,
+  - runtime no longer risks hitting downstream scheduler panic paths on
+    zero-duration heartbeat intervals.
+- Result:
+  - heartbeat lifecycle config contracts now explicitly prevent zero-period
+    scheduling edge cases and enforce safer runtime startup behavior.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12307,6 +12323,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1519. `rg "Err\\(DeviceUtilsError::InvalidProcessesPerGpu|Err\\(GenSeqMaskError::EmptyRowSplits\\)|Err\\(RaggedUtilsError::EmptyRowSplits\\)" crates/monolith-training/src/native_training` ✅ (verified helper docs now include explicit error-contract examples for device utils, seq mask, and ragged utils)
 1520. `cargo test -p monolith-training test_get_visible_gpus_negative_local_rank_matches_python_truncation -- --nocapture && cargo test -p monolith-training test_gen_seq_mask_negative_deltas_are_clamped_to_zero -- --nocapture && cargo test -p monolith-training --test native_training_parity native_training_device_utils_negative_rank_matches_python_truncation -- --nocapture && cargo test -p monolith-training --test native_training_parity native_training_gen_seq_mask_negative_delta_clamping -- --nocapture` ✅ (validated negative-rank truncation and negative-delta clamp semantics across unit and integration parity coverage)
 1521. `rg "test_get_visible_gpus_negative_local_rank_matches_python_truncation|test_gen_seq_mask_negative_deltas_are_clamped_to_zero|native_training_device_utils_negative_rank_matches_python_truncation|native_training_gen_seq_mask_negative_delta_clamping" crates/monolith-training` ✅ (verified new helper edge-semantics parity regressions are present in unit and integration suites)
+1522. `cargo test -p monolith-training test_distributed_config_validate_rejects_zero_heartbeat_interval_when_configured -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_zero_heartbeat_interval_runtime_config -- --nocapture` ✅ (validated distributed runtime config now rejects zero heartbeat intervals at validation and top-level runtime entrypoint)
+1523. `rg "heartbeat_interval > 0 when configured" crates/monolith-training/src/runner.rs` ✅ (verified explicit heartbeat-interval zero-value validation contract and regression assertions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
