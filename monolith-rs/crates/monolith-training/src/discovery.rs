@@ -6485,6 +6485,47 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_async_deregister_host_port_without_scheme_uses_operation_context() {
+        let consul = ConsulDiscovery::new("127.0.0.1:8501");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0",
+                "worker-0",
+                "worker",
+                "127.0.0.1",
+                6000,
+            ))
+            .expect("sync register should seed local cache");
+        let mut rx = consul.watch("worker").expect("watch should succeed");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, "worker-0")
+            .await;
+        let err = result.expect_err("host:port address should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("deregister_entity") && msg.contains("8501")),
+            "expected Internal containing normalized host:port deregister context, got {err:?}"
+        );
+
+        let event = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("timed out waiting for ServiceRemoved")
+            .expect("watch channel closed unexpectedly");
+        assert!(
+            matches!(event, DiscoveryEvent::ServiceRemoved(ref id) if id == "worker-0"),
+            "expected ServiceRemoved(worker-0), got {event:?}"
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .is_empty(),
+            "normalized host:port async deregister should remove service from local cache"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_async_deregister_empty_address_uses_default_endpoint_context() {
         let consul = ConsulDiscovery::new("");
         consul
@@ -6821,6 +6862,30 @@ mod tests {
                 .expect("discover should succeed")
                 .is_empty(),
             "failed async register should not populate local service cache"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_host_port_without_scheme_uses_operation_context() {
+        let consul = ConsulDiscovery::new("127.0.0.1:8501");
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("host:port address should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("register_entity") && msg.contains("8501")),
+            "expected Internal containing normalized host:port register context, got {err:?}"
+        );
+        assert!(
+            consul
+                .discover("worker")
+                .expect("discover should succeed")
+                .is_empty(),
+            "normalized host:port async register should not populate local service cache"
         );
     }
 
@@ -7200,6 +7265,36 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_discover_async_host_port_without_scheme_preserves_local_cache() {
+        let consul = ConsulDiscovery::new("127.0.0.1:8501");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0", "worker-0", "worker", "127.0.0.1", 6000,
+            ))
+            .expect("sync register should seed local cache");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result.expect_err("host:port address should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("get_service_nodes") && msg.contains("8501")),
+            "expected Internal containing discover context and normalized port, got {err:?}"
+        );
+
+        let cached = consul
+            .discover("worker")
+            .expect("discover should succeed after async host:port failure");
+        assert_eq!(
+            cached.len(),
+            1,
+            "host:port async discover failure should not evict local cache entries"
+        );
+        assert_eq!(cached[0].id, "worker-0");
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_discover_async_invalid_scheme_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("ftp://127.0.0.1:8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
@@ -7242,6 +7337,19 @@ mod tests {
                     && msg.contains("invalid scheme")
                     && msg.contains("connect")),
             "expected ConfigError containing invalid-scheme connect context, got {err:?}"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_connect_host_port_without_scheme_initializes_client_handle() {
+        let consul = ConsulDiscovery::new("127.0.0.1:8501");
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("host:port address should normalize and initialize Consul client handle");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "host:port connect should initialize client handle"
         );
     }
 
