@@ -7605,6 +7605,21 @@
     hosts, invalid/malformed host entries, invalid/out-of-range ports, and
     invalid base path.
 
+### 564) Discovery malformed deregister compaction completion + duplicate test-name fix
+- Added remaining malformed-config dead-watcher compaction regressions for
+  ZooKeeper `deregister_async` in
+  `crates/monolith-training/src/discovery.rs`:
+  - `test_zk_async_deregister_malformed_ipv6_host_entry_compacts_dead_watchers`
+  - `test_zk_async_deregister_out_of_range_port_compacts_dead_watchers`
+- Removed a duplicate Consul test function definition
+  (`test_consul_async_deregister_invalid_scheme_compacts_dead_watchers`) that
+  caused duplicate symbol compile failures under `--features consul`.
+- Result:
+  - ZooKeeper malformed-config deregister compaction coverage is complete across
+    covered host/base-path shapes.
+  - Consul discovery test module now compiles cleanly under `--features consul`
+    after deduplicating the test name.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8790,6 +8805,8 @@
 1182. `rg "test_zk_async_deregister_(invalid_hosts|invalid_port|invalid_base_path)_compacts_dead_watchers" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper deregister dead-watcher compaction tests are present)
 1183. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_malformed_ipv6_host_entry_compacts_dead_watchers -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_out_of_range_port_compacts_dead_watchers -- --nocapture` ✅ (validated ZooKeeper malformed-host-entry and out-of-range-port deregister dead-watcher compaction regressions)
 1184. `rg "test_zk_async_deregister_(malformed_ipv6_host_entry|out_of_range_port)_compacts_dead_watchers" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper malformed-host/out-of-range deregister compaction tests are present)
+1185. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_invalid_scheme_compacts_dead_watchers -- --nocapture` ✅ (validated duplicate-name fix by recompiling Consul discovery tests and running invalid-scheme deregister compaction regression)
+1186. `rg "test_zk_async_deregister_(malformed_ipv6_host_entry|out_of_range_port)_compacts_dead_watchers|test_consul_async_deregister_invalid_scheme_compacts_dead_watchers" crates/monolith-training/src/discovery.rs` ✅ (verified new ZooKeeper compaction regressions and single retained Consul invalid-scheme compaction test definition)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

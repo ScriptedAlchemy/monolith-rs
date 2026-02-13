@@ -7409,38 +7409,6 @@ mod tests {
         );
         assert!(
             !consul_has_watcher(&consul, "worker"),
-            "dead watch sender should be compacted on invalid-scheme deregister notification"
-        );
-    }
-
-    #[cfg(feature = "consul")]
-    #[tokio::test]
-    async fn test_consul_async_deregister_invalid_scheme_compacts_dead_watchers() {
-        let consul = ConsulDiscovery::new("ftp://127.0.0.1:8500");
-        let service = ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000);
-        consul
-            .register(service.clone())
-            .expect("sync register should seed local cache");
-        let rx = consul.watch("worker").expect("watch should succeed");
-        assert!(
-            consul_has_watcher(&consul, "worker"),
-            "watch sender should exist after subscribing"
-        );
-        drop(rx);
-
-        let result =
-            <ConsulDiscovery as ServiceDiscoveryAsync>::deregister_async(&consul, &service.id)
-                .await;
-        let err = result.expect_err("invalid-scheme address should return config error");
-        assert!(
-            matches!(err, DiscoveryError::ConfigError(ref msg)
-                if msg.contains("invalid address")
-                    && msg.contains("invalid scheme")
-                    && msg.contains("deregister_entity")),
-            "expected ConfigError containing invalid-scheme deregister context, got {err:?}"
-        );
-        assert!(
-            !consul_has_watcher(&consul, "worker"),
             "invalid-scheme deregister should compact dead watcher sender entries"
         );
         assert!(
