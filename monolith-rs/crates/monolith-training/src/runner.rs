@@ -5023,6 +5023,111 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_worker_role_rejects_zero_discovery_operation_timeout_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_operation_timeout: Duration::from_millis(0),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg)
+            .await
+            .expect_err("run_worker_role should reject zero discovery operation timeout without wrapper");
+        assert!(
+            err.to_string().contains("discovery_operation_timeout > 0"),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_rejects_zero_discovery_cleanup_timeout_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_cleanup_timeout: Duration::from_millis(0),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg)
+            .await
+            .expect_err("run_worker_role should reject zero discovery cleanup timeout without wrapper");
+        assert!(
+            err.to_string().contains("discovery_cleanup_timeout > 0"),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_rejects_whitespace_padded_ps_service_type_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_service_type_ps: " ps ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg)
+            .await
+            .expect_err("run_worker_role should reject whitespace-padded ps service type without wrapper");
+        assert!(
+            err.to_string()
+                .contains("discovery_service_type_ps without leading/trailing whitespace"),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_rejects_internal_whitespace_ps_service_type_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_service_type_ps: "ps cluster".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg)
+            .await
+            .expect_err("run_worker_role should reject internal-whitespace ps service type without wrapper");
+        assert!(
+            err.to_string()
+                .contains("discovery_service_type_ps without whitespace characters"),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_rejects_whitespace_padded_table_name_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            table_name: " emb ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg)
+            .await
+            .expect_err("run_worker_role should reject whitespace-padded table name without wrapper");
+        assert!(
+            err.to_string()
+                .contains("table_name without leading/trailing whitespace"),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_worker_role_rejects_internal_whitespace_table_name_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            table_name: "my table".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg)
+            .await
+            .expect_err("run_worker_role should reject internal-whitespace table name without wrapper");
+        assert!(
+            err.to_string().contains("table_name without whitespace characters"),
+            "unexpected worker-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_worker_role_rejects_zero_heartbeat_interval_without_wrapper() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let bad_cfg = DistributedRunConfig {
@@ -5199,6 +5304,145 @@ mod tests {
             .expect_err("run_ps_role should reject empty table name without wrapper");
         assert!(
             err.to_string().contains("non-empty table_name"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_zero_num_ps_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            num_ps: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg)
+            .await
+            .expect_err("run_ps_role should reject zero num_ps without wrapper");
+        assert!(
+            err.to_string().contains("num_ps > 0"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_zero_dim_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            dim: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg)
+            .await
+            .expect_err("run_ps_role should reject zero dim without wrapper");
+        assert!(
+            err.to_string().contains("dim > 0"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_zero_discovery_operation_timeout_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            discovery_operation_timeout: Duration::from_millis(0),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg)
+            .await
+            .expect_err("run_ps_role should reject zero discovery operation timeout without wrapper");
+        assert!(
+            err.to_string().contains("discovery_operation_timeout > 0"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_zero_discovery_cleanup_timeout_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            discovery_cleanup_timeout: Duration::from_millis(0),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg)
+            .await
+            .expect_err("run_ps_role should reject zero discovery cleanup timeout without wrapper");
+        assert!(
+            err.to_string().contains("discovery_cleanup_timeout > 0"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_whitespace_padded_ps_service_type_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            discovery_service_type_ps: " ps ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg)
+            .await
+            .expect_err("run_ps_role should reject whitespace-padded ps service type without wrapper");
+        assert!(
+            err.to_string()
+                .contains("discovery_service_type_ps without leading/trailing whitespace"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_internal_whitespace_ps_service_type_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            discovery_service_type_ps: "ps cluster".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg)
+            .await
+            .expect_err("run_ps_role should reject internal-whitespace ps service type without wrapper");
+        assert!(
+            err.to_string()
+                .contains("discovery_service_type_ps without whitespace characters"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_whitespace_padded_table_name_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            table_name: " emb ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg)
+            .await
+            .expect_err("run_ps_role should reject whitespace-padded table name without wrapper");
+        assert!(
+            err.to_string()
+                .contains("table_name without leading/trailing whitespace"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_internal_whitespace_table_name_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            table_name: "my table".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg)
+            .await
+            .expect_err("run_ps_role should reject internal-whitespace table name without wrapper");
+        assert!(
+            err.to_string().contains("table_name without whitespace characters"),
             "unexpected ps-role validation error: {err}"
         );
     }

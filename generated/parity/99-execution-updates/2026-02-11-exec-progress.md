@@ -11395,6 +11395,32 @@
   - top-level runtime role matrix now has explicit worker+ps symmetry for
     whitespace/global string-shape rejection paths.
 
+### 757) Direct role-helper global timeout/string-shape reject closure
+- Added direct helper regressions in
+  `crates/monolith-training/src/runner.rs`:
+  - worker helper (`run_worker_role`) rejects:
+    - `test_run_worker_role_rejects_zero_discovery_operation_timeout_without_wrapper`
+    - `test_run_worker_role_rejects_zero_discovery_cleanup_timeout_without_wrapper`
+    - `test_run_worker_role_rejects_whitespace_padded_ps_service_type_without_wrapper`
+    - `test_run_worker_role_rejects_internal_whitespace_ps_service_type_without_wrapper`
+    - `test_run_worker_role_rejects_whitespace_padded_table_name_without_wrapper`
+    - `test_run_worker_role_rejects_internal_whitespace_table_name_without_wrapper`
+  - PS helper (`run_ps_role`) rejects:
+    - `test_run_ps_role_rejects_zero_num_ps_without_wrapper`
+    - `test_run_ps_role_rejects_zero_dim_without_wrapper`
+    - `test_run_ps_role_rejects_zero_discovery_operation_timeout_without_wrapper`
+    - `test_run_ps_role_rejects_zero_discovery_cleanup_timeout_without_wrapper`
+    - `test_run_ps_role_rejects_whitespace_padded_ps_service_type_without_wrapper`
+    - `test_run_ps_role_rejects_internal_whitespace_ps_service_type_without_wrapper`
+    - `test_run_ps_role_rejects_whitespace_padded_table_name_without_wrapper`
+    - `test_run_ps_role_rejects_internal_whitespace_table_name_without_wrapper`
+- Coverage validates:
+  - direct role helpers now explicitly enforce global timeout and string-shape
+    contracts before role-specific runtime orchestration.
+- Result:
+  - helper-layer parity matrices now cover a broader global-contract rejection
+    set for both worker and PS direct entrypaths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12992,6 +13018,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1587. `rg "test_run_worker_role_rejects_(zero_num_ps|zero_num_workers|zero_dim|empty_ps_service_type|empty_table_name)_without_wrapper" crates/monolith-training/src/runner.rs` ✅ (verified direct worker-helper global reject regressions are present)
 1588. `cargo test -p monolith-training test_run_distributed_rejects_whitespace_padded_ps_service_type_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_internal_whitespace_ps_service_type_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_whitespace_padded_table_name_runtime_config -- --nocapture && cargo test -p monolith-training test_run_distributed_rejects_internal_whitespace_table_name_runtime_config -- --nocapture` ✅ (validated runtime worker+ps symmetry for discovery_service_type_ps/table_name whitespace global-contract rejection paths)
 1589. `rg "test_run_distributed_rejects_(whitespace_padded_ps_service_type|internal_whitespace_ps_service_type|whitespace_padded_table_name|internal_whitespace_table_name)_runtime_config(_for_ps_role)?" crates/monolith-training/src/runner.rs` ✅ (verified worker and ps runtime whitespace global-contract reject regressions are present)
+1590. `cargo test -p monolith-training test_run_worker_role_rejects_zero_num_ps_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_zero_num_workers_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_zero_dim_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_empty_ps_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_empty_table_name_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_zero_discovery_operation_timeout_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_zero_discovery_cleanup_timeout_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_whitespace_padded_ps_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_internal_whitespace_ps_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_whitespace_padded_table_name_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_worker_role_rejects_internal_whitespace_table_name_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_zero_num_ps_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_zero_dim_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_zero_discovery_operation_timeout_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_zero_discovery_cleanup_timeout_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_whitespace_padded_ps_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_internal_whitespace_ps_service_type_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_whitespace_padded_table_name_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_ps_role_rejects_internal_whitespace_table_name_without_wrapper -- --nocapture` ✅ (validated expanded direct role-helper global timeout/string-shape reject matrix across worker and ps entrypaths)
+1591. `rg "test_run_(worker|ps)_role_rejects_(zero_discovery_operation_timeout|zero_discovery_cleanup_timeout|whitespace_padded_ps_service_type|internal_whitespace_ps_service_type|whitespace_padded_table_name|internal_whitespace_table_name|zero_num_ps|zero_dim)_without_wrapper" crates/monolith-training/src/runner.rs` ✅ (verified expanded direct helper global-contract reject regressions are present for both roles)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
