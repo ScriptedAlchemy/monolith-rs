@@ -11677,6 +11677,23 @@
     path/query target permissiveness across runtime/helper and integration
     surfaces.
 
+### 773) Worker userinfo parameter-sync bypass parity closure
+- Added regressions in:
+  - `crates/monolith-training/src/runner.rs`:
+    - `test_run_worker_role_allows_parameter_sync_target_with_userinfo_without_wrapper`
+    - `test_run_distributed_allows_parameter_sync_target_with_userinfo_for_worker_role`
+  - `crates/monolith-training/tests/native_training_parity.rs`:
+    - `distributed_runner_from_run_config_allows_parameter_sync_target_with_userinfo_for_worker_role`
+    - `distributed_runner_from_runner_config_allows_parameter_sync_target_with_userinfo_for_worker_role`
+- Coverage validates:
+  - worker role bypass of PS-only parameter-sync endpoint userinfo validation is
+    explicitly preserved across direct helper, runtime, and run/runner
+    integration entrypaths.
+- Result:
+  - worker parameter-sync bypass matrix now includes explicit userinfo-target
+    permissiveness alongside existing invalid/path-query/duplicate/name bypass
+    contracts.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -13306,6 +13323,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1619. `rg "test_run_(ps_role_rejects_duplicate_parameter_sync_target_entries_after_trailing_slash_normalization_without_wrapper|distributed_rejects_duplicate_parameter_sync_target_entries_after_trailing_slash_normalization_for_ps_role)" crates/monolith-training/src/runner.rs` ✅ (verified trailing-slash normalized duplicate parameter-sync runtime/helper regressions are present)
 1620. `cargo test -p monolith-training test_run_worker_role_allows_parameter_sync_target_with_path_or_query_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_parameter_sync_target_with_path_or_query_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_parameter_sync_target_with_path_or_query_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_parameter_sync_target_with_path_or_query_for_worker_role -- --nocapture` ✅ (validated worker path/query parameter-sync target bypass semantics across direct helper, runtime, and run/runner integration entrypaths)
 1621. `rg "test_run_(worker_role_allows_parameter_sync_target_with_path_or_query_without_wrapper|distributed_allows_parameter_sync_target_with_path_or_query_for_worker_role)" crates/monolith-training/src/runner.rs && rg "distributed_runner_from_(run_config|runner_config)_allows_parameter_sync_target_with_path_or_query_for_worker_role" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified worker path/query bypass regressions are present across runner and integration suites)
+1622. `cargo test -p monolith-training test_run_worker_role_allows_parameter_sync_target_with_userinfo_without_wrapper -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_parameter_sync_target_with_userinfo_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_parameter_sync_target_with_userinfo_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_parameter_sync_target_with_userinfo_for_worker_role -- --nocapture` ✅ (validated worker userinfo parameter-sync target bypass semantics across direct helper, runtime, and run/runner integration entrypaths)
+1623. `rg "test_run_(worker_role_allows_parameter_sync_target_with_userinfo_without_wrapper|distributed_allows_parameter_sync_target_with_userinfo_for_worker_role)" crates/monolith-training/src/runner.rs && rg "distributed_runner_from_(run_config|runner_config)_allows_parameter_sync_target_with_userinfo_for_worker_role" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified worker userinfo bypass regressions are present across runner and integration suites)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes

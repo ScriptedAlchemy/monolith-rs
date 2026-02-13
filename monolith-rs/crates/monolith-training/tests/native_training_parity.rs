@@ -6547,6 +6547,50 @@ async fn distributed_runner_from_run_config_allows_parameter_sync_target_with_pa
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_allows_parameter_sync_target_with_userinfo_for_worker_role(
+) {
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverFromConfigDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["http://user@127.0.0.1:8500".to_string()],
+        parameter_sync_interval_ms: 0,
+        parameter_sync_model_name: " ".to_string(),
+        parameter_sync_signature_name: "serving default".to_string(),
+        ..RunConfig::default()
+    };
+
+    let err = run_distributed_from_run_config(
+        Arc::clone(&discovery),
+        &run,
+        None,
+        Role::Worker,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("worker role should bypass parameter-sync userinfo target validation in run-config path")
+    .to_string();
+    assert!(
+        err.contains("Timed out waiting for PS discovery"),
+        "worker role should fail due to discovery timeout, not parameter-sync userinfo validation: {err}"
+    );
+    assert!(
+        !err.contains("parameter_sync_targets"),
+        "worker role should not fail on parameter-sync userinfo target contracts: {err}"
+    );
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_allows_duplicate_parameter_sync_targets_and_empty_names_for_worker_role(
 ) {
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -22903,6 +22947,49 @@ async fn distributed_runner_from_runner_config_allows_parameter_sync_target_with
     assert!(
         !err.contains("parameter_sync_targets"),
         "worker role should not fail on parameter-sync path/query target contracts: {err}"
+    );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_allows_parameter_sync_target_with_userinfo_for_worker_role(
+) {
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(EmptyDiscoverFromConfigDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        connect_retries: 0,
+        retry_backoff_ms: 1,
+        discovery_operation_timeout_ms: 200,
+        discovery_cleanup_timeout_ms: 20,
+        enable_parameter_sync: true,
+        parameter_sync_targets: vec!["http://user@127.0.0.1:8500".to_string()],
+        parameter_sync_interval_ms: 0,
+        parameter_sync_model_name: " ".to_string(),
+        parameter_sync_signature_name: "serving default".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let err = run_distributed_from_runner_config(
+        Arc::clone(&discovery),
+        &runner,
+        Role::Worker,
+        test_bind_addr(),
+    )
+    .await
+    .expect_err("worker role should bypass parameter-sync userinfo target validation in runner-config path")
+    .to_string();
+    assert!(
+        err.contains("Timed out waiting for PS discovery"),
+        "worker role should fail due to discovery timeout, not parameter-sync userinfo validation: {err}"
+    );
+    assert!(
+        !err.contains("parameter_sync_targets"),
+        "worker role should not fail on parameter-sync userinfo target contracts: {err}"
     );
 }
 
