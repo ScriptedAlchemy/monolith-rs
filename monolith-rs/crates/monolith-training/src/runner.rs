@@ -6449,6 +6449,52 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_ps_role_rejects_duplicate_parameter_sync_target_entries_after_http_prefix_normalization_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec![
+                "127.0.0.1:8500".to_string(),
+                "http://127.0.0.1:8500".to_string(),
+            ],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
+            "run_ps_role should reject normalized duplicate parameter-sync targets after implicit http-prefix normalization",
+        );
+        assert!(
+            err.to_string()
+                .contains("requires unique parameter_sync_targets entries"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_duplicate_parameter_sync_target_entries_after_https_default_port_normalization_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec![
+                "https://127.0.0.1".to_string(),
+                "https://127.0.0.1:443".to_string(),
+            ],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
+            "run_ps_role should reject normalized duplicate parameter-sync targets after https default-port expansion",
+        );
+        assert!(
+            err.to_string()
+                .contains("requires unique parameter_sync_targets entries"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_ps_role_rejects_duplicate_parameter_sync_target_entries_after_case_insensitive_host_normalization_without_wrapper(
     ) {
         let discovery = Arc::new(InMemoryDiscovery::new());
@@ -6463,6 +6509,29 @@ mod tests {
         };
         let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
             "run_ps_role should reject normalized duplicate parameter-sync targets after case-insensitive host normalization",
+        );
+        assert!(
+            err.to_string()
+                .contains("requires unique parameter_sync_targets entries"),
+            "unexpected ps-role validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_rejects_duplicate_parameter_sync_target_entries_after_case_insensitive_http_prefix_and_host_normalization_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec![
+                "HTTP://LOCALHOST:8500".to_string(),
+                "http://localhost:8500".to_string(),
+            ],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_ps_role(discovery, "ps-0", "ps".to_string(), bad_cfg).await.expect_err(
+            "run_ps_role should reject normalized duplicate parameter-sync targets after case-insensitive scheme+host normalization",
         );
         assert!(
             err.to_string()
@@ -7097,6 +7166,52 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_rejects_duplicate_parameter_sync_target_entries_after_http_prefix_normalization_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec![
+                "127.0.0.1:8500".to_string(),
+                "http://127.0.0.1:8500".to_string(),
+            ],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject normalized duplicate parameter-sync targets after implicit http-prefix normalization for ps role",
+        );
+        assert!(
+            err.to_string()
+                .contains("requires unique parameter_sync_targets entries"),
+            "unexpected runtime validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_duplicate_parameter_sync_target_entries_after_https_default_port_normalization_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec![
+                "https://127.0.0.1".to_string(),
+                "https://127.0.0.1:443".to_string(),
+            ],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject normalized duplicate parameter-sync targets after https default-port expansion for ps role",
+        );
+        assert!(
+            err.to_string()
+                .contains("requires unique parameter_sync_targets entries"),
+            "unexpected runtime validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_rejects_duplicate_parameter_sync_target_entries_after_case_insensitive_host_normalization_for_ps_role(
     ) {
         let discovery = Arc::new(InMemoryDiscovery::new());
@@ -7111,6 +7226,29 @@ mod tests {
         };
         let err = run_distributed(discovery, bad_cfg).await.expect_err(
             "run_distributed should reject normalized duplicate parameter-sync targets after case-insensitive host normalization for ps role",
+        );
+        assert!(
+            err.to_string()
+                .contains("requires unique parameter_sync_targets entries"),
+            "unexpected runtime validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_duplicate_parameter_sync_target_entries_after_case_insensitive_http_prefix_and_host_normalization_for_ps_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Ps,
+            parameter_sync_targets: vec![
+                "HTTP://LOCALHOST:8500".to_string(),
+                "http://localhost:8500".to_string(),
+            ],
+            parameter_sync_interval: Duration::from_millis(1),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg).await.expect_err(
+            "run_distributed should reject normalized duplicate parameter-sync targets after case-insensitive scheme+host normalization for ps role",
         );
         assert!(
             err.to_string()
