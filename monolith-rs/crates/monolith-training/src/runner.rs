@@ -5763,6 +5763,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_worker_role_allows_parameter_sync_names_with_internal_whitespace_without_wrapper(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            parameter_sync_model_name: "model name".to_string(),
+            parameter_sync_signature_name: "signature name".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", cfg).await.expect_err(
+            "worker role should proceed past parameter-sync internal-whitespace name validation because replication is ps-only",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "worker role should fail due to discovery timeout, not parameter-sync name-shape validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_model_name")
+                && !msg.contains("parameter_sync_signature_name"),
+            "worker role should ignore parameter-sync name-shape validation errors: {msg}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_worker_role_allows_zero_parameter_sync_interval_without_targets_without_wrapper(
     ) {
         let discovery = Arc::new(InMemoryDiscovery::new());
@@ -7370,6 +7403,39 @@ mod tests {
                 && !msg.contains("parameter_sync_model_name")
                 && !msg.contains("parameter_sync_signature_name"),
             "runtime should ignore parameter-sync duplicate/name validation errors for worker role: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_parameter_sync_names_with_internal_whitespace_for_worker_role(
+    ) {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: vec!["127.0.0.1:8500".to_string()],
+            parameter_sync_interval: Duration::from_millis(1),
+            parameter_sync_model_name: "model name".to_string(),
+            parameter_sync_signature_name: "signature name".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, cfg).await.expect_err(
+            "run_distributed should proceed past parameter-sync internal-whitespace name validation for worker role",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "runtime should fail due to missing PS discovery, not parameter-sync name-shape validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_model_name")
+                && !msg.contains("parameter_sync_signature_name"),
+            "runtime should ignore parameter-sync name-shape validation errors for worker role: {msg}"
         );
     }
 
