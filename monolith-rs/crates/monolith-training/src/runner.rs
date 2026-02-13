@@ -4692,6 +4692,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_rejects_whitespace_padded_ps_service_type_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_service_type_ps: " ps ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject whitespace-padded ps service type");
+        assert!(err
+            .to_string()
+            .contains("discovery_service_type_ps without leading/trailing whitespace"));
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_rejects_whitespace_padded_ps_service_type_runtime_config_for_ps_role(
     ) {
         let discovery = Arc::new(InMemoryDiscovery::new());
@@ -4706,6 +4722,22 @@ mod tests {
         assert!(err
             .to_string()
             .contains("discovery_service_type_ps without leading/trailing whitespace"));
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_internal_whitespace_ps_service_type_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            discovery_service_type_ps: "ps cluster".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject internal-whitespace ps service type");
+        assert!(err
+            .to_string()
+            .contains("discovery_service_type_ps without whitespace characters"));
     }
 
     #[tokio::test]
@@ -4726,6 +4758,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_distributed_rejects_whitespace_padded_table_name_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            table_name: " emb ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject whitespace-padded table name");
+        assert!(
+            err.to_string()
+                .contains("table_name without leading/trailing whitespace")
+        );
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_rejects_whitespace_padded_table_name_runtime_config_for_ps_role(
     ) {
         let discovery = Arc::new(InMemoryDiscovery::new());
@@ -4740,6 +4789,23 @@ mod tests {
         assert!(
             err.to_string()
                 .contains("table_name without leading/trailing whitespace")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_rejects_internal_whitespace_table_name_runtime_config() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            table_name: "my table".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, bad_cfg)
+            .await
+            .expect_err("run_distributed should reject internal-whitespace table name");
+        assert!(
+            err.to_string()
+                .contains("table_name without whitespace characters")
         );
     }
 
