@@ -13,7 +13,7 @@ use prost::Message;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 #[derive(Debug)]
 struct Inner {
@@ -28,6 +28,12 @@ pub struct WritableFile {
 }
 
 impl WritableFile {
+    fn lock_inner(&self) -> io::Result<MutexGuard<'_, Inner>> {
+        self.inner
+            .lock()
+            .map_err(|_| io::Error::other("writable file mutex poisoned"))
+    }
+
     /// Create (truncate) a file and prepare it for appends.
     pub fn new(path: impl AsRef<Path>) -> io::Result<Self> {
         let path = path.as_ref().to_path_buf();
@@ -48,10 +54,7 @@ impl WritableFile {
 
     /// Append raw bytes to the file.
     pub fn append(&self, content: impl AsRef<[u8]>) -> io::Result<()> {
-        let mut guard = self
-            .inner
-            .lock()
-            .expect("writable file mutex should not be poisoned during append");
+        let mut guard = self.lock_inner()?;
         let file = guard
             .file
             .as_mut()
@@ -89,10 +92,7 @@ impl WritableFile {
         }
         let emb_len = embedding.len() / item_id.len();
 
-        let mut guard = self
-            .inner
-            .lock()
-            .expect("writable file mutex should not be poisoned during entry dump append");
+        let mut guard = self.lock_inner()?;
         let file = guard
             .file
             .as_mut()
@@ -116,10 +116,7 @@ impl WritableFile {
 
     /// Close the underlying file.
     pub fn close(&self) -> io::Result<()> {
-        let mut guard = self
-            .inner
-            .lock()
-            .expect("writable file mutex should not be poisoned during close");
+        let mut guard = self.lock_inner()?;
         if let Some(mut file) = guard.file.take() {
             file.flush()?;
             // Best-effort sync for durability (not required by Python, but helpful for tests).
@@ -208,5 +205,71 @@ mod tests {
         let content = std::fs::read_to_string(&path)
             .expect("reading written file content should succeed");
         assert_eq!(content, "1234");
+    }
+
+    #[test]
+    fn writable_file_append_poisoned_mutex_returns_io_error() {
+        let tmp = tempfile::tempdir().expect("tempdir creation should succeed");
+        let path = tmp.path().join("test_poisoned_append").join("test_name");
+        let f = Arc::new(WritableFile::new(&path).expect("writable file creation should succeed"));
+        let poison_target = Arc::clone(&f);
+        let join_result = std::thread::spawn(move || {
+            let _guard = poison_target
+                .inner
+                .lock()
+                .expect("writable file mutex acquisition should succeed before poisoning");
+            panic!("poisoning writable file mutex for append error-path regression");
+        })
+        .join();
+        assert!(
+            join_result.is_err(),
+            "poisoning thread should panic to poison writable file mutex"
+        );
+
+        let err = f
+            .append("1234")
+            .expect_err("append should return an IO error when writable file mutex is poisoned");
+        assert_eq!(
+            err.kind(),
+            io::ErrorKind::Other,
+            "poisoned writable file mutex should map to io::ErrorKind::Other"
+        );
+        assert!(
+            err.to_string().contains("writable file mutex poisoned"),
+            "expected writable-file poisoned-mutex diagnostics, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn writable_file_close_poisoned_mutex_returns_io_error() {
+        let tmp = tempfile::tempdir().expect("tempdir creation should succeed");
+        let path = tmp.path().join("test_poisoned_close").join("test_name");
+        let f = Arc::new(WritableFile::new(&path).expect("writable file creation should succeed"));
+        let poison_target = Arc::clone(&f);
+        let join_result = std::thread::spawn(move || {
+            let _guard = poison_target
+                .inner
+                .lock()
+                .expect("writable file mutex acquisition should succeed before poisoning");
+            panic!("poisoning writable file mutex for close error-path regression");
+        })
+        .join();
+        assert!(
+            join_result.is_err(),
+            "poisoning thread should panic to poison writable file mutex"
+        );
+
+        let err = f
+            .close()
+            .expect_err("close should return an IO error when writable file mutex is poisoned");
+        assert_eq!(
+            err.kind(),
+            io::ErrorKind::Other,
+            "poisoned writable file mutex should map to io::ErrorKind::Other"
+        );
+        assert!(
+            err.to_string().contains("writable file mutex poisoned"),
+            "expected writable-file poisoned-mutex diagnostics, got {err:?}"
+        );
     }
 }

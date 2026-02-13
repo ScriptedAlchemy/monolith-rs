@@ -10420,6 +10420,26 @@
   - ZooKeeper/Consul discovery now expose deterministic lock-poison failure
     contracts while keeping watcher/poll lifecycle cleanup panic-free.
 
+### 705) File-ops writable mutex lock-poison hardening
+- Hardened `WritableFile` in `crates/monolith-training/src/file_ops.rs`:
+  - introduced `lock_inner()` helper mapping poisoned mutex acquisition to
+    deterministic `io::Error::other("writable file mutex poisoned")`,
+  - replaced panic-prone lock `expect(...)` paths in:
+    - `append`
+    - `append_entry_dump`
+    - `close`
+- Added regressions:
+  - `writable_file_append_poisoned_mutex_returns_io_error`
+  - `writable_file_close_poisoned_mutex_returns_io_error`
+- Coverage validates:
+  - poisoned writable-file mutexes now return explicit IO errors (kind
+    `Other`) instead of panicking,
+  - existing file-ops parity behaviors remain stable (shape validation,
+    append-after-close, TFRecord roundtrip framing).
+- Result:
+  - File-ops write/close paths now preserve explicit failure-shape contracts on
+    lock-poison edge cases.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11897,6 +11917,10 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1467. `rg "test_(zk|consul)_(register|discover)_poisoned_services_lock_returns_internal_error" crates/monolith-training/src/discovery.rs` ✅ (verified ZooKeeper/Consul lock-poison service-cache regressions are present)
 1468. `rg "zookeeper discovery services (read|write) lock poisoned|consul discovery services (read|write) lock poisoned" crates/monolith-training/src/discovery.rs` ✅ (verified explicit ZooKeeper/Consul lock-poison error message contracts are present)
 1469. `rg "zk discovery .*should not be poisoned|consul discovery .*should not be poisoned" crates/monolith-training/src/discovery.rs` ✅ (verified legacy backend panic-path expect strings were removed from production discovery code)
+1470. `cargo test -p monolith-training writable_file_ -- --nocapture && cargo test -p monolith-training --test file_ops_parity -- --nocapture` ✅ (validated writable-file lock-poison regressions and confirmed file_ops parity integration scenarios stay green)
+1471. `rg "writable_file_(append|close)_poisoned_mutex_returns_io_error" crates/monolith-training/src/file_ops.rs` ✅ (verified writable-file lock-poison error-path regressions are present)
+1472. `rg "writable file mutex should not be poisoned during (append|entry dump append|close)" crates/monolith-training/src/file_ops.rs` ✅ (verified legacy writable-file panic-path expect strings are removed)
+1473. `rg "writable file mutex poisoned" crates/monolith-training/src/file_ops.rs` ✅ (verified explicit writable-file poisoned-mutex diagnostics are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
