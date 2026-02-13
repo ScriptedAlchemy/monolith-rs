@@ -4413,6 +4413,10 @@ mod tests {
             !zk.registered_paths.lock().await.contains_key("ps-0"),
             "registered-path bookkeeping should remain removed even on invalid-host config failure"
         );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "live watcher sender should be preserved after invalid-hosts deregister notification"
+        );
     }
 
     #[cfg(feature = "zookeeper")]
@@ -4452,6 +4456,10 @@ mod tests {
         assert!(
             !zk.registered_paths.lock().await.contains_key("ps-0"),
             "registered-path bookkeeping should remain removed even on malformed-host-entry config failure"
+        );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "live watcher sender should be preserved after malformed-host-entry deregister notification"
         );
     }
 
@@ -4493,6 +4501,10 @@ mod tests {
             !zk.registered_paths.lock().await.contains_key("ps-0"),
             "registered-path bookkeeping should remain removed even on invalid-port config failure"
         );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "live watcher sender should be preserved after invalid-port deregister notification"
+        );
     }
 
     #[cfg(feature = "zookeeper")]
@@ -4533,6 +4545,10 @@ mod tests {
             !zk.registered_paths.lock().await.contains_key("ps-0"),
             "registered-path bookkeeping should remain removed even on out-of-range-port config failure"
         );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "live watcher sender should be preserved after out-of-range-port deregister notification"
+        );
     }
 
     #[cfg(feature = "zookeeper")]
@@ -4572,6 +4588,10 @@ mod tests {
         assert!(
             !zk.registered_paths.lock().await.contains_key("ps-0"),
             "registered-path bookkeeping should remain removed even on invalid-base_path config failure"
+        );
+        assert!(
+            zk_has_watcher(&zk, "ps"),
+            "live watcher sender should be preserved after invalid-base-path deregister notification"
         );
     }
 

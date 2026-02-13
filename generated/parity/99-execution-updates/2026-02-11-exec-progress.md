@@ -7569,6 +7569,20 @@
     cleanup-notification behavior and post-notification live watcher retention
     across all covered config-shapes.
 
+### 561) Discovery ZooKeeper deregister live-watcher preservation assertions across config-shapes
+- Tightened ZooKeeper malformed-config `deregister_async` regressions in
+  `crates/monolith-training/src/discovery.rs` by adding explicit
+  post-notification live-watcher retention assertions for:
+  - invalid hosts (whitespace),
+  - malformed IPv6 host entry,
+  - invalid port,
+  - out-of-range port,
+  - invalid base path.
+- Result:
+  - ZooKeeper deregister malformed-config tests now explicitly verify both
+    cleanup-notification behavior and post-notification live watcher retention
+    across all covered config-shapes.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -8748,6 +8762,8 @@
 1176. `rg "test_consul_async_register_invalid_scheme_(compacts_dead_watchers|keeps_live_watchers)" crates/monolith-training/src/discovery.rs` ✅ (verified newly added Consul invalid-scheme register symmetry tests are present)
 1177. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_invalid_scheme_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_invalid_port_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_out_of_range_port_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_invalid_ipv6_suffix_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_userinfo_authority_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_whitespace_authority_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_leading_trailing_whitespace_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_empty_host_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_address_query_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_address_fragment_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "consul" discovery::tests::test_consul_async_deregister_address_path_still_notifies_and_returns_error -- --nocapture` ✅ (validated strengthened Consul deregister malformed-address regressions with live-watcher preservation assertions)
 1178. `rg "live watcher sender should be preserved after .* deregister notification" crates/monolith-training/src/discovery.rs` ✅ (verified newly added live-watcher-preservation assertions across Consul deregister malformed-address tests)
+1179. `cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_invalid_hosts_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_malformed_ipv6_host_entry_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_invalid_port_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_out_of_range_port_still_notifies_and_returns_error -- --nocapture && cargo test -p monolith-training --features "zookeeper" discovery::tests::test_zk_async_deregister_invalid_base_path_still_notifies_and_returns_error -- --nocapture` ✅ (validated strengthened ZooKeeper deregister malformed-config regressions with live-watcher preservation assertions)
+1180. `rg "live watcher sender should be preserved after .* deregister notification" crates/monolith-training/src/discovery.rs` ✅ (verified newly added ZooKeeper+Consul live-watcher-preservation assertions across deregister malformed-config tests)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
