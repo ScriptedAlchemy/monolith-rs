@@ -6522,6 +6522,10 @@ mod tests {
                 .is_empty(),
             "normalized host:port async deregister should remove service from local cache"
         );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on normalized host:port async deregister failure"
+        );
     }
 
     #[cfg(feature = "consul")]
@@ -6607,6 +6611,10 @@ mod tests {
                 .expect("discover should succeed")
                 .is_empty(),
             "normalized-root-slash async deregister should remove service from local cache"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on normalized-root-slash async deregister failure"
         );
     }
 
@@ -6886,6 +6894,61 @@ mod tests {
                 .expect("discover should succeed")
                 .is_empty(),
             "normalized host:port async register should not populate local service cache"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_host_port_without_scheme_compacts_dead_watchers() {
+        let consul = ConsulDiscovery::new("127.0.0.1:8501");
+        let rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+        drop(rx);
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("host:port address should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("register_entity") && msg.contains("8501")),
+            "expected Internal containing normalized host:port register context, got {err:?}"
+        );
+        assert!(
+            !consul_has_watcher(&consul, "worker"),
+            "dead watcher sender should be compacted on normalized host:port async register failure"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_async_register_host_port_without_scheme_keeps_live_watchers() {
+        let consul = ConsulDiscovery::new("127.0.0.1:8501");
+        let _rx = consul.watch("worker").expect("watch should succeed");
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "watch sender should exist after subscribing"
+        );
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::register_async(
+            &consul,
+            ServiceInfo::new("worker-0", "worker-0", "worker", "127.0.0.1", 6000),
+        )
+        .await;
+        let err = result.expect_err("host:port address should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("register_entity") && msg.contains("8501")),
+            "expected Internal containing normalized host:port register context, got {err:?}"
+        );
+        assert!(
+            consul_has_watcher(&consul, "worker"),
+            "live watcher sender should be preserved on normalized host:port async register failure"
         );
     }
 
@@ -7665,6 +7728,36 @@ mod tests {
                 if msg.contains("get_service_nodes") && msg.contains("8500")),
             "expected Internal containing normalized-root-slash discover context, got {err:?}"
         );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
+    async fn test_consul_discover_async_case_insensitive_scheme_and_root_slash_preserves_local_cache() {
+        let consul = ConsulDiscovery::new("HTTP://127.0.0.1:8500/");
+        consul
+            .register(ServiceInfo::new(
+                "worker-0", "worker-0", "worker", "127.0.0.1", 6000,
+            ))
+            .expect("sync register should seed local cache");
+
+        let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")
+            .await;
+        let err = result.expect_err("case-insensitive scheme + root slash should normalize and fail in backend call");
+        assert!(
+            matches!(err, DiscoveryError::Internal(ref msg)
+                if msg.contains("get_service_nodes") && msg.contains("8500")),
+            "expected Internal containing normalized-root-slash discover context, got {err:?}"
+        );
+
+        let cached = consul
+            .discover("worker")
+            .expect("discover should succeed after async normalized-root-slash failure");
+        assert_eq!(
+            cached.len(),
+            1,
+            "normalized-root-slash async discover failure should not evict local cache entries"
+        );
+        assert_eq!(cached[0].id, "worker-0");
     }
 
     #[cfg(feature = "consul")]
