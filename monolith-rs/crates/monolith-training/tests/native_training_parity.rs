@@ -5609,6 +5609,45 @@ async fn distributed_runner_from_run_config_rejects_case_insensitive_identical_p
 }
 
 #[tokio::test]
+async fn distributed_runner_from_run_config_allows_case_insensitive_identical_ps_and_worker_service_types_for_ps_role(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_run_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let run = RunConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_service_type_ps: "Service".to_string(),
+        discovery_service_type_worker: "service".to_string(),
+        ..RunConfig::default()
+    };
+
+    let task = tokio::spawn({
+        let discovery = Arc::clone(&discovery);
+        async move {
+            run_distributed_from_run_config(
+                discovery,
+                &run,
+                None,
+                Role::Ps,
+                test_bind_addr(),
+            )
+            .await
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    assert!(
+        !task.is_finished(),
+        "ps role should continue serving; case-insensitive identical ps/worker service types must not fail run-config validation"
+    );
+    task.abort();
+}
+
+#[tokio::test]
 async fn distributed_runner_from_run_config_rejects_empty_table_name() {
     use monolith_training::discovery::InMemoryDiscovery;
     use monolith_training::runner::{run_distributed_from_run_config, Role};
@@ -21244,6 +21283,39 @@ async fn distributed_runner_from_runner_config_rejects_case_insensitive_identica
         ),
         "case-insensitive identical runner-config discovery service types should be rejected by distributed config validation: {err}"
     );
+}
+
+#[tokio::test]
+async fn distributed_runner_from_runner_config_allows_case_insensitive_identical_ps_and_worker_service_types_for_ps_role(
+) {
+    use monolith_training::discovery::InMemoryDiscovery;
+    use monolith_training::runner::{run_distributed_from_runner_config, Role};
+    use std::sync::Arc;
+
+    let discovery = Arc::new(InMemoryDiscovery::new());
+    let runner = RunnerConfig {
+        is_local: true,
+        index: 0,
+        num_ps: 1,
+        num_workers: 1,
+        discovery_service_type_ps: "Service".to_string(),
+        discovery_service_type_worker: "service".to_string(),
+        ..RunnerConfig::default()
+    };
+
+    let task = tokio::spawn({
+        let discovery = Arc::clone(&discovery);
+        async move {
+            run_distributed_from_runner_config(discovery, &runner, Role::Ps, test_bind_addr())
+                .await
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    assert!(
+        !task.is_finished(),
+        "ps role should continue serving; case-insensitive identical ps/worker service types must not fail runner-config validation"
+    );
+    task.abort();
 }
 
 #[tokio::test]

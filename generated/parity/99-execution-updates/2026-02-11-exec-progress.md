@@ -11094,6 +11094,24 @@
   - run/runner config role matrices now include both reject and allow branches
     for retry-disabled worker behavior and PS service-type distinctness bypass.
 
+### 742) Case-insensitive identical service-type PS-role bypass parity closure
+- Added integration regressions in
+  `crates/monolith-training/tests/native_training_parity.rs`:
+  - `distributed_runner_from_run_config_allows_case_insensitive_identical_ps_and_worker_service_types_for_ps_role`
+  - `distributed_runner_from_runner_config_allows_case_insensitive_identical_ps_and_worker_service_types_for_ps_role`
+- Re-ran existing worker rejection regressions:
+  - `distributed_runner_from_run_config_rejects_case_insensitive_identical_ps_and_worker_service_types`
+  - `distributed_runner_from_runner_config_rejects_case_insensitive_identical_ps_and_worker_service_types`
+- Coverage validates:
+  - worker entrypaths continue enforcing case-insensitive distinctness for
+    ps/worker discovery service types,
+  - PS entrypaths remain permissive for this worker-only constraint even under
+    case-insensitive identical values.
+- Result:
+  - case-insensitive service-type distinctness behavior is now fully locked as
+    reject-on-worker / allow-on-ps across both run-config and runner-config
+    integration surfaces.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12661,6 +12679,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1557. `rg "distributed_runner_from_(run_config|runner_config)_(rejects_zero_retry_backoff_for_worker_role_when_retries_enabled|allows_zero_retry_backoff_for_ps_role|allows_zero_barrier_timeout_for_ps_role|rejects_zero_barrier_timeout)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified run/runner config retry-backoff and barrier role-matrix integration regressions are present)
 1558. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_zero_retry_backoff_when_retries_disabled_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_zero_retry_backoff_when_retries_disabled_for_worker_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_identical_ps_and_worker_service_types_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_identical_ps_and_worker_service_types_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_identical_ps_and_worker_service_types -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_identical_ps_and_worker_service_types -- --nocapture` ✅ (validated retry-disabled worker allow paths plus ps identical-service-type allow paths while retaining worker identical-service-type rejection in both run-config and runner-config entrypoints)
 1559. `rg "distributed_runner_from_(run_config|runner_config)_(allows_zero_retry_backoff_when_retries_disabled_for_worker_role|allows_identical_ps_and_worker_service_types_for_ps_role|rejects_identical_ps_and_worker_service_types|rejects_zero_retry_backoff_for_worker_role_when_retries_enabled|allows_zero_retry_backoff_for_ps_role)" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified run/runner retry-disabled and identical-service-type role-matrix integration regressions are present)
+1560. `cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_allows_case_insensitive_identical_ps_and_worker_service_types_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_allows_case_insensitive_identical_ps_and_worker_service_types_for_ps_role -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_run_config_rejects_case_insensitive_identical_ps_and_worker_service_types -- --nocapture && cargo test -p monolith-training --test native_training_parity distributed_runner_from_runner_config_rejects_case_insensitive_identical_ps_and_worker_service_types -- --nocapture` ✅ (validated case-insensitive identical service-type contracts remain worker-reject while ps-role allow paths stay permissive across run-config/runner-config entrypoints)
+1561. `rg "allows_case_insensitive_identical_ps_and_worker_service_types_for_ps_role|rejects_case_insensitive_identical_ps_and_worker_service_types" crates/monolith-training/tests/native_training_parity.rs` ✅ (verified case-insensitive identical service-type reject/allow integration regressions are present for both run-config and runner-config paths)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
