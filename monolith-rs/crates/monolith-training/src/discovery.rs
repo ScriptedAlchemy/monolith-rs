@@ -7831,6 +7831,35 @@ mod tests {
 
     #[cfg(feature = "consul")]
     #[tokio::test]
+    async fn test_consul_connect_empty_address_disconnect_and_reconnect() {
+        let consul = ConsulDiscovery::new("");
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("empty address should normalize to default Consul endpoint");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "empty-address connect should initialize client handle"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::disconnect(&consul)
+            .await
+            .expect("disconnect should succeed");
+        assert!(
+            consul.client.lock().await.is_none(),
+            "disconnect should clear empty-address normalized client handle"
+        );
+
+        <ConsulDiscovery as ServiceDiscoveryAsync>::connect(&consul)
+            .await
+            .expect("reconnect should reinitialize client handle for empty-address normalization");
+        assert!(
+            consul.client.lock().await.is_some(),
+            "reconnect should recreate client handle for empty-address normalized endpoint"
+        );
+    }
+
+    #[cfg(feature = "consul")]
+    #[tokio::test]
     async fn test_consul_discover_async_whitespace_authority_is_classified_as_config_error() {
         let consul = ConsulDiscovery::new("http://127.0.0.1 :8500");
         let result = <ConsulDiscovery as ServiceDiscoveryAsync>::discover_async(&consul, "worker")

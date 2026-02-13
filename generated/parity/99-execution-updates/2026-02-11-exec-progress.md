@@ -7920,6 +7920,19 @@
     constructor/builder diagnostics in addition to address/datacenter/token
     assertions.
 
+### 589) Discovery Consul empty-address connect lifecycle reconnect parity
+- Added `test_consul_connect_empty_address_disconnect_and_reconnect` in
+  `crates/monolith-training/src/discovery.rs`.
+- Coverage validates default-endpoint connect lifecycle behavior for empty
+  addresses:
+  - connect initializes client handle,
+  - disconnect clears handle,
+  - reconnect reinitializes handle deterministically.
+- Result:
+  - Empty-address connect parity now explicitly includes disconnect+reconnect
+    client-handle lifecycle guarantees alongside existing initialization
+    coverage.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -9154,6 +9167,8 @@
 1231. `rg "test_consul_connect_case_insensitive_scheme_and_root_slash_disconnect_and_reconnect" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul case-insensitive/root-slash connect lifecycle reconnect regression is present)
 1232. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_discovery_creation_with_service_name_override -- --nocapture` ✅ (validated Consul discovery builder service-name override parity regression)
 1233. `rg "test_consul_discovery_creation_with_service_name_override" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul discovery builder service-name override regression is present)
+1234. `cargo test -p monolith-training --features "consul" discovery::tests::test_consul_connect_empty_address_disconnect_and_reconnect -- --nocapture` ✅ (validated Consul empty-address connect/disconnect/reconnect client-handle lifecycle regression)
+1235. `rg "test_consul_connect_empty_address_disconnect_and_reconnect" crates/monolith-training/src/discovery.rs` ✅ (verified new Consul empty-address connect lifecycle reconnect regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
