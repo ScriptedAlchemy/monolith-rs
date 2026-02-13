@@ -4404,6 +4404,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_run_worker_role_rejects_non_positive_barrier_timeout_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let bad_cfg = DistributedRunConfig {
+            role: Role::Worker,
+            barrier_timeout_ms: 0,
+            ..DistributedRunConfig::default()
+        };
+        let err = run_worker_role(discovery, "worker-0", bad_cfg)
+            .await
+            .expect_err("run_worker_role should reject non-positive barrier timeout");
+        assert!(
+            err.to_string().contains("barrier_timeout_ms > 0"),
+            "unexpected worker-role barrier-timeout validation error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_ps_role_allows_non_positive_barrier_timeout_without_wrapper() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Ps,
+            index: 0,
+            num_ps: 1,
+            num_workers: 1,
+            bind_addr: loopback_ephemeral_bind_addr(),
+            barrier_timeout_ms: 0,
+            heartbeat_interval: None,
+            ..DistributedRunConfig::default()
+        };
+
+        let task = tokio::spawn(run_ps_role(
+            Arc::clone(&discovery),
+            "ps-0",
+            "ps".to_string(),
+            cfg,
+        ));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !task.is_finished(),
+            "run_ps_role should keep serving; worker-only barrier timeout must not fail ps role validation"
+        );
+        task.abort();
+    }
+
+    #[tokio::test]
     async fn test_run_distributed_allows_zero_parameter_sync_interval_without_targets() {
         let discovery = Arc::new(InMemoryDiscovery::new());
         let cfg = DistributedRunConfig {
