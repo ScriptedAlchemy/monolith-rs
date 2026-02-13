@@ -488,6 +488,17 @@ impl LocalCluster {
         }
     }
 
+    fn remove_worker_from_all_barrier_waiters(&mut self, worker_index: usize) {
+        let epochs_to_prune: Vec<u64> = self
+            .barrier_waiters
+            .iter()
+            .filter_map(|(&epoch, waiters)| waiters.contains(&worker_index).then_some(epoch))
+            .collect();
+        for epoch in epochs_to_prune {
+            self.remove_barrier_waiter(epoch, worker_index);
+        }
+    }
+
     /// Creates a new local cluster from a validated cluster config.
     pub fn new(config: ClusterConfig, learning_rate: f32) -> DistributedResult<Self> {
         config.validate()?;
@@ -733,17 +744,17 @@ impl LocalCluster {
         }
         let start = std::time::Instant::now();
         loop {
-            match self.sync_barrier(worker_index)? {
-                BarrierStatus::Released {
+            match self.sync_barrier(worker_index) {
+                Ok(BarrierStatus::Released {
                     epoch,
                     participants,
-                } => {
+                }) => {
                     return Ok(BarrierStatus::Released {
                         epoch,
                         participants,
                     });
                 }
-                BarrierStatus::Waiting { epoch, .. } => {
+                Ok(BarrierStatus::Waiting { epoch, .. }) => {
                     if start.elapsed() >= timeout {
                         // Match robust distributed barrier semantics: a timed-out worker
                         // should not remain as a stale participant for future retries.
@@ -753,6 +764,10 @@ impl LocalCluster {
                             timeout_ms: duration_to_timeout_ms(timeout),
                         });
                     }
+                }
+                Err(err) => {
+                    self.remove_worker_from_all_barrier_waiters(worker_index);
+                    return Err(err);
                 }
             }
             std::thread::sleep(poll_interval);
@@ -1520,6 +1535,57 @@ mod tests {
             matches!(err, DistributedError::InvalidConfiguration(ref msg)
                 if msg.contains("local cluster is not fully running")),
             "expected InvalidConfiguration mentioning not-fully-running cluster, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_local_cluster_wait_for_barrier_partial_cluster_error_cleans_existing_waiter() {
+        let cfg = ClusterConfig::new(
+            vec![make_addr(5000)],
+            vec![make_addr(6000), make_addr(6001)],
+            0,
+            false,
+        );
+        let mut cluster = LocalCluster::new(cfg, 0.1)
+            .expect("local cluster construction should succeed for waiter-cleanup test");
+        cluster
+            .start()
+            .expect("local cluster start should succeed for waiter-cleanup test");
+
+        let waiting = cluster
+            .sync_barrier(0)
+            .expect("initial worker barrier call should seed waiter bookkeeping");
+        assert!(
+            matches!(waiting, BarrierStatus::Waiting { epoch: 0, arrived: 1, required: 2 }),
+            "expected first worker to be waiting at epoch 0 before partial-cluster error path, got {waiting:?}"
+        );
+        assert!(
+            cluster
+                .barrier_waiters
+                .get(&0)
+                .map(|waiters| waiters.contains(&0))
+                .unwrap_or(false),
+            "barrier waiter bookkeeping should contain worker 0 before partial-cluster error path"
+        );
+
+        cluster.workers[1]
+            .stop()
+            .expect("stopping worker 1 should succeed before wait_for_barrier error path");
+        let err = cluster
+            .wait_for_barrier(
+                0,
+                std::time::Duration::from_millis(10),
+                std::time::Duration::from_millis(1),
+            )
+            .expect_err("wait_for_barrier should fail when cluster transitions to partial-running");
+        assert!(
+            matches!(err, DistributedError::InvalidConfiguration(ref msg)
+                if msg.contains("local cluster is not fully running")),
+            "expected InvalidConfiguration mentioning partial-running cluster, got {err:?}"
+        );
+        assert!(
+            !cluster.barrier_waiters.contains_key(&0),
+            "wait_for_barrier should clean worker-specific waiter bookkeeping before returning partial-cluster errors"
         );
     }
 

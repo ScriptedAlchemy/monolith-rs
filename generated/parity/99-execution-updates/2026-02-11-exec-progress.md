@@ -10351,6 +10351,23 @@
   - Zero-timeout barrier waits now have explicit regression-locked cleanup
     semantics for deterministic retry behavior.
 
+### 701) Distributed wait_for_barrier partial-state waiter cleanup hardening
+- Hardened `wait_for_barrier` in
+  `crates/monolith-training/src/distributed.rs` to perform worker-specific
+  waiter cleanup when `sync_barrier` exits with errors (for example, cluster
+  transitions to partially running state during blocking wait attempts).
+- Added helper:
+  - `remove_worker_from_all_barrier_waiters`
+- Added regression:
+  - `test_local_cluster_wait_for_barrier_partial_cluster_error_cleans_existing_waiter`
+- Coverage validates:
+  - an already-enqueued waiter is removed when `wait_for_barrier` aborts with
+    partial-cluster `InvalidConfiguration`,
+  - waiter bookkeeping no longer leaks stale worker entries across error exits.
+- Result:
+  - `wait_for_barrier` now guarantees consistent waiter-state cleanup on both
+    timeout and non-timeout error paths.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -11816,6 +11833,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1455. `rg "test_duration_to_timeout_ms_saturates_for_large_durations" crates/monolith-training/src/distributed.rs` ✅ (verified timeout-millis saturation regression is present)
 1456. `cargo test -p monolith-training test_local_cluster_wait_for_barrier_zero_timeout_cleans_waiter_before_return -- --nocapture && cargo test -p monolith-training test_local_cluster_wait_for_barrier_timeout_cleanup_allows_retry -- --nocapture` ✅ (validated immediate zero-timeout barrier failure path cleans waiter bookkeeping and preserves retry semantics)
 1457. `rg "test_local_cluster_wait_for_barrier_zero_timeout_cleans_waiter_before_return" crates/monolith-training/src/distributed.rs` ✅ (verified zero-timeout barrier cleanup regression is present)
+1458. `cargo test -p monolith-training test_local_cluster_wait_for_barrier_ -- --nocapture` ✅ (validated full wait_for_barrier suite including partial-state error-path waiter cleanup semantics)
+1459. `rg "test_local_cluster_wait_for_barrier_partial_cluster_error_cleans_existing_waiter" crates/monolith-training/src/distributed.rs` ✅ (verified partial-state wait_for_barrier waiter-cleanup regression is present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
