@@ -3645,6 +3645,19 @@ mod tests {
     }
 
     #[test]
+    fn test_distributed_config_validate_allows_empty_parameter_sync_names_without_targets() {
+        let cfg = DistributedRunConfig {
+            parameter_sync_targets: Vec::new(),
+            parameter_sync_model_name: "".to_string(),
+            parameter_sync_signature_name: "   ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        cfg.validate().expect(
+            "parameter sync model/signature names should be ignored when parameter sync targets are disabled",
+        );
+    }
+
+    #[test]
     fn test_ordered_ps_addrs_prefers_discovery_index_metadata() {
         let mut ps1 = ServiceInfo::new("ps-1", "ps-1", "ps", "127.0.0.1", 10001);
         ps1 = ps1.with_metadata("index", "1");
@@ -4269,6 +4282,36 @@ mod tests {
         assert!(
             !msg.contains("parameter_sync_interval > 0"),
             "runtime should not reject zero parameter_sync_interval when parameter-sync targets are empty: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_distributed_allows_empty_parameter_sync_names_without_targets() {
+        let discovery = Arc::new(InMemoryDiscovery::new());
+        let cfg = DistributedRunConfig {
+            role: Role::Worker,
+            num_ps: 1,
+            num_workers: 1,
+            index: 0,
+            connect_retries: 0,
+            retry_backoff_ms: 1,
+            heartbeat_interval: None,
+            parameter_sync_targets: Vec::new(),
+            parameter_sync_model_name: "".to_string(),
+            parameter_sync_signature_name: "   ".to_string(),
+            ..DistributedRunConfig::default()
+        };
+        let err = run_distributed(discovery, cfg).await.expect_err(
+            "run_distributed should proceed past parameter-sync name validation when sync targets are disabled",
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Timed out waiting for PS discovery"),
+            "runtime should fail due to missing PS discovery, not parameter-sync name validation: {msg}"
+        );
+        assert!(
+            !msg.contains("parameter_sync_model_name") && !msg.contains("parameter_sync_signature_name"),
+            "runtime should not validate parameter sync model/signature names when parameter-sync targets are empty: {msg}"
         );
     }
 

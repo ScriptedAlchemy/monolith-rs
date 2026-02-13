@@ -10841,6 +10841,23 @@
   - parameter-sync interval semantics are now fully explicit across both
     enabled and disabled parameter-sync runtime modes.
 
+### 728) Parameter-sync name validation now explicitly scoped to enabled mode
+- Expanded runner config/runtime regressions in
+  `crates/monolith-training/src/runner.rs`:
+  - `test_distributed_config_validate_allows_empty_parameter_sync_names_without_targets`
+    locks that model/signature name validation is skipped when
+    `parameter_sync_targets` are disabled.
+  - `test_run_distributed_allows_empty_parameter_sync_names_without_targets`
+    confirms runtime proceeds past config validation in disabled parameter-sync
+    mode even with empty/whitespace parameter-sync names.
+- Coverage validates:
+  - strict parameter-sync name validation remains enforced when targets are
+    configured (existing coverage),
+  - disabled parameter-sync mode does not over-constrain unrelated name fields.
+- Result:
+  - parameter-sync naming contracts now explicitly distinguish enabled vs
+    disabled modes, reducing accidental overvalidation regressions.
+
 ## Validation evidence (commands run)
 
 1. `cargo test -p monolith-cli -q` ✅  
@@ -12378,6 +12395,8 @@ PY` ✅ (`total_unwrap 0` confirming no remaining unwrap call-sites)
 1527. `rg "test_distributed_config_validate_allows_disabled_heartbeat_interval|test_worker_heartbeat_task_disabled_when_interval_none|test_ps_heartbeat_task_disabled_when_interval_none" crates/monolith-training/src/runner.rs` ✅ (verified heartbeat-disable contract regressions are present)
 1528. `cargo test -p monolith-training test_distributed_config_validate_allows_zero_parameter_sync_interval_without_targets -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_zero_parameter_sync_interval_without_targets -- --nocapture` ✅ (validated zero parameter_sync_interval is accepted when parameter-sync targets are disabled, both at config-validation and runtime entrypoint levels)
 1529. `rg "test_distributed_config_validate_allows_zero_parameter_sync_interval_without_targets|test_run_distributed_allows_zero_parameter_sync_interval_without_targets" crates/monolith-training/src/runner.rs` ✅ (verified zero-interval parameter-sync disabled-mode regressions are present)
+1530. `cargo test -p monolith-training test_distributed_config_validate_allows_empty_parameter_sync_names_without_targets -- --nocapture && cargo test -p monolith-training test_run_distributed_allows_empty_parameter_sync_names_without_targets -- --nocapture` ✅ (validated empty/whitespace parameter-sync model/signature names are accepted when parameter-sync targets are disabled, at both validation and runtime entrypoint levels)
+1531. `rg "test_distributed_config_validate_allows_empty_parameter_sync_names_without_targets|test_run_distributed_allows_empty_parameter_sync_names_without_targets" crates/monolith-training/src/runner.rs` ✅ (verified parameter-sync name disabled-mode regressions are present)
 75. `cargo test --workspace -q` ✅ (post detailed PS client response metadata additions and distributed/runtime regression rerun)
 
 ## Notes
